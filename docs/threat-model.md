@@ -238,6 +238,7 @@ Demonstrated a [rug-pull attack](https://invariantlabs.ai/blog/mcp-security-noti
 | File read of .env | High | Claude Code reads `.env` files by default, without notifying the user | [Knostic: Claude loads secrets without permission](https://www.knostic.ai/blog/claude-loads-secrets-without-permission) |
 | Prompt injection via dependencies | Critical | Malicious package README/comments cause agent to exfiltrate secrets | [VentureBeat: Three AI agents leaked secrets (Apr 2026)](https://venturebeat.com/security/ai-agent-runtime-security-system-card-audit-comment-and-control-2026) |
 | MCP tool poisoning | Critical | Malicious MCP server overrides tool descriptions, intercepts calls | [Invariant Labs: Tool Poisoning Attacks (2025)](https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks) |
+| MCP STDIO design flaw | Critical | Unsafe STDIO defaults in official Anthropic MCP SDKs (Python, TS, Java, Rust) enable RCE; Anthropic declined to patch | [OX Security / The Register: MCP design flaw (Apr 2026)](https://www.theregister.com/2026/04/16/anthropic_mcp_design_flaw/) |
 | MCP rug pull | Critical | MCP server changes behavior after initial trust is established | [Invariant Labs: Tool Poisoning Attacks (2025)](https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks) |
 | Command output capture | High | All bash output becomes conversation context sent to the API | Architectural — inherent to all LLM-based agents |
 | Agent skill supply chain | Critical | 13.4% of audited agent skills contain critical security issues | [Snyk: ToxicSkills (Feb 2026)](https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub/) |
@@ -248,6 +249,12 @@ Demonstrated a [rug-pull attack](https://invariantlabs.ai/blog/mcp-security-noti
 | Context poisoning via repo config | Medium | Malicious `CLAUDE.md`/`.cursorrules` override agent behavior | [VentureBeat: 5 actions for security leaders (2026)](https://venturebeat.com/security/claude-code-512000-line-source-leak-attack-paths-audit-security-leaders) |
 
 ## Real Incidents Timeline
+
+### April 2026 — MCP SDK Design Vulnerability Exposes 200K Servers to RCE
+
+OX Security disclosed a critical systemic flaw in Anthropic's official Model Context Protocol SDK, affecting Python, TypeScript, Java, and Rust implementations. The root cause is unsafe defaults in the STDIO transport interface — not a coding error, but an architectural decision baked into the reference SDK. OX reports more than 150 million affected downloads, ~7,000 publicly accessible vulnerable servers, and an estimated 200,000 total vulnerable instances. Anthropic declined to modify the protocol, calling the STDIO execution model "a secure default" and placing sanitization responsibility on developers. Downstream CVEs include CVE-2025-49596 (MCP Inspector), CVE-2026-22252 (LibreChat), CVE-2026-22688 (WeKnora), and CVE-2025-54136 (Cursor).
+
+Source: [The Register — MCP 'design flaw' puts 200k servers at risk](https://www.theregister.com/2026/04/16/anthropic_mcp_design_flaw/) | [Infosecurity Magazine — Systemic Flaw in MCP Protocol](https://www.infosecurity-magazine.com/news/systemic-flaw-mcp-expose-150/)
 
 ### April 2026 — Three AI Agents Leak Secrets via Prompt Injection
 

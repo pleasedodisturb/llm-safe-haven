@@ -20,6 +20,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | Resource | Stars | Description |
 |----------|-------|-------------|
 | [snyk/agent-scan](https://github.com/snyk/agent-scan) | ~2.2K | Security scanner for AI agents, MCP servers, and agent skills. Auto-discovers local agent configs (Claude, Cursor, Windsurf, Gemini CLI). Scans for prompt injection, tool poisoning, toxic flows, and 15+ risks. |
+| [avast/sage](https://github.com/avast/sage) | ~182 | Lightweight Agent Detection & Response (ADR) layer for AI agents. Intercepts every tool call — Bash commands, URL fetches, file writes — before it hits the OS. Checks against URL reputation (cloud-based malware/phishing detection), local YAML-based heuristics, and package supply-chain data (npm/PyPI). Works with Claude Code, Cursor, VS Code, OpenClaw. File content and commands stay local; only URL/package hashes are sent to Gen Digital reputation APIs. March 2026. |
 | [Yelp/detect-secrets](https://github.com/Yelp/detect-secrets) | ~4.3K | Pre-commit secret detection with plugin architecture. 27 built-in detectors, scans git diffs (not full repos) — efficient for monorepos. |
 | [trufflesecurity/trufflehog](https://github.com/trufflesecurity/trufflehog) | ~25.7K | Find, verify, and analyze leaked credentials across git repos, S3 buckets, filesystems, and more. Verification reduces false positives. |
 | [gitleaks/gitleaks](https://github.com/gitleaks/gitleaks) | ~26.2K | Fast git secret scanner. Pre-commit hooks and CI integration. Good complement to TruffleHog for different detection patterns. |
@@ -28,7 +29,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 
 | Resource | Stars | Description |
 |----------|-------|-------------|
-| [Infisical/agent-vault](https://github.com/Infisical/agent-vault) | — | HTTP credential proxy for AI agents. Agents route requests through a local proxy that injects credentials at the network layer — agents never see plaintext secrets. Research preview. |
+| [Infisical/agent-vault](https://github.com/Infisical/agent-vault) | — | HTTP credential proxy for AI agents. Agents route requests through a local proxy that injects credentials at the network layer — agents never see plaintext secrets. Officially launched April 22, 2026. |
 | [DemiPass](https://www.demipass.com/) | — | MCP-native secrets management using 30-second, single-use cryptographic nonces. Agents get use-tokens, never raw credentials. Commercial. |
 | [1Password/agent-hooks](https://github.com/1Password/agent-hooks) | — | PreToolUse hooks for AI agents (Claude Code, Cursor, Copilot, Windsurf). Validates mounted .env files against 1Password vault. |
 | [hashicorp/vault-mcp-server](https://github.com/hashicorp/vault-mcp-server) | — | Official HashiCorp Vault MCP server. Vault-backed secret management for AI agents via MCP protocol. Beta. |
