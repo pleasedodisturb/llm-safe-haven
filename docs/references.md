@@ -22,6 +22,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | Resource | Stars | Description |
 |----------|-------|-------------|
 | [snyk/agent-scan](https://github.com/snyk/agent-scan) | ~2.2K | Security scanner for AI agents, MCP servers, and agent skills. Auto-discovers local agent configs (Claude, Cursor, Windsurf, Gemini CLI). Scans for prompt injection, tool poisoning, toxic flows, and 15+ risks. Originally MCP-Scan by Invariant Labs (acquired by Snyk June 2025). |
+| [avast/sage](https://github.com/avast/sage) | ~182 | Lightweight Agent Detection & Response (ADR) layer. Intercepts every tool call before it hits the OS. URL reputation, YAML heuristics, package supply-chain checks. Works with Claude Code, Cursor, VS Code. March 2026. |
 | [cisco-ai-defense/mcp-scanner](https://github.com/cisco-ai-defense/mcp-scanner) | ~900 | Scans MCP servers for malicious code and hidden threats. Three scanning engines: YARA rules, LLM-as-judge, and Cisco AI Defense inspect API. |
 | [cisco-ai-defense/skill-scanner](https://github.com/cisco-ai-defense/skill-scanner) | ~1.8K | Detects risk patterns in agent skills. Combines signature-based detection, LLM-based semantic analysis, behavioral dataflow analysis, and configurable rule packs. |
 | [garagon/aguara](https://github.com/garagon/aguara) | — | Static security scanner for AI agent skills and MCP servers. 189 detection rules across 14 categories. 4-layer analysis: pattern matching, NLP, taint tracking, rug-pull detection. Single binary, offline, no LLM required. |
@@ -34,7 +35,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 
 | Resource | Stars | Description |
 |----------|-------|-------------|
-| [Infisical/agent-vault](https://github.com/Infisical/agent-vault) | — | TLS-intercepting, credential-injecting forward proxy for AI agents. Agents route requests through the proxy which injects credentials at the network layer — agents never see plaintext secrets. Compromised agents have no credential surface to probe. |
+| [Infisical/agent-vault](https://github.com/Infisical/agent-vault) | — | TLS-intercepting, credential-injecting forward proxy for AI agents. Agents route requests through the proxy which injects credentials at the network layer — agents never see plaintext secrets. Officially launched April 22, 2026. |
 | [DemiPass](https://www.demipass.com/) | — | MCP-native secrets management using 30-second, single-use cryptographic nonces. Agents get use-tokens, never raw credentials. Injects credentials into HTTP headers, request bodies, or SSH commands server-side. Commercial. |
 | [1Password/agent-hooks](https://github.com/1Password/agent-hooks) | — | PreToolUse hooks for AI agents (Claude Code, Cursor, Copilot, Windsurf). Validates mounted .env files against 1Password vault. |
 | [hashicorp/vault-mcp-server](https://github.com/hashicorp/vault-mcp-server) | — | Official HashiCorp Vault MCP server. Vault-backed secret management for AI agents via MCP protocol. Beta. |
