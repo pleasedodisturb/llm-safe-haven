@@ -233,7 +233,7 @@ Add hooks to your `settings.json` (project or global):
 - Tokens (JWT, OAuth, bearer tokens)
 - Connection strings with embedded credentials
 
-Both hooks are in [`examples/hooks/`](../../examples/hooks/) with full implementations.
+Both hooks are in [`hooks/`](../../hooks/) with full implementations.
 
 ### PostToolUse hooks (observe after execution)
 
@@ -244,7 +244,7 @@ Both hooks are in [`examples/hooks/`](../../examples/hooks/) with full implement
 
 The logger writes daily files to `~/.claude/audit/YYYY-MM-DD.jsonl` (configurable via `CLAUDE_AUDIT_DIR` environment variable). Review them periodically -- see [Monitoring and Alerting](#monitoring-and-alerting) for automation.
 
-See [`examples/hooks/`](../../examples/hooks/) for the full implementation.
+See [`hooks/`](../../hooks/) for the full implementation.
 
 ### Advanced hook patterns
 
@@ -502,7 +502,7 @@ A proxy process runs *outside* the sandbox, communicates with the credential man
 
 See [docs/credential-management.md](../credential-management.md) for the full architecture.
 
-**4. Per-project secrets manifests** -- declare which secrets a project needs without values; a bootstrap script resolves them before the session starts. See [`examples/manifests/`](../../examples/manifests/) for the format.
+**4. Per-project secrets manifests** -- declare which secrets a project needs without values; a bootstrap script resolves them before the session starts. See [`manifests/`](../../manifests/) for the format.
 
 ### What NOT to do
 
@@ -811,7 +811,7 @@ Step-by-step hardening for a new machine or project.
 1. **Verify sandbox** -- run `claude --version`, check for sandbox status in output
 2. **Enable env scrubbing** -- add `export CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` to `~/.zshrc`
 3. **Set script caps** -- add `export CLAUDE_CODE_SCRIPT_CAPS=100` to `~/.zshrc` (adjust for your workflow)
-4. **Install bash firewall** -- copy `bash-firewall.js` from [`examples/hooks/`](../../examples/hooks/) to `~/.claude/hooks/`. This is the single highest-value hardening step.
+4. **Install bash firewall** -- copy `bash-firewall.js` from [`hooks/`](../../hooks/) to `~/.claude/hooks/`. This is the single highest-value hardening step.
 5. **Install secret guard** -- copy `secret-guard.js` to `~/.claude/hooks/`. Catches secrets being written to files.
 6. **Install audit logger** -- copy `audit-logger.js` to `~/.claude/hooks/`. JSONL trail of every tool call.
 7. **Configure settings.json** -- combine sandbox, hooks, and permissions. Start with this template:
@@ -872,7 +872,7 @@ Step-by-step hardening for a new machine or project.
 
 8. **Remove .env files** -- move secrets to your credential manager (`rbw add "key-name"`), delete `.env` files, ensure `.env*` is in `.gitignore`
 9. **Set up credential pre-caching** -- pre-resolve secrets in `~/.zshrc` before Claude starts (see [Secret Management](#secret-management))
-10. **Create secrets manifests** -- declare per-project secrets without values. See [`examples/manifests/`](../../examples/manifests/)
+10. **Create secrets manifests** -- declare per-project secrets without values. See [`manifests/`](../../manifests/)
 11. **Review untrusted repositories before opening** -- check `.claude/settings.json`, `.claude/settings.local.json`, and any MCP configs for malicious hooks or environment variables before running `claude` in a cloned repo
 12. **Review periodically** -- check `~/.claude/audit/` weekly, review permissions quarterly, monitor [anthropics/claude-code issues](https://github.com/anthropics/claude-code/issues) for security updates
 
