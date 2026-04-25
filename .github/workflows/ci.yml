@@ -1,0 +1,16 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - run: node -c hooks/bash-firewall.js
+      - run: node -c hooks/secret-guard.js
+      - run: node -c hooks/audit-logger.js
+      - run: node bin/llm-safe-haven.js --version
+      - run: node bin/llm-safe-haven.js --help

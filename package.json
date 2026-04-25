@@ -37,9 +37,14 @@
     "url": "https://github.com/pleasedodisturb/llm-safe-haven/issues"
   },
   "scripts": {
-    "generate-checksums": "node scripts/generate-checksums.js"
+    "generate-checksums": "node scripts/generate-checksums.js",
+    "test": "node --test test/*.test.js tests/*.test.js"
   },
   "engines": {
     "node": ">=18"
+  },
+  "publishConfig": {
+    "provenance": true,
+    "access": "public"
   }
 }
