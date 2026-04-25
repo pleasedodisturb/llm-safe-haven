@@ -621,7 +621,7 @@ Add secret scanning to your workflow:
 - **[gitleaks](https://github.com/gitleaks/gitleaks)** in CI — fast pattern-based scanning on every push
 - **[GitGuardian MCP](https://github.com/GitGuardian/ggmcp)** — real-time scanning inside your agent's workflow
 
-See [`examples/hooks/`](../examples/hooks/) for working hook implementations. See [Testing and Detection](testing.md) for the full scanning setup.
+See [`hooks/`](../hooks/) for working hook implementations. See [Testing and Detection](testing.md) for the full scanning setup.
 
 ### 3. Better: Set up a credential proxy
 

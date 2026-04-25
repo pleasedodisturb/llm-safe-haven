@@ -2,25 +2,30 @@
 
 ## What This Is
 
-Open-source security guide for solo developers running autonomous AI coding agents.
-Covers threat models, hardening guides, credential management, and working code examples.
+Security toolkit and reference for solo developers running autonomous AI coding agents.
+`npx llm-safe-haven` installs hooks and hardens your setup in 60 seconds.
 
 ## Project Structure
 
 ```
+bin/                         — CLI entry point (npx llm-safe-haven)
+lib/                         — CLI logic (detect, install, audit, scan)
+hooks/                       — Working PreToolUse/PostToolUse hooks
+manifests/                   — Secret manifest format
 docs/
-  threat-model.md          — OWASP Agentic Top 10 mapped to solo dev setups
-  credential-management.md — Why env vars fail, credential proxy architecture
-  references.md            — Curated collection of 23+ repos, papers, tools
+  threat-model.md            — OWASP Agentic Top 10 for solo devs
+  credential-management.md   — Why env vars fail, credential proxy architecture
+  testing.md                 — Canary tokens, honeypots, audit log analysis
+  references.md              — 64+ curated repos, papers, tools
   guides/
-    quick-start.md         — Under 30 min to basic hardening
+    quick-start.md           — Under 30 min to basic hardening
   hardening/
-    claude-code.md         — Claude Code hardening guide
-    cursor.md              — Cursor hardening guide
-    windsurf.md            — Windsurf hardening guide
-examples/
-  hooks/                   — Working PreToolUse/PostToolUse hook examples
-  manifests/               — Secret manifest format examples
+    claude-code.md           — Claude Code hardening guide
+    cursor.md                — Cursor hardening guide
+    windsurf.md              — Windsurf hardening guide
+    devin.md                 — Devin hardening guide
+    github-copilot.md        — GitHub Copilot hardening guide
+    aider.md                 — Aider hardening guide
 ```
 
 ## Writing Style

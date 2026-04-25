@@ -22,9 +22,9 @@ Logs every tool call to a JSONL file for forensic review. Records timestamp, ses
 
 ```bash
 mkdir -p ~/.claude/hooks
-cp examples/hooks/bash-firewall.js ~/.claude/hooks/
-cp examples/hooks/secret-guard.js ~/.claude/hooks/
-cp examples/hooks/audit-logger.js ~/.claude/hooks/
+cp hooks/bash-firewall.js ~/.claude/hooks/
+cp hooks/secret-guard.js ~/.claude/hooks/
+cp hooks/audit-logger.js ~/.claude/hooks/
 chmod +x ~/.claude/hooks/*.js
 ```
 
@@ -97,24 +97,24 @@ Claude Code hooks communicate via stdin/stdout using JSON:
 
 Verify syntax (catches parse errors):
 ```bash
-node -c examples/hooks/bash-firewall.js
-node -c examples/hooks/secret-guard.js
-node -c examples/hooks/audit-logger.js
+node -c hooks/bash-firewall.js
+node -c hooks/secret-guard.js
+node -c hooks/audit-logger.js
 ```
 
 Verify exports (catches runtime errors):
 ```bash
-node -e "const m = require('./examples/hooks/bash-firewall.js'); console.log(Object.keys(m))"
-node -e "const m = require('./examples/hooks/secret-guard.js'); console.log(Object.keys(m))"
-node -e "const m = require('./examples/hooks/audit-logger.js'); console.log(Object.keys(m))"
+node -e "const m = require('./hooks/bash-firewall.js'); console.log(Object.keys(m))"
+node -e "const m = require('./hooks/secret-guard.js'); console.log(Object.keys(m))"
+node -e "const m = require('./hooks/audit-logger.js'); console.log(Object.keys(m))"
 ```
 
 Test a specific check:
 ```bash
-echo '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"}}' | node examples/hooks/bash-firewall.js
+echo '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"}}' | node hooks/bash-firewall.js
 # Output: {"decision":"block","reason":"Blocked: rm -rf targeting root filesystem"}
 
-echo '{"tool_name":"Write","tool_input":{"file_path":"app.js","content":"const key = \"ghp_abc123def456ghi789jkl\""}}' | node examples/hooks/secret-guard.js
+echo '{"tool_name":"Write","tool_input":{"file_path":"app.js","content":"const key = \"ghp_abc123def456ghi789jkl\""}}' | node hooks/secret-guard.js
 # Output: {"decision":"block","reason":"Secret detected in app.js:\n  - GitHub Personal Access Token (line 1)\n\nMove secrets to environment variables or a credential manager."}
 ```
 

@@ -35,8 +35,8 @@ This guide is the result: threat models, hardening guides, working code, and a c
 
 ### Working Examples
 
-- [`examples/hooks/`](examples/hooks/) — bash firewall, secret detection, exfil blocking, audit logging
-- [`examples/manifests/`](examples/manifests/) — per-project secret manifest format
+- [`hooks/`](hooks/) — bash firewall, secret detection, exfil blocking, audit logging
+- [`manifests/`](manifests/) — per-project secret manifest format
 
 ### Reference Collection
 
