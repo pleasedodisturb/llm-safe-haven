@@ -42,7 +42,7 @@ The bash firewall blocks destructive commands (`rm -rf /`, `curl | sh`, `chmod 7
 
 ```bash
 mkdir -p ~/.claude/hooks
-cp examples/hooks/bash-firewall.js ~/.claude/hooks/
+cp hooks/bash-firewall.js ~/.claude/hooks/
 ```
 
 2. Add to your settings:
@@ -78,7 +78,7 @@ This hook scans file writes and edits for hardcoded secrets — API keys, privat
 1. Copy the hook:
 
 ```bash
-cp examples/hooks/secret-guard.js ~/.claude/hooks/
+cp hooks/secret-guard.js ~/.claude/hooks/
 ```
 
 2. Add to settings (merge with existing `PreToolUse` array):
@@ -113,7 +113,7 @@ The audit logger records every tool call to JSONL files — what was called, whe
 1. Copy the hook:
 
 ```bash
-cp examples/hooks/audit-logger.js ~/.claude/hooks/
+cp hooks/audit-logger.js ~/.claude/hooks/
 ```
 
 2. Add to settings as a `PostToolUse` hook (empty matcher = all tools):
@@ -192,7 +192,7 @@ A secret manifest declares which secrets a project needs, where they come from, 
 1. Copy the template:
 
 ```bash
-cp examples/manifests/secrets.manifest.yaml ./secrets.manifest.yaml
+cp manifests/secrets.manifest.yaml ./secrets.manifest.yaml
 ```
 
 2. Customize for your project (example):

@@ -274,7 +274,7 @@ Install hooks that intercept dangerous commands before the agent runs them:
 - **bash-firewall:** Blocks `printenv`, `env`, `echo $SECRET` patterns
 - **secret-guard:** Blocks writes to files or network that contain secret-shaped strings
 
-See [`examples/hooks/`](../examples/hooks/) for working implementations.
+See [`hooks/`](../hooks/) for working implementations.
 
 ### 3. Better: Set up a credential proxy
 
