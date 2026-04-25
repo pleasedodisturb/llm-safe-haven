@@ -1,0 +1,41 @@
+{
+  "name": "llm-safe-haven",
+  "version": "0.1.0",
+  "description": "Harden your AI coding agent in 60 seconds. Security hooks, audit logging, and posture scoring for Claude Code, Cursor, Windsurf, and more.",
+  "bin": {
+    "llm-safe-haven": "bin/llm-safe-haven.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "hooks/",
+    "manifests/"
+  ],
+  "keywords": [
+    "ai-security",
+    "claude-code",
+    "cursor",
+    "windsurf",
+    "copilot",
+    "agent-security",
+    "prompt-injection",
+    "mcp-security",
+    "llm-security",
+    "hooks",
+    "sandbox",
+    "hardening"
+  ],
+  "author": "Vitalik",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pleasedodisturb/llm-safe-haven"
+  },
+  "homepage": "https://github.com/pleasedodisturb/llm-safe-haven#readme",
+  "bugs": {
+    "url": "https://github.com/pleasedodisturb/llm-safe-haven/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

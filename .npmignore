@@ -1,0 +1,12 @@
+# Documentation (available on GitHub, not needed in npm package)
+docs/
+.claude/
+.planning/
+.git/
+.gitignore
+
+# Development
+*.md
+!hooks/README.md
+!manifests/README.md
+LICENSE
