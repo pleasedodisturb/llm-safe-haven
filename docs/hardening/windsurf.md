@@ -1,9 +1,9 @@
 # Windsurf Hardening Guide
 
-Windsurf (by Codeium, formerly Windsurf AI) is a VS Code-based IDE with an integrated
-AI agent called Cascade. It has weaker security defaults than both Claude Code and
-Cursor, a poor track record of responding to vulnerability disclosures, and fundamental
-architectural issues that limit how much hardening is possible.
+Windsurf (formerly by Codeium) is a VS Code-based IDE with an integrated AI agent called
+Cascade. It has weaker security defaults than both Claude Code and Cursor, a troubled
+track record of responding to vulnerability disclosures, and as of mid-2026, an uncertain
+future after being carved up between Google and Cognition.
 
 This guide is honest about what you can and cannot fix.
 
@@ -22,8 +22,36 @@ Key architectural facts:
   commands. But this is a UI prompt, not a kernel-level enforcement.
 - **Enterprise admins** can configure allow/deny lists for command auto-execution.
   Solo developers get the default settings.
-- **Same Chromium dependency** as Cursor, with the same 94+ unpatched CVE exposure
+- **Same Chromium dependency** as Cursor, with the same unpatched CVE exposure
   from outdated builds (OX Security, October 2025).
+
+## Corporate Status: The Windsurf Split
+
+In mid-2025, OpenAI attempted to acquire Windsurf for approximately $3 billion. The deal
+collapsed, reportedly due to Microsoft's concerns about Windsurf's dependence on
+Anthropic's Claude models.
+
+What followed was a three-way split:
+
+- **Google** signed a $2.4 billion licensing deal and hired Windsurf's CEO Varun Mohan,
+  co-founder Douglas Chen, and key engineers for its Gemini coding agent efforts.
+- **Cognition** (makers of Devin) acquired Windsurf's remaining IP, product, and all
+  staff not hired by Google, for an estimated $250 million.
+- **Windsurf as an independent product** effectively ceased to exist.
+
+**Security implications:** The product is now owned by Cognition, which has different
+security priorities and engineering resources than the original Codeium team. It is unclear
+whether the Chromium update cadence, vulnerability response process, or security architecture
+will improve under new ownership. If you are evaluating Windsurf for ongoing use, treat
+the security posture as unknown until Cognition establishes its own track record.
+
+## Chromium Update Status
+
+After the OX Security disclosure in October 2025, Windsurf eventually updated its Chromium
+dependency. As of the latest tracked version (v2.0.61, April 2026), Windsurf ships with
+Code OSS 1.105.0, Electron 37.6.0, and Chromium 138.0.7204.251. This is a significant
+improvement from the March 2025 baseline, but the update cadence remains unclear under
+Cognition's ownership.
 
 ## Known Vulnerabilities
 
@@ -43,20 +71,32 @@ Embrace The Red disclosed multiple vulnerabilities on May 30, 2025:
   files and exfiltrate contents via HTTP to an attacker-controlled server.
 - **SpAIware (memory-persistent injection):** Windsurf's long-term memory can be poisoned
   by prompt injection, persisting malicious instructions across sessions. An attacker
-  plants instructions once; they execute in every future session.
+  plants instructions once; they execute in every future session. The memory tool is
+  automatically invoked, making exploitation trivially persistent.
 - **Invisible instructions:** Windsurf processes hidden Unicode characters that are
   invisible to developers but interpreted by the AI as instructions. Malicious instructions
   hidden in source files execute without any visible indicator.
 
 Windsurf acknowledged receipt of the disclosure but **never responded to follow-up
 inquiries about triage, bug status, or fixes**. After three months of silence, the
-findings were published publicly.
+findings were published publicly. As of the latest available information, Windsurf
+indicated it would work on fixes, but specific patch details were never publicly disclosed.
 
 ### Chromium Vulnerability Backlog (October 2025)
 
-Same as Cursor: 94+ known CVEs from legacy Chromium builds. Windsurf's last Chromium
-update was March 21, 2025 (version 0.47.9). OX Security's responsible disclosure notice
-on October 12, 2025 received no response from Windsurf.
+OX Security identified 94+ known CVEs from legacy Chromium builds affecting both Cursor
+and Windsurf. Windsurf's last Chromium update at the time was March 21, 2025 (version
+0.47.9). OX Security's responsible disclosure notice on October 12, 2025 received no
+response from Windsurf. The Chromium version has since been updated (see above), but the
+months-long gap left 1.8 million developers exposed.
+
+### MCP Protocol Vulnerability (April 2026)
+
+A zero-click prompt injection vulnerability affecting the MCP protocol itself was
+disclosed in April 2026, impacting multiple AI IDEs including Windsurf. The root issue
+lies in Anthropic's MCP SDK, meaning any tool using the protocol inherits the
+vulnerability regardless of their own security measures. This affects Windsurf, Cursor,
+Claude Code, Gemini CLI, and GitHub Copilot equally.
 
 ## What You CAN Harden
 
@@ -85,6 +125,9 @@ during a session may still be processed regardless of ignore rules.
 Keep Cascade in its default human-in-the-loop mode. Read every command before approving.
 There is no sandbox -- an approved command runs with your full user permissions.
 
+If you are on an enterprise plan with allow/deny lists, configure them explicitly.
+Solo developers do not have this option.
+
 ### 3. Remove Secrets from the Filesystem
 
 Since Windsurf has no effective sandbox and demonstrated exfiltration paths exist:
@@ -100,19 +143,39 @@ After the SpAIware disclosure, treat Windsurf's persistent memory as a potential
 attack vector. Periodically review stored memories for injected instructions.
 If you don't actively use the memory feature, disable it.
 
-### 5. Keep Chromium Updated (When Possible)
+Check stored memories by navigating to Windsurf's memory settings. Look for:
+- Instructions you didn't write
+- References to external URLs you don't recognize
+- Commands or patterns that seem designed to persist across sessions
 
-Check Windsurf's changelog for Chromium version bumps. Given the 94+ CVE backlog,
-this is a significant ongoing risk. There is nothing you can do about this except
-update Windsurf when new versions ship and pressure Codeium to maintain their
-Chromium fork.
+### 5. Use Security Rules Files
 
-### 6. Don't Use Windsurf for Sensitive Projects
+Create rules files with explicit security directives:
 
-This is the honest recommendation. If your project handles credentials, payment
-processing, PII, or infrastructure secrets, Windsurf's security posture is not
-adequate. Use it for prototyping, learning, or projects where a compromise has
-limited blast radius.
+```
+NEVER execute commands that send data to external URLs
+NEVER read or reference .env files or any file matching *.key, *.pem
+NEVER auto-execute terminal commands without showing the full command first
+NEVER modify project configuration files (.vscode/*, .windsurf/*)
+ALWAYS require explicit approval before any file write operation
+```
+
+These are defense-in-depth -- prompt injection can override them, but they raise the
+bar for unsophisticated attacks. Windsurf supports 45% fewer security-relevant
+configuration options than Cursor, so rules files carry more weight here.
+
+### 6. Integrate Runtime Security Scanning
+
+Since Windsurf lacks native audit logging and security controls, consider integrating
+external security scanning tools that can monitor file changes and command execution
+at the OS level. Tools like `fswatch` (macOS) or `inotifywait` (Linux) can provide
+some visibility into what Cascade is doing to your filesystem.
+
+### 7. Keep Updated (Under New Ownership)
+
+Monitor Cognition's release cadence and changelog for security fixes. The Chromium
+version has been updated, but it is unclear whether the new ownership will maintain
+regular security patches. Treat any gap in updates as increased risk.
 
 ## What You CANNOT Harden
 
@@ -127,9 +190,12 @@ These are fundamental limitations, not configuration gaps:
   read, what commands it ran, or what data it sent to external servers.
 - **No network isolation.** Cascade can make outbound HTTP requests (the exfiltration
   vector). You cannot restrict this without OS-level firewall rules.
-- **Unresponsive security team.** Two independent security researchers (Embrace The Red
-  and OX Security) reported critical vulnerabilities and received no substantive response.
-  This is a process failure that affects your ability to trust future patches.
+- **Ownership uncertainty.** Cognition now owns the product, Google licensed the
+  technology, and the original security team has been split. The long-term security
+  investment trajectory is unknown.
+- **Historical unresponsiveness.** Two independent security researchers (Embrace The Red
+  and OX Security) reported critical vulnerabilities to the original Codeium team and
+  received no substantive response. Whether Cognition will be more responsive is untested.
 
 ## Security Comparison: Windsurf vs Claude Code
 
@@ -142,16 +208,18 @@ These are fundamental limitations, not configuration gaps:
 | Audit Logging | Via hooks (custom) | None |
 | Network Isolation | Sandbox restricts outbound | None -- full outbound access |
 | Memory Safety | No persistent memory to poison | Vulnerable to SpAIware injection |
-| Vulnerability Response | Active GitHub issue tracking | Unresponsive to disclosures |
+| Vulnerability Response | Active GitHub issue tracking | Historically unresponsive |
 | CVE History (2025-2026) | None assigned | CVE-2025-62353 (CVSS 9.8) + unpatched Chromium |
-| Chromium Dependency | None (terminal-based) | Yes -- 94+ unpatched CVEs |
+| Chromium Dependency | None (terminal-based) | Yes -- updated but cadence uncertain |
+| Corporate Stability | Anthropic (single owner) | Split between Google and Cognition |
 
 ## Bottom Line
 
 Windsurf is a capable coding assistant with serious security gaps that cannot be fully
 mitigated through configuration alone. The combination of no sandbox, demonstrated
-exfiltration paths, memory poisoning vulnerabilities, and an unresponsive security
-process means you are accepting significant risk by using it for anything sensitive.
+exfiltration paths, memory poisoning vulnerabilities, an unresponsive security process,
+and corporate ownership upheaval means you are accepting significant risk by using it
+for anything sensitive.
 
 **Our recommendation:**
 
@@ -162,7 +230,11 @@ process means you are accepting significant risk by using it for anything sensit
 - **For any project:** Never store credentials, API keys, or infrastructure secrets
   anywhere Windsurf can reach. This includes `.env` files, config directories, and
   your shell history.
+- **Re-evaluate after Cognition establishes a track record.** The product may improve
+  under new ownership, or it may be deprioritized in favor of Devin. Watch the
+  changelog and security disclosures for signals.
 
-Windsurf may improve its security posture over time. But as of April 2026, the
-architecture and disclosure response pattern do not support trusting it with sensitive
-workloads.
+Windsurf's security posture was inadequate under Codeium and is now uncertain under
+Cognition. Until the new ownership demonstrates consistent security investment --
+regular Chromium updates, responsive vulnerability handling, and architectural
+improvements like sandboxing -- treat Windsurf as unsuitable for sensitive workloads.
