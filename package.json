@@ -9,7 +9,8 @@
     "bin/",
     "lib/",
     "hooks/",
-    "manifests/"
+    "manifests/",
+    "scripts/"
   ],
   "keywords": [
     "ai-security",
@@ -34,6 +35,9 @@
   "homepage": "https://github.com/pleasedodisturb/llm-safe-haven#readme",
   "bugs": {
     "url": "https://github.com/pleasedodisturb/llm-safe-haven/issues"
+  },
+  "scripts": {
+    "generate-checksums": "node scripts/generate-checksums.js"
   },
   "engines": {
     "node": ">=18"
