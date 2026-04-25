@@ -35,6 +35,9 @@
   "bugs": {
     "url": "https://github.com/pleasedodisturb/llm-safe-haven/issues"
   },
+  "scripts": {
+    "test": "node --test 'test/*.test.js'"
+  },
   "engines": {
     "node": ">=18"
   },
