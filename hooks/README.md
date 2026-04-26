@@ -16,6 +16,10 @@ Scans every file write and edit for leaked secrets before the content reaches di
 
 Logs every tool call to a JSONL file for forensic review. Records timestamp, session ID, tool name, project, and a truncated input preview. For security, Write/Edit/MultiEdit calls only log the file path — never the content (which could contain secrets). Audit files are created with 0600 permissions in a 0700 directory. Never blocks or fails visibly.
 
+## Integrity Checksums
+
+The `checksums.json` file contains SHA256 hashes of each hook file. These checksums protect against **post-install tampering** (e.g., an agent modifying hook files after they are deployed to `~/.claude/hooks/`). They do **not** protect against supply-chain attacks — if a compromised version of this package is published to npm, the checksums will match the compromised code. For supply-chain protection, use `npm audit signatures` and pin to a specific version.
+
 ## Installation
 
 1. Copy the hook files to your Claude Code hooks directory:

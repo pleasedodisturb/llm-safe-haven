@@ -18,8 +18,9 @@ const os = require('os');
 
 const AUDIT_DIR = process.env.CLAUDE_AUDIT_DIR || path.join(os.homedir(), '.claude', 'audit');
 
-// Tools whose content must NEVER be logged (security: file contents could contain secrets)
-const REDACTED_INPUT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit']);
+// Tools whose content must NEVER be logged (security: file contents or commands could contain secrets)
+// M-4: Bash commands may contain secrets in arguments (e.g., curl -H "Authorization: Bearer sk-...")
+const REDACTED_INPUT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'Bash']);
 
 const INPUT_PREVIEW_MAX = 200;
 
