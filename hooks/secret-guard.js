@@ -18,6 +18,7 @@ const SECRET_PATTERNS = [
   { pattern: /\bxoxb-[0-9]{10,13}-[0-9]{10,13}-[A-Za-z0-9]{20,}\b/, name: 'Slack Bot Token' },
   { pattern: /\bxoxp-[0-9]{10,13}-[0-9]{10,13}-[A-Za-z0-9]{20,}\b/, name: 'Slack User Token' },
   { pattern: /\bsk-[A-Za-z0-9]{20,}T3BlbkFJ[A-Za-z0-9]{20,}\b/, name: 'OpenAI API Key' },
+  { pattern: /\bsk-proj-[A-Za-z0-9\-_]{40,}\b/, name: 'OpenAI API Key (project)' },
   { pattern: /\bsk-ant-[A-Za-z0-9\-_]{80,}\b/, name: 'Anthropic API Key' },
   { pattern: /\bsk_live_[A-Za-z0-9]{24,}\b/, name: 'Stripe Live Secret Key' },
   { pattern: /\brk_live_[A-Za-z0-9]{24,}\b/, name: 'Stripe Live Restricted Key' },
@@ -27,6 +28,10 @@ const SECRET_PATTERNS = [
   { pattern: /:\/\/[^:]+:[^@\s]+@[^/\s]+/, name: 'Connection string with embedded credentials' },
 ];
 
+// M-3: Security note — test directories and fixtures are excluded from scanning to
+// avoid false positives on test data. This means real secrets accidentally placed in
+// test files will NOT be caught. Users should enforce secret hygiene in test code via
+// separate linting or pre-commit hooks (e.g., gitleaks, trufflehog).
 const ALLOWLISTED_PATHS = [
   /\.env\.example$/,
   /\.env\.template$/,
