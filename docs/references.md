@@ -118,6 +118,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [bureado/awesome-agent-runtime-security](https://github.com/bureado/awesome-agent-runtime-security) | — | Curated list focused on runtime security for AI agents. Covers sandboxing, process isolation, credential management, and monitoring. |
 | [corca-ai/awesome-llm-security](https://github.com/corca-ai/awesome-llm-security) | — | Broad curation of LLM security tools, documents, and projects. Good starting point for exploring the space. |
 | [restyler/awesome-sandbox](https://github.com/restyler/awesome-sandbox) | — | Curated list of code sandboxing solutions for AI agents. Covers microVMs, containers, gVisor, WASM, and cloud platforms. |
+| [pleasedodisturb/awesome-llm-token-optimization](https://github.com/pleasedodisturb/awesome-llm-token-optimization) | — | Curated strategies, tools, papers for reducing LLM token costs 80-99%. Covers prompt caching, batch APIs, model routing, compression, KV cache. Companion to this repo — cost overruns from retries are a security-adjacent concern. |
 
 ## Community Guides
 
