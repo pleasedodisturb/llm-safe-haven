@@ -38,7 +38,7 @@
   },
   "scripts": {
     "generate-checksums": "node scripts/generate-checksums.js",
-    "test": "node --test test/*.test.js tests/*.test.js"
+    "test": "node --test test/*.test.js tests/*.test.js tests/agents/*.test.js"
   },
   "engines": {
     "node": ">=18"
