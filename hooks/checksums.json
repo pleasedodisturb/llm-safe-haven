@@ -1,5 +1,5 @@
 {
   "audit-logger.js": "e1cc8d7a70e150d3229cec4c16bb6526be75e1c5ed823dc81cdfecc87da725ba",
-  "bash-firewall.js": "3ccc466acece5a9785f15b7a6059b004b11a6fd17b426fa5b56b3c63955ba372",
-  "secret-guard.js": "fd47972b84806a16164694f8f9ad9d754d554e2bd9e13be9f2686f2d8e15370a"
+  "bash-firewall.js": "c3afaa404b74e590635d4ebfd9f06136a8c736b074bc2a95b7d60ef1ad206974",
+  "secret-guard.js": "498a2f2c0fb634e7d024617c0af5686279f20c7d30840a598cfd68c97ade8294"
 }

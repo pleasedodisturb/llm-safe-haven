@@ -136,8 +136,13 @@ function checkForSecrets(toolName, toolInput) {
 function main() {
   let input = '';
 
+  // 3-second timeout — fail closed for security (C-4 fix)
   const timeout = setTimeout(() => {
-    process.exit(0);
+    process.stdout.write(JSON.stringify({
+      decision: 'block',
+      reason: 'Secret guard timed out waiting for input — blocking as precaution',
+    }));
+    process.exit(1);
   }, 3000);
 
   process.stdin.setEncoding('utf8');
@@ -154,8 +159,12 @@ function main() {
       if (reason) {
         process.stdout.write(JSON.stringify({ decision: 'block', reason }));
       }
-    } catch {
-      // Parse error — fail open (allow)
+    } catch (err) {
+      // Parse error — fail closed for security (C-3 fix)
+      process.stdout.write(JSON.stringify({
+        decision: 'block',
+        reason: `Secret guard failed to parse input: ${err.message}. Blocking as precaution.`,
+      }));
     }
 
     process.exit(0);
