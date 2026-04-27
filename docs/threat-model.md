@@ -331,7 +331,10 @@ The first known zero-click attack on an AI agent. A crafted email sent to a Micr
 
 Source: [arXiv:2509.10540 — EchoLeak](https://arxiv.org/abs/2509.10540) | [The Hacker News — Zero-Click AI Vulnerability](https://thehackernews.com/2025/06/zero-click-ai-vulnerability-exposes.html)
 
-**Why it matters for solo devs:** Enterprise setups can enforce mandatory review gates. Solo devs are the only reviewer, and the temptation to skip approval is constant. Every agent tool ships a "skip all approvals" flag because the vendors know the approval UX is broken for real work.
+**Case study — this project (April 2026):**
+During development of LLM Safe Haven itself, 10+ PRs from background AI agents were merged without reading the actual code diffs. The first wave of PRs was carefully reviewed. As confidence in agent output grew, subsequent PRs — including security-critical code (checksums, settings.json merge, CI workflows) — were merged based on the agent's self-reported summary alone. Result: 4 CRITICAL vulnerabilities shipped, including command injection via `execSync` with unsanitized string interpolation — in a tool designed to prevent exactly this class of attack. The trust escalation pattern was identical to the approval fatigue described above, but applied to code review rather than tool approval. Fixes: [#27](https://github.com/pleasedodisturb/llm-safe-haven/pull/27), [#28](https://github.com/pleasedodisturb/llm-safe-haven/pull/28), [#29](https://github.com/pleasedodisturb/llm-safe-haven/pull/29).
+
+**Why it matters for solo devs:** Enterprise setups can enforce mandatory review gates. Solo devs are the only reviewer, and the temptation to skip approval is constant. Every agent tool ships a "skip all approvals" flag because the vendors know the approval UX is broken for real work. The same trust escalation applies to reviewing agent-generated code — summaries describe intent, not reality.
 
 **Mitigation:** [Hardening Guide — Claude Code](hardening/claude-code.md)
 
