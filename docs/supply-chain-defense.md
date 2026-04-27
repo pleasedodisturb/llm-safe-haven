@@ -304,6 +304,8 @@ The attestation is logged to Rekor (a public, append-only transparency ledger). 
 - Must run on GitHub-hosted runners (`ubuntu-latest`, not self-hosted)
 - `repository` field in `package.json` must match the publishing repo
 
+**If you also use trusted publishing (Section 3 below), drop the `--provenance` flag** — it becomes redundant. With trusted publishing on GitHub-hosted runners and npm CLI ≥ 11.5.1, provenance is auto-attached to every publish. The flag is only needed when publishing with a long-lived `NPM_TOKEN`.
+
 ### 3. Use OIDC-based trusted publishing (eliminate NPM_TOKEN)
 
 npm's Trusted Publishing eliminates long-lived tokens entirely. Instead of storing an `NPM_TOKEN` secret, you register your GitHub repo and workflow as a trusted publisher on npmjs.com.
