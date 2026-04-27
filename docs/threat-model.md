@@ -163,7 +163,7 @@ Source: [Reco AI — OpenClaw Security Crisis](https://www.reco.ai/blog/openclaw
 
 **Why it matters for solo devs:** You do not have a security team vetting your tool chain. MCP servers run locally with your permissions. A single malicious MCP server can intercept calls to other MCP servers, read your files, and exfiltrate data — all while appearing to function normally.
 
-**Mitigation:** [References — Security Tools](references.md)
+**Mitigation:** [Supply Chain Defense Guide](supply-chain-defense.md) | [References — Security Tools](references.md)
 
 ---
 
@@ -404,9 +404,17 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 
 ### April 2026 — Bitwarden CLI Supply Chain Attack (Shai-Hulud)
 
-The official Bitwarden CLI (`@bitwarden/cli@2026.4.0`) was trojanized for 93 minutes on April 22, 2026. Attackers compromised a Checkmarx GitHub Action used in Bitwarden's CI pipeline — the first known compromise of npm's trusted publishing mechanism. The malicious payload targeted SSH keys, GitHub/npm tokens, AWS/Azure credentials, and AI tool API keys specifically. Anyone who ran `npm install` or CI builds during the 93-minute window had their credentials exfiltrated. The vault itself was not compromised. Note: `rbw` (the unofficial Rust Bitwarden client installed via cargo/homebrew) was NOT affected — only the npm-distributed `@bitwarden/cli`.
+The official Bitwarden CLI (`@bitwarden/cli@2026.4.0`) was trojanized for 93 minutes on April 22, 2026. Threat actor **TeamPCP** compromised a Checkmarx GitHub Action used in Bitwarden's CI pipeline — the first known compromise of npm's trusted publishing mechanism. The attacker didn't steal npm credentials; they poisoned an upstream GitHub Action so the legitimate CI pipeline published a malicious version on their behalf.
 
-Source: [The Hacker News — Bitwarden CLI Compromised](https://thehackernews.com/2026/04/bitwarden-cli-compromised-in-ongoing.html) | [OX Security — Shai-Hulud Attack Analysis](https://www.ox.security/blog/shai-hulud-bitwarden-cli-supply-chain-attack/)
+**Attack chain:** TeamPCP stole initial credentials from Aqua Security's Trivy (Feb 27, 2026) → compromised Checkmarx KICS and LiteLLM → used Checkmarx's own GitHub Actions to inject into Bitwarden's release workflow → published `@bitwarden/cli@2026.4.0` with a 10 MB obfuscated payload (`bw1.js`) triggered via a `preinstall` hook.
+
+**Payload:** Seven parallel credential collectors targeting SSH keys, npm tokens, AWS/GCP/Azure credentials, cloud secrets managers, shell history, and **AI tool API keys** (Claude, Cursor, Codex CLI, Aider configs). Data encrypted with AES-256-GCM + RSA-OAEP and exfiltrated to `audit[.]checkmarx[.]cx/v1/telemetry` with a GitHub commit search API dead-drop as C2. The payload contained a **self-propagation worm** that used stolen npm tokens to re-publish compromised versions of the victim's own packages.
+
+**Detection:** JFrog and Socket.dev identified the compromise independently. A version mismatch between `package.json` (2026.4.0) and embedded build metadata (2026.3.0) was a detectable signal. ~334 downloads during the 93-minute window.
+
+Note: `rbw` (the unofficial Rust Bitwarden client installed via cargo/homebrew) was NOT affected — only the npm-distributed `@bitwarden/cli`. Distribution channel matters. See [Supply Chain Defense Guide](supply-chain-defense.md) for the full case study and defense checklist.
+
+Source: [The Hacker News — Bitwarden CLI Compromised](https://thehackernews.com/2026/04/bitwarden-cli-compromised-in-ongoing.html) | [OX Security — Shai-Hulud Attack Analysis](https://www.ox.security/blog/shai-hulud-bitwarden-cli-supply-chain-attack/) | [Endor Labs — Shai-Hulud: The Third Coming](https://www.endorlabs.com/learn/shai-hulud-the-third-coming----inside-the-bitwarden-cli-2026-4-0-supply-chain-attack) | [Socket.dev — Bitwarden CLI Compromised](https://socket.dev/blog/bitwarden-cli-compromised)
 
 ### April 2026 — Three AI Agents Leak Secrets via "Comment and Control"
 
@@ -743,7 +751,7 @@ Agents that run for hours or days without human checkpoints have no meaningful h
 | Prompt Injection (ASI01) | PreToolUse hooks, file deny rules, input sanitization | [Claude Code Hardening](hardening/claude-code.md) |
 | Tool Misuse (ASI02) | Permission allowlists (not blocklists), hook-based firewalls | [Claude Code Hardening](hardening/claude-code.md) |
 | Privilege Abuse (ASI03) | Credential proxy, vault-based secrets, no env vars | [Credential Management](credential-management.md) |
-| Supply Chain (ASI04) | MCP server pinning, agent-scan, skill auditing, provenance verification | [References](references.md) |
+| Supply Chain (ASI04) | MCP server pinning, agent-scan, skill auditing, provenance verification, SHA-pinned Actions | [Supply Chain Defense](supply-chain-defense.md) |
 | Code Execution (ASI05) | Sandbox enforcement, Workspace Trust, no `--dangerously-skip-permissions` | [Cursor Hardening](hardening/cursor.md) |
 | Context Poisoning (ASI06) | Audit `CLAUDE.md` in cloned repos, memory hygiene, deny-rule validation | [Claude Code Hardening](hardening/claude-code.md) |
 | Inter-Agent Comms (ASI07) | Isolate MCP servers, minimal tool exposure, pin server versions | [References](references.md) |

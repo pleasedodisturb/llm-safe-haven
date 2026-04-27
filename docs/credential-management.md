@@ -648,8 +648,40 @@ The industry is moving toward this model — agents that never see secrets, with
 
 ---
 
+## Supply Chain Considerations
+
+Your credential manager is only as trustworthy as its distribution channel. The [Shai-Hulud attack (April 2026)](supply-chain-defense.md#case-study-shai-hulud--bitwarden-cli-supply-chain-attack-april-2026) demonstrated this: the official Bitwarden CLI (`@bitwarden/cli`) was trojanized via a compromised GitHub Action in the publish pipeline. The malicious payload specifically targeted AI tool API keys.
+
+### Distribution Channel Matters
+
+| Distribution | Example | Supply Chain Depth | Shai-Hulud Exposure |
+|-------------|---------|-------------------|-------------------|
+| npm | `@bitwarden/cli` | Full npm dependency tree + lifecycle scripts | **Affected** |
+| Cargo | `rbw` | Compiled Rust binary | Not affected |
+| Homebrew | `rbw` via brew | Homebrew bottle checksums | Not affected |
+| Native installer | 1Password, Bitwarden desktop | Signed binary from vendor | Not affected |
+
+**Recommendation:** For credential managers specifically, prefer cargo/homebrew-distributed tools over npm-distributed ones. The supply chain is fundamentally shorter.
+
+### What Vault Encryption Does Not Protect Against
+
+Vault encryption (AES-256, Argon2 key derivation) protects your secrets **at rest** — if someone steals the encrypted vault file, they can't read it without your master password. But if the CLI binary itself is trojanized, the attacker doesn't need to break the vault encryption. The CLI has legitimate access to decrypt and read your secrets. The attack surface is the CLI binary, not the vault.
+
+### Defensive Measures
+
+1. **Verify binary checksums** after installing or updating your credential manager.
+2. **Pin versions** — don't auto-update credential manager CLIs. Review changelogs before upgrading.
+3. **Use separate API keys for agents vs humans** — if an agent's credential is compromised, only the agent's access is affected.
+4. **Monitor your credential manager's security advisories** — subscribe to the GitHub repo's releases.
+5. **Run `npm audit signatures`** if you use npm-distributed credential tools — this verifies the package hasn't been tampered with.
+
+See the [Supply Chain Defense Guide](supply-chain-defense.md) for the full Shai-Hulud case study and comprehensive defense checklists.
+
+---
+
 ## Further Reading
 
+- [Supply Chain Defense Guide](supply-chain-defense.md) — Shai-Hulud case study, npm defense checklists, GitHub Actions hardening
 - [Threat Model: OWASP Agentic Top 10 for Solo Devs](threat-model.md) — the attack vectors this guide defends against
 - [Testing and Detection Guide](testing.md) — canary files, honeypots, audit log analysis, agent scanning
 - [Claude Code Hardening Guide](hardening/claude-code.md) — full sandbox, permissions, and hook configuration
