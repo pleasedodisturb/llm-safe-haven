@@ -12,13 +12,21 @@ This is not hypothetical. It happened to one of the most trusted credential mana
 
 ### The Attack Chain
 
-The Shai-Hulud campaign traces back to **February 27, 2026**, when threat actor **TeamPCP** stole initial credentials from Aqua Security's Trivy via a misconfigured CI workflow. The campaign then compromised Checkmarx KICS and LiteLLM before pivoting to exploit Checkmarx's own GitHub Actions to reach Bitwarden.
+The Shai-Hulud campaign has three distinct waves:
 
-The name "Shai-Hulud: The Third Coming" was embedded in the payload — a deliberate campaign marker indicating at least two prior attack waves.
+- **First Coming (September 2025)** — original npm worm, [Unit 42 disclosure](https://unit42.paloaltonetworks.com/npm-supply-chain-attack/)
+- **Second Coming (November 2025)** — [796 npm packages backdoored, 20M+ weekly downloads affected](https://www.microsoft.com/en-us/security/blog/2025/12/09/shai-hulud-2-0-guidance-for-detecting-investigating-and-defending-against-the-supply-chain-attack/)
+- **Third Coming (March–April 2026)** — TeamPCP-attributed CI/CD compromise chain culminating in Bitwarden CLI
+
+The Third Coming is what hit Bitwarden. It traces back to **February 27, 2026**, when threat actor **TeamPCP** (formally tracked by Google GTIG as **UNC6780**, payload designation **SANDCLOCK**) stole initial credentials from Aqua Security's Trivy via a misconfigured CI workflow. From there, the attacker pivoted through Checkmarx KICS and LiteLLM — these are the *entry chain within the Third Coming*, not separate Shai-Hulud waves — to reach Bitwarden's CI pipeline.
+
+TeamPCP is a Russian-speaking, financially motivated actor (no state attribution). They have a formalized affiliate partnership with the **Vect ransomware-as-a-service** operation as of April 16, 2026 — credential harvesting now feeds ransomware extortion.
+
+The npm worm component has a separate name in vendor tooling: **CanisterSprawl**. Search for either "Shai-Hulud" or "CanisterSprawl" when hunting for IOCs.
 
 **Step-by-step attack flow:**
 
-1. **Compromised GitHub Action** — TeamPCP gained control of a GitHub Action in Checkmarx's ecosystem (the security vendor, ironically).
+1. **Compromised GitHub Action** — TeamPCP compromised both `checkmarx/kics-github-action` (March 23 — all git tags poisoned via `setup.sh`) and `checkmarx/ast-github-action` (the downstream consequence). The C2 domain for the Action stage was `checkmarx[.]zone` — separate from the npm payload's `audit.checkmarx.cx` C2.
 2. **CI pipeline poisoning** — The compromised Action executed during Bitwarden CLI's release workflow, giving the attacker write access to npm.
 3. **Trusted publish abuse** — The attacker published `@bitwarden/cli@2026.4.0` through Bitwarden's legitimate CI pipeline. This was **the first known compromise of npm's trusted publishing mechanism** — the attacker didn't need stolen npm credentials because the CI pipeline published on their behalf.
 4. **Preinstall hook trigger** — `package.json` invoked `bw_setup.js` via the `preinstall` lifecycle script.
@@ -47,10 +55,19 @@ The `bw1.js` payload ran seven parallel credential collectors:
 - Data encrypted with **AES-256-GCM** using random per-session keys.
 - Keys wrapped with **RSA-OAEP** (only the attacker's private key can decrypt).
 - Primary exfiltration to `audit[.]checkmarx[.]cx/v1/telemetry` (HTTPS) and fallback to `94[.]154[.]172[.]43`.
-- **Dead-drop C2 via GitHub**: the payload queried GitHub's public commit search API for `LongLiveTheResistanceAgainstMachines`, using RSA/SHA-256 signed commits matching `/beautifulcastle/` as the command channel. Traffic to `github.com` is rarely flagged by security tools.
+- **Dead-drop C2 via GitHub**: the payload queried GitHub's public commit search API for `LongLiveTheResistanceAgainstMachines`, using RSA/SHA-256 signed commits matching `/beautifulcastle/` as the command channel. The dead-drop account `helloworm00` (created **April 20, 2026** — two days before the attack), repository `helloworm00/hello-world`, and dead-drop commit `bc544f455d7c06c8a1f3446160a6d9a4a8236b11` are now public IOCs. Traffic to `github.com` is rarely flagged by security tools.
 
-**Supply chain worm:**
-The payload contained a self-propagation mechanism: it used stolen npm tokens to identify packages the victim had publish access to, injected malicious preinstall hooks into those packages, and re-uploaded them to npm — creating worm-style supply chain spread.
+**Supply chain worm (CanisterSprawl):**
+The worm component (CanisterSprawl) used stolen npm tokens to identify packages the victim had publish access to, injected malicious preinstall hooks into those packages, and re-uploaded them to npm — creating worm-style supply chain spread. Note: the **North Korea–nexus actor UNC1069** (Google GTIG) separately used credentials harvested by CanisterSprawl to compromise Axios on March 31. Two distinct threat actors operating in sequence on the same stolen credential pool.
+
+**Coordinated multi-vector operation:**
+[SANS ISC Update 008 (April 27, 2026)](https://www.ironcastle.net/teampcp-supply-chain-campaign-update-008-26-day-pause-ends-with-three-concurrent-compromises-checkmarx-kics-bitwarden-cli-cascade-xinference-pypi-canistersprawl-npm-worm-identified-and-tier-1/) revealed that April 22–23 was not an isolated Bitwarden incident. After a 26-day quiet period, TeamPCP conducted **three simultaneous compromises**:
+
+1. **Checkmarx KICS Docker images and VS Code extensions** (new artifacts beyond the GitHub Action)
+2. **Bitwarden CLI** (the event documented here)
+3. **xinference on PyPI** (separate concurrent attack)
+
+If you assess your exposure based on Bitwarden alone, you may miss two parallel attack vectors.
 
 ### Timeline
 
@@ -71,6 +88,17 @@ The payload contained a self-propagation mechanism: it used stolen npm tokens to
 3. **npm packages are an attack surface for CLI tools** — the official Bitwarden CLI is distributed via npm. `rbw` (the unofficial Rust client) is distributed via cargo/homebrew and was NOT affected. Distribution channel matters.
 4. **Trusted publishing can be weaponized** — the attacker didn't steal npm credentials. They compromised an upstream GitHub Action that was part of the publish pipeline. The "trusted" publish was legitimate from npm's perspective.
 
+### GitHub's Response
+
+In direct response to Shai-Hulud and the broader npm supply chain attack pattern, GitHub published [Our plan for a more secure npm supply chain](https://github.blog/security/supply-chain-security/our-plan-for-a-more-secure-npm-supply-chain/). Key commitments:
+
+- **Staged publishing** — review window before packages go live, requires MFA-verified owner approval
+- **Granular tokens with 7-day lifetime maximum** for local publishing
+- **FIDO-based 2FA** replacing TOTP; legacy classic tokens being deprecated
+- **Bulk trusted publishing migration tooling** ([generally available February 18, 2026](https://github.blog/changelog/2026-02-18-npm-bulk-trusted-publishing-config-and-script-security-now-generally-available/))
+
+This is a structural change to npm publishing, not a policy update. Combined with the [GitHub Actions 2026 Security Roadmap](https://github.blog/news-insights/product-news/whats-coming-to-our-github-actions-2026-security-roadmap/) (workflow dependency locking, scoped secrets, native egress firewall), the platform is responding to the threat that Shai-Hulud demonstrated.
+
 ### Sources
 
 - [The Hacker News — Bitwarden CLI Compromised in Ongoing Shai-Hulud Attack](https://thehackernews.com/2026/04/bitwarden-cli-compromised-in-ongoing.html)
@@ -78,6 +106,12 @@ The payload contained a self-propagation mechanism: it used stolen npm tokens to
 - [Endor Labs — Shai-Hulud: The Third Coming](https://www.endorlabs.com/learn/shai-hulud-the-third-coming----inside-the-bitwarden-cli-2026-4-0-supply-chain-attack)
 - [Socket.dev — Bitwarden CLI Compromised](https://socket.dev/blog/bitwarden-cli-compromised)
 - [Bitwarden Community — Statement on Checkmarx Supply Chain Incident](https://community.bitwarden.com/t/bitwarden-statement-on-checkmarx-supply-chain-incident/96127)
+- [SANS ISC Update 008 — April 27, 2026 (Iron Castle Systems)](https://www.ironcastle.net/teampcp-supply-chain-campaign-update-008-26-day-pause-ends-with-three-concurrent-compromises-checkmarx-kics-bitwarden-cli-cascade-xinference-pypi-canistersprawl-npm-worm-identified-and-tier-1/)
+- [SANS ISC — TeamPCP UNC6780 designation](https://isc.sans.edu/diary/32880)
+- [StepSecurity — Checkmarx KICS GitHub Action Compromised](https://www.stepsecurity.io/blog/checkmarx-kics-github-action-compromised-malware-injected-in-all-git-tags)
+- [Cloud Security Alliance — CanisterSprawl npm worm](https://labs.cloudsecurityalliance.org/research/csa-research-note-npm-canistersprawl-supply-chain-worm-20260/)
+- [Industrial Cyber — Vect + TeamPCP RaaS alliance](https://industrialcyber.co/ransomware/vect-formalizes-breachforums-and-teampcp-alliance-to-push-model-for-industrialized-ransomware-scale-raas-operations/)
+- [GitHub Blog — Our plan for a more secure npm supply chain](https://github.blog/security/supply-chain-security/our-plan-for-a-more-secure-npm-supply-chain/)
 - [Hacking Passion — Bitwarden CLI Supply Chain Attack](https://hackingpassion.com/bitwarden-cli-supply-chain-attack/)
 
 ---
@@ -124,6 +158,8 @@ This prevents all lifecycle scripts from running during installation. The Shai-H
 npm ci --ignore-scripts
 node node_modules/esbuild/install.js   # run specific scripts you trust
 ```
+
+**Important gotcha:** `--ignore-scripts` does **not** prevent code execution from git-URL dependencies (`"foo": "git+https://..."` in `package.json`). Git deps can ship arbitrary code that runs the moment you `require()` the module — no script needed. If your `package.json` has any git-URL deps, audit them separately. ([Source: Medium analysis, Feb 2026](https://thinkingthroughcode.medium.com/i-thought-ignore-scripts-made-npm-installs-safe-it-doesnt-f409b852e7c5))
 
 ### 3. Pin exact versions
 
@@ -224,8 +260,8 @@ Tags are mutable — an attacker with push access can move `v4` to a backdoored 
 - uses: actions/setup-node@v4
 
 # After (hardened):
-- uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
-- uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
+- uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+- uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
 ```
 
 Always add the tag as a comment — the SHA alone is unreadable during maintenance.
@@ -268,6 +304,8 @@ The attestation is logged to Rekor (a public, append-only transparency ledger). 
 - Must run on GitHub-hosted runners (`ubuntu-latest`, not self-hosted)
 - `repository` field in `package.json` must match the publishing repo
 
+**If you also use trusted publishing (Section 3 below), drop the `--provenance` flag** — it becomes redundant. With trusted publishing on GitHub-hosted runners and npm CLI ≥ 11.5.1, provenance is auto-attached to every publish. The flag is only needed when publishing with a long-lived `NPM_TOKEN`.
+
 ### 3. Use OIDC-based trusted publishing (eliminate NPM_TOKEN)
 
 npm's Trusted Publishing eliminates long-lived tokens entirely. Instead of storing an `NPM_TOKEN` secret, you register your GitHub repo and workflow as a trusted publisher on npmjs.com.
@@ -287,13 +325,15 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
         with:
-          node-version: '18'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
-      - run: npm publish --provenance --access public
-        # No NODE_AUTH_TOKEN — OIDC handles auth
+      - run: npm publish --access public
+        # No NODE_AUTH_TOKEN — OIDC handles auth.
+        # --provenance flag omitted: provenance is auto-attached when using
+        # trusted publishing from GitHub-hosted runners (npm CLI >= 11.5.1).
 ```
 
 **Protects against:** Stolen long-lived npm tokens. Each OIDC token is scoped to one workflow run, tied to a specific repo+workflow, and expires immediately.
@@ -362,11 +402,11 @@ GitHub Actions workflows are CI/CD code that runs with elevated privileges. A co
 
 ```yaml
 # Find SHA for any action:
-git ls-remote https://github.com/actions/checkout.git refs/tags/v4
+git ls-remote https://github.com/actions/checkout.git refs/tags/v6
 
-# Current SHAs (verified April 2026):
-actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5      # v4
-actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020     # v4
+# Current SHAs (verified April 27, 2026):
+actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd      # v6.0.2
+actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e    # v6.4.0
 ```
 
 ### Use Dependabot for action updates
@@ -413,6 +453,37 @@ Before adding any third-party action:
 2. Read the action's source code (especially the entrypoint)
 3. Pin to a specific commit SHA
 4. Set up Dependabot to notify you of updates
+
+### Use Harden-Runner for runtime egress control
+
+[StepSecurity Harden-Runner](https://docs.stepsecurity.io/harden-runner) is the most effective single defense against the Shai-Hulud class of attack today. It runs a runtime agent inside the GitHub Actions runner that:
+
+- **Blocks egress to non-allowlisted domains** at Layer 7 — even if a compromised step has root inside the runner
+- **Maintains a Global Block List** of IOC domains from active supply chain attacks (updated 24/7 by their SOC)
+- **Detects file integrity changes** to source files during workflow runs
+- **Supports GitHub-hosted, self-hosted, ARC (Kubernetes), and third-party runners** (Depot, Blacksmith, Namespace, WarpBuild)
+
+Drop-in usage:
+
+```yaml
+- uses: step-security/harden-runner@5c7944e73c4c2a096b17a9cb74d65b6c2bbafbde  # v2.9.1
+  with:
+    egress-policy: audit  # start in audit mode, then move to block
+```
+
+In **block** mode with a tight allowlist, Harden-Runner would have prevented the Shai-Hulud payload from reaching `audit.checkmarx.cx` even after it executed. GitHub is building [a native egress firewall](https://github.blog/news-insights/product-news/whats-coming-to-our-github-actions-2026-security-roadmap/) (6–9 month preview), but Harden-Runner is available today.
+
+### What's coming: GitHub Actions 2026 Security Roadmap
+
+[GitHub announced March 26, 2026](https://github.blog/news-insights/product-news/whats-coming-to-our-github-actions-2026-security-roadmap/) five new platform primitives directly relevant to this guide:
+
+- **Workflow Dependency Locking** (3–6 months) — native lockfile for actions; will eventually supersede manual SHA pinning + Ratchet/pin-github-action
+- **Policy-Driven Workflow Execution** (3–6 months) — restrict who can trigger workflows and which events
+- **Scoped Secrets** (3–6 months GA) — secrets bind to specific branches/environments/workflows; write access no longer auto-grants secret management
+- **Native Egress Firewall** (6–9 months preview) — Layer 7 firewall outside the runner VM; root inside the runner cannot bypass it
+- **Verified Action Provenance** — Sigstore attestation for action releases
+
+Until these ship, the SHA pinning + Harden-Runner + scoped GITHUB_TOKEN combination remains the strongest available defense.
 
 ---
 

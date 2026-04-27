@@ -94,6 +94,12 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [langfuse/langfuse](https://github.com/langfuse/langfuse) | ~25K | Open-source LLM engineering platform. Traces, metrics, evals, prompt management. Framework-agnostic, built on OpenTelemetry. Self-hosted option available. Acquired by ClickHouse. |
 | [LangSmith](https://www.langchain.com/langsmith/observability) | — | AI agent observability platform by LangChain. Near-zero overhead async tracing. If LangSmith goes down, your agent keeps running. Commercial with free tier. |
 
+## CI/CD Runtime Hardening
+
+| Resource | Stars | Description |
+|----------|-------|-------------|
+| [step-security/harden-runner](https://github.com/step-security/harden-runner) | ~1K | GitHub Actions runner hardening. Runtime egress filtering with allowlists, file integrity monitoring, anomaly detection. Maintains a Global Block List of IOC domains updated 24/7 from active supply chain attacks. Drop-in workflow step. Kubernetes ARC + third-party runner support (Depot, Blacksmith, Namespace, WarpBuild). Would have prevented Shai-Hulud egress in block mode. |
+
 ## Agent Orchestration
 
 | Resource | Stars | Description |
