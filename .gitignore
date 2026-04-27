@@ -23,3 +23,6 @@ logs/
 
 # Planning (GSD)
 .planning/
+
+# Session summaries (internal)
+docs/sessions/
