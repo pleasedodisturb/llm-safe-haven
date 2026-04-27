@@ -161,6 +161,9 @@ OpenClaw, an open-source AI agent with 135,000+ GitHub stars, accumulated 138 CV
 
 Source: [Reco AI — OpenClaw Security Crisis](https://www.reco.ai/blog/openclaw-the-ai-agent-security-crisis-unfolding-right-now) | [Sangfor — OpenClaw Security Risks](https://www.sangfor.com/blog/cybersecurity/openclaw-ai-agent-security-risks-2026)
 
+**ClawHavoc supply chain campaign (early 2026):**
+Investigators uncovered ClawHavoc, a large-scale supply-chain malware campaign specifically targeting OpenClaw users. Attackers uploaded over 1,100 malicious skills to ClawHub, masquerading as productivity, crypto, and coding tools. The campaign exploited the registry's rapid growth and insufficient vetting infrastructure — the same dynamics that enabled the broader OpenClaw crisis.
+
 **Why it matters for solo devs:** You do not have a security team vetting your tool chain. MCP servers run locally with your permissions. A single malicious MCP server can intercept calls to other MCP servers, read your files, and exfiltrate data — all while appearing to function normally.
 
 **Mitigation:** [Supply Chain Defense Guide](supply-chain-defense.md) | [References — Security Tools](references.md)
@@ -190,6 +193,12 @@ Source: [Reco AI — OpenClaw Security Crisis](https://www.reco.ai/blog/openclaw
 - **CVE-2025-64106** — MCP installation trust bypass enabling [arbitrary command execution](https://cyata.ai/blog/cyata-research-critical-flaw-in-cursor-mcp-installation/) (CVSS 8.8)
 - **CVE-2026-22708** — Shell built-in allowlist bypass enabling [environment poisoning and RCE](https://www.pillar.security/blog/the-agent-security-paradox-when-trusted-commands-in-cursor-become-attack-vectors)
 - **CVE-2026-26268** — Git hooks sandbox escape enabling [out-of-sandbox RCE](https://www.sentinelone.com/vulnerability-database/cve-2026-26268/)
+- **CVE-2026-31854** — Command injection via malicious website: indirect prompt injection combined with a command whitelist bypass caused commands to execute automatically without user intent. Fixed in Cursor 2.0.
+
+**OX Security: 94 n-day Chromium vulnerabilities in Cursor and Windsurf (October 2025):**
+Both IDEs are built on outdated VS Code/Electron forks and have not updated their bundled Chromium engine since version 132.0.6834.210 (March 21, 2025). OX Security identified 94+ known CVEs in that Chromium build and successfully weaponized CVE-2025-7656 against the latest releases of both IDEs — 1.8 million developers affected. Cursor classified the report "out of scope"; Windsurf did not respond to responsible disclosure.
+
+Source: [Bleeping Computer — Cursor, Windsurf IDEs riddled with 94+ n-day Chromium vulnerabilities](https://www.bleepingcomputer.com/news/security/cursor-windsurf-ides-riddled-with-94-plus-n-day-chromium-vulnerabilities/) | [OX Security — Forked and Forgotten](https://www.ox.security/blog/94-vulnerabilities-in-cursor-and-windsurf-put-1-8m-developers-at-risk/)
 
 **Cursor open-folder autorun (September 2025):**
 Oasis Security found that Cursor ships with VS Code's Workspace Trust disabled by default. A repository containing `.vscode/tasks.json` with `runOptions.runOn: "folderOpen"` executes code the moment a developer opens the folder — no trust prompt, no consent.
@@ -399,6 +408,9 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 | CI/CD pipeline poisoning | Critical | AI triage bots exploited to publish malicious packages | [Clinejection — Snyk (Feb 2026)](https://snyk.io/blog/cline-supply-chain-attack-prompt-injection-github-actions/) |
 | Credential manager supply chain | Critical | Bitwarden CLI npm package trojanized via compromised GitHub Action, targeted AI tool API keys | [Bitwarden CLI Supply Chain Attack (Apr 2026)](https://thehackernews.com/2026/04/bitwarden-cli-compromised-in-ongoing.html) |
 | Malware via AI tool lures | High | Fake "leaked" AI tool downloads distribute infostealers | [Trend Micro: Claude Code Lures (Apr 2026)](https://www.trendmicro.com/en_us/research/26/d/weaponizing-trust-claude-code-lures-and-github-release-payloads.html) |
+| Unauthenticated RCE in AI framework endpoints | Critical | AI agent builder endpoints execute attacker-supplied code without sandboxing or auth | [Flowise CVE-2025-59528 (CVSS 10.0)](https://thehackernews.com/2026/04/flowise-ai-agent-builder-under-active.html) / [Langflow CVE-2026-33017 (CISA KEV)](https://thehackernews.com/2026/03/critical-langflow-flaw-cve-2026-33017.html) |
+| n-day Chromium/Electron vulnerabilities in forked IDEs | High | AI IDEs built on outdated VS Code/Electron inherit 94+ known browser CVEs; vendors slow to patch | [OX Security: Forked and Forgotten (Oct 2025)](https://www.ox.security/blog/94-vulnerabilities-in-cursor-and-windsurf-put-1-8m-developers-at-risk/) |
+| Passive prompt injection via issue tracker | Critical | Hidden instructions in GitHub issues trigger Copilot agents to leak tokens and take over repos | [RoguePilot — Orca Security (Feb 2026)](https://orca.security/resources/blog/roguepilot-github-copilot-vulnerability/) |
 
 ## Real Incidents Timeline
 
@@ -440,6 +452,24 @@ Adversa AI discovered that Claude Code silently disables deny-rule enforcement w
 
 Source: [Adversa AI — Claude Code Security Bypass](https://adversa.ai/blog/claude-code-security-bypass-deny-rules-disabled/)
 
+### April 2026 — Flowise CVE-2025-59528 Actively Exploited (CVSS 10.0)
+
+The CustomMCP node in Flowise passed the `mcpServerConfig` input directly to JavaScript's `Function()` constructor without validation, enabling unauthenticated remote code execution with full Node.js runtime privileges. An API token is the only prerequisite. VulnCheck's canary network detected active exploitation within days of disclosure; 12,000–15,000 Flowise instances are exposed to the public internet. CISA and Bleeping Computer confirmed active scanning. Fixed in Flowise v3.1.1.
+
+Source: [The Hacker News — Flowise AI Agent Builder Under Active CVSS 10.0 RCE Exploitation](https://thehackernews.com/2026/04/flowise-ai-agent-builder-under-active.html) | [Security Affairs — CVE-2025-59528](https://securityaffairs.com/190471/security/attackers-exploit-critical-flowise-flaw-cve-2025-59528-for-remote-code-execution.html)
+
+### April 2026 — Flowise CVE-2026-41264 (CSV Agent RCE via Prompt Injection)
+
+Trend Micro's Zero Day Initiative disclosed that Flowise's CSV Agent node constructs and executes a Python script in a pyodide environment to analyze CSV column types. An unauthenticated attacker can send a crafted prompt that coerces the LLM into responding with a malicious Python script that executes attacker-controlled OS commands in the context of the Flowise server process. No authentication required. Fixed in Flowise v3.1.0 by disallowing all imports in the CSV Agent.
+
+Source: [GitLab Advisory — CVE-2026-41264](https://advisories.gitlab.com/npm/flowise/CVE-2026-41264/) | [GitHub Advisory — GHSA-3hjv-c53m-58jj](https://github.com/FlowiseAI/Flowise/security/advisories/GHSA-3hjv-c53m-58jj)
+
+### April 2026 — Anthropic Claude Mythos + Project Glasswing
+
+Anthropic announced Claude Mythos on April 7, 2026 — an AI model that during testing was found capable of identifying and exploiting zero-day vulnerabilities in every major operating system and web browser. Mythos Preview discovered thousands of high-severity zero-days including bugs 10–27 years old. In one demonstration it chained four vulnerabilities to escape both renderer and OS sandboxes. Project Glasswing deploys Mythos Preview in partnership with AWS, Apple, Cisco, CrowdStrike, Google, Linux Foundation, Microsoft, NVIDIA, and others to harden critical software before attackers find the same flaws. Mythos is not publicly available; Anthropic explicitly declined general access due to dual-use risk.
+
+Source: [The Hacker News — Claude Mythos Finds Thousands of Zero-Day Flaws](https://thehackernews.com/2026/04/anthropics-claude-mythos-finds.html) | [Help Net Security](https://www.helpnetsecurity.com/2026/04/08/anthropic-claude-mythos-preview-identify-vulnerabilities/) | [Anthropic Project Glasswing](https://www.anthropic.com/glasswing)
+
 ### April 2026 — Claude Code Malware Lures (Trend Micro)
 
 Within 24 hours of the March source code leak, threat actors pivoted to distributing Vidar stealer and GhostSocks proxy malware through fake "leaked" Claude Code downloads. 38 distinct 7z archives impersonating 25+ software brands. Active campaign since February 2026.
@@ -451,6 +481,12 @@ Source: [Trend Micro — Weaponizing Trust Signals](https://www.trendmicro.com/e
 Anthropic accidentally shipped source maps in npm package `@anthropic-ai/claude-code@2.1.88`, exposing 512,000 lines of TypeScript source code. The leak revealed the permission system, tool orchestration, memory architecture, and 44 unreleased feature flags — giving attackers a detailed map for crafting targeted exploits.
 
 Source: [VentureBeat — Claude Code's source code appears to have leaked](https://venturebeat.com/technology/claude-codes-source-code-appears-to-have-leaked-heres-what-we-know)
+
+### March 2026 — Langflow CVE-2026-33017 Exploited in 20 Hours (CISA KEV)
+
+Langflow's public flow build endpoint accepted attacker-supplied flow data containing arbitrary Python code in node definitions and executed it server-side without sandboxing — unauthenticated RCE in a single HTTP request (CVSS 9.3). Within 20 hours of disclosure on March 17, 2026, the Sysdig Threat Research Team observed real-world exploitation with no public PoC available, meaning attackers built working exploits directly from the advisory description. CISA added it to the Known Exploited Vulnerabilities catalog. Affects all Langflow versions prior to 1.8.1. Fixed in v1.9.0.
+
+Source: [The Hacker News — Critical Langflow Flaw CVE-2026-33017](https://thehackernews.com/2026/03/critical-langflow-flaw-cve-2026-33017.html) | [CISA via Help Net Security](https://www.helpnetsecurity.com/2026/03/27/cve-2026-33017-cve-2026-33634-exploited/) | [Sysdig — Exploited in 20 Hours](https://www.sysdig.com/blog/cve-2026-33017-how-attackers-compromised-langflow-ai-pipelines-in-20-hours)
 
 ### March 2026 — Unit 42 Web-Based IDPI in the Wild
 
@@ -469,6 +505,12 @@ Source: [Check Point Research — Caught in the Hook](https://research.checkpoin
 A single GitHub issue title triggered a chain that exfiltrated Cline's npm publishing tokens, resulting in unauthorized `cline@2.3.0` being published to npm. The malicious package installed OpenClaw on ~4,000 developer machines during an eight-hour window.
 
 Source: [Adnan Khan — Clinejection](https://adnanthekhan.com/posts/clinejection/) | [Snyk — Clinejection Supply Chain Attack](https://snyk.io/blog/cline-supply-chain-attack-prompt-injection-github-actions/)
+
+### February 2026 — RoguePilot: GitHub Copilot Repository Takeover via Issues
+
+Orca Security's research team discovered that malicious instructions embedded in a GitHub issue (hidden in HTML comments) could be processed by GitHub Copilot Agent, which in GitHub Codespaces had access to the repository's file system and terminal. Chaining issue injection with repository symlinks pointing to shared runtime files, an attacker could exfiltrate the `GITHUB_TOKEN` — granting full read and write access to the repository. Classified as a passive prompt injection supply chain attack: the attacker opens an issue, the victim never clicks anything. Patched by Microsoft.
+
+Source: [Orca Security — RoguePilot](https://orca.security/resources/blog/roguepilot-github-copilot-vulnerability/) | [SecurityWeek — GitHub Issues Abused in Copilot Attack](https://www.securityweek.com/github-issues-abused-in-copilot-attack-leading-to-repository-takeover/) | [The Hacker News — RoguePilot](https://thehackernews.com/2026/02/roguepilot-flaw-in-github-codespaces.html)
 
 ### February 2026 — Snyk ToxicSkills Audit
 
@@ -614,6 +656,9 @@ Claude Code accounts for 27 of 74 confirmed CVEs (36%) — partly because it lea
 | [Multimodal Prompt Injection Attacks](https://arxiv.org/abs/2509.05883) | Sep 2025 | Comprehensive analysis of risks and defenses for multimodal LLM prompt injection |
 | [Security Considerations for Multi-agent Systems](https://arxiv.org/abs/2603.09002) | Mar 2026 | Analyzes security threats specific to multi-agent architectures |
 | [Prompt Injection: Comprehensive Review](https://www.mdpi.com/2078-2489/17/1/54) (MDPI) | Jan 2026 | 45 sources synthesized; taxonomy of injection techniques from 2023-2025 |
+| [MCP Threat Modeling: Prompt Injection and Tool Poisoning](https://arxiv.org/abs/2603.22489) | Mar 2026 | STRIDE/DREAD analysis across 5 MCP components; 7 client defenses compared; tool poisoning identified as most prevalent attack; most clients fail static validation |
+| [Are AI-assisted Development Tools Immune to Prompt Injection?](https://arxiv.org/abs/2603.21642) | Mar 2026 | Empirical analysis of AI coding tools' resistance to prompt injection; published in time for IEEE S&P 2026 |
+| [Breaking MCP with Function Hijacking Attacks](https://arxiv.org/abs/2604.20994) | Apr 2026 | Novel FHA attack forces agents to invoke attacker-chosen MCP tools; 70–100% ASR across 5 models including GPT-5 and Claude Sonnet 4; attack is agnostic to context semantics |
 
 **Industry reports:**
 - [Trail of Bits — Lack of Isolation in Agentic Browsers (January 2026)](https://blog.trailofbits.com/2026/01/13/lack-of-isolation-in-agentic-browsers-resurfaces-old-vulnerabilities/) — Prompt injection in AI browsers mirrors XSS/CSRF; agents lack Same-Origin Policy equivalents
