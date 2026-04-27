@@ -411,6 +411,8 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 | Unauthenticated RCE in AI framework endpoints | Critical | AI agent builder endpoints execute attacker-supplied code without sandboxing or auth | [Flowise CVE-2025-59528 (CVSS 10.0)](https://thehackernews.com/2026/04/flowise-ai-agent-builder-under-active.html) / [Langflow CVE-2026-33017 (CISA KEV)](https://thehackernews.com/2026/03/critical-langflow-flaw-cve-2026-33017.html) |
 | n-day Chromium/Electron vulnerabilities in forked IDEs | High | AI IDEs built on outdated VS Code/Electron inherit 94+ known browser CVEs; vendors slow to patch | [OX Security: Forked and Forgotten (Oct 2025)](https://www.ox.security/blog/94-vulnerabilities-in-cursor-and-windsurf-put-1-8m-developers-at-risk/) |
 | Passive prompt injection via issue tracker | Critical | Hidden instructions in GitHub issues trigger Copilot agents to leak tokens and take over repos | [RoguePilot — Orca Security (Feb 2026)](https://orca.security/resources/blog/roguepilot-github-copilot-vulnerability/) |
+| Deprecated AI SaaS OAuth tokens as breach vector | Critical | AI tools retain OAuth access to Google Workspace/cloud services after deprecation; compromise pivots to enterprise infra | [Vercel/Context.ai breach (Apr 2026)](https://vercel.com/kb/bulletin/vercel-april-2026-security-incident) |
+| Coordinated multi-vector npm/PyPI/Docker compromise | Critical | Single threat actor (TeamPCP/UNC6780) executes simultaneous attacks across multiple package ecosystems | [SANS ISC Update 008 (Apr 2026)](https://www.ironcastle.net/teampcp-supply-chain-campaign-update-008-26-day-pause-ends-with-three-concurrent-compromises-checkmarx-kics-bitwarden-cli-cascade-xinference-pypi-canistersprawl-npm-worm-identified-and-tier-1/) |
 
 ## Real Incidents Timeline
 
@@ -427,6 +429,30 @@ The official Bitwarden CLI (`@bitwarden/cli@2026.4.0`) was trojanized for 93 min
 Note: `rbw` (the unofficial Rust Bitwarden client installed via cargo/homebrew) was NOT affected — only the npm-distributed `@bitwarden/cli`. Distribution channel matters. See [Supply Chain Defense Guide](supply-chain-defense.md) for the full case study and defense checklist.
 
 Source: [The Hacker News — Bitwarden CLI Compromised](https://thehackernews.com/2026/04/bitwarden-cli-compromised-in-ongoing.html) | [OX Security — Shai-Hulud Attack Analysis](https://www.ox.security/blog/shai-hulud-bitwarden-cli-supply-chain-attack/) | [Endor Labs — Shai-Hulud: The Third Coming](https://www.endorlabs.com/learn/shai-hulud-the-third-coming----inside-the-bitwarden-cli-2026-4-0-supply-chain-attack) | [Socket.dev — Bitwarden CLI Compromised](https://socket.dev/blog/bitwarden-cli-compromised)
+
+### April 2026 — Vercel Breach via Context.ai AI Tool Supply Chain (April 19)
+
+Vercel disclosed that its limited security incident traced back to **Context.ai**, a deprecated "AI Office Suite" startup that had OAuth access to Google Workspace. Attack chain: (1) **Lumma Stealer** infected Context.ai (~February 2026); (2) attacker obtained Context.ai's Google Workspace OAuth tokens; (3) pivoted to a Vercel employee's account that had granted Context.ai full Google Drive read access; (4) enumerated and decrypted non-sensitive Vercel environment variables; (5) the stolen Vercel database was posted on BreachForums for $2M. Vercel confirmed limited customer security impact and that npm packages remained uncompromised. The CEO described the operation as "likely significantly accelerated by AI."
+
+This incident establishes a new attack pattern: deprecated AI SaaS tools that retain live OAuth tokens to enterprise productivity suites become persistent supply chain attack vectors long after the tool is shut down.
+
+Source: [Vercel KB](https://vercel.com/kb/bulletin/vercel-april-2026-security-incident) | [The Hacker News — Vercel Breach Tied to Context AI Hack](https://thehackernews.com/2026/04/vercel-breach-tied-to-context-ai-hack.html) | [TechCrunch](https://techcrunch.com/2026/04/20/app-host-vercel-confirms-security-incident-says-customer-data-was-stolen-via-breach-at-context-ai/) | [CSA Research Note](https://labs.cloudsecurityalliance.org/research/csa-research-note-ai-saas-supply-chain-vercel-contextai-2026/)
+
+### April 2026 — TeamPCP Concurrent Multi-Vector Campaign (Update 008)
+
+[SANS ISC Update 008 (April 27, 2026)](https://www.ironcastle.net/teampcp-supply-chain-campaign-update-008-26-day-pause-ends-with-three-concurrent-compromises-checkmarx-kics-bitwarden-cli-cascade-xinference-pypi-canistersprawl-npm-worm-identified-and-tier-1/) revealed that the April 22-23 Bitwarden CLI incident was not isolated. After a 26-day quiet period, threat actor TeamPCP (formally tracked by Google GTIG as **UNC6780**, payload designation **SANDCLOCK**) conducted three simultaneous compromises:
+
+1. Checkmarx KICS Docker images and VS Code extensions
+2. Bitwarden CLI cascade (the documented npm event)
+3. xinference on PyPI (separate concurrent attack)
+
+The npm worm component is now formally named **CanisterSprawl** by multiple vendors. TeamPCP has also formalized an affiliate partnership with the **Vect ransomware-as-a-service** operation as of April 16, 2026 — credential theft now feeds ransomware extortion. Note: the Axios npm compromise on March 31 was attributed by Google GTIG to the *separate* North Korea–nexus actor **UNC1069**, who used credentials harvested by CanisterSprawl. Two distinct threat actors operating in sequence on the same stolen credential pool.
+
+Source: [SANS ISC — TeamPCP UNC6780 Update 007](https://isc.sans.edu/diary/32880) | [Cloud Security Alliance — CanisterSprawl Worm](https://labs.cloudsecurityalliance.org/research/csa-research-note-npm-canistersprawl-supply-chain-worm-20260/) | [Industrial Cyber — Vect + TeamPCP RaaS Alliance](https://industrialcyber.co/ransomware/vect-formalizes-breachforums-and-teampcp-alliance-to-push-model-for-industrialized-ransomware-scale-raas-operations/)
+
+### April 2026 — GitHub Announces Structural npm Supply Chain Reforms
+
+In direct response to Shai-Hulud and the broader npm attack pattern, GitHub published [Our plan for a more secure npm supply chain](https://github.blog/security/supply-chain-security/our-plan-for-a-more-secure-npm-supply-chain/). Concrete commitments: (1) staged publishing with MFA-verified review window before packages go live; (2) granular tokens with 7-day lifetime maximum for local publishing; (3) FIDO-based 2FA replacing TOTP; (4) deprecation of legacy classic tokens; (5) bulk trusted publishing migration tooling generally available. Combined with the [GitHub Actions 2026 Security Roadmap](https://github.blog/news-insights/product-news/whats-coming-to-our-github-actions-2026-security-roadmap/) (workflow dependency locking, scoped secrets, native egress firewall), this represents the platform's structural response to supply-chain compromise as a category.
 
 ### April 2026 — Three AI Agents Leak Secrets via "Comment and Control"
 
@@ -659,6 +685,7 @@ Claude Code accounts for 27 of 74 confirmed CVEs (36%) — partly because it lea
 | [MCP Threat Modeling: Prompt Injection and Tool Poisoning](https://arxiv.org/abs/2603.22489) | Mar 2026 | STRIDE/DREAD analysis across 5 MCP components; 7 client defenses compared; tool poisoning identified as most prevalent attack; most clients fail static validation |
 | [Are AI-assisted Development Tools Immune to Prompt Injection?](https://arxiv.org/abs/2603.21642) | Mar 2026 | Empirical analysis of AI coding tools' resistance to prompt injection; published in time for IEEE S&P 2026 |
 | [Breaking MCP with Function Hijacking Attacks](https://arxiv.org/abs/2604.20994) | Apr 2026 | Novel FHA attack forces agents to invoke attacker-chosen MCP tools; 70–100% ASR across 5 models including GPT-5 and Claude Sonnet 4; attack is agnostic to context semantics |
+| [MCPSHIELD: Formal Security Framework for MCP-Based AI Agents](https://arxiv.org/abs/2604.05969) | Apr 2026 | Synthesizes 12 prior MCP security papers into unified taxonomy; 7 threat categories, 23 attack vectors across 177k+ MCP tools; finds **no single existing defense covers >34% of the threat landscape** |
 
 **Industry reports:**
 - [Trail of Bits — Lack of Isolation in Agentic Browsers (January 2026)](https://blog.trailofbits.com/2026/01/13/lack-of-isolation-in-agentic-browsers-resurfaces-old-vulnerabilities/) — Prompt injection in AI browsers mirrors XSS/CSRF; agents lack Same-Origin Policy equivalents
