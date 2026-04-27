@@ -878,7 +878,36 @@ Step-by-step hardening for a new machine or project.
 
 ---
 
+## npm Supply Chain Hygiene
+
+If you use Claude Code to work on npm projects, your dependency installs and publish workflows are attack surfaces.
+
+### When installing packages
+
+1. **Review `package.json` scripts** before running `npm install` in unfamiliar projects — check for `preinstall`, `postinstall`, and `prepare` hooks.
+2. **Use `--ignore-scripts`** for untrusted packages: `npm ci --ignore-scripts`. This blocks install-time payloads like the Shai-Hulud attack used.
+3. **Run `npm audit signatures`** after installs to verify package integrity and provenance attestations.
+4. **Pin exact versions** in `package.json` — no `^` or `~` ranges for security-critical dependencies.
+
+### When publishing packages
+
+1. **Pin GitHub Actions to commit SHAs** in your publish workflow — tags are mutable, SHAs are not. This is how the [Shai-Hulud attack](../supply-chain-defense.md) compromised Bitwarden's publish pipeline.
+2. **Publish with `--provenance`** for Sigstore attestation linking the package to its source commit.
+3. **Use OIDC-based trusted publishing** to eliminate long-lived npm tokens.
+4. **No lifecycle scripts** in published packages — they are the primary install-time attack vector.
+
+### Claude Code-specific considerations
+
+- Claude Code can run `npm install` as part of its workflow. A malicious `postinstall` script in a dependency runs with your user's full privileges inside the sandbox.
+- The bash-firewall hook (see [Hook System](#hook-system)) can be configured to alert on unexpected `npm publish` commands or `npm install` of unfamiliar packages.
+- When reviewing PRs that modify `package.json` or `package-lock.json`, pay extra attention — lockfile injection is a real attack vector.
+
+See [Supply Chain Defense Guide](../supply-chain-defense.md) for the full Shai-Hulud case study and defense checklists.
+
+---
+
 **Further reading:**
+- [Supply Chain Defense Guide](../supply-chain-defense.md) -- Shai-Hulud case study, npm defense checklists, GitHub Actions hardening
 - [Credential Management Architecture](../credential-management.md) -- why env vars fail and what to do instead
 - [Quick Start Guide](../guides/quick-start.md) -- 30-minute hardening for all agents
 - [Threat Model](../threat-model.md) -- OWASP Agentic Top 10 mapped to solo dev setups
