@@ -450,7 +450,7 @@ sha256sum $(which rbw)
 
 ## Runtime Defenses
 
-### PreToolUse hooks for credential tool monitoring
+### PostToolUse hooks for credential tool monitoring
 
 Install hooks that detect unexpected behavior from credential manager processes:
 
