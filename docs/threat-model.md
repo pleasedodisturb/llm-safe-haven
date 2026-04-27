@@ -397,9 +397,16 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 | Memory persistence (SpAIware) | High | Malicious instructions persist in agent memory across sessions | [Embrace The Red: Windsurf SpAIware (2025)](https://embracethered.com/blog/posts/2025/windsurf-spaiware-exploit-persistent-prompt-injection/) |
 | Agentic browser cookie reuse | High | Agents reuse cookies for requests, enabling cross-site data theft | [Trail of Bits: Agentic Browser Isolation (Jan 2026)](https://blog.trailofbits.com/2026/01/13/lack-of-isolation-in-agentic-browsers-resurfaces-old-vulnerabilities/) |
 | CI/CD pipeline poisoning | Critical | AI triage bots exploited to publish malicious packages | [Clinejection — Snyk (Feb 2026)](https://snyk.io/blog/cline-supply-chain-attack-prompt-injection-github-actions/) |
+| Credential manager supply chain | Critical | Bitwarden CLI npm package trojanized via compromised GitHub Action, targeted AI tool API keys | [Bitwarden CLI Supply Chain Attack (Apr 2026)](https://thehackernews.com/2026/04/bitwarden-cli-compromised-in-ongoing.html) |
 | Malware via AI tool lures | High | Fake "leaked" AI tool downloads distribute infostealers | [Trend Micro: Claude Code Lures (Apr 2026)](https://www.trendmicro.com/en_us/research/26/d/weaponizing-trust-claude-code-lures-and-github-release-payloads.html) |
 
 ## Real Incidents Timeline
+
+### April 2026 — Bitwarden CLI Supply Chain Attack (Shai-Hulud)
+
+The official Bitwarden CLI (`@bitwarden/cli@2026.4.0`) was trojanized for 93 minutes on April 22, 2026. Attackers compromised a Checkmarx GitHub Action used in Bitwarden's CI pipeline — the first known compromise of npm's trusted publishing mechanism. The malicious payload targeted SSH keys, GitHub/npm tokens, AWS/Azure credentials, and AI tool API keys specifically. Anyone who ran `npm install` or CI builds during the 93-minute window had their credentials exfiltrated. The vault itself was not compromised. Note: `rbw` (the unofficial Rust Bitwarden client installed via cargo/homebrew) was NOT affected — only the npm-distributed `@bitwarden/cli`.
+
+Source: [The Hacker News — Bitwarden CLI Compromised](https://thehackernews.com/2026/04/bitwarden-cli-compromised-in-ongoing.html) | [OX Security — Shai-Hulud Attack Analysis](https://www.ox.security/blog/shai-hulud-bitwarden-cli-supply-chain-attack/)
 
 ### April 2026 — Three AI Agents Leak Secrets via "Comment and Control"
 

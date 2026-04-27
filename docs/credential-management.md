@@ -321,10 +321,13 @@ If existing tools don't fit your setup, here are the key design decisions:
 - (+) Local-only — secrets never leave your machine
 - (+) File-based IPC works inside Seatbelt sandbox
 - (+) Per-project manifests enforce least privilege
+- (+) Uses `rbw` (Rust, installed via cargo/homebrew) — NOT the official `@bitwarden/cli` npm package
 - (-) Bitwarden/rbw-specific
 - (-) Not yet available
 
-**Link:** [github.com/pleasedodisturb/rbw-proxy](https://github.com/pleasedodisturb/rbw-proxy) (forthcoming)
+**Supply chain note:** The official Bitwarden CLI (`@bitwarden/cli`) was [trojanized for 93 minutes on April 22, 2026](https://thehackernews.com/2026/04/bitwarden-cli-compromised-in-ongoing.html) via a compromised GitHub Action. The malicious payload specifically targeted AI tool API keys. rbw-proxy uses `rbw` — the unofficial Rust client distributed via cargo/homebrew, not npm — which was NOT affected. This is a deliberate architectural choice: keeping the credential manager outside the npm supply chain reduces the attack surface.
+
+**Link:** [github.com/pleasedodisturb/rbw-proxy](https://github.com/pleasedodisturb/rbw-proxy)
 
 ---
 
