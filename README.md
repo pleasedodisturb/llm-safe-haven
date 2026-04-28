@@ -1,5 +1,9 @@
 # LLM Safe Haven
 
+[![Socket Badge](https://socket.dev/api/badge/npm/package/llm-safe-haven)](https://socket.dev/npm/package/llm-safe-haven)
+[![npm version](https://img.shields.io/npm/v/llm-safe-haven.svg)](https://www.npmjs.com/package/llm-safe-haven)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Harden your AI coding agent in 60 seconds.
 
 ```bash
