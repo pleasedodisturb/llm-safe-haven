@@ -413,6 +413,7 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 | Passive prompt injection via issue tracker | Critical | Hidden instructions in GitHub issues trigger Copilot agents to leak tokens and take over repos | [RoguePilot — Orca Security (Feb 2026)](https://orca.security/resources/blog/roguepilot-github-copilot-vulnerability/) |
 | Deprecated AI SaaS OAuth tokens as breach vector | Critical | AI tools retain OAuth access to Google Workspace/cloud services after deprecation; compromise pivots to enterprise infra | [Vercel/Context.ai breach (Apr 2026)](https://vercel.com/kb/bulletin/vercel-april-2026-security-incident) |
 | Coordinated multi-vector npm/PyPI/Docker compromise | Critical | Single threat actor (TeamPCP/UNC6780) executes simultaneous attacks across multiple package ecosystems | [SANS ISC Update 008 (Apr 2026)](https://www.ironcastle.net/teampcp-supply-chain-campaign-update-008-26-day-pause-ends-with-three-concurrent-compromises-checkmarx-kics-bitwarden-cli-cascade-xinference-pypi-canistersprawl-npm-worm-identified-and-tier-1/) |
+| AI agent hook weaponization via npm payload | Critical | Malicious package writes `.claude/settings.json` SessionStart hook + `.vscode/tasks.json` `folderOpen` trigger as persistence/propagation | [Mini Shai-Hulud (Apr 29, 2026)](https://www.wiz.io/blog/mini-shai-hulud-supply-chain-sap-npm) |
 
 ## Real Incidents Timeline
 
@@ -437,6 +438,18 @@ Vercel disclosed that its limited security incident traced back to **Context.ai*
 This incident establishes a new attack pattern: deprecated AI SaaS tools that retain live OAuth tokens to enterprise productivity suites become persistent supply chain attack vectors long after the tool is shut down.
 
 Source: [Vercel KB](https://vercel.com/kb/bulletin/vercel-april-2026-security-incident) | [The Hacker News — Vercel Breach Tied to Context AI Hack](https://thehackernews.com/2026/04/vercel-breach-tied-to-context-ai-hack.html) | [TechCrunch](https://techcrunch.com/2026/04/20/app-host-vercel-confirms-security-incident-says-customer-data-was-stolen-via-breach-at-context-ai/) | [CSA Research Note](https://labs.cloudsecurityalliance.org/research/csa-research-note-ai-saas-supply-chain-vercel-contextai-2026/)
+
+### April 2026 — Mini Shai-Hulud Targets SAP CAP via Claude Code Hooks (April 29)
+
+Seven days after the Bitwarden CLI compromise, threat actor TeamPCP returned with a smaller-scale but more agent-focused attack. On April 29, 2026, between 09:55–12:14 UTC, four SAP CAP npm packages were poisoned: `@cap-js/sqlite`, `@cap-js/postgres`, `@cap-js/db-service`, and `mbt`. SAP detected and superseded all four within ~2 hours.
+
+**What makes this attack distinct:** the payload **explicitly weaponizes Claude Code's `.claude/settings.json` SessionStart hook** and `.vscode/tasks.json` `folderOpen` trigger as persistence and propagation vectors — directly targeting AI coding agent configurations rather than just exfiltrating from them. After the npm payload runs, the worm phase has spread exfiltrated secrets across **1,100+ public GitHub repositories**.
+
+This is the second confirmed wave of TeamPCP attacks specifically targeting AI coding agent persistence mechanisms. The pattern from Shai-Hulud (April 22, AI tool API key exfiltration) → Mini Shai-Hulud (April 29, AI agent hook weaponization) shows clear escalation: each iteration is more agent-aware than the last.
+
+**Defenses:** Audit `.claude/settings.json` in every cloned repository before opening. Pin GitHub Actions in your CI to commit SHAs. Use Harden-Runner with egress block-mode. The SessionStart-hook abuse pattern is exactly what hooks like llm-safe-haven's bash-firewall and secret-guard catch.
+
+Source: [The Hacker News — SAP npm packages compromised by Mini Shai-Hulud](https://thehackernews.com/2026/04/sap-npm-packages-compromised-by-mini.html) | [Wiz — Mini Shai-Hulud SAP npm](https://www.wiz.io/blog/mini-shai-hulud-supply-chain-sap-npm) | [Mend — Shai-Hulud SAP CAP via Claude Code](https://www.mend.io/blog/shai-hulud-sap-cap-supply-chain-attack-claude-code/) | [StepSecurity — A Mini Shai-Hulud Has Appeared](https://www.stepsecurity.io/blog/a-mini-shai-hulud-has-appeared) | [Sophos](https://www.sophos.com/en-us/blog/-mini-shai-hulud-supply-chain-attack-targets-sap-npm-packages) | [Snyk — Bun-based stealer hits SAP CAP npm packages](https://snyk.io/blog/bun-based-stealer-hits-sap-cap-js-mbt-npm-packages/)
 
 ### April 2026 — TeamPCP Concurrent Multi-Vector Campaign (Update 008)
 

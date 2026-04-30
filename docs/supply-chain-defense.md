@@ -69,6 +69,14 @@ The worm component (CanisterSprawl) used stolen npm tokens to identify packages 
 
 If you assess your exposure based on Bitwarden alone, you may miss two parallel attack vectors.
 
+**Mini Shai-Hulud sequel — April 29, 2026:**
+
+Seven days after the Bitwarden incident, TeamPCP poisoned 4 SAP CAP npm packages (`@cap-js/sqlite`, `@cap-js/postgres`, `@cap-js/db-service`, `mbt`) for ~2 hours starting 09:55 UTC. The payload **explicitly weaponizes Claude Code's `.claude/settings.json` SessionStart hook** and `.vscode/tasks.json` `folderOpen` trigger as persistence/propagation vectors. 1,100+ public GitHub repositories now hold exfiltrated secrets from the post-execution worm phase. This is the second confirmed wave specifically targeting AI coding agent configurations — the technique is now an active, repeated pattern.
+
+If you use Claude Code, audit `.claude/settings.json` in every cloned repo before opening. The bash-firewall and secret-guard hooks llm-safe-haven installs catch the SessionStart-hook abuse pattern.
+
+Source: [Wiz — Mini Shai-Hulud SAP npm](https://www.wiz.io/blog/mini-shai-hulud-supply-chain-sap-npm) | [Mend — Shai-Hulud SAP CAP via Claude Code](https://www.mend.io/blog/shai-hulud-sap-cap-supply-chain-attack-claude-code/) | [The Hacker News](https://thehackernews.com/2026/04/sap-npm-packages-compromised-by-mini.html) | [StepSecurity](https://www.stepsecurity.io/blog/a-mini-shai-hulud-has-appeared) | [Sophos](https://www.sophos.com/en-us/blog/-mini-shai-hulud-supply-chain-attack-targets-sap-npm-packages)
+
 ### Timeline
 
 | Time (ET) | Event |
@@ -195,6 +203,8 @@ Also verifies Sigstore provenance attestations when available — linking the pa
 [Socket.dev](https://socket.dev) does deep static analysis on packages and their dependency trees, detecting 60+ compromise indicators including install scripts, network access, obfuscated code, environment variable reads, and shell access.
 
 Unlike `npm audit` which checks a CVE database, Socket catches zero-day attacks — packages with no CVE yet.
+
+**April 28, 2026:** Socket [acquired Secure Annex](https://www.einpresswire.com/article/908651512/socket-acquires-secure-annex-to-expand-extension-security-across-browsers-and-developer-tools), expanding coverage beyond npm/PyPI to browser extensions, VS Code/Open VSX extensions, MCP servers, and AI agent skills — directly relevant to the agent supply chain surface.
 
 **GitHub App (recommended):** Install from socket.dev. Monitors every PR that modifies `package.json` or `package-lock.json`. Posts blocking comments with risk breakdown before changes merge.
 
@@ -466,7 +476,7 @@ Before adding any third-party action:
 Drop-in usage:
 
 ```yaml
-- uses: step-security/harden-runner@5c7944e73c4c2a096b17a9cb74d65b6c2bbafbde  # v2.9.1
+- uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40  # v2.19.0
   with:
     egress-policy: audit  # start in audit mode, then move to block
 ```
