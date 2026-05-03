@@ -1,6 +1,6 @@
 # Agent Security Resources
 
-> Last verified: April 2026
+> Last verified: May 2026
 
 Curated collection of frameworks, tools, guides, and incident reports for securing AI coding agents. Focused on what's useful for solo developers — enterprise-only tools are noted but not prioritized.
 
