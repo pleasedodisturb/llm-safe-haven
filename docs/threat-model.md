@@ -414,6 +414,7 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 | Deprecated AI SaaS OAuth tokens as breach vector | Critical | AI tools retain OAuth access to Google Workspace/cloud services after deprecation; compromise pivots to enterprise infra | [Vercel/Context.ai breach (Apr 2026)](https://vercel.com/kb/bulletin/vercel-april-2026-security-incident) |
 | Coordinated multi-vector npm/PyPI/Docker compromise | Critical | Single threat actor (TeamPCP/UNC6780) executes simultaneous attacks across multiple package ecosystems | [SANS ISC Update 008 (Apr 2026)](https://www.ironcastle.net/teampcp-supply-chain-campaign-update-008-26-day-pause-ends-with-three-concurrent-compromises-checkmarx-kics-bitwarden-cli-cascade-xinference-pypi-canistersprawl-npm-worm-identified-and-tier-1/) |
 | AI agent hook weaponization via npm payload | Critical | Malicious package writes `.claude/settings.json` SessionStart hook + `.vscode/tasks.json` `folderOpen` trigger as persistence/propagation | [Mini Shai-Hulud (Apr 29, 2026)](https://www.wiz.io/blog/mini-shai-hulud-supply-chain-sap-npm) |
+| AI Python library `.pth` file persistence | Critical | Malicious `.pth` file in compromised PyPI package executes credential stealer on every Python process startup; survives package removal; lateral movement across Kubernetes clusters | [LiteLLM/Telnyx PyPI compromise (Mar 2026)](https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/) |
 
 ## Real Incidents Timeline
 
@@ -533,6 +534,16 @@ Palo Alto Networks' Unit 42 published research documenting 22 distinct indirect 
 
 Source: [Unit 42 — Fooling AI Agents: Web-Based Indirect Prompt Injection](https://unit42.paloaltonetworks.com/ai-agent-prompt-injection/)
 
+### March 2026 — LiteLLM and Telnyx PyPI Supply Chain Attack (TeamPCP)
+
+On March 24, 2026, threat actor **TeamPCP** published backdoored versions of two widely-used AI developer libraries: **litellm** (v1.82.7, v1.82.8) and **telnyx** (v4.87.1, v4.87.2) on PyPI. The attack began March 19, when TeamPCP compromised Aqua Security's Trivy scanner — LiteLLM's CI/CD pipeline pulled Trivy from `apt` without a pinned version, allowing the compromised action to exfiltrate LiteLLM's PyPI publish token from GitHub Actions. The backdoored packages were live for approximately 40 minutes before PyPI quarantined them; ~119k downloads occurred during the window.
+
+**Payload:** Version 1.82.8 used a `.pth` file (`litellm_init.pth`) — a Python interpreter startup hook that executes on *every* Python process start, not just when litellm is imported. The payload harvested SSH keys, cloud credentials (AWS, GCP, Azure), Kubernetes service account tokens, Docker configs, shell history, database passwords, wallet files, and CI/CD secrets. All data was encrypted with AES-256 and exfiltrated to `models.litellm[.]cloud`.
+
+**Why it matters for solo devs:** litellm is a transitive dependency for dozens of AI agent frameworks. The `.pth` persistence mechanism means the credential stealer survives even after litellm is removed from `requirements.txt` — it continues running on every Python process until the malicious `.pth` file is manually deleted from site-packages. Any machine that ran `pip install litellm` during the 40-minute window should be treated as fully compromised. This attack preceded the Bitwarden/Shai-Hulud event by one month — part of the same escalating TeamPCP campaign.
+
+Source: [Datadog Security Labs — LiteLLM and Telnyx compromised on PyPI](https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/) | [Snyk — Poisoned Security Scanner Backdooring LiteLLM](https://snyk.io/blog/poisoned-security-scanner-backdooring-litellm/) | [PyPI Incident Report](https://blog.pypi.org/posts/2026-04-02-incident-report-litellm-telnyx-supply-chain-attack/)
+
 ### February 2026 — Check Point: Claude Code Hooks RCE and API Key Theft
 
 Check Point Research disclosed CVE-2025-59536 (hooks injection, RCE) and CVE-2026-21852 (API key exfiltration via ANTHROPIC_BASE_URL redirect). Both exploited Claude Code's project-load flow through malicious repository configuration files.
@@ -550,6 +561,18 @@ Source: [Adnan Khan — Clinejection](https://adnanthekhan.com/posts/clinejectio
 Orca Security's research team discovered that malicious instructions embedded in a GitHub issue (hidden in HTML comments) could be processed by GitHub Copilot Agent, which in GitHub Codespaces had access to the repository's file system and terminal. Chaining issue injection with repository symlinks pointing to shared runtime files, an attacker could exfiltrate the `GITHUB_TOKEN` — granting full read and write access to the repository. Classified as a passive prompt injection supply chain attack: the attacker opens an issue, the victim never clicks anything. Patched by Microsoft.
 
 Source: [Orca Security — RoguePilot](https://orca.security/resources/blog/roguepilot-github-copilot-vulnerability/) | [SecurityWeek — GitHub Issues Abused in Copilot Attack](https://www.securityweek.com/github-issues-abused-in-copilot-attack-leading-to-repository-takeover/) | [The Hacker News — RoguePilot](https://thehackernews.com/2026/02/roguepilot-flaw-in-github-codespaces.html)
+
+### February 2026 — GitHub Copilot Command Injection Trio (Patch Tuesday)
+
+Microsoft's February 10, 2026 Patch Tuesday disclosed three GitHub Copilot vulnerabilities affecting JetBrains, Visual Studio Code, and the Copilot CLI:
+
+- **CVE-2026-21516** (CVSS 8.8) — Command injection in GitHub Copilot for JetBrains (versions 1.0.0–1.5.62). Malicious instructions embedded in repository content caused Copilot to generate suggestions containing shell metacharacters that the plugin executed without sanitization. Fixed in v1.5.63.
+- **CVE-2026-21523** (CVSS 8.0) — TOCTOU race condition in GitHub Copilot and Visual Studio Code. An authorized attacker could exploit the gap between when Copilot validates a suggestion and when the IDE applies it to execute arbitrary code over the network.
+- **CVE-2026-29783** (CVSS 7.5) — Shell expansion bypass in Copilot CLI (up to v0.0.422). Bash parameter expansion patterns like `${var@P}` bypassed the CLI's "read-only" safety assessment, enabling arbitrary command execution through what the tool classified as a safe informational query. Fixed in v0.0.423.
+
+The JetBrains vulnerability (CVE-2026-21516) follows the same prompt-injection-to-code-execution pattern as Cursor CVE-2026-26268 and Claude Code CVE-2025-59536 — repository content influencing agent-adjacent tooling into executing attacker-controlled commands.
+
+Source: [CVEReports — CVE-2026-29783](https://cvereports.com/reports/CVE-2026-29783) | [GitLab Advisory — CVE-2026-29783](https://advisories.gitlab.com/pkg/npm/@github/copilot/CVE-2026-29783/) | [Krebs on Security — Patch Tuesday February 2026](https://krebsonsecurity.com/2026/02/patch-tuesday-february-2026-edition/)
 
 ### February 2026 — Snyk ToxicSkills Audit
 
@@ -696,6 +719,7 @@ Claude Code accounts for 27 of 74 confirmed CVEs (36%) — partly because it lea
 | [Security Considerations for Multi-agent Systems](https://arxiv.org/abs/2603.09002) | Mar 2026 | Analyzes security threats specific to multi-agent architectures |
 | [Prompt Injection: Comprehensive Review](https://www.mdpi.com/2078-2489/17/1/54) (MDPI) | Jan 2026 | 45 sources synthesized; taxonomy of injection techniques from 2023-2025 |
 | [MCP Threat Modeling: Prompt Injection and Tool Poisoning](https://arxiv.org/abs/2603.22489) | Mar 2026 | STRIDE/DREAD analysis across 5 MCP components; 7 client defenses compared; tool poisoning identified as most prevalent attack; most clients fail static validation |
+| [The Landscape of Prompt Injection Threats in LLM Agents: From Taxonomy to Analysis](https://arxiv.org/abs/2602.10453) (Wang et al.) | Feb 2026 | Taxonomy of prompt injection by payload generation strategy (heuristic vs. optimization) and defense by intervention stage; introduces AgentPI benchmark; no single defense achieves high trustworthiness + high utility + low latency simultaneously |
 | [Are AI-assisted Development Tools Immune to Prompt Injection?](https://arxiv.org/abs/2603.21642) | Mar 2026 | Empirical analysis of AI coding tools' resistance to prompt injection; published in time for IEEE S&P 2026 |
 | [Breaking MCP with Function Hijacking Attacks](https://arxiv.org/abs/2604.20994) | Apr 2026 | Novel FHA attack forces agents to invoke attacker-chosen MCP tools; 70–100% ASR across 5 models including GPT-5 and Claude Sonnet 4; attack is agnostic to context semantics |
 | [MCPSHIELD: Formal Security Framework for MCP-Based AI Agents](https://arxiv.org/abs/2604.05969) | Apr 2026 | Synthesizes 12 prior MCP security papers into unified taxonomy; 7 threat categories, 23 attack vectors across 177k+ MCP tools; finds **no single existing defense covers >34% of the threat landscape** |
