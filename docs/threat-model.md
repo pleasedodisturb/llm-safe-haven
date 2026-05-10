@@ -414,8 +414,34 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 | Deprecated AI SaaS OAuth tokens as breach vector | Critical | AI tools retain OAuth access to Google Workspace/cloud services after deprecation; compromise pivots to enterprise infra | [Vercel/Context.ai breach (Apr 2026)](https://vercel.com/kb/bulletin/vercel-april-2026-security-incident) |
 | Coordinated multi-vector npm/PyPI/Docker compromise | Critical | Single threat actor (TeamPCP/UNC6780) executes simultaneous attacks across multiple package ecosystems | [SANS ISC Update 008 (Apr 2026)](https://www.ironcastle.net/teampcp-supply-chain-campaign-update-008-26-day-pause-ends-with-three-concurrent-compromises-checkmarx-kics-bitwarden-cli-cascade-xinference-pypi-canistersprawl-npm-worm-identified-and-tier-1/) |
 | AI agent hook weaponization via npm payload | Critical | Malicious package writes `.claude/settings.json` SessionStart hook + `.vscode/tasks.json` `folderOpen` trigger as persistence/propagation | [Mini Shai-Hulud (Apr 29, 2026)](https://www.wiz.io/blog/mini-shai-hulud-supply-chain-sap-npm) |
+| Semantic Kernel prompt injection → RCE via eval() | Critical | Python SDK InMemoryVectorStore interpolates user input into a `eval()`-executed lambda; prompt injection route turns this into host-level RCE | [CVE-2026-26030 — Microsoft Semantic Kernel (May 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/07/prompts-become-shells-rce-vulnerabilities-ai-agent-frameworks/) |
+| Semantic Kernel arbitrary file write via exposed attribute | Critical | .NET SDK accidentally annotates a file-write helper with `[KernelFunction]`, exposing it to the AI model with no path validation; CVSS 10.0 | [CVE-2026-25592 — Microsoft Semantic Kernel (May 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/07/prompts-become-shells-rce-vulnerabilities-ai-agent-frameworks/) |
+| Azure AI agent EoP via improper access control | Critical | M365 published agents have no enforcement boundary between agent role and admin role; exploited in the wild at time of disclosure | [CVE-2026-35435 — Azure AI Foundry (May 2026)](https://windowsnews.ai/article/cve-2026-35435-critical-azure-ai-foundry-privilege-escalation-in-m365-agents-leaves-systems-vulnerab.417153) |
+| Cross-origin WebSocket hijacking via local agent server | High | Local WebSocket server with no Origin validation lets any open browser tab hijack running agent sessions, exfiltrate data, or kill tasks | [CVE-2026-44211 — Cline Kanban (May 2026)](https://advisories.gitlab.com/npm/cline/CVE-2026-44211/) |
 
 ## Real Incidents Timeline
+
+### May 2026 — Microsoft Semantic Kernel Prompt Injection → RCE (CVE-2026-25592 & CVE-2026-26030)
+
+Microsoft disclosed two critical vulnerabilities in Semantic Kernel on May 7, 2026. **CVE-2026-26030** affects the Python SDK: the `InMemoryVectorStore` filter interpolates user-supplied city values into a Python lambda executed via `eval()`. Any prompt injection route into the agent — a malicious document, web content, or tool output — escalates to host-level RCE without requiring a browser exploit or memory corruption bug. **CVE-2026-25592** affects the .NET SDK: a helper method was accidentally annotated with `[KernelFunction]`, exposing arbitrary file-write capability to the AI model with no path validation (CVSS 10.0). A manipulated agent can write to any location on the host filesystem, escaping the workspace. Both patches are available: Python SDK >= 1.39.4, .NET SDK >= 1.71.0.
+
+**Why it matters for solo devs:** Semantic Kernel is a widely used framework for building AI agents and copilots. If you've built anything on top of it, verify your versions. The root cause — unsafe string interpolation flowing into `eval()` — is a pattern that appears throughout LLM agent frameworks wherever user-controlled data is treated as code.
+
+Source: [Microsoft Security Blog — When prompts become shells (May 7, 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/07/prompts-become-shells-rce-vulnerabilities-ai-agent-frameworks/)
+
+### May 2026 — Azure AI Foundry Privilege Escalation Actively Exploited (CVE-2026-35435)
+
+Microsoft disclosed CVE-2026-35435, a critical elevation-of-privilege vulnerability in Azure AI Foundry affecting Microsoft 365 published agents, confirmed exploited in the wild at time of disclosure (May 7, 2026). The flaw stems from improper access control (CWE-284): an attacker can escalate from a low-privileged role to extensive control over AI resources and the broader M365 tenant. Published agent surfaces are reachable remotely with no elevated entry point required; successful exploitation can cross the boundary into broader service permissions within the same tenant.
+
+No patch issued at time of disclosure — Microsoft is managing via governance controls. Recommended mitigations: inventory all published agents, implement conditional access policies, enforce least-privilege on agent permissions.
+
+Source: [Windows News AI — CVE-2026-35435](https://windowsnews.ai/article/cve-2026-35435-critical-azure-ai-foundry-privilege-escalation-in-m365-agents-leaves-systems-vulnerab.417153) | [RedPacket Security — CVE Alert](https://www.redpacketsecurity.com/cve-alert-cve-2026-35435-microsoft-azure-ai-foundry/)
+
+### May 2026 — Cline Kanban WebSocket Hijacking (CVE-2026-44211)
+
+The Cline VS Code extension's kanban npm package starts a WebSocket server bound to `127.0.0.1:3484` with no `Origin` header validation. Any malicious website open in the developer's browser can connect to the local WebSocket server and: (1) read sensitive data from the running agent session, (2) hijack and redirect the AI agent to attacker-controlled tasks, or (3) kill running agent tasks. CVSS 9.7. The attack requires only that the developer has a browser tab open to an attacker-controlled domain simultaneously with an active Cline session. Patched in Cline v0.1.66.
+
+Source: [GitLab Advisory — CVE-2026-44211](https://advisories.gitlab.com/npm/cline/CVE-2026-44211/) | [RankIteo — Cline Kanban WebSocket](https://blog.rankiteo.com/cli1778243371-cline-vulnerability-may-2026/)
 
 ### April 2026 — Bitwarden CLI Supply Chain Attack (Shai-Hulud)
 
@@ -699,6 +725,8 @@ Claude Code accounts for 27 of 74 confirmed CVEs (36%) — partly because it lea
 | [Are AI-assisted Development Tools Immune to Prompt Injection?](https://arxiv.org/abs/2603.21642) | Mar 2026 | Empirical analysis of AI coding tools' resistance to prompt injection; published in time for IEEE S&P 2026 |
 | [Breaking MCP with Function Hijacking Attacks](https://arxiv.org/abs/2604.20994) | Apr 2026 | Novel FHA attack forces agents to invoke attacker-chosen MCP tools; 70–100% ASR across 5 models including GPT-5 and Claude Sonnet 4; attack is agnostic to context semantics |
 | [MCPSHIELD: Formal Security Framework for MCP-Based AI Agents](https://arxiv.org/abs/2604.05969) | Apr 2026 | Synthesizes 12 prior MCP security papers into unified taxonomy; 7 threat categories, 23 attack vectors across 177k+ MCP tools; finds **no single existing defense covers >34% of the threat landscape** |
+| [ARGUS: Defending LLM Agents Against Context-Aware Prompt Injection](https://arxiv.org/abs/2605.03378) | May 2026 | Provenance-aware runtime auditor that grounds tool-call decisions in trusted evidence via span-level context tracking and task-level verification; significantly reduces attack success while preserving task utility |
+| [Model Context Protocol: Landscape, Security Threats, and Future Research Directions](https://dl.acm.org/doi/10.1145/3796519) (ACM TOSEM) | 2026 | Systematic threat taxonomy for MCP across 4 attacker types (malicious developers, external attackers, malicious users, design flaws) and 16 distinct threat scenarios; published in ACM Transactions on Software Engineering and Methodology |
 
 **Industry reports:**
 - [Trail of Bits — Lack of Isolation in Agentic Browsers (January 2026)](https://blog.trailofbits.com/2026/01/13/lack-of-isolation-in-agentic-browsers-resurfaces-old-vulnerabilities/) — Prompt injection in AI browsers mirrors XSS/CSRF; agents lack Same-Origin Policy equivalents
