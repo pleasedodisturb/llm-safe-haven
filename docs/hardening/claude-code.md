@@ -28,6 +28,7 @@ Claude Code's security surface has been actively tested by researchers and impro
 - **CVE-2026-35020/35021/35022** (April 2026): Three command injection flaws sharing one root cause; chain into HTTP credential exfiltration. Validated still exploitable on v2.1.91. ([Phoenix Security](https://phoenix.security/claude-code-leak-to-vulnerability-three-cves-in-claude-code-cli-and-the-chain-that-connects-them/))
 - **v2.1.98** (April 2026): Subprocess sandbox with PID namespace isolation on Linux, credential scrubbing via `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`, script call limits via `CLAUDE_CODE_SCRIPT_CAPS`, network isolation options. ([Changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md))
 - **Auto Mode** (March 2026): Model-based permission classifier as a middle ground between manual approval and `--dangerously-skip-permissions`. ([Anthropic blog](https://www.anthropic.com/engineering/claude-code-auto-mode))
+- **May 2026 security patches**: Fixed `dangerouslyDisableSandbox` running commands outside the sandbox without a permission prompt (Bash sandbox bypass). Fixed `find -exec` allow rules auto-approving `find -exec/-delete`. Fixed sandbox auto-allow bypassing the dangerous-path safety check for `rm`/`rmdir` targeting `/`, `$HOME`, or other critical paths. Fixed `allowManagedDomainsOnly`/`allowManagedReadPathsOnly` being ignored when a higher-priority managed-settings source lacked a sandbox block. Update to v2.2.x or later. ([Releasebot changelog](https://releasebot.io/updates/anthropic/claude-code))
 
 **Key takeaway:** The attack surface is real and actively exploited. Cloning untrusted repositories with Claude Code is a supply chain risk. Always review `.claude/settings.json` and MCP configs before trusting a project directory.
 
@@ -85,7 +86,7 @@ We filed [anthropics/claude-code#52471](https://github.com/anthropics/claude-cod
 - [#40209](https://github.com/anthropics/claude-code/issues/40209), [#41817](https://github.com/anthropics/claude-code/issues/41817), [#50165](https://github.com/anthropics/claude-code/issues/50165), [#31551](https://github.com/anthropics/claude-code/issues/31551)
 - [#16076](https://github.com/anthropics/claude-code/issues/16076), [#29533](https://github.com/anthropics/claude-code/issues/29533), [#44195](https://github.com/anthropics/claude-code/issues/44195), [#23642](https://github.com/anthropics/claude-code/issues/23642)
 
-As of April 2026, this remains unresolved. See [Secret Management](#secret-management) for workarounds.
+As of May 2026, this remains unresolved. See [Secret Management](#secret-management) for workarounds.
 
 ### Environment variable scrubbing
 

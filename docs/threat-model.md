@@ -414,8 +414,37 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 | Deprecated AI SaaS OAuth tokens as breach vector | Critical | AI tools retain OAuth access to Google Workspace/cloud services after deprecation; compromise pivots to enterprise infra | [Vercel/Context.ai breach (Apr 2026)](https://vercel.com/kb/bulletin/vercel-april-2026-security-incident) |
 | Coordinated multi-vector npm/PyPI/Docker compromise | Critical | Single threat actor (TeamPCP/UNC6780) executes simultaneous attacks across multiple package ecosystems | [SANS ISC Update 008 (Apr 2026)](https://www.ironcastle.net/teampcp-supply-chain-campaign-update-008-26-day-pause-ends-with-three-concurrent-compromises-checkmarx-kics-bitwarden-cli-cascade-xinference-pypi-canistersprawl-npm-worm-identified-and-tier-1/) |
 | AI agent hook weaponization via npm payload | Critical | Malicious package writes `.claude/settings.json` SessionStart hook + `.vscode/tasks.json` `folderOpen` trigger as persistence/propagation | [Mini Shai-Hulud (Apr 29, 2026)](https://www.wiz.io/blog/mini-shai-hulud-supply-chain-sap-npm) |
+| Unauthenticated local WebSocket RCE | Critical | Local MCP/tool server binds without auth or origin validation; any page on LAN can execute arbitrary commands | [CVE-2026-44211 — Cline Kanban (May 2026)](https://cybersecuritynews.com/cline-ai-agent-vulnerability/) |
+| AI coding tool content-filter bypass | High | Local attacker bypasses AI suggestion filters and consent gates, enabling malicious suggestion injection | [CVE-2026-41109 — Copilot/VS Code (May 2026)](https://www.thehackerwire.com/github-copilot-visual-studio-injection-bypasses-security-feature-cve-2026-41109/) |
+| Bare repo fsmonitor command execution | High | Nested bare git repo triggers `core.fsmonitor` during agent git operations to execute arbitrary commands | [CVE-2026-45033 — Copilot CLI](https://advisories.gitlab.com/npm/@github/copilot/CVE-2026-45033/) |
 
 ## Real Incidents Timeline
+
+### May 2026 — Cline Kanban WebSocket Unauthenticated RCE (CVE-2026-44211)
+
+A critical unauthenticated RCE vulnerability (CVSS 9.7) was disclosed in the Cline Kanban server bundled with Cline IDE extensions. The app launches a local WebSocket server on port 3484 with no authentication and no origin header validation. Any malicious web page or LAN attacker could connect and issue arbitrary shell commands without user interaction. Patched in Cline 0.1.66.
+
+Source: [CyberSecurityNews — Critical Cline AI Agent Vulnerability](https://cybersecuritynews.com/cline-ai-agent-vulnerability/) | [NVD — CVE-2026-44211](https://nvd.nist.gov/vuln/detail/CVE-2026-44211)
+
+### May 2026 — GitHub Copilot and VS Code Security Feature Bypass (CVE-2026-41109)
+
+Microsoft disclosed CVE-2026-41109 on May 12, 2026 — a high-severity (CVSS 7.8, rated Important) injection vulnerability allowing a local attacker to bypass AI content filters and consent mechanisms in GitHub Copilot and Visual Studio Code. Successful exploitation enables malicious suggestion injection, telemetry control disabling, and data leakage. Patched in VS Code 1.97.0 and Copilot extension v1.43.20260512.
+
+Also: CVE-2026-45033 — Copilot CLI is vulnerable to arbitrary command execution when a malicious bare git repository nested inside a project directory triggers `core.fsmonitor` during agent-invoked git operations.
+
+Source: [TheHackerWire — CVE-2026-41109](https://www.thehackerwire.com/github-copilot-visual-studio-injection-bypasses-security-feature-cve-2026-41109/) | [GitLab Advisory — CVE-2026-45033](https://advisories.gitlab.com/npm/@github/copilot/CVE-2026-45033/)
+
+### May 2026 — Three MCP Database Flaws, One Vendor Refuses Fix
+
+A bug hunter reported three serious MCP server vulnerabilities affecting widely-deployed database MCP implementations. Vulnerabilities allow arbitrary SQL execution, schema enumeration, and in one case full RCE via unsanitized query parameters passed to underlying CLI tools. One vendor acknowledged the report and explicitly declined to patch, citing the behavior as "by design." This echoes Anthropic's own position on the MCP SDK architectural RCE.
+
+Source: [The Register — Bug hunter tracks down three massive MCP flaws](https://www.theregister.com/security/2026/05/13/bug-hunter-tracks-down-three-serious-mcp-database-flaws-one-left-unpatched/5238916)
+
+### March 2026 — LiteLLM Supply Chain Compromise (TeamPCP)
+
+Two malicious versions of LiteLLM — a widely-deployed AI proxy package with millions of downloads — were published to PyPI by threat actor TeamPCP. The payload executed a three-stage attack: (1) credential harvesting targeting SSH keys, Kubernetes configs, AWS/GCP/Azure credentials, and AI API keys; (2) Kubernetes lateral movement using stolen credentials; (3) persistent backdoor for remote code execution. The compromise was part of the same multi-vector campaign that later targeted Bitwarden CLI (April 22) and SAP CAP npm packages (April 29).
+
+Source: [Trend Micro — Inside the LiteLLM Supply Chain Compromise](https://www.trendmicro.com/en_us/research/26/c/inside-litellm-supply-chain-compromise.html) | [CyberNews — LiteLLM Supply Chain Attack](https://cybernews.com/security/critical-litellm-supply-chain-attack-sends-shockwaves/)
 
 ### April 2026 — Bitwarden CLI Supply Chain Attack (Shai-Hulud)
 
@@ -665,7 +694,8 @@ AI-generated code introduces vulnerabilities at scale. Georgia Tech's [Vibe Secu
 | January 2026 | 6 | Early tracking |
 | February 2026 | 15 | Growing trend |
 | March 2026 | 35 | More than all of 2025 combined |
-| **Total confirmed** | **74** | Floor estimate; true count projected at 400-700 |
+| April 2026 | 44 | Tracking accelerating (Vibe Security Radar) |
+| **Total confirmed** | **100+** | Floor estimate; true count projected at 400-700 |
 
 Claude Code accounts for 27 of 74 confirmed CVEs (36%) — partly because it leaves identifying signatures in commits. Tools like GitHub Copilot leave no trace, making attribution impossible.
 
@@ -696,6 +726,9 @@ Claude Code accounts for 27 of 74 confirmed CVEs (36%) — partly because it lea
 | [Security Considerations for Multi-agent Systems](https://arxiv.org/abs/2603.09002) | Mar 2026 | Analyzes security threats specific to multi-agent architectures |
 | [Prompt Injection: Comprehensive Review](https://www.mdpi.com/2078-2489/17/1/54) (MDPI) | Jan 2026 | 45 sources synthesized; taxonomy of injection techniques from 2023-2025 |
 | [MCP Threat Modeling: Prompt Injection and Tool Poisoning](https://arxiv.org/abs/2603.22489) | Mar 2026 | STRIDE/DREAD analysis across 5 MCP components; 7 client defenses compared; tool poisoning identified as most prevalent attack; most clients fail static validation |
+| [ARGUS: Defending LLM Agents Against Context-Aware Prompt Injection](https://arxiv.org/abs/2605.03378) | May 2026 | Provenance-aware runtime auditor that grounds tool-call decisions in trusted evidence. Significantly reduces attack success while preserving task utility. Addresses gap where existing defenses fail to balance security and utility in context-dependent tasks. |
+| [Your LLM Agent Can Leak Your Data: Data Exfiltration via Backdoored Tool Use](https://arxiv.org/abs/2604.05432) | Apr 2026 | Back-Reveal attack: semantic triggers in fine-tuned agents invoke memory-access tool calls and exfiltrate stored user context via disguised retrieval calls. Demonstrates systematic data exfiltration risk in agentic workflows. |
+| [The Landscape of Prompt Injection Threats in LLM Agents](https://arxiv.org/abs/2602.10453) | Feb 2026 | Comprehensive taxonomy of prompt injection attack vectors in agentic LLM systems; categorizes direct, indirect, and multi-step injection threats across tool use, memory, and inter-agent communication channels. |
 | [Are AI-assisted Development Tools Immune to Prompt Injection?](https://arxiv.org/abs/2603.21642) | Mar 2026 | Empirical analysis of AI coding tools' resistance to prompt injection; published in time for IEEE S&P 2026 |
 | [Breaking MCP with Function Hijacking Attacks](https://arxiv.org/abs/2604.20994) | Apr 2026 | Novel FHA attack forces agents to invoke attacker-chosen MCP tools; 70–100% ASR across 5 models including GPT-5 and Claude Sonnet 4; attack is agnostic to context semantics |
 | [MCPSHIELD: Formal Security Framework for MCP-Based AI Agents](https://arxiv.org/abs/2604.05969) | Apr 2026 | Synthesizes 12 prior MCP security papers into unified taxonomy; 7 threat categories, 23 attack vectors across 177k+ MCP tools; finds **no single existing defense covers >34% of the threat landscape** |
