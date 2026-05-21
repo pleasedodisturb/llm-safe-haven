@@ -4,19 +4,26 @@ Your npm dependencies, GitHub Actions, and credential managers are all attack su
 
 ---
 
-## Case Study: Shai-Hulud — Bitwarden CLI Supply Chain Attack (April 2026)
+## Case Study: Shai-Hulud — Sustained npm Supply Chain Campaign (Sept 2025–May 2026)
 
-On April 22, 2026, the official Bitwarden CLI (`@bitwarden/cli@2026.4.0`) was trojanized for 93 minutes. The malicious package specifically targeted AI tool API keys — the first known supply chain attack to do so.
+Shai-Hulud is not a single attack. It is a continuous campaign that has produced **six named waves in nine months**, with the cadence accelerating through April–May 2026 to roughly one wave every 7–10 days. The latest waves have shifted focus from credential managers to **AI agent configuration files** — `.claude/settings.json`, `.vscode/tasks.json` — as primary persistence vectors.
 
-This is not hypothetical. It happened to one of the most trusted credential managers in the ecosystem.
+This is not hypothetical. It is the dominant npm supply chain threat of 2026.
 
-### The Attack Chain
+### Wave summary
 
-The Shai-Hulud campaign has three distinct waves:
+| Wave | Date | Surface | Scale | Novelty |
+|------|------|---------|-------|---------|
+| First Coming | Sept 2025 | Original npm worm via `tinycolor` and friends | ~200 packages | Worm-style self-propagation via stolen npm tokens |
+| Second Coming | Nov 2025 | 796 npm packages including `@ctrl/tinycolor`, `@nativescript-community/*` | ~796 packages, 20M+ weekly downloads | Mass account compromise, expanded payload |
+| Third Coming (Bitwarden) | April 22, 2026 | `@bitwarden/cli@2026.4.0` via Checkmarx KICS Action poisoning | 1 high-trust package, 334 downloads | **First abuse of npm trusted publishing**; AI tool configs explicitly targeted |
+| Mini — SAP CAP | April 29, 2026 | 4 SAP CAP packages (`@cap-js/sqlite`, `@cap-js/postgres`, `@cap-js/db-service`, `mbt`) | ~2 hours, 1,100+ exfil repos | **First weaponization of `.claude/settings.json` SessionStart hook** |
+| Mini — TanStack | May 11, 2026 | `@tanstack/react-router` and 40+ `@tanstack/*` packages | 12M+ weekly downloads | GitHub Actions cache poisoning + **OIDC token extraction from `/proc/<pid>/mem`** — published without stealing npm credentials |
+| Mini — AntV ("Here We Go Again") | May 19, 2026 | 323 packages via `atool` maintainer: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor`, `timeago.js`, others | 637 versions, ~16M weekly downloads, 2,200+ exfil repos | **Worm source code released publicly on BreachForums with a "supply chain contest"**; second wave weaponizing `.claude/settings.json` |
 
-- **First Coming (September 2025)** — original npm worm, [Unit 42 disclosure](https://unit42.paloaltonetworks.com/npm-supply-chain-attack/)
-- **Second Coming (November 2025)** — [796 npm packages backdoored, 20M+ weekly downloads affected](https://www.microsoft.com/en-us/security/blog/2025/12/09/shai-hulud-2-0-guidance-for-detecting-investigating-and-defending-against-the-supply-chain-attack/)
-- **Third Coming (March–April 2026)** — TeamPCP-attributed CI/CD compromise chain culminating in Bitwarden CLI
+[Source: Snyk, Wiz, StepSecurity, Akamai, SafeDep — see Sources section.]
+
+The April–May 2026 cadence is set by **TeamPCP** (Google GTIG: UNC6780) running CanisterSprawl as the npm worm engine. With the source now public, expect copycats — Akamai already documented unrelated actors publishing variants within days of the May 19 release.
 
 The Third Coming is what hit Bitwarden. It traces back to **February 27, 2026**, when threat actor **TeamPCP** (formally tracked by Google GTIG as **UNC6780**, payload designation **SANDCLOCK**) stole initial credentials from Aqua Security's Trivy via a misconfigured CI workflow. From there, the attacker pivoted through Checkmarx KICS and LiteLLM — these are the *entry chain within the Third Coming*, not separate Shai-Hulud waves — to reach Bitwarden's CI pipeline.
 
@@ -69,13 +76,51 @@ The worm component (CanisterSprawl) used stolen npm tokens to identify packages 
 
 If you assess your exposure based on Bitwarden alone, you may miss two parallel attack vectors.
 
-**Mini Shai-Hulud sequel — April 29, 2026:**
+### Mini Shai-Hulud waves — April–May 2026 (the AI agent era)
 
-Seven days after the Bitwarden incident, TeamPCP poisoned 4 SAP CAP npm packages (`@cap-js/sqlite`, `@cap-js/postgres`, `@cap-js/db-service`, `mbt`) for ~2 hours starting 09:55 UTC. The payload **explicitly weaponizes Claude Code's `.claude/settings.json` SessionStart hook** and `.vscode/tasks.json` `folderOpen` trigger as persistence/propagation vectors. 1,100+ public GitHub repositories now hold exfiltrated secrets from the post-execution worm phase. This is the second confirmed wave specifically targeting AI coding agent configurations — the technique is now an active, repeated pattern.
+After the Bitwarden incident, TeamPCP entered a high-cadence phase. Three waves in 21 days, each refining the technique. The unifying thread: **Claude Code and VS Code configuration files are now first-class persistence targets**, not afterthoughts.
 
-If you use Claude Code, audit `.claude/settings.json` in every cloned repo before opening. The bash-firewall and secret-guard hooks llm-safe-haven installs catch the SessionStart-hook abuse pattern.
+#### Wave A — SAP CAP (April 29, 2026)
 
-Source: [Wiz — Mini Shai-Hulud SAP npm](https://www.wiz.io/blog/mini-shai-hulud-supply-chain-sap-npm) | [Mend — Shai-Hulud SAP CAP via Claude Code](https://www.mend.io/blog/shai-hulud-sap-cap-supply-chain-attack-claude-code/) | [The Hacker News](https://thehackernews.com/2026/04/sap-npm-packages-compromised-by-mini.html) | [StepSecurity](https://www.stepsecurity.io/blog/a-mini-shai-hulud-has-appeared) | [Sophos](https://www.sophos.com/en-us/blog/-mini-shai-hulud-supply-chain-attack-targets-sap-npm-packages)
+Seven days after Bitwarden. Four SAP CAP packages (`@cap-js/sqlite`, `@cap-js/postgres`, `@cap-js/db-service`, `mbt`) poisoned for ~2 hours starting 09:55 UTC. The payload **explicitly weaponized `.claude/settings.json` SessionStart hooks** and `.vscode/tasks.json` `folderOpen` triggers. 1,100+ public GitHub dead-drop repos created. First confirmed wave to treat AI agent configs as primary persistence.
+
+#### Wave B — TanStack (May 11, 2026)
+
+`@tanstack/react-router` (~12M weekly downloads) and 40+ related packages compromised. New technique chain:
+
+1. Attacker created `zblgg/configuration` as a *renamed* fork of `TanStack/router` to evade GitHub fork-list searches.
+2. Opened a PR triggering a `pull_request_target` workflow that ran attacker-controlled code.
+3. The attacker-controlled code **poisoned the GitHub Actions cache with a malicious pnpm store**.
+4. When legitimate maintainer PRs merged, the release workflow restored the poisoned cache.
+5. Attacker binaries then **extracted OIDC tokens directly from `/proc/<pid>/mem`** of the Actions runner — publishing happened via npm's trusted publishing without ever stealing npm credentials.
+
+This is the second confirmed abuse of npm trusted publishing (the first being Bitwarden). Affected versions include `@tanstack/react-router` 1.169.5 and 1.169.8.
+
+#### Wave C — AntV "Here We Go Again" (May 19, 2026)
+
+The largest mini wave to date. **323 packages, 637 versions, ~16M weekly downloads** affected via the compromised `atool` maintainer account. Published in two automated bursts:
+
+- Wave 1: 01:39–01:56 UTC (~317 versions)
+- Wave 2: 02:05–02:06 UTC (~320 versions, second wave added `bun` as an explicit dependency)
+
+High-impact packages: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor` (4.2M weekly downloads alone), `timeago.js`. The 498 KB obfuscated payload:
+
+- Harvests 80+ environment variables and 100+ file paths (AWS, GitHub, npm tokens, SSH keys, cloud creds, AI tool configs)
+- Encrypts data with **RSA-OAEP** and exfiltrates to `t.m-kosche.com:443/api/public/otel/v1/traces` (masquerades as OpenTelemetry traffic) and GitHub dead-drop repos
+- Creates 2,200+ public GitHub dead-drop repos under Dune-themed names — combinations of `sardaukar`, `mentat`, `fremen`, `atreides`, `harkonnen`, `gesserit`, `fedaykin`, `tleilaxu` + `sandworm`, `ornithopter`, `stillsuit` — with descriptions containing the reversed string `niagA oG eW ereH :duluH-iahS` ("Shai-Hulud: Here We Go Again")
+- Plants persistence via `.claude/settings.json` SessionStart hook, `.vscode/tasks.json` `runOn: folderOpen`, `~/Library/LaunchAgents/com.user.kitty-monitor.plist` (macOS), `~/.config/systemd/user/kitty-monitor.service` (Linux), and a C2 daemon at `~/.local/share/kitty/cat.py`
+- Worms by searching harvested credentials for npm tokens with `bypass_2fa` scope, then republishing to other packages the compromised account maintains, including injecting `chore/add-codeql-static-analysis` branches with malicious workflows
+
+**The most important development:** TeamPCP **released the worm source code publicly on BreachForums** along with a "supply chain attack contest." Within days, an unrelated actor uploaded four malicious npm packages — one a near-verbatim copy with its own C2. The barrier to entry just dropped to zero. Expect copycat waves at irregular intervals from here.
+
+#### What to do right now if you use Claude Code
+
+1. **Audit `.claude/settings.json` in every project you've opened** in the last 30 days. Any `SessionStart`, `PreToolUse`, or `PostToolUse` hook that doesn't point to your own scripts or known-good plugin paths (`~/.claude/hooks/<your-tooling>/`) should be treated as suspicious until verified.
+2. **Audit `.vscode/tasks.json` for `"runOn": "folderOpen"`**. Legitimate uses exist but are rare; assume malicious until proven otherwise.
+3. **Run the IOC scan**: check `~/Library/LaunchAgents/com.user.kitty-monitor.plist`, `~/.local/share/kitty/cat.py`, `~/.local/bin/gh-token-monitor.sh`, and `/tmp/tmp.987654321.lock`. Any of these = compromised host.
+4. **Search your GitHub account for dead-drop repos** matching the Dune-themed naming. If you find any, your `gh` token has been exfiltrated — revoke immediately, then rotate every credential it could reach.
+5. **Set `ignore-scripts=true` in `~/.npmrc`** if you haven't already. This single setting would have blocked execution of all six Shai-Hulud waves.
+6. **The bash-firewall and secret-guard hooks llm-safe-haven installs** catch the SessionStart-hook abuse pattern at session start. If you're not running them, install via `npx llm-safe-haven`.
 
 ### Timeline
 
@@ -121,6 +166,16 @@ This is a structural change to npm publishing, not a policy update. Combined wit
 - [Industrial Cyber — Vect + TeamPCP RaaS alliance](https://industrialcyber.co/ransomware/vect-formalizes-breachforums-and-teampcp-alliance-to-push-model-for-industrialized-ransomware-scale-raas-operations/)
 - [GitHub Blog — Our plan for a more secure npm supply chain](https://github.blog/security/supply-chain-security/our-plan-for-a-more-secure-npm-supply-chain/)
 - [Hacking Passion — Bitwarden CLI Supply Chain Attack](https://hackingpassion.com/bitwarden-cli-supply-chain-attack/)
+- [Wiz — Mini Shai-Hulud SAP npm (April 29)](https://www.wiz.io/blog/mini-shai-hulud-supply-chain-sap-npm)
+- [Mend — Shai-Hulud SAP CAP via Claude Code (April 29)](https://www.mend.io/blog/shai-hulud-sap-cap-supply-chain-attack-claude-code/)
+- [Wiz — Mini Shai-Hulud Strikes Again: TanStack (May 11)](https://www.wiz.io/blog/mini-shai-hulud-strikes-again-tanstack-more-npm-packages-compromised)
+- [Snyk — Mini Shai-Hulud Hits AntV (May 19)](https://snyk.io/blog/mini-shai-hulud-antv-npm-supply-chain-attack/)
+- [StepSecurity — Shai-Hulud: Here We Go Again (AntV)](https://www.stepsecurity.io/blog/shai-hulud-here-we-go-again-mass-npm-supply-chain-attack-hits-the-antv-ecosystem)
+- [Akamai — Mini Shai-Hulud: The Worm Returns and Goes Public](https://www.akamai.com/blog/security-research/mini-shai-hulud-worm-returns-goes-public)
+- [SafeDep — Mini Shai-Hulud Strikes Again: 317 npm Packages Compromised](https://safedep.io/mini-shai-hulud-strikes-again-314-npm-packages-compromised/)
+- [The Register — Shai-Hulud keeps burrowing (May 19)](https://www.theregister.com/cyber-crime/2026/05/19/shai-hulud-keeps-burrowing-314-npm-packages-infected-after-another-account-compromise/5242601)
+- [The Hacker News — Mini Shai-Hulud Pushes Malicious AntV npm Packages](https://thehackernews.com/2026/05/mini-shai-hulud-pushes-malicious-antv.html)
+- [Cybersecurity News — 600+ npm Packages Compromised](https://cybersecuritynews.com/600-npm-packages-compromised/)
 
 ---
 
@@ -630,14 +685,21 @@ npm pkg get scripts --json
 
 ## Incident Response: If You Installed a Compromised Package
 
-If you installed `@bitwarden/cli@2026.4.0` during the 93-minute window, or any compromised package:
+If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), or any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window — treat the host as compromised:
 
 ### Immediate (within 1 hour)
 
 1. **Rotate ALL credentials** — GitHub tokens, npm tokens, AWS/GCP/Azure credentials, SSH keys. Assume everything is compromised.
-2. **Check for persistence** — inspect `~/.bashrc` and `~/.zshrc` for injected heredoc blocks. Check `/tmp/tmp.987654321.lock` (Shai-Hulud's lock file).
-3. **Audit GitHub repos** — check for unauthorized repository creation, unexpected workflow files, and suspicious workflow runs.
-4. **Check npm publishes** — verify your packages haven't been re-published with malicious payloads.
+2. **Check for persistence** (run `scripts/scan-shai-hulud-may2026.sh` from this repo, or check manually):
+   - `~/.bashrc`, `~/.zshrc` for injected heredoc blocks or base64-decoded curl pipes
+   - `/tmp/tmp.987654321.lock` (older Shai-Hulud lock file)
+   - `~/Library/LaunchAgents/com.user.kitty-monitor.plist` (macOS, May 19 wave)
+   - `~/.config/systemd/user/kitty-monitor.service` (Linux, May 19 wave)
+   - `~/.local/share/kitty/cat.py` (C2 daemon)
+   - `~/.local/bin/gh-token-monitor.sh`
+   - `.claude/settings.json` and `.vscode/tasks.json` in every project — any unfamiliar `SessionStart` hook or `"runOn": "folderOpen"` is a finding
+3. **Audit GitHub repos** — search your account for repos with Dune-themed names (`sandworm`, `sardaukar`, `ornithopter`, `fremen`, `harkonnen`, etc.) or descriptions matching the reversed string `niagA oG eW ereH`. Any match = your `gh` token was exfiltrated.
+4. **Check npm publishes** — verify your packages haven't been re-published with malicious payloads. The May 19 wave worms via `bypass_2fa`-scoped tokens; if you have any, revoke and replace with 2FA-required tokens.
 
 ### Short-term (within 24 hours)
 

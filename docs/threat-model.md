@@ -414,11 +414,37 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 | Deprecated AI SaaS OAuth tokens as breach vector | Critical | AI tools retain OAuth access to Google Workspace/cloud services after deprecation; compromise pivots to enterprise infra | [Vercel/Context.ai breach (Apr 2026)](https://vercel.com/kb/bulletin/vercel-april-2026-security-incident) |
 | Coordinated multi-vector npm/PyPI/Docker compromise | Critical | Single threat actor (TeamPCP/UNC6780) executes simultaneous attacks across multiple package ecosystems | [SANS ISC Update 008 (Apr 2026)](https://www.ironcastle.net/teampcp-supply-chain-campaign-update-008-26-day-pause-ends-with-three-concurrent-compromises-checkmarx-kics-bitwarden-cli-cascade-xinference-pypi-canistersprawl-npm-worm-identified-and-tier-1/) |
 | AI agent hook weaponization via npm payload | Critical | Malicious package writes `.claude/settings.json` SessionStart hook + `.vscode/tasks.json` `folderOpen` trigger as persistence/propagation | [Mini Shai-Hulud (Apr 29, 2026)](https://www.wiz.io/blog/mini-shai-hulud-supply-chain-sap-npm) |
-| Unauthenticated local WebSocket RCE | Critical | Local MCP/tool server binds without auth or origin validation; any page on LAN can execute arbitrary commands | [CVE-2026-44211 — Cline Kanban (May 2026)](https://cybersecuritynews.com/cline-ai-agent-vulnerability/) |
+| Semantic Kernel prompt injection → RCE via eval() | Critical | Python SDK InMemoryVectorStore interpolates user input into a `eval()`-executed lambda; prompt injection route turns this into host-level RCE | [CVE-2026-26030 — Microsoft Semantic Kernel (May 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/07/prompts-become-shells-rce-vulnerabilities-ai-agent-frameworks/) |
+| Semantic Kernel arbitrary file write via exposed attribute | Critical | .NET SDK accidentally annotates a file-write helper with `[KernelFunction]`, exposing it to the AI model with no path validation; CVSS 10.0 | [CVE-2026-25592 — Microsoft Semantic Kernel (May 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/07/prompts-become-shells-rce-vulnerabilities-ai-agent-frameworks/) |
+| Azure AI agent EoP via improper access control | Critical | M365 published agents have no enforcement boundary between agent role and admin role; exploited in the wild at time of disclosure | [CVE-2026-35435 — Azure AI Foundry (May 2026)](https://windowsnews.ai/article/cve-2026-35435-critical-azure-ai-foundry-privilege-escalation-in-m365-agents-leaves-systems-vulnerab.417153) |
+| Cross-origin WebSocket hijacking via local agent server | High | Local WebSocket server with no Origin validation lets any open browser tab hijack running agent sessions, exfiltrate data, or kill tasks | [CVE-2026-44211 — Cline Kanban (May 2026)](https://advisories.gitlab.com/npm/cline/CVE-2026-44211/) |
+| AI Python library `.pth` file persistence | Critical | Malicious `.pth` file in compromised PyPI package executes credential stealer on every Python process startup; survives package removal; lateral movement across Kubernetes clusters | [LiteLLM/Telnyx PyPI compromise (Mar 2026)](https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/) |
 | AI coding tool content-filter bypass | High | Local attacker bypasses AI suggestion filters and consent gates, enabling malicious suggestion injection | [CVE-2026-41109 — Copilot/VS Code (May 2026)](https://www.thehackerwire.com/github-copilot-visual-studio-injection-bypasses-security-feature-cve-2026-41109/) |
 | Bare repo fsmonitor command execution | High | Nested bare git repo triggers `core.fsmonitor` during agent git operations to execute arbitrary commands | [CVE-2026-45033 — Copilot CLI](https://advisories.gitlab.com/npm/@github/copilot/CVE-2026-45033/) |
 
 ## Real Incidents Timeline
+
+### May 2026 — Microsoft Semantic Kernel Prompt Injection → RCE (CVE-2026-25592 & CVE-2026-26030)
+
+Microsoft disclosed two critical vulnerabilities in Semantic Kernel on May 7, 2026. **CVE-2026-26030** affects the Python SDK: the `InMemoryVectorStore` filter interpolates user-supplied city values into a Python lambda executed via `eval()`. Any prompt injection route into the agent — a malicious document, web content, or tool output — escalates to host-level RCE without requiring a browser exploit or memory corruption bug. **CVE-2026-25592** affects the .NET SDK: a helper method was accidentally annotated with `[KernelFunction]`, exposing arbitrary file-write capability to the AI model with no path validation (CVSS 10.0). A manipulated agent can write to any location on the host filesystem, escaping the workspace. Both patches are available: Python SDK >= 1.39.4, .NET SDK >= 1.71.0.
+
+**Why it matters for solo devs:** Semantic Kernel is a widely used framework for building AI agents and copilots. If you've built anything on top of it, verify your versions. The root cause — unsafe string interpolation flowing into `eval()` — is a pattern that appears throughout LLM agent frameworks wherever user-controlled data is treated as code.
+
+Source: [Microsoft Security Blog — When prompts become shells (May 7, 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/07/prompts-become-shells-rce-vulnerabilities-ai-agent-frameworks/)
+
+### May 2026 — Azure AI Foundry Privilege Escalation Actively Exploited (CVE-2026-35435)
+
+Microsoft disclosed CVE-2026-35435, a critical elevation-of-privilege vulnerability in Azure AI Foundry affecting Microsoft 365 published agents, confirmed exploited in the wild at time of disclosure (May 7, 2026). The flaw stems from improper access control (CWE-284): an attacker can escalate from a low-privileged role to extensive control over AI resources and the broader M365 tenant. Published agent surfaces are reachable remotely with no elevated entry point required; successful exploitation can cross the boundary into broader service permissions within the same tenant.
+
+No patch issued at time of disclosure — Microsoft is managing via governance controls. Recommended mitigations: inventory all published agents, implement conditional access policies, enforce least-privilege on agent permissions.
+
+Source: [Windows News AI — CVE-2026-35435](https://windowsnews.ai/article/cve-2026-35435-critical-azure-ai-foundry-privilege-escalation-in-m365-agents-leaves-systems-vulnerab.417153) | [RedPacket Security — CVE Alert](https://www.redpacketsecurity.com/cve-alert-cve-2026-35435-microsoft-azure-ai-foundry/)
+
+### May 2026 — Cline Kanban WebSocket Hijacking (CVE-2026-44211)
+
+The Cline VS Code extension's kanban npm package starts a WebSocket server bound to `127.0.0.1:3484` with no `Origin` header validation. Any malicious website open in the developer's browser can connect to the local WebSocket server and: (1) read sensitive data from the running agent session, (2) hijack and redirect the AI agent to attacker-controlled tasks, or (3) kill running agent tasks. CVSS 9.7. The attack requires only that the developer has a browser tab open to an attacker-controlled domain simultaneously with an active Cline session. Patched in Cline v0.1.66.
+
+Source: [GitLab Advisory — CVE-2026-44211](https://advisories.gitlab.com/npm/cline/CVE-2026-44211/) | [RankIteo — Cline Kanban WebSocket](https://blog.rankiteo.com/cli1778243371-cline-vulnerability-may-2026/)
 
 ### May 2026 — GitHub Copilot and VS Code Security Feature Bypass (CVE-2026-41109)
 
@@ -467,6 +493,39 @@ This is the second confirmed wave of TeamPCP attacks specifically targeting AI c
 **Defenses:** Audit `.claude/settings.json` in every cloned repository before opening. Pin GitHub Actions in your CI to commit SHAs. Use Harden-Runner with egress block-mode. The SessionStart-hook abuse pattern is exactly what hooks like llm-safe-haven's bash-firewall and secret-guard catch.
 
 Source: [The Hacker News — SAP npm packages compromised by Mini Shai-Hulud](https://thehackernews.com/2026/04/sap-npm-packages-compromised-by-mini.html) | [Wiz — Mini Shai-Hulud SAP npm](https://www.wiz.io/blog/mini-shai-hulud-supply-chain-sap-npm) | [Mend — Shai-Hulud SAP CAP via Claude Code](https://www.mend.io/blog/shai-hulud-sap-cap-supply-chain-attack-claude-code/) | [StepSecurity — A Mini Shai-Hulud Has Appeared](https://www.stepsecurity.io/blog/a-mini-shai-hulud-has-appeared) | [Sophos](https://www.sophos.com/en-us/blog/-mini-shai-hulud-supply-chain-attack-targets-sap-npm-packages) | [Snyk — Bun-based stealer hits SAP CAP npm packages](https://snyk.io/blog/bun-based-stealer-hits-sap-cap-js-mbt-npm-packages/)
+
+### May 2026 — Mini Shai-Hulud: TanStack via GitHub Actions Cache Poisoning (May 11)
+
+On May 11, 2026, TeamPCP compromised `@tanstack/react-router` (~12M weekly downloads) and 40+ related `@tanstack/*` packages via a new technique chain inside the TanStack repo's own CI:
+
+1. Attacker forked `TanStack/router` and **renamed the fork to `zblgg/configuration`** to evade GitHub fork-list searches.
+2. Opened a PR that triggered a `pull_request_target` workflow, which checked out and executed attacker-controlled code.
+3. The attacker code **poisoned the GitHub Actions cache with a malicious pnpm store**, persisting across maintainer PR merges.
+4. When the release workflow later restored the poisoned cache, attacker binaries **extracted OIDC tokens directly from `/proc/<pid>/mem`** of the runner — publishing via npm's trusted publishing without ever stealing npm credentials.
+
+Affected versions include `@tanstack/react-router` 1.169.5 and 1.169.8. This is the second confirmed abuse of npm trusted publishing (the first being Bitwarden CLI). The `pull_request_target` + Actions cache + `/proc/<pid>/mem` combination is novel — it bypasses the defenses most teams rely on for fork-based PRs.
+
+**Defenses:** Disallow `pull_request_target` on workflows that run untrusted code; audit Actions cache for unexpected entries on every release; pin OIDC token scope as tight as possible.
+
+Source: [Wiz — Mini Shai-Hulud Strikes Again: TanStack](https://www.wiz.io/blog/mini-shai-hulud-strikes-again-tanstack-more-npm-packages-compromised) | [The Hacker News — Mini Shai-Hulud Pushes Malicious npm Packages](https://thehackernews.com/2026/05/mini-shai-hulud-pushes-malicious-antv.html)
+
+### May 2026 — Mini Shai-Hulud: AntV "Here We Go Again" + Worm Goes Public (May 19)
+
+The largest mini wave to date and a strategic inflection point. On May 19, 2026, between 01:39–02:06 UTC, **323 packages with 637 versions and ~16M combined weekly downloads** were compromised via the `atool` maintainer account. Affected: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor` (4.2M weekly downloads alone), `timeago.js`, and ~320 others. The 498 KB payload harvests 80+ environment variables and 100+ file paths, encrypts with RSA-OAEP, and exfiltrates to `t.m-kosche.com:443/api/public/otel/v1/traces` (masquerading as OpenTelemetry traffic) plus 2,200+ GitHub dead-drop repos under Dune-themed names (`sandworm`, `sardaukar`, `ornithopter`, `fremen`, `harkonnen`, etc.) with descriptions containing the reversed string `niagA oG eW ereH :duluH-iahS`.
+
+**Persistence vectors targeted (run [scripts/scan-shai-hulud-may2026.sh](../scripts/scan-shai-hulud-may2026.sh) to check):**
+- `.claude/settings.json` SessionStart hook (second wave to do this)
+- `.vscode/tasks.json` with `"runOn": "folderOpen"`
+- `~/Library/LaunchAgents/com.user.kitty-monitor.plist` (macOS)
+- `~/.config/systemd/user/kitty-monitor.service` (Linux)
+- `~/.local/share/kitty/cat.py` (C2 daemon)
+- `~/.local/bin/gh-token-monitor.sh`
+
+**The strategic inflection:** TeamPCP **released the worm source code publicly on BreachForums** alongside a "supply chain attack contest." Within days, an unrelated actor uploaded four malicious npm packages — one a near-verbatim copy with its own C2. The barrier to launching a Mini Shai-Hulud has dropped to "download zip, configure C2." Expect aperiodic copycat waves from unrelated actors on top of the regular TeamPCP cadence.
+
+**Defenses:** Same as Apr 29 wave, plus: pin to exact versions (caret ranges autoupgrade you into compromised releases); set `ignore-scripts=true` in `~/.npmrc` globally — this alone blocks execution of all six Shai-Hulud waves; use registry cooldown policies that quarantine packages published within the last 7 days.
+
+Source: [Snyk — Mini Shai-Hulud Hits AntV](https://snyk.io/blog/mini-shai-hulud-antv-npm-supply-chain-attack/) | [StepSecurity — Here We Go Again](https://www.stepsecurity.io/blog/shai-hulud-here-we-go-again-mass-npm-supply-chain-attack-hits-the-antv-ecosystem) | [Akamai — Worm Returns Goes Public](https://www.akamai.com/blog/security-research/mini-shai-hulud-worm-returns-goes-public) | [SafeDep — 317 npm Packages Compromised](https://safedep.io/mini-shai-hulud-strikes-again-314-npm-packages-compromised/) | [The Register — Shai-Hulud keeps burrowing](https://www.theregister.com/cyber-crime/2026/05/19/shai-hulud-keeps-burrowing-314-npm-packages-infected-after-another-account-compromise/5242601) | [Cybersecurity News — 600+ npm Packages Compromised](https://cybersecuritynews.com/600-npm-packages-compromised/)
 
 ### April 2026 — TeamPCP Concurrent Multi-Vector Campaign (Update 008)
 
@@ -550,6 +609,16 @@ Palo Alto Networks' Unit 42 published research documenting 22 distinct indirect 
 
 Source: [Unit 42 — Fooling AI Agents: Web-Based Indirect Prompt Injection](https://unit42.paloaltonetworks.com/ai-agent-prompt-injection/)
 
+### March 2026 — LiteLLM and Telnyx PyPI Supply Chain Attack (TeamPCP)
+
+On March 24, 2026, threat actor **TeamPCP** published backdoored versions of two widely-used AI developer libraries: **litellm** (v1.82.7, v1.82.8) and **telnyx** (v4.87.1, v4.87.2) on PyPI. The attack began March 19, when TeamPCP compromised Aqua Security's Trivy scanner — LiteLLM's CI/CD pipeline pulled Trivy from `apt` without a pinned version, allowing the compromised action to exfiltrate LiteLLM's PyPI publish token from GitHub Actions. The backdoored packages were live for approximately 40 minutes before PyPI quarantined them; ~119k downloads occurred during the window.
+
+**Payload:** Version 1.82.8 used a `.pth` file (`litellm_init.pth`) — a Python interpreter startup hook that executes on *every* Python process start, not just when litellm is imported. The payload harvested SSH keys, cloud credentials (AWS, GCP, Azure), Kubernetes service account tokens, Docker configs, shell history, database passwords, wallet files, and CI/CD secrets. All data was encrypted with AES-256 and exfiltrated to `models.litellm[.]cloud`.
+
+**Why it matters for solo devs:** litellm is a transitive dependency for dozens of AI agent frameworks. The `.pth` persistence mechanism means the credential stealer survives even after litellm is removed from `requirements.txt` — it continues running on every Python process until the malicious `.pth` file is manually deleted from site-packages. Any machine that ran `pip install litellm` during the 40-minute window should be treated as fully compromised. This attack preceded the Bitwarden/Shai-Hulud event by one month — part of the same escalating TeamPCP campaign.
+
+Source: [Datadog Security Labs — LiteLLM and Telnyx compromised on PyPI](https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/) | [Snyk — Poisoned Security Scanner Backdooring LiteLLM](https://snyk.io/blog/poisoned-security-scanner-backdooring-litellm/) | [PyPI Incident Report](https://blog.pypi.org/posts/2026-04-02-incident-report-litellm-telnyx-supply-chain-attack/)
+
 ### February 2026 — Check Point: Claude Code Hooks RCE and API Key Theft
 
 Check Point Research disclosed CVE-2025-59536 (hooks injection, RCE) and CVE-2026-21852 (API key exfiltration via ANTHROPIC_BASE_URL redirect). Both exploited Claude Code's project-load flow through malicious repository configuration files.
@@ -567,6 +636,18 @@ Source: [Adnan Khan — Clinejection](https://adnanthekhan.com/posts/clinejectio
 Orca Security's research team discovered that malicious instructions embedded in a GitHub issue (hidden in HTML comments) could be processed by GitHub Copilot Agent, which in GitHub Codespaces had access to the repository's file system and terminal. Chaining issue injection with repository symlinks pointing to shared runtime files, an attacker could exfiltrate the `GITHUB_TOKEN` — granting full read and write access to the repository. Classified as a passive prompt injection supply chain attack: the attacker opens an issue, the victim never clicks anything. Patched by Microsoft.
 
 Source: [Orca Security — RoguePilot](https://orca.security/resources/blog/roguepilot-github-copilot-vulnerability/) | [SecurityWeek — GitHub Issues Abused in Copilot Attack](https://www.securityweek.com/github-issues-abused-in-copilot-attack-leading-to-repository-takeover/) | [The Hacker News — RoguePilot](https://thehackernews.com/2026/02/roguepilot-flaw-in-github-codespaces.html)
+
+### February 2026 — GitHub Copilot Command Injection Trio (Patch Tuesday)
+
+Microsoft's February 10, 2026 Patch Tuesday disclosed three GitHub Copilot vulnerabilities affecting JetBrains, Visual Studio Code, and the Copilot CLI:
+
+- **CVE-2026-21516** (CVSS 8.8) — Command injection in GitHub Copilot for JetBrains (versions 1.0.0–1.5.62). Malicious instructions embedded in repository content caused Copilot to generate suggestions containing shell metacharacters that the plugin executed without sanitization. Fixed in v1.5.63.
+- **CVE-2026-21523** (CVSS 8.0) — TOCTOU race condition in GitHub Copilot and Visual Studio Code. An authorized attacker could exploit the gap between when Copilot validates a suggestion and when the IDE applies it to execute arbitrary code over the network.
+- **CVE-2026-29783** (CVSS 7.5) — Shell expansion bypass in Copilot CLI (up to v0.0.422). Bash parameter expansion patterns like `${var@P}` bypassed the CLI's "read-only" safety assessment, enabling arbitrary command execution through what the tool classified as a safe informational query. Fixed in v0.0.423.
+
+The JetBrains vulnerability (CVE-2026-21516) follows the same prompt-injection-to-code-execution pattern as Cursor CVE-2026-26268 and Claude Code CVE-2025-59536 — repository content influencing agent-adjacent tooling into executing attacker-controlled commands.
+
+Source: [CVEReports — CVE-2026-29783](https://cvereports.com/reports/CVE-2026-29783) | [GitLab Advisory — CVE-2026-29783](https://advisories.gitlab.com/pkg/npm/@github/copilot/CVE-2026-29783/) | [Krebs on Security — Patch Tuesday February 2026](https://krebsonsecurity.com/2026/02/patch-tuesday-february-2026-edition/)
 
 ### February 2026 — Snyk ToxicSkills Audit
 
@@ -714,10 +795,13 @@ Claude Code accounts for 27 of 74 confirmed CVEs (36%) — partly because it lea
 | [Security Considerations for Multi-agent Systems](https://arxiv.org/abs/2603.09002) | Mar 2026 | Analyzes security threats specific to multi-agent architectures |
 | [Prompt Injection: Comprehensive Review](https://www.mdpi.com/2078-2489/17/1/54) (MDPI) | Jan 2026 | 45 sources synthesized; taxonomy of injection techniques from 2023-2025 |
 | [MCP Threat Modeling: Prompt Injection and Tool Poisoning](https://arxiv.org/abs/2603.22489) | Mar 2026 | STRIDE/DREAD analysis across 5 MCP components; 7 client defenses compared; tool poisoning identified as most prevalent attack; most clients fail static validation |
+| [The Landscape of Prompt Injection Threats in LLM Agents: From Taxonomy to Analysis](https://arxiv.org/abs/2602.10453) (Wang et al.) | Feb 2026 | Taxonomy of prompt injection by payload generation strategy (heuristic vs. optimization) and defense by intervention stage; introduces AgentPI benchmark; no single defense achieves high trustworthiness + high utility + low latency simultaneously |
 | [Your LLM Agent Can Leak Your Data: Data Exfiltration via Backdoored Tool Use](https://arxiv.org/abs/2604.05432) | Apr 2026 | Back-Reveal attack: semantic triggers in fine-tuned agents invoke memory-access tool calls and exfiltrate stored user context via disguised retrieval calls. Demonstrates systematic data exfiltration risk in agentic workflows. |
 | [Are AI-assisted Development Tools Immune to Prompt Injection?](https://arxiv.org/abs/2603.21642) | Mar 2026 | Empirical analysis of AI coding tools' resistance to prompt injection; published in time for IEEE S&P 2026 |
 | [Breaking MCP with Function Hijacking Attacks](https://arxiv.org/abs/2604.20994) | Apr 2026 | Novel FHA attack forces agents to invoke attacker-chosen MCP tools; 70–100% ASR across 5 models including GPT-5 and Claude Sonnet 4; attack is agnostic to context semantics |
 | [MCPSHIELD: Formal Security Framework for MCP-Based AI Agents](https://arxiv.org/abs/2604.05969) | Apr 2026 | Synthesizes 12 prior MCP security papers into unified taxonomy; 7 threat categories, 23 attack vectors across 177k+ MCP tools; finds **no single existing defense covers >34% of the threat landscape** |
+| [ARGUS: Defending LLM Agents Against Context-Aware Prompt Injection](https://arxiv.org/abs/2605.03378) | May 2026 | Provenance-aware runtime auditor that grounds tool-call decisions in trusted evidence via span-level context tracking and task-level verification; significantly reduces attack success while preserving task utility |
+| [Model Context Protocol: Landscape, Security Threats, and Future Research Directions](https://dl.acm.org/doi/10.1145/3796519) (ACM TOSEM) | 2026 | Systematic threat taxonomy for MCP across 4 attacker types (malicious developers, external attackers, malicious users, design flaws) and 16 distinct threat scenarios; published in ACM Transactions on Software Engineering and Methodology |
 
 **Industry reports:**
 - [Trail of Bits — Lack of Isolation in Agentic Browsers (January 2026)](https://blog.trailofbits.com/2026/01/13/lack-of-isolation-in-agentic-browsers-resurfaces-old-vulnerabilities/) — Prompt injection in AI browsers mirrors XSS/CSRF; agents lack Same-Origin Policy equivalents
