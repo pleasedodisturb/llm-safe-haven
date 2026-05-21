@@ -31,6 +31,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [trufflesecurity/trufflehog](https://github.com/trufflesecurity/trufflehog) | ~25.7K | Find, verify, and analyze leaked credentials across git repos, S3 buckets, filesystems, and more. Verification reduces false positives. |
 | [gitleaks/gitleaks](https://github.com/gitleaks/gitleaks) | ~26.2K | Fast git secret scanner. Pre-commit hooks and CI integration. Good complement to TruffleHog for different detection patterns. |
 | [GitGuardian/ggshield](https://github.com/GitGuardian/ggshield) | ~1.9K | CLI secret scanner with 550+ secret types. Now scans prompts, tool calls, and agent actions in real-time. Free tier available. 700K+ developers on GitHub Marketplace. |
+| [vulnerablemcp.info](https://vulnerablemcp.info/) | — | Community MCP vulnerability database. Comprehensive catalog of known CVEs and attack patterns across MCP server implementations. Purpose-built equivalent of CVE/NVD for the MCP ecosystem. |
 
 ## Credential Management
 
@@ -157,6 +158,9 @@ These are the posts and reports that informed our threat model. Read them to und
 | [GitGuardian: State of Secrets Sprawl 2026](https://www.helpnetsecurity.com/2026/04/14/gitguardian-ai-agents-credentials-leak/) | Apr 2026 | Claude Code-assisted commits leak secrets at 3.2% vs 1.5% baseline across all public GitHub commits. 29 million leaked secrets found in 2025. |
 | [CrowdStrike: "Agentic Tool Chain Attacks"](https://www.crowdstrike.com/en-us/blog/how-agentic-tool-chain-attacks-threaten-ai-agent-security/) | 2026 | Analysis of how agents autonomously chaining tools creates cascading attack surfaces. Tool poisoning enables credential theft via hidden instructions in tool metadata. |
 | [Simon Roses: "AI Agent Skill Poisoning"](https://simonroses.com/2026/02/ai-agent-skill-poisoning-the-supply-chain-attack-you-havent-heard-of/) | Feb 2026 | Deep dive into supply chain attacks via poisoned agent skills. 1,184 malicious skills confirmed on ClawHub marketplace. |
+| [Trend Micro: "Inside the LiteLLM Supply Chain Compromise"](https://www.trendmicro.com/en_us/research/26/c/inside-litellm-supply-chain-compromise.html) | Mar 2026 | Technical analysis of TeamPCP's compromise of LiteLLM on PyPI. Three-stage payload: credential harvesting, Kubernetes lateral movement, persistent RCE backdoor. Part of the Shai-Hulud attack campaign. |
+| [The Register: "Bug hunter tracks down three massive MCP flaws"](https://www.theregister.com/security/2026/05/13/bug-hunter-tracks-down-three-serious-mcp-database-flaws-one-left-unpatched/5238916) | May 2026 | Three RCE-class vulnerabilities in popular database MCP servers. One vendor explicitly declined to patch. Illustrates the governance gap in the MCP ecosystem. |
+| [Google Security Blog: "AI Threats in the Wild — Prompt Injections"](https://security.googleblog.com/2026/04/ai-threats-in-wild-current-state-of.html) | Apr 2026 | Google documents 32% rise in malicious prompt injection activity Nov 2025–Feb 2026. Detailed breakdown of real-world techniques including pixel shrinking, near-zero opacity, HTML comments, and meta tag namespace injection. |
 
 ## Anthropic Issues (From Our Investigation)
 

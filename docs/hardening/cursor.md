@@ -108,6 +108,12 @@ severity. The attack operates in three stages:
 Patched in Cursor 3.0 (April 2, 2026). Cursor/Anysphere independently assessed the
 sandbox breakout as High severity via HackerOne and awarded a bounty.
 
+### Cursor Security Review Beta (April 30, 2026)
+
+Cursor launched a Security Review feature in beta for Teams and Enterprise plans. The Security Reviewer checks every PR for security vulnerabilities, auth regressions, privacy risks, agent tool auto-approvals, and prompt injection attacks. A Vulnerability Scanner runs scheduled scans for known vulnerabilities and outdated dependencies. Development Environment Security Controls (May 11, 2026) added per-environment secret scoping, audit logs for all team member actions, version history with rollback, and build secrets for Dockerfiles scoped to build steps only (not passed to the running agent's environment).
+
+This is enterprise-only. Solo developers on free/Pro plans do not get these controls — the hardening steps in this guide remain the only available mitigations.
+
 ### Open-Folder Autorun (Oasis Security, September 2025)
 
 Oasis Security demonstrated that Cursor's disabled-by-default Workspace Trust means
