@@ -452,6 +452,39 @@ This is the second confirmed wave of TeamPCP attacks specifically targeting AI c
 
 Source: [The Hacker News — SAP npm packages compromised by Mini Shai-Hulud](https://thehackernews.com/2026/04/sap-npm-packages-compromised-by-mini.html) | [Wiz — Mini Shai-Hulud SAP npm](https://www.wiz.io/blog/mini-shai-hulud-supply-chain-sap-npm) | [Mend — Shai-Hulud SAP CAP via Claude Code](https://www.mend.io/blog/shai-hulud-sap-cap-supply-chain-attack-claude-code/) | [StepSecurity — A Mini Shai-Hulud Has Appeared](https://www.stepsecurity.io/blog/a-mini-shai-hulud-has-appeared) | [Sophos](https://www.sophos.com/en-us/blog/-mini-shai-hulud-supply-chain-attack-targets-sap-npm-packages) | [Snyk — Bun-based stealer hits SAP CAP npm packages](https://snyk.io/blog/bun-based-stealer-hits-sap-cap-js-mbt-npm-packages/)
 
+### May 2026 — Mini Shai-Hulud: TanStack via GitHub Actions Cache Poisoning (May 11)
+
+On May 11, 2026, TeamPCP compromised `@tanstack/react-router` (~12M weekly downloads) and 40+ related `@tanstack/*` packages via a new technique chain inside the TanStack repo's own CI:
+
+1. Attacker forked `TanStack/router` and **renamed the fork to `zblgg/configuration`** to evade GitHub fork-list searches.
+2. Opened a PR that triggered a `pull_request_target` workflow, which checked out and executed attacker-controlled code.
+3. The attacker code **poisoned the GitHub Actions cache with a malicious pnpm store**, persisting across maintainer PR merges.
+4. When the release workflow later restored the poisoned cache, attacker binaries **extracted OIDC tokens directly from `/proc/<pid>/mem`** of the runner — publishing via npm's trusted publishing without ever stealing npm credentials.
+
+Affected versions include `@tanstack/react-router` 1.169.5 and 1.169.8. This is the second confirmed abuse of npm trusted publishing (the first being Bitwarden CLI). The `pull_request_target` + Actions cache + `/proc/<pid>/mem` combination is novel — it bypasses the defenses most teams rely on for fork-based PRs.
+
+**Defenses:** Disallow `pull_request_target` on workflows that run untrusted code; audit Actions cache for unexpected entries on every release; pin OIDC token scope as tight as possible.
+
+Source: [Wiz — Mini Shai-Hulud Strikes Again: TanStack](https://www.wiz.io/blog/mini-shai-hulud-strikes-again-tanstack-more-npm-packages-compromised) | [The Hacker News — Mini Shai-Hulud Pushes Malicious npm Packages](https://thehackernews.com/2026/05/mini-shai-hulud-pushes-malicious-antv.html)
+
+### May 2026 — Mini Shai-Hulud: AntV "Here We Go Again" + Worm Goes Public (May 19)
+
+The largest mini wave to date and a strategic inflection point. On May 19, 2026, between 01:39–02:06 UTC, **323 packages with 637 versions and ~16M combined weekly downloads** were compromised via the `atool` maintainer account. Affected: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor` (4.2M weekly downloads alone), `timeago.js`, and ~320 others. The 498 KB payload harvests 80+ environment variables and 100+ file paths, encrypts with RSA-OAEP, and exfiltrates to `t.m-kosche.com:443/api/public/otel/v1/traces` (masquerading as OpenTelemetry traffic) plus 2,200+ GitHub dead-drop repos under Dune-themed names (`sandworm`, `sardaukar`, `ornithopter`, `fremen`, `harkonnen`, etc.) with descriptions containing the reversed string `niagA oG eW ereH :duluH-iahS`.
+
+**Persistence vectors targeted (run [scripts/scan-shai-hulud-may2026.sh](../scripts/scan-shai-hulud-may2026.sh) to check):**
+- `.claude/settings.json` SessionStart hook (second wave to do this)
+- `.vscode/tasks.json` with `"runOn": "folderOpen"`
+- `~/Library/LaunchAgents/com.user.kitty-monitor.plist` (macOS)
+- `~/.config/systemd/user/kitty-monitor.service` (Linux)
+- `~/.local/share/kitty/cat.py` (C2 daemon)
+- `~/.local/bin/gh-token-monitor.sh`
+
+**The strategic inflection:** TeamPCP **released the worm source code publicly on BreachForums** alongside a "supply chain attack contest." Within days, an unrelated actor uploaded four malicious npm packages — one a near-verbatim copy with its own C2. The barrier to launching a Mini Shai-Hulud has dropped to "download zip, configure C2." Expect aperiodic copycat waves from unrelated actors on top of the regular TeamPCP cadence.
+
+**Defenses:** Same as Apr 29 wave, plus: pin to exact versions (caret ranges autoupgrade you into compromised releases); set `ignore-scripts=true` in `~/.npmrc` globally — this alone blocks execution of all six Shai-Hulud waves; use registry cooldown policies that quarantine packages published within the last 7 days.
+
+Source: [Snyk — Mini Shai-Hulud Hits AntV](https://snyk.io/blog/mini-shai-hulud-antv-npm-supply-chain-attack/) | [StepSecurity — Here We Go Again](https://www.stepsecurity.io/blog/shai-hulud-here-we-go-again-mass-npm-supply-chain-attack-hits-the-antv-ecosystem) | [Akamai — Worm Returns Goes Public](https://www.akamai.com/blog/security-research/mini-shai-hulud-worm-returns-goes-public) | [SafeDep — 317 npm Packages Compromised](https://safedep.io/mini-shai-hulud-strikes-again-314-npm-packages-compromised/) | [The Register — Shai-Hulud keeps burrowing](https://www.theregister.com/cyber-crime/2026/05/19/shai-hulud-keeps-burrowing-314-npm-packages-infected-after-another-account-compromise/5242601) | [Cybersecurity News — 600+ npm Packages Compromised](https://cybersecuritynews.com/600-npm-packages-compromised/)
+
 ### April 2026 — TeamPCP Concurrent Multi-Vector Campaign (Update 008)
 
 [SANS ISC Update 008 (April 27, 2026)](https://www.ironcastle.net/teampcp-supply-chain-campaign-update-008-26-day-pause-ends-with-three-concurrent-compromises-checkmarx-kics-bitwarden-cli-cascade-xinference-pypi-canistersprawl-npm-worm-identified-and-tier-1/) revealed that the April 22-23 Bitwarden CLI incident was not isolated. After a 26-day quiet period, threat actor TeamPCP (formally tracked by Google GTIG as **UNC6780**, payload designation **SANDCLOCK**) conducted three simultaneous compromises:
