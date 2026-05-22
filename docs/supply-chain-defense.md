@@ -18,8 +18,8 @@ This is not hypothetical. It is the dominant npm supply chain threat of 2026.
 | Second Coming | Nov 2025 | 796 npm packages including `@ctrl/tinycolor`, `@nativescript-community/*` | ~796 packages, 20M+ weekly downloads | Mass account compromise, expanded payload |
 | Third Coming (Bitwarden) | April 22, 2026 | `@bitwarden/cli@2026.4.0` via Checkmarx KICS Action poisoning | 1 high-trust package, 334 downloads | **First abuse of npm trusted publishing**; AI tool configs explicitly targeted |
 | Mini — SAP CAP | April 29, 2026 | 4 SAP CAP packages (`@cap-js/sqlite`, `@cap-js/postgres`, `@cap-js/db-service`, `mbt`) | ~2 hours, 1,100+ exfil repos | **First weaponization of `.claude/settings.json` SessionStart hook** |
-| Mini — TanStack | May 11, 2026 | `@tanstack/react-router` and 40+ `@tanstack/*` packages | 12M+ weekly downloads | GitHub Actions cache poisoning + **OIDC token extraction from `/proc/<pid>/mem`** — published without stealing npm credentials |
-| Mini — AntV ("Here We Go Again") | May 19, 2026 | 323 packages via `atool` maintainer: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor`, `timeago.js`, others | 637 versions, ~16M weekly downloads, 2,200+ exfil repos | **Worm source code released publicly on BreachForums with a "supply chain contest"**; second wave weaponizing `.claude/settings.json` |
+| Mini — TanStack + PyPI | May 11–12, 2026 | 172 packages across npm **and PyPI**: `@tanstack/*`, 65 `@uipath/*`, `@mistralai/*`, `@opensearch-project/*`, `guardrails-ai`, ~20 Squawk packages | 403 malicious versions; 518M+ cumulative downloads | GitHub Actions cache poisoning + **OIDC token extraction from `/proc/<pid>/mem`** (npm); separate account compromises (PyPI) — **first cross-ecosystem wave spanning npm and PyPI** |
+| Mini — AntV ("Here We Go Again") | May 19, 2026 | 323 packages via `atool` maintainer: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor`, `timeago.js`, others | 637 versions, ~16M weekly downloads, 2,200+ exfil repos | **Worm source code released publicly on BreachForums with a "supply chain contest"**; second wave weaponizing `.claude/settings.json`; **first wave to forge valid Sigstore provenance badges** via Fulcio/Rekor at runtime |
 
 [Source: Snyk, Wiz, StepSecurity, Akamai, SafeDep — see Sources section.]
 
@@ -94,7 +94,9 @@ Seven days after Bitwarden. Four SAP CAP packages (`@cap-js/sqlite`, `@cap-js/po
 4. When legitimate maintainer PRs merged, the release workflow restored the poisoned cache.
 5. Attacker binaries then **extracted OIDC tokens directly from `/proc/<pid>/mem`** of the Actions runner — publishing happened via npm's trusted publishing without ever stealing npm credentials.
 
-This is the second confirmed abuse of npm trusted publishing (the first being Bitwarden). Affected versions include `@tanstack/react-router` 1.169.5 and 1.169.8.
+This is the second confirmed abuse of npm trusted publishing (the first being Bitwarden). Affected `@tanstack/react-router` versions: 1.169.5 and 1.169.8.
+
+**Cross-ecosystem scope:** Over the 48-hour window of May 11–12, the campaign expanded via separate compromised accounts to 172 packages total across npm and PyPI, 403 malicious versions, 518M+ cumulative downloads — affecting @uipath/* (65 packages), @mistralai/* (PyPI), @opensearch-project/* (npm), guardrails-ai (PyPI), and ~20 Squawk packages. This was the first Shai-Hulud wave spanning both npm and PyPI simultaneously. Sources: [Mend.io](https://www.mend.io/blog/mini-shai-hulud-is-back-172-npm-and-pypi-packages-compromised-in-latest-wave/) | [The Hacker News](https://thehackernews.com/2026/05/mini-shai-hulud-worm-compromises.html)
 
 #### Wave C — AntV "Here We Go Again" (May 19, 2026)
 
@@ -176,6 +178,9 @@ This is a structural change to npm publishing, not a policy update. Combined wit
 - [The Register — Shai-Hulud keeps burrowing (May 19)](https://www.theregister.com/cyber-crime/2026/05/19/shai-hulud-keeps-burrowing-314-npm-packages-infected-after-another-account-compromise/5242601)
 - [The Hacker News — Mini Shai-Hulud Pushes Malicious AntV npm Packages](https://thehackernews.com/2026/05/mini-shai-hulud-pushes-malicious-antv.html)
 - [Cybersecurity News — 600+ npm Packages Compromised](https://cybersecuritynews.com/600-npm-packages-compromised/)
+- [The Hacker News — Mini Shai-Hulud Worm Compromises TanStack, Mistral AI, Guardrails AI](https://thehackernews.com/2026/05/mini-shai-hulud-worm-compromises.html)
+- [Mend.io — Mini Shai-Hulud Is Back: 172 npm and PyPI Packages](https://www.mend.io/blog/mini-shai-hulud-is-back-172-npm-and-pypi-packages-compromised-in-latest-wave/)
+- [Endor Labs — Mini Shai-Hulud Returns: 42 Malicious npm Packages Fake Sigstore Badges](https://www.endorlabs.com/learn/mini-shai-hulud-returns-42-malicious-npm-packages-fake-sigstore-badges-in-antv-ecosystem-attack)
 
 ---
 
@@ -249,7 +254,7 @@ Verifies that every installed package's tarball matches the cryptographic signat
 Also verifies Sigstore provenance attestations when available — linking the package to its exact source commit and CI build.
 
 **Protects against:** Tarball tampering (man-in-the-middle, registry mirror poisoning, CDN corruption).
-**Does not protect against:** Compromised publisher accounts (attacker publishes a new legitimately-signed version) or malicious code that was always in the package.
+**Does not protect against:** Compromised publisher accounts (attacker publishes a new legitimately-signed version), malicious code that was always in the package, **or supply chain worms that forge Sigstore provenance at runtime.** Endor Labs documented that the Mini Shai-Hulud worm (May 19, 2026 AntV wave) calls Fulcio and Rekor during propagation to obtain valid signing certificates for every package it infects, causing this check to show green for malicious packages. `npm audit signatures` remains valuable but is not a sufficient sole indicator during active worm campaigns. ([Endor Labs — Mini Shai-Hulud Fake Sigstore Badges](https://www.endorlabs.com/learn/mini-shai-hulud-returns-42-malicious-npm-packages-fake-sigstore-badges-in-antv-ecosystem-attack))
 
 **Important:** The npm CLI bundled with Node is frequently too old for provenance verification. Run `npm install -g npm@latest` before using this in CI.
 
@@ -685,7 +690,7 @@ npm pkg get scripts --json
 
 ## Incident Response: If You Installed a Compromised Package
 
-If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), or any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window — treat the host as compromised:
+If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 or any `@uipath/*`, `@mistralai/*`, `@opensearch-project/*`, or `guardrails-ai` version published May 11–12, or any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window — treat the host as compromised:
 
 ### Immediate (within 1 hour)
 
@@ -750,4 +755,4 @@ If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@20
 
 ---
 
-*Last updated: April 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
+*Last updated: May 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*

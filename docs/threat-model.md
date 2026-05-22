@@ -421,6 +421,11 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 | AI Python library `.pth` file persistence | Critical | Malicious `.pth` file in compromised PyPI package executes credential stealer on every Python process startup; survives package removal; lateral movement across Kubernetes clusters | [LiteLLM/Telnyx PyPI compromise (Mar 2026)](https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/) |
 | AI coding tool content-filter bypass | High | Local attacker bypasses AI suggestion filters and consent gates, enabling malicious suggestion injection | [CVE-2026-41109 — Copilot/VS Code (May 2026)](https://www.thehackerwire.com/github-copilot-visual-studio-injection-bypasses-security-feature-cve-2026-41109/) |
 | Bare repo fsmonitor command execution | High | Nested bare git repo triggers `core.fsmonitor` during agent git operations to execute arbitrary commands | [CVE-2026-45033 — Copilot CLI](https://advisories.gitlab.com/npm/@github/copilot/CVE-2026-45033/) |
+| AI agent deeplink RCE | Critical | Crafted `claude-cli://` deeplink embeds `--settings=` payload via eager CLI parser; injected config defines a `SessionStart` hook that executes arbitrary shell commands on initialization | [CVE-2026-24887 — Claude Code (May 2026)](https://www.sentinelone.com/vulnerability-database/cve-2026-24887/) |
+| Agent network sandbox null-byte bypass | High | SOCKS5 hostname `attacker-host.com\x00.allowed.com` passes allowlist check (filter reads trailing `.allowed.com`); OS kernel truncates at null byte and dials attacker server | [Claude Code SOCKS5 bypass — silently patched v2.1.90, no CVE](https://www.securityweek.com/anthropic-silently-patches-claude-code-sandbox-bypass/) |
+| AI agent framework auth disabled by default | High | Multi-agent frameworks shipping `AUTH_ENABLED = False` hardcoded in legacy API servers; unauthenticated workflow execution exploited within 4 hours of advisory publication | [CVE-2026-44338 — PraisonAI (May 2026)](https://github.com/advisories/GHSA-6rmh-7xcm-cpxj) |
+| AI agent trust dialog weakening | Critical | MCP auto-approval trust dialog removed "trust with MCP disabled" option; any cloned repo ships two JSON files that auto-start attacker-controlled MCP server as OS process with full user privileges; dialog absent in CI/CD headless mode | [TrustFall — Adversa AI (May 2026)](https://adversa.ai/blog/trustfall-coding-agent-security-flaw-rce-claude-cursor-gemini-cli-copilot/) |
+| Forged Sigstore provenance on compromised packages | Critical | Supply chain worm calls Fulcio/Rekor at runtime to obtain valid signing certificates for every package it propagates to; `npm audit signatures` shows green despite malicious build chain | [Endor Labs — Mini Shai-Hulud Fake Sigstore Badges (May 2026)](https://www.endorlabs.com/learn/mini-shai-hulud-returns-42-malicious-npm-packages-fake-sigstore-badges-in-antv-ecosystem-attack) |
 
 ## Real Incidents Timeline
 
@@ -459,6 +464,32 @@ Source: [TheHackerWire — CVE-2026-41109](https://www.thehackerwire.com/github-
 A bug hunter reported three serious MCP server vulnerabilities affecting widely-deployed database MCP implementations. Vulnerabilities allow arbitrary SQL execution, schema enumeration, and in one case full RCE via unsanitized query parameters passed to underlying CLI tools. One vendor acknowledged the report and explicitly declined to patch, citing the behavior as "by design." This echoes Anthropic's own position on the MCP SDK architectural RCE.
 
 Source: [The Register — Bug hunter tracks down three massive MCP flaws](https://www.theregister.com/security/2026/05/13/bug-hunter-tracks-down-three-serious-mcp-database-flaws-one-left-unpatched/5238916)
+
+### May 2026 — Claude Code Deeplink RCE (CVE-2026-24887)
+
+Researcher Joernchen (0day.click) disclosed May 12, 2026 that Claude Code's `eagerParseCliFlag` function naively scanned the entire command-line array for any string beginning with `--settings=`, without verifying whether that string was an actual flag or a value passed to another flag. Combined with the `claude-cli://` deeplink handler's `q` parameter, an attacker could craft a URL embedding a `--settings=` payload that defined a malicious `SessionStart` hook. Opening the link executed the hook before initialization — RCE from a single browser click. Fixed in Claude Code v2.1.118.
+
+Source: [0day.click — Claude Code RCE via Deeplink Settings Injection](https://0day.click/recipe/2026-05-12-cc-rce/) | [SentinelOne — CVE-2026-24887](https://www.sentinelone.com/vulnerability-database/cve-2026-24887/) | [CyberSecurityNews](https://cybersecuritynews.com/claude-code-rce-flaw/amp/)
+
+### May 2026 — Claude Code Network Sandbox Bypass via SOCKS5 Null-Byte Injection
+
+Researcher Aonan Guan (who also discovered "Comment and Control" in April) disclosed that Claude Code's network sandbox allowlist was bypassed by embedding a null byte in SOCKS5 hostnames: `attacker-host.com\x00.allowed-domain.com`. The allowlist filter evaluated the trailing `.allowed-domain.com` and approved the connection; the OS kernel truncated the hostname at the null byte and connected to `attacker-host.com`. The flaw affected every Claude Code release from v2.0.24 (sandbox GA October 20, 2025) through v2.1.89 — approximately 130 published versions over 5.5 months. Combined with prompt injection, an attacker could silently exfiltrate credentials, source code, or environment variables to any server while sandbox domain allowlists appeared to be enforcing.
+
+Anthropic silently patched the issue in v2.1.90 (April 1, 2026) with no mention in the release notes and no CVE published. **If you ran a wildcard allowlist (`*.example.com`) on a credential-bearing system between October 20, 2025, and your upgrade date, treat outbound traffic during that period as unprotected.** Update to v2.1.90 or later.
+
+Source: [Aonan Guan — Second Time, Same Sandbox](https://oddguan.com/blog/second-time-same-sandbox-anthropic-claude-code-network-allowlist-bypass-data-exfiltration/) | [SecurityWeek — Anthropic Silently Patches Claude Code Sandbox Bypass](https://www.securityweek.com/anthropic-silently-patches-claude-code-sandbox-bypass/) | [The Register](https://www.theregister.com/security/2026/05/20/even-claude-agrees-hole-in-its-sandbox-was-real-and-dangerous/5243662)
+
+### May 2026 — TrustFall: One-Click MCP RCE Across Four Coding Agents (Adversa AI)
+
+Adversa AI identified (May 7, 2026) that a malicious repository can ship two small JSON configuration files that auto-approve an attacker-controlled MCP server. When the developer accepts the Claude Code trust dialog, that server starts as an OS process with full user privileges and opens a persistent C2 channel. Claude Code's trust dialog was weakened in v2.1: an earlier version explicitly warned about MCP code execution and offered a "trust folder with MCP disabled" option — that option was removed. In CI/CD (GitHub Actions headless mode), no dialog appears — a PR from any outside contributor that includes a malicious project config causes the server to start automatically when the pipeline runs. Affects Claude Code, Gemini CLI, Cursor CLI, and GitHub Copilot CLI.
+
+Source: [Adversa AI — TrustFall](https://adversa.ai/blog/trustfall-coding-agent-security-flaw-rce-claude-cursor-gemini-cli-copilot/) | [Dark Reading](https://www.darkreading.com/application-security/trustfall-exposes-claude-code-execution-risk) | [Help Net Security](https://www.helpnetsecurity.com/2026/05/07/trustfall-ai-coding-cli-vulnerability-research/)
+
+### May 2026 — PraisonAI CVE-2026-44338: Auth Bypass Exploited in Under 4 Hours
+
+PraisonAI's legacy Flask API server (`api_server.py`) shipped with `AUTH_ENABLED = False` and `AUTH_TOKEN = None` hardcoded, binding to `0.0.0.0:8080`. Exposed: `GET /agents` (enumerate configured agents) and `POST /chat` (execute `agents.yaml` workflows). CVSS 7.3, CWE-306 (Missing Authentication for Critical Function). Advisory published May 11, 2026 at 13:56 UTC; automated scanners arrived at 17:40 UTC — under 4 hours. This follows the pattern of rapid AI framework exploitation established by Langflow CVE-2026-33017 (20 hours) and Flowise CVE-2025-59528. Affects v2.5.6 through 4.6.33, fixed in v4.6.34.
+
+Source: [The Hacker News — PraisonAI CVE-2026-44338](https://thehackernews.com/2026/05/praisonai-cve-2026-44338-auth-bypass.html) | [Sysdig — Under 4 Hours](https://www.sysdig.com/blog/cve-2026-44338-praisonai-authentication-bypass-in-under-4-hours-and-the-growing-trend-of-rapid-exploitation) | [GitHub Advisory](https://github.com/advisories/GHSA-6rmh-7xcm-cpxj)
 
 ### April 2026 — Bitwarden CLI Supply Chain Attack (Shai-Hulud)
 
@@ -503,11 +534,13 @@ On May 11, 2026, TeamPCP compromised `@tanstack/react-router` (~12M weekly downl
 3. The attacker code **poisoned the GitHub Actions cache with a malicious pnpm store**, persisting across maintainer PR merges.
 4. When the release workflow later restored the poisoned cache, attacker binaries **extracted OIDC tokens directly from `/proc/<pid>/mem`** of the runner — publishing via npm's trusted publishing without ever stealing npm credentials.
 
-Affected versions include `@tanstack/react-router` 1.169.5 and 1.169.8. This is the second confirmed abuse of npm trusted publishing (the first being Bitwarden CLI). The `pull_request_target` + Actions cache + `/proc/<pid>/mem` combination is novel — it bypasses the defenses most teams rely on for fork-based PRs.
+Affected `@tanstack/react-router` versions: 1.169.5 and 1.169.8. This is the second confirmed abuse of npm trusted publishing (the first being Bitwarden CLI). The `pull_request_target` + Actions cache + `/proc/<pid>/mem` combination bypasses the defenses most teams rely on for fork-based PRs.
+
+**Cross-ecosystem scope:** Over the 48-hour window of May 11–12, the campaign expanded via separate compromised maintainer accounts to **172 packages total across npm and PyPI**, 403 malicious versions, 518M+ cumulative downloads. Additional ecosystems affected: @uipath/* (65 packages), @mistralai/* (PyPI), @opensearch-project/* (npm), guardrails-ai (PyPI), ~20 Squawk packages. This was the first Shai-Hulud wave spanning both npm and PyPI simultaneously.
 
 **Defenses:** Disallow `pull_request_target` on workflows that run untrusted code; audit Actions cache for unexpected entries on every release; pin OIDC token scope as tight as possible.
 
-Source: [Wiz — Mini Shai-Hulud Strikes Again: TanStack](https://www.wiz.io/blog/mini-shai-hulud-strikes-again-tanstack-more-npm-packages-compromised) | [The Hacker News — Mini Shai-Hulud Pushes Malicious npm Packages](https://thehackernews.com/2026/05/mini-shai-hulud-pushes-malicious-antv.html)
+Source: [Wiz — Mini Shai-Hulud Strikes Again: TanStack](https://www.wiz.io/blog/mini-shai-hulud-strikes-again-tanstack-more-npm-packages-compromised) | [The Hacker News — Mini Shai-Hulud Worm Compromises TanStack, Mistral AI, Guardrails AI](https://thehackernews.com/2026/05/mini-shai-hulud-worm-compromises.html) | [Mend.io — 172 npm and PyPI Packages](https://www.mend.io/blog/mini-shai-hulud-is-back-172-npm-and-pypi-packages-compromised-in-latest-wave/)
 
 ### May 2026 — Mini Shai-Hulud: AntV "Here We Go Again" + Worm Goes Public (May 19)
 
@@ -522,6 +555,8 @@ The largest mini wave to date and a strategic inflection point. On May 19, 2026,
 - `~/.local/bin/gh-token-monitor.sh`
 
 **The strategic inflection:** TeamPCP **released the worm source code publicly on BreachForums** alongside a "supply chain attack contest." Within days, an unrelated actor uploaded four malicious npm packages — one a near-verbatim copy with its own C2. The barrier to launching a Mini Shai-Hulud has dropped to "download zip, configure C2." Expect aperiodic copycat waves from unrelated actors on top of the regular TeamPCP cadence.
+
+**Sigstore provenance bypass:** Endor Labs found that the worm calls Fulcio and Rekor at runtime to obtain valid Sigstore signing certificates for every package it propagates to. `npm audit signatures` shows a green badge despite the malicious build chain — the first supply chain attack to defeat npm's provenance verification in production. Do not rely on `npm audit signatures` as a sole indicator of package integrity for packages published during active Shai-Hulud waves.
 
 **Defenses:** Same as Apr 29 wave, plus: pin to exact versions (caret ranges autoupgrade you into compromised releases); set `ignore-scripts=true` in `~/.npmrc` globally — this alone blocks execution of all six Shai-Hulud waves; use registry cooldown policies that quarantine packages published within the last 7 days.
 
@@ -579,6 +614,14 @@ Trend Micro's Zero Day Initiative disclosed that Flowise's CSV Agent node constr
 
 Source: [GitLab Advisory — CVE-2026-41264](https://advisories.gitlab.com/npm/flowise/CVE-2026-41264/) | [GitHub Advisory — GHSA-3hjv-c53m-58jj](https://github.com/FlowiseAI/Flowise/security/advisories/GHSA-3hjv-c53m-58jj)
 
+### April 2026 — Azure SRE Agent CVE-2026-32173: Live Command Stream Exposed to Any Entra Tenant
+
+Microsoft disclosed CVE-2026-32173 (CVSS 8.6) on April 3, 2026. The Azure SRE Agent streamed all activity through a SignalR WebSocket hub (`/agentHub`) that accepted valid tokens from **any** Entra ID tenant — not just the target resource's tenant. Any Entra account holder from any organization could connect and passively observe the full real-time feed: user prompts, agent responses, internal reasoning traces, every executed command with full arguments, and command output. The hub performed no identity filtering and no per-user broadcast segmentation. Patched by Microsoft server-side.
+
+**Why it matters for solo devs:** This is the first confirmed case of an AI agent exposing its live reasoning process and command execution to arbitrary third parties. The pattern — insufficient authorization on the event stream — applies equally to locally hosted agent frameworks with similar WebSocket-based observability endpoints (cf. CVE-2026-44211 in Cline Kanban, May 2026).
+
+Source: [CSO Online — Azure SRE Agent Flaw](https://www.csoonline.com/article/4161389/azure-sre-agent-flaw-let-outsiders-silently-eavesdrop-on-enterprise-cloud-operations.html) | [SentinelOne — CVE-2026-32173](https://www.sentinelone.com/vulnerability-database/cve-2026-32173/) | [TheHackerWire](https://www.thehackerwire.com/azure-sre-agent-improper-authentication-leads-to-info-disclosure/)
+
 ### April 2026 — Anthropic Claude Mythos + Project Glasswing
 
 Anthropic announced Claude Mythos on April 7, 2026 — an AI model that during testing was found capable of identifying and exploiting zero-day vulnerabilities in every major operating system and web browser. Mythos Preview discovered thousands of high-severity zero-days including bugs 10–27 years old. In one demonstration it chained four vulnerabilities to escape both renderer and OS sandboxes. Project Glasswing deploys Mythos Preview in partnership with AWS, Apple, Cisco, CrowdStrike, Google, Linux Foundation, Microsoft, NVIDIA, and others to harden critical software before attackers find the same flaws. Mythos is not publicly available; Anthropic explicitly declined general access due to dual-use risk.
@@ -618,6 +661,18 @@ On March 24, 2026, threat actor **TeamPCP** published backdoored versions of two
 **Why it matters for solo devs:** litellm is a transitive dependency for dozens of AI agent frameworks. The `.pth` persistence mechanism means the credential stealer survives even after litellm is removed from `requirements.txt` — it continues running on every Python process until the malicious `.pth` file is manually deleted from site-packages. Any machine that ran `pip install litellm` during the 40-minute window should be treated as fully compromised. This attack preceded the Bitwarden/Shai-Hulud event by one month — part of the same escalating TeamPCP campaign.
 
 Source: [Datadog Security Labs — LiteLLM and Telnyx compromised on PyPI](https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/) | [Snyk — Poisoned Security Scanner Backdooring LiteLLM](https://snyk.io/blog/poisoned-security-scanner-backdooring-litellm/) | [PyPI Incident Report](https://blog.pypi.org/posts/2026-04-02-incident-report-litellm-telnyx-supply-chain-attack/)
+
+### March 2026 — CrewAI VU#221883: Prompt Injection → RCE via Insecure Sandbox Fallback
+
+CERT/CC disclosed VU#221883 on March 30–31, 2026: four vulnerabilities in CrewAI (a widely used multi-agent orchestration framework) discovered by Yarden Porat of Cyata, enabling a chain from prompt injection to full host RCE.
+
+- **CVE-2026-2275**: The Code Interpreter Tool falls back to a vulnerable `SandboxPython` environment when Docker is unreachable, enabling arbitrary C function calls via `ctypes`.
+- **CVE-2026-2285**: The JSON loader tool reads files without path validation — arbitrary local file read from the server.
+- **CVE-2026-2286 / CVE-2026-2287**: The Code Interpreter Tool does not continuously verify Docker is running; silent fallback to the insecure sandbox mode occurs mid-execution, and any prompt injection route into an agent with Code Interpreter enabled can chain the above into full host RCE.
+
+No complete patch was available at time of disclosure. The vendor committed to failing securely rather than silently downgrading to an open sandbox.
+
+Source: [CERT/CC VU#221883](https://kb.cert.org/vuls/id/221883) | [SecurityWeek — CrewAI Vulnerabilities](https://www.securityweek.com/crewai-vulnerabilities-expose-devices-to-hacking/) | [PointGuard AI](https://www.pointguardai.com/ai-security-incidents/crewai-vulnerabilities-enable-prompt-injection-to-system-takeover)
 
 ### February 2026 — Check Point: Claude Code Hooks RCE and API Key Theft
 
@@ -957,4 +1012,4 @@ Agents that run for hours or days without human checkpoints have no meaningful h
 
 ---
 
-*Last updated: April 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
+*Last updated: May 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
