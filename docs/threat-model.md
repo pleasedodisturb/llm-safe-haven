@@ -460,6 +460,26 @@ A bug hunter reported three serious MCP server vulnerabilities affecting widely-
 
 Source: [The Register — Bug hunter tracks down three massive MCP flaws](https://www.theregister.com/security/2026/05/13/bug-hunter-tracks-down-three-serious-mcp-database-flaws-one-left-unpatched/5238916)
 
+### May 2026 — node-ipc npm Compromise: 10M-Download Package Trojanized (May 14)
+
+On May 14, 2026, three malicious versions of `node-ipc` — a foundational Node.js inter-process communication library with over 10 million weekly downloads — were simultaneously published to the npm registry. Versions 9.1.6, 9.2.3, and 12.0.1 each carry an identical 80 KB obfuscated credential-stealing payload.
+
+**Access vector:** The attacker re-registered the expired domain used for the package maintainer's email address (`atlantis-software.net`, re-registered May 7 via Namecheap), then used npm's legitimate password recovery flow — no credentials were stolen directly. This is a distinct TTP from the Shai-Hulud worm chain (no GitHub Actions poisoning, no worm propagation).
+
+**Payload:** Harvests 90+ credential categories including AWS/Azure/GCP credentials, SSH keys, Kubernetes tokens, GitHub CLI configs, **Claude AI and Kiro IDE settings**, Terraform state, database passwords, and shell history. Compresses everything and exfiltrates to attacker infrastructure masquerading as Azure. The malicious versions were live for ~2 hours before removal.
+
+**Attribution:** Multiple researchers link this attack to TeamPCP (UNC6780) — the same group behind the Shai-Hulud/Mini Shai-Hulud waves — operating with a different initial-access TTP. If you used node-ipc in CI/CD during the May 14 window, treat all secrets on that runner as compromised.
+
+Source: [The Hacker News — Stealer Backdoor Found in 3 node-ipc Versions](https://thehackernews.com/2026/05/stealer-backdoor-found-in-3-node-ipc.html) | [Snyk — Malicious node-ipc versions on npm](https://snyk.io/blog/malicious-node-ipc-versions-published-npm/) | [StepSecurity — Active Supply Chain Attack: node-ipc](https://www.stepsecurity.io/blog/node-ipc-npm-supply-chain-attack) | [Semgrep — node-ipc hit again, but not a worm](https://semgrep.dev/blog/2026/not-your-ipc-but-node-ipc-npm-hit-again-with-supply-chain-attack-but-this-time-its-not-a-worm/)
+
+### May 2026 — TeamPCP Breaches GitHub via Poisoned VS Code Extension (May 18-20)
+
+On May 18-20, 2026, TeamPCP (UNC6780) exfiltrated approximately 3,800 internal GitHub repositories by compromising a GitHub employee's machine through a poisoned VS Code extension. The malicious extension was `nrwl.angular-console` v18.95.0 (Nx Console) — published to the VS Code Marketplace at 12:36 UTC on May 18 with malicious code injected into `main.js`. The extension had ~2.2 million existing installs, lending it high implicit trust. GitHub confirmed the breach on May 20, contained the incident, and rotated credentials. TeamPCP posted claims on BreachForums offering the stolen material for $50,000.
+
+**Why it matters for solo developers:** VS Code extensions run with full user-level privileges and can silently read every file the user can access — credentials, `.env` files, `~/.ssh/`, AI agent configurations, and source code. There is no sandboxed permission model for VS Code extensions analogous to browser extension permissions. A single poisoned extension in a marketplace with millions of installs can compromise an entire machine. Audit your installed VS Code extensions: `code --list-extensions` — any extension you do not recognize or have not recently used is a risk surface.
+
+Source: [BleepingComputer — GitHub confirms breach via VS Code extension](https://www.bleepingcomputer.com/news/security/github-confirms-breach-of-3-800-repos-via-malicious-vscode-extension/) | [VentureBeat — GitHub confirms 3,800 repos stolen](https://venturebeat.com/security/github-confirms-3800-repos-stolen-poisoned-vs-code-extension-supply-chain-worm-microsoft-python-sdk) | [Tom's Hardware — TeamPCP claims source code theft](https://www.tomshardware.com/tech-industry/cyber-security/hacker-group-hits-3-800-internal-github-repositories-via-poisoned-developer-plugin-teampcp-claims-source-code-theft-and-attempts-usd50-000-sale-employee-installed-malicious-vs-code-extension) | [Help Net Security](https://www.helpnetsecurity.com/2026/05/20/github-breached-teampcp/) | [Aikido — Wild West of VS Code extensions](https://www.aikido.dev/blog/vs-code-extension-github-breach)
+
 ### April 2026 — Bitwarden CLI Supply Chain Attack (Shai-Hulud)
 
 The official Bitwarden CLI (`@bitwarden/cli@2026.4.0`) was trojanized for 93 minutes on April 22, 2026. Threat actor **TeamPCP** compromised a Checkmarx GitHub Action used in Bitwarden's CI pipeline — the first known compromise of npm's trusted publishing mechanism. The attacker didn't steal npm credentials; they poisoned an upstream GitHub Action so the legitimate CI pipeline published a malicious version on their behalf.
@@ -801,6 +821,7 @@ Claude Code accounts for 27 of 74 confirmed CVEs (36%) — partly because it lea
 | [Breaking MCP with Function Hijacking Attacks](https://arxiv.org/abs/2604.20994) | Apr 2026 | Novel FHA attack forces agents to invoke attacker-chosen MCP tools; 70–100% ASR across 5 models including GPT-5 and Claude Sonnet 4; attack is agnostic to context semantics |
 | [MCPSHIELD: Formal Security Framework for MCP-Based AI Agents](https://arxiv.org/abs/2604.05969) | Apr 2026 | Synthesizes 12 prior MCP security papers into unified taxonomy; 7 threat categories, 23 attack vectors across 177k+ MCP tools; finds **no single existing defense covers >34% of the threat landscape** |
 | [ARGUS: Defending LLM Agents Against Context-Aware Prompt Injection](https://arxiv.org/abs/2605.03378) | May 2026 | Provenance-aware runtime auditor that grounds tool-call decisions in trusted evidence via span-level context tracking and task-level verification; significantly reduces attack success while preserving task utility |
+| [Evaluation of Prompt Injection Defenses in Large Language Models](https://arxiv.org/abs/2604.23887) | Apr 2026 | Systematic evaluation of existing prompt injection defense mechanisms across 5 defense categories; provides comparative benchmark with no single defense achieving both high security and low utility cost |
 | [Model Context Protocol: Landscape, Security Threats, and Future Research Directions](https://dl.acm.org/doi/10.1145/3796519) (ACM TOSEM) | 2026 | Systematic threat taxonomy for MCP across 4 attacker types (malicious developers, external attackers, malicious users, design flaws) and 16 distinct threat scenarios; published in ACM Transactions on Software Engineering and Methodology |
 
 **Industry reports:**
@@ -957,4 +978,4 @@ Agents that run for hours or days without human checkpoints have no meaningful h
 
 ---
 
-*Last updated: April 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
+*Last updated: May 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*

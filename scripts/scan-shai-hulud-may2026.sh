@@ -6,7 +6,8 @@
 # What this does:
 #   Read-only scan of a macOS machine for indicators of compromise from the
 #   May 11 + May 19, 2026 Shai-Hulud npm worm waves (AntV / ECharts / TanStack
-#   Router pivot, kitty-monitor C2 persistence, m-kosche.com beacons).
+#   Router pivot, kitty-monitor C2 persistence, m-kosche.com beacons) and the
+#   May 14 node-ipc compromise (atlantis-software.net C2, TeamPCP attribution).
 #
 # What this does NOT do:
 #   - No file deletions, no quarantine, no network calls, no curl|sh
@@ -296,6 +297,7 @@ RC_BAD_PATTERNS=(
   'eval[[:space:]].*base64'
   'kitty.*monitor'
   'm-kosche'
+  'atlantis-software'
 )
 
 for rc in "${RC_FILES[@]}"; do
@@ -330,7 +332,7 @@ done
 section "5. Shell history beacon-domain references"
 
 HIST_FILES=("$HOME/.zsh_history" "$HOME/.bash_history")
-HIST_PATTERNS=('m-kosche' 'kitty-monitor' 'gh-token-monitor')
+HIST_PATTERNS=('m-kosche' 'kitty-monitor' 'gh-token-monitor' 'atlantis-software.net')
 
 for hf in "${HIST_FILES[@]}"; do
   if [ ! -f "$hf" ]; then
@@ -356,9 +358,9 @@ done
 # ============================================================================
 section "6. Global npm packages (May 2026 worm waves)"
 
-# Compromised package names from May 11 (TanStack pivot) and May 19 (AntV wave).
-# Pinned bad versions noted but we flag presence regardless and let the user
-# verify version.
+# Compromised package names from May 11 (TanStack pivot), May 14 (node-ipc),
+# and May 19 (AntV wave). Pinned bad versions noted but we flag presence
+# regardless and let the user verify version.
 COMPROMISED_PKGS=(
   "@antv/g2"
   "@antv/g6"
@@ -369,6 +371,7 @@ COMPROMISED_PKGS=(
   "@tanstack/react-router"
   "@tanstack/router-core"
   "@tanstack/router-cli"
+  "node-ipc"
 )
 
 if command -v npm >/dev/null 2>&1; then

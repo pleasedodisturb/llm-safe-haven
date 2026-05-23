@@ -113,6 +113,16 @@ High-impact packages: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor`
 
 **The most important development:** TeamPCP **released the worm source code publicly on BreachForums** along with a "supply chain attack contest." Within days, an unrelated actor uploaded four malicious npm packages — one a near-verbatim copy with its own C2. The barrier to entry just dropped to zero. Expect copycat waves at irregular intervals from here.
 
+#### Concurrent TeamPCP operations: node-ipc (May 14) and GitHub breach (May 18-20)
+
+While the AntV wave ran, TeamPCP conducted two additional operations using different TTPs — no worm propagation, same threat actor.
+
+**node-ipc (May 14, 2026):** Three malicious versions of `node-ipc` (9.1.6, 9.2.3, 12.0.1) — over 10 million weekly downloads — were published after the attacker re-registered the package maintainer's expired email domain (`atlantis-software.net`) and used npm's password recovery. The 80 KB payload harvests 90+ credential categories including **Claude AI and Kiro IDE settings** and exfiltrates to infrastructure masquerading as Azure. Live for ~2 hours, ~822K downloads at risk. This is NOT the Shai-Hulud worm (no self-propagation), but attributed to TeamPCP by multiple researchers.
+
+**VS Code extension → GitHub internal breach (May 18-20, 2026):** TeamPCP poisoned the `nrwl.angular-console` v18.95.0 (Nx Console) VS Code extension — published to the VS Code Marketplace at 12:36 UTC May 18 with malicious code injected into `main.js`. A GitHub employee installed it; attackers exfiltrated ~3,800 internal GitHub repositories. GitHub confirmed the breach May 20, rotated credentials, and removed the malicious version. The extension had ~2.2 million installs at the time.
+
+**Key lesson:** VS Code extensions have full user-level privileges with no sandbox. Nx Console is a widely-trusted extension for Nx/Angular developers. Audit your installed extensions immediately: `code --list-extensions`. Any unfamiliar extension is a full credential-read risk surface.
+
 #### What to do right now if you use Claude Code
 
 1. **Audit `.claude/settings.json` in every project you've opened** in the last 30 days. Any `SessionStart`, `PreToolUse`, or `PostToolUse` hook that doesn't point to your own scripts or known-good plugin paths (`~/.claude/hooks/<your-tooling>/`) should be treated as suspicious until verified.
@@ -121,6 +131,7 @@ High-impact packages: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor`
 4. **Search your GitHub account for dead-drop repos** matching the Dune-themed naming. If you find any, your `gh` token has been exfiltrated — revoke immediately, then rotate every credential it could reach.
 5. **Set `ignore-scripts=true` in `~/.npmrc`** if you haven't already. This single setting would have blocked execution of all six Shai-Hulud waves.
 6. **The bash-firewall and secret-guard hooks llm-safe-haven installs** catch the SessionStart-hook abuse pattern at session start. If you're not running them, install via `npx llm-safe-haven`.
+7. **Audit your VS Code extensions**: `code --list-extensions`. Remove any extension you do not recognize or have not actively chosen to install. Any extension in the Marketplace can silently read your entire home directory — no sandbox, no permission prompt. The TeamPCP Nx Console compromise showed a 2.2M-install extension can be weaponized.
 
 ### Timeline
 
@@ -176,6 +187,14 @@ This is a structural change to npm publishing, not a policy update. Combined wit
 - [The Register — Shai-Hulud keeps burrowing (May 19)](https://www.theregister.com/cyber-crime/2026/05/19/shai-hulud-keeps-burrowing-314-npm-packages-infected-after-another-account-compromise/5242601)
 - [The Hacker News — Mini Shai-Hulud Pushes Malicious AntV npm Packages](https://thehackernews.com/2026/05/mini-shai-hulud-pushes-malicious-antv.html)
 - [Cybersecurity News — 600+ npm Packages Compromised](https://cybersecuritynews.com/600-npm-packages-compromised/)
+- [The Hacker News — Stealer Backdoor Found in 3 node-ipc Versions (May 14)](https://thehackernews.com/2026/05/stealer-backdoor-found-in-3-node-ipc.html)
+- [Snyk — Malicious node-ipc versions on npm (May 14)](https://snyk.io/blog/malicious-node-ipc-versions-published-npm/)
+- [StepSecurity — Active Supply Chain Attack: node-ipc (May 14)](https://www.stepsecurity.io/blog/node-ipc-npm-supply-chain-attack)
+- [Semgrep — node-ipc npm hit again (but not a worm)](https://semgrep.dev/blog/2026/not-your-ipc-but-node-ipc-npm-hit-again-with-supply-chain-attack-but-this-time-its-not-a-worm/)
+- [BleepingComputer — GitHub confirms breach via VS Code extension (May 20)](https://www.bleepingcomputer.com/news/security/github-confirms-breach-of-3-800-repos-via-malicious-vscode-extension/)
+- [VentureBeat — GitHub 3,800 repos stolen (May 20)](https://venturebeat.com/security/github-confirms-3800-repos-stolen-poisoned-vs-code-extension-supply-chain-worm-microsoft-python-sdk)
+- [Help Net Security — TeamPCP breaches GitHub (May 20)](https://www.helpnetsecurity.com/2026/05/20/github-breached-teampcp/)
+- [Aikido — Wild West of VS Code extensions](https://www.aikido.dev/blog/vs-code-extension-github-breach)
 
 ---
 
@@ -685,7 +704,7 @@ npm pkg get scripts --json
 
 ## Incident Response: If You Installed a Compromised Package
 
-If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), or any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window — treat the host as compromised:
+If you installed any TeamPCP-era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), `node-ipc` 9.1.6/9.2.3/12.0.1 (May 14), or any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window — treat the host as compromised:
 
 ### Immediate (within 1 hour)
 
@@ -750,4 +769,4 @@ If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@20
 
 ---
 
-*Last updated: April 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
+*Last updated: May 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
