@@ -369,6 +369,9 @@ COMPROMISED_PKGS=(
   "@tanstack/react-router"
   "@tanstack/router-core"
   "@tanstack/router-cli"
+  # Namastex CanisterWorm copycat wave (May 2026)
+  "@automagik/genie"
+  "pgserve"
 )
 
 if command -v npm >/dev/null 2>&1; then
@@ -451,6 +454,9 @@ DEAD_DROP_PATTERNS=(
   "ornithopter"
   "fremen"
   "harkonnen"
+  # CanisterWorm (Namastex copycat wave, May 2026) — ICP-based C2
+  "canisterworm"
+  "namastex"
 )
 
 if command -v gh >/dev/null 2>&1; then

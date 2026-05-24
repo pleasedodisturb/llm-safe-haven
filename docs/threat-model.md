@@ -421,6 +421,8 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 | AI Python library `.pth` file persistence | Critical | Malicious `.pth` file in compromised PyPI package executes credential stealer on every Python process startup; survives package removal; lateral movement across Kubernetes clusters | [LiteLLM/Telnyx PyPI compromise (Mar 2026)](https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/) |
 | AI coding tool content-filter bypass | High | Local attacker bypasses AI suggestion filters and consent gates, enabling malicious suggestion injection | [CVE-2026-41109 — Copilot/VS Code (May 2026)](https://www.thehackerwire.com/github-copilot-visual-studio-injection-bypasses-security-feature-cve-2026-41109/) |
 | Bare repo fsmonitor command execution | High | Nested bare git repo triggers `core.fsmonitor` during agent git operations to execute arbitrary commands | [CVE-2026-45033 — Copilot CLI](https://advisories.gitlab.com/npm/@github/copilot/CVE-2026-45033/) |
+| Valid SLSA provenance via hijacked CI | Critical | Malicious npm packages carry cryptographically valid SLSA BL3 attestations when the legitimate CI pipeline's runtime is hijacked mid-execution; `npm audit signatures` passes | [TanStack Mini Shai-Hulud (May 2026)](https://enclave.ai/blog/tanstack-mistral-npm-worm-slsa-architectural-failure) |
+| AI orchestration framework auth bypass | High | AI agent orchestration framework ships with authentication disabled by default; any network-reachable instance is exploitable without credentials | [CVE-2026-44338 — PraisonAI (May 2026)](https://thehackernews.com/2026/05/praisonai-cve-2026-44338-auth-bypass.html) |
 
 ## Real Incidents Timeline
 
@@ -439,6 +441,14 @@ Microsoft disclosed CVE-2026-35435, a critical elevation-of-privilege vulnerabil
 No patch issued at time of disclosure — Microsoft is managing via governance controls. Recommended mitigations: inventory all published agents, implement conditional access policies, enforce least-privilege on agent permissions.
 
 Source: [Windows News AI — CVE-2026-35435](https://windowsnews.ai/article/cve-2026-35435-critical-azure-ai-foundry-privilege-escalation-in-m365-agents-leaves-systems-vulnerab.417153) | [RedPacket Security — CVE Alert](https://www.redpacketsecurity.com/cve-alert-cve-2026-35435-microsoft-azure-ai-foundry/)
+
+### May 2026 — PraisonAI Authentication Bypass Exploited in Under 4 Hours (CVE-2026-44338)
+
+PraisonAI, a widely-used open-source multi-agent orchestration framework, shipped its legacy Flask API server with authentication disabled by default: `AUTH_ENABLED = False` and `AUTH_TOKEN = None` were hardcoded. Any caller that could reach the server could invoke `/agents` and `/chat` without a token, triggering whatever `agents.yaml` workflow was configured — including shell commands, file reads, and tool calls. CVE-2026-44338 (CVSS 7.3) affects all versions 2.5.6 through 4.6.33. Within 3 hours and 44 minutes of advisory publication on May 11, 2026, internet scanners identifying as `CVE-Detector/1.0` were probing exposed instances. Patched in 4.6.34.
+
+**Why it matters for solo devs:** PraisonAI is frequently used as the orchestration layer for local multi-agent setups. If you expose it on a non-loopback interface — or use Docker with default port mapping — unauthenticated access is trivial. The blast radius depends entirely on what your agents are configured to do.
+
+Source: [The Hacker News — PraisonAI CVE-2026-44338 Auth Bypass Targeted Within Hours](https://thehackernews.com/2026/05/praisonai-cve-2026-44338-auth-bypass.html) | [Sysdig — CVE-2026-44338 Exploited in Under 4 Hours](https://www.sysdig.com/blog/cve-2026-44338-praisonai-authentication-bypass-in-under-4-hours-and-the-growing-trend-of-rapid-exploitation) | [SecurityWeek](https://www.securityweek.com/hackers-targeted-praisonai-vulnerability-hours-after-disclosure/)
 
 ### May 2026 — Cline Kanban WebSocket Hijacking (CVE-2026-44211)
 
@@ -505,9 +515,11 @@ On May 11, 2026, TeamPCP compromised `@tanstack/react-router` (~12M weekly downl
 
 Affected versions include `@tanstack/react-router` 1.169.5 and 1.169.8. This is the second confirmed abuse of npm trusted publishing (the first being Bitwarden CLI). The `pull_request_target` + Actions cache + `/proc/<pid>/mem` combination is novel — it bypasses the defenses most teams rely on for fork-based PRs.
 
-**Defenses:** Disallow `pull_request_target` on workflows that run untrusted code; audit Actions cache for unexpected entries on every release; pin OIDC token scope as tight as possible.
+**Critical: first documented SLSA provenance bypass.** The malicious tarballs carried **valid SLSA Build Level 3 provenance attestations**. The attestation accurately stated that the packages were built by TanStack's release workflow running in TanStack's repository. `npm audit signatures` passes on them because the signatures are cryptographically genuine. The attack exposes a fundamental gap: SLSA provenance proves *where* the build happened, not that the runtime environment was uncompromised. "Built by the legitimate workflow" stops meaning "contains the code maintainers intended" the moment the workflow's runner is hijacked mid-execution.
 
-Source: [Wiz — Mini Shai-Hulud Strikes Again: TanStack](https://www.wiz.io/blog/mini-shai-hulud-strikes-again-tanstack-more-npm-packages-compromised) | [The Hacker News — Mini Shai-Hulud Pushes Malicious npm Packages](https://thehackernews.com/2026/05/mini-shai-hulud-pushes-malicious-antv.html)
+**Defenses:** Disallow `pull_request_target` on workflows that run untrusted code; audit Actions cache for unexpected entries on every release; pin OIDC token scope as tight as possible. Treat SLSA provenance as necessary but not sufficient — a valid attestation can accompany a compromised artifact.
+
+Source: [Wiz — Mini Shai-Hulud Strikes Again: TanStack](https://www.wiz.io/blog/mini-shai-hulud-strikes-again-tanstack-more-npm-packages-compromised) | [The Hacker News — Mini Shai-Hulud Pushes Malicious npm Packages](https://thehackernews.com/2026/05/mini-shai-hulud-pushes-malicious-antv.html) | [Enclave — TanStack's CI Published the Malware Itself. SLSA Said the Build Was Fine.](https://enclave.ai/blog/tanstack-mistral-npm-worm-slsa-architectural-failure)
 
 ### May 2026 — Mini Shai-Hulud: AntV "Here We Go Again" + Worm Goes Public (May 19)
 
@@ -538,6 +550,14 @@ Source: [Snyk — Mini Shai-Hulud Hits AntV](https://snyk.io/blog/mini-shai-hulu
 The npm worm component is now formally named **CanisterSprawl** by multiple vendors. TeamPCP has also formalized an affiliate partnership with the **Vect ransomware-as-a-service** operation as of April 16, 2026 — credential theft now feeds ransomware extortion. Note: the Axios npm compromise on March 31 was attributed by Google GTIG to the *separate* North Korea–nexus actor **UNC1069**, who used credentials harvested by CanisterSprawl. Two distinct threat actors operating in sequence on the same stolen credential pool.
 
 Source: [SANS ISC — TeamPCP UNC6780 Update 007](https://isc.sans.edu/diary/32880) | [Cloud Security Alliance — CanisterSprawl Worm](https://labs.cloudsecurityalliance.org/research/csa-research-note-npm-canistersprawl-supply-chain-worm-20260/) | [Industrial Cyber — Vect + TeamPCP RaaS Alliance](https://industrialcyber.co/ransomware/vect-formalizes-breachforums-and-teampcp-alliance-to-push-model-for-industrialized-ransomware-scale-raas-operations/)
+
+### May 2026 — Namastex CanisterWorm: First Confirmed Copycat Wave
+
+Socket.dev identified the first confirmed copycat wave using the CanisterSprawl worm toolchain against packages unaffiliated with TeamPCP. The compromised packages — `@automagik/genie` (versions 4.260421.33–4.260421.39) and `pgserve` (versions 1.1.11–1.1.13) from AI tooling company Namastex.ai — carried a `postinstall` script harvesting credentials matching CanisterWorm's pattern: cloud provider keys, AI platform API keys (OpenAI, Anthropic, Cohere), CI/CD tokens, SSH keys, and cryptocurrency wallet data. Exfiltration used both an HTTPS webhook and an Internet Computer Protocol (ICP) blockchain canister as C2 — the naming source for "CanisterWorm." The same RSA key material was found embedded across all malicious versions, linking them to a single actor distinct from TeamPCP.
+
+**Why it matters:** The Namastex wave confirms the prediction from the AntV wave: after the worm source code went public on BreachForums, the barrier to entry for this attack class dropped to zero. Socket tracks at least 22 affected packages across copycat activity. The CanisterWorm toolchain is now effectively open-source infrastructure for supply chain attacks.
+
+Source: [Socket.dev — Namastex.ai npm Packages Hit with TeamPCP-Style CanisterWorm](https://socket.dev/blog/namastex-npm-packages-compromised-canisterworm) | [SC Media — Namastex npm packages compromised](https://www.scworld.com/news/namastex-npm-packages-compromised-in-canisterworm-supply-chain-attack) | [CybersecurityNews](https://cybersecuritynews.com/compromised-namastex-npm-packages/)
 
 ### April 2026 — GitHub Announces Structural npm Supply Chain Reforms
 
@@ -801,6 +821,7 @@ Claude Code accounts for 27 of 74 confirmed CVEs (36%) — partly because it lea
 | [Breaking MCP with Function Hijacking Attacks](https://arxiv.org/abs/2604.20994) | Apr 2026 | Novel FHA attack forces agents to invoke attacker-chosen MCP tools; 70–100% ASR across 5 models including GPT-5 and Claude Sonnet 4; attack is agnostic to context semantics |
 | [MCPSHIELD: Formal Security Framework for MCP-Based AI Agents](https://arxiv.org/abs/2604.05969) | Apr 2026 | Synthesizes 12 prior MCP security papers into unified taxonomy; 7 threat categories, 23 attack vectors across 177k+ MCP tools; finds **no single existing defense covers >34% of the threat landscape** |
 | [ARGUS: Defending LLM Agents Against Context-Aware Prompt Injection](https://arxiv.org/abs/2605.03378) | May 2026 | Provenance-aware runtime auditor that grounds tool-call decisions in trusted evidence via span-level context tracking and task-level verification; significantly reduces attack success while preserving task utility |
+| [AI Agents May Always Fall for Prompt Injections](https://arxiv.org/abs/2605.17634) (Abdelnabi & Bagdasarian) | May 2026 | **Impossibility result for prompt injection defense**: any defender tightening contextual norms blocks legitimate flows; any attacker can construct a context making a blocked flow appear legitimate. Recasts the problem via Contextual Integrity theory and shows the data-instruction separation paradigm both fails on contextual attacks and degrades benign behavior. No current defense resolves the utility/security tradeoff. |
 | [Model Context Protocol: Landscape, Security Threats, and Future Research Directions](https://dl.acm.org/doi/10.1145/3796519) (ACM TOSEM) | 2026 | Systematic threat taxonomy for MCP across 4 attacker types (malicious developers, external attackers, malicious users, design flaws) and 16 distinct threat scenarios; published in ACM Transactions on Software Engineering and Methodology |
 
 **Industry reports:**
@@ -957,4 +978,4 @@ Agents that run for hours or days without human checkpoints have no meaningful h
 
 ---
 
-*Last updated: April 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
+*Last updated: May 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*

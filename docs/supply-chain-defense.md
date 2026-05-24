@@ -20,6 +20,7 @@ This is not hypothetical. It is the dominant npm supply chain threat of 2026.
 | Mini — SAP CAP | April 29, 2026 | 4 SAP CAP packages (`@cap-js/sqlite`, `@cap-js/postgres`, `@cap-js/db-service`, `mbt`) | ~2 hours, 1,100+ exfil repos | **First weaponization of `.claude/settings.json` SessionStart hook** |
 | Mini — TanStack | May 11, 2026 | `@tanstack/react-router` and 40+ `@tanstack/*` packages | 12M+ weekly downloads | GitHub Actions cache poisoning + **OIDC token extraction from `/proc/<pid>/mem`** — published without stealing npm credentials |
 | Mini — AntV ("Here We Go Again") | May 19, 2026 | 323 packages via `atool` maintainer: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor`, `timeago.js`, others | 637 versions, ~16M weekly downloads, 2,200+ exfil repos | **Worm source code released publicly on BreachForums with a "supply chain contest"**; second wave weaponizing `.claude/settings.json` |
+| Namastex CanisterWorm (copycat) | May 2026 (ongoing) | `@automagik/genie`, `pgserve` (Namastex.ai) | 22+ packages | **First confirmed copycat by unrelated actor**; uses ICP blockchain canister as C2; same credential-theft and self-propagation pattern as TeamPCP |
 
 [Source: Snyk, Wiz, StepSecurity, Akamai, SafeDep — see Sources section.]
 
@@ -96,6 +97,8 @@ Seven days after Bitwarden. Four SAP CAP packages (`@cap-js/sqlite`, `@cap-js/po
 
 This is the second confirmed abuse of npm trusted publishing (the first being Bitwarden). Affected versions include `@tanstack/react-router` 1.169.5 and 1.169.8.
 
+**The SLSA provenance paradox.** The malicious tarballs carried **valid SLSA Build Level 3 provenance attestations** — the first documented case of this. The attestation accurately stated the packages were built by TanStack's legitimate release workflow. `npm audit signatures` passes on them because the signatures are cryptographically genuine. The attack proves that SLSA provenance only guarantees *where* the build happened, not that the runtime environment was uncompromised. "Built by the legitimate workflow" stopped meaning "contains the code maintainers intended" the moment the runner was hijacked. Source: [Enclave — TanStack's CI Published the Malware Itself. SLSA Said the Build Was Fine.](https://enclave.ai/blog/tanstack-mistral-npm-worm-slsa-architectural-failure)
+
 #### Wave C — AntV "Here We Go Again" (May 19, 2026)
 
 The largest mini wave to date. **323 packages, 637 versions, ~16M weekly downloads** affected via the compromised `atool` maintainer account. Published in two automated bursts:
@@ -112,6 +115,14 @@ High-impact packages: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor`
 - Worms by searching harvested credentials for npm tokens with `bypass_2fa` scope, then republishing to other packages the compromised account maintains, including injecting `chore/add-codeql-static-analysis` branches with malicious workflows
 
 **The most important development:** TeamPCP **released the worm source code publicly on BreachForums** along with a "supply chain attack contest." Within days, an unrelated actor uploaded four malicious npm packages — one a near-verbatim copy with its own C2. The barrier to entry just dropped to zero. Expect copycat waves at irregular intervals from here.
+
+#### Wave D — Namastex CanisterWorm (May 2026, ongoing — copycat actor)
+
+Socket.dev identified `@automagik/genie` and `pgserve` from AI tooling company Namastex.ai compromised with CanisterWorm malware — **the first confirmed copycat wave by an actor unaffiliated with TeamPCP**. The payload uses a `postinstall` hook to harvest credentials (cloud provider keys, AI API keys, CI/CD tokens, SSH keys, wallet files) and exfiltrates to both an HTTPS webhook and an **Internet Computer Protocol (ICP) blockchain canister** — the same resilient, decentralized C2 pattern that gave the worm its name. The worm self-propagates using stolen npm tokens. Socket tracks at least 22 affected packages under this campaign.
+
+This wave confirms the prediction from the AntV section: after the CanisterSprawl source code was published on BreachForums, unrelated actors began launching their own waves. The ICP C2 channel in particular makes takedown harder than a conventional HTTPS endpoint — the C2 lives on a decentralized blockchain and cannot be easily removed. Expect this pattern to persist.
+
+Source: [Socket.dev — Namastex.ai npm Packages Hit with CanisterWorm](https://socket.dev/blog/namastex-npm-packages-compromised-canisterworm) | [SC Media](https://www.scworld.com/news/namastex-npm-packages-compromised-in-canisterworm-supply-chain-attack) | [CybersecurityNews](https://cybersecuritynews.com/compromised-namastex-npm-packages/)
 
 #### What to do right now if you use Claude Code
 
@@ -176,6 +187,9 @@ This is a structural change to npm publishing, not a policy update. Combined wit
 - [The Register — Shai-Hulud keeps burrowing (May 19)](https://www.theregister.com/cyber-crime/2026/05/19/shai-hulud-keeps-burrowing-314-npm-packages-infected-after-another-account-compromise/5242601)
 - [The Hacker News — Mini Shai-Hulud Pushes Malicious AntV npm Packages](https://thehackernews.com/2026/05/mini-shai-hulud-pushes-malicious-antv.html)
 - [Cybersecurity News — 600+ npm Packages Compromised](https://cybersecuritynews.com/600-npm-packages-compromised/)
+- [Socket.dev — Namastex.ai npm Packages Hit with TeamPCP-Style CanisterWorm](https://socket.dev/blog/namastex-npm-packages-compromised-canisterworm)
+- [SC Media — Namastex npm packages compromised in CanisterWorm attack](https://www.scworld.com/news/namastex-npm-packages-compromised-in-canisterworm-supply-chain-attack)
+- [Enclave — TanStack's CI Published the Malware Itself. SLSA Said the Build Was Fine.](https://enclave.ai/blog/tanstack-mistral-npm-worm-slsa-architectural-failure)
 
 ---
 
@@ -685,7 +699,7 @@ npm pkg get scripts --json
 
 ## Incident Response: If You Installed a Compromised Package
 
-If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), or any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window — treat the host as compromised:
+If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window, or `@automagik/genie` 4.260421.33–4.260421.39 / `pgserve` 1.1.11–1.1.13 (Namastex CanisterWorm) — treat the host as compromised:
 
 ### Immediate (within 1 hour)
 
@@ -723,7 +737,7 @@ If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@20
 | Review `package.json` scripts | Obvious install hooks | Runtime malicious code | 1 min |
 | `--ignore-scripts` | Install-time attacks | Runtime malicious code | 5 min |
 | Pin exact versions | Auto-upgrade to compromised release | Already-compromised pinned version | 5 min |
-| `npm audit signatures` | Tarball tampering | Legitimately-signed malicious packages | 1 min |
+| `npm audit signatures` | Tarball tampering, registry mirror poisoning | Legitimately-signed malicious packages; **valid SLSA provenance on packages built by hijacked CI** (TanStack wave) | 1 min |
 | Socket.dev | Zero-day supply chain attacks | Sophisticated evasion | 30 min |
 | lockfile-lint | Lockfile injection | Packages from legitimate registries | 15 min |
 | `npm audit` | Known CVEs | Zero-day attacks | 1 min |
@@ -750,4 +764,4 @@ If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@20
 
 ---
 
-*Last updated: April 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
+*Last updated: May 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
