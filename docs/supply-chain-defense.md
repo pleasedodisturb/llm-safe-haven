@@ -19,11 +19,14 @@ This is not hypothetical. It is the dominant npm supply chain threat of 2026.
 | Third Coming (Bitwarden) | April 22, 2026 | `@bitwarden/cli@2026.4.0` via Checkmarx KICS Action poisoning | 1 high-trust package, 334 downloads | **First abuse of npm trusted publishing**; AI tool configs explicitly targeted |
 | Mini — SAP CAP | April 29, 2026 | 4 SAP CAP packages (`@cap-js/sqlite`, `@cap-js/postgres`, `@cap-js/db-service`, `mbt`) | ~2 hours, 1,100+ exfil repos | **First weaponization of `.claude/settings.json` SessionStart hook** |
 | Mini — TanStack | May 11, 2026 | `@tanstack/react-router` and 40+ `@tanstack/*` packages | 12M+ weekly downloads | GitHub Actions cache poisoning + **OIDC token extraction from `/proc/<pid>/mem`** — published without stealing npm credentials |
-| Mini — AntV ("Here We Go Again") | May 19, 2026 | 323 packages via `atool` maintainer: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor`, `timeago.js`, others | 637 versions, ~16M weekly downloads, 2,200+ exfil repos | **Worm source code released publicly on BreachForums with a "supply chain contest"**; second wave weaponizing `.claude/settings.json` |
+| Mini — node-ipc | May 14, 2026 | `node-ipc` (foundational Node.js IPC library) | 3 malicious versions, 10M+ weekly downloads, hundreds of transitive dependents | Wide transitive footprint — developers who never directly installed node-ipc were exposed |
+| Mini — AntV + durabletask ("Here We Go Again") | May 19, 2026 | 323 npm packages via `atool` maintainer (`@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor`, `timeago.js`, others) + Microsoft `durabletask` PyPI SDK simultaneously | npm: 637 versions, ~16M weekly downloads, 2,200+ exfil repos; PyPI: 400K monthly downloads | **First simultaneous npm + PyPI double hit in a single wave**; worm source code released publicly on BreachForums with a "supply chain contest"; second wave weaponizing `.claude/settings.json` |
 
 [Source: Snyk, Wiz, StepSecurity, Akamai, SafeDep — see Sources section.]
 
 The April–May 2026 cadence is set by **TeamPCP** (Google GTIG: UNC6780) running CanisterSprawl as the npm worm engine. With the source now public, expect copycats — Akamai already documented unrelated actors publishing variants within days of the May 19 release.
+
+**May 2026 escalation — GitHub internal systems breached:** On May 18, one day before the AntV wave, TeamPCP published a malicious version of the **Nx Console** VS Code extension (`nrwl.angular-console` v18.95.0). A GitHub employee installed it; the extension harvested developer secrets from the IDE environment, giving TeamPCP lateral access to clone approximately **3,800 GitHub-internal private repositories** containing proprietary source code and deployment scripts. This demonstrates that the same campaign can pivot from ecosystem-scale npm worm attacks to targeted individual-machine compromises using the IDE extension channel. Source: [VentureBeat](https://venturebeat.com/security/github-confirms-3800-repos-stolen-poisoned-vs-code-extension-supply-chain-worm-microsoft-python-sdk) | [Help Net Security](https://www.helpnetsecurity.com/2026/05/20/github-breached-teampcp/)
 
 The Third Coming is what hit Bitwarden. It traces back to **February 27, 2026**, when threat actor **TeamPCP** (formally tracked by Google GTIG as **UNC6780**, payload designation **SANDCLOCK**) stole initial credentials from Aqua Security's Trivy via a misconfigured CI workflow. From there, the attacker pivoted through Checkmarx KICS and LiteLLM — these are the *entry chain within the Third Coming*, not separate Shai-Hulud waves — to reach Bitwarden's CI pipeline.
 
@@ -96,9 +99,15 @@ Seven days after Bitwarden. Four SAP CAP packages (`@cap-js/sqlite`, `@cap-js/po
 
 This is the second confirmed abuse of npm trusted publishing (the first being Bitwarden). Affected versions include `@tanstack/react-router` 1.169.5 and 1.169.8.
 
-#### Wave C — AntV "Here We Go Again" (May 19, 2026)
+#### Wave C½ — node-ipc (May 14, 2026)
 
-The largest mini wave to date. **323 packages, 637 versions, ~16M weekly downloads** affected via the compromised `atool` maintainer account. Published in two automated bursts:
+Between the TanStack and AntV waves, TeamPCP published three malicious versions of `node-ipc` — a foundational Node.js inter-process communication library with more than 10 million weekly downloads. The package has a wide transitive footprint; many projects that never directly install node-ipc pull it in as a dependency of a dependency. The attack used the same credential-harvesting and self-propagation payload as the surrounding waves.
+
+Source: [StepSecurity — Malicious node-ipc Versions Published to npm](https://www.stepsecurity.io/blog/node-ipc-npm-supply-chain-attack)
+
+#### Wave C — AntV + durabletask "Here We Go Again" (May 19, 2026)
+
+The largest mini wave to date. This wave simultaneously hit npm and PyPI — a first for the campaign. **323 packages, 637 versions, ~16M weekly downloads** affected via the compromised `atool` maintainer account. Published in two automated bursts:
 
 - Wave 1: 01:39–01:56 UTC (~317 versions)
 - Wave 2: 02:05–02:06 UTC (~320 versions, second wave added `bun` as an explicit dependency)
@@ -110,6 +119,8 @@ High-impact packages: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor`
 - Creates 2,200+ public GitHub dead-drop repos under Dune-themed names — combinations of `sardaukar`, `mentat`, `fremen`, `atreides`, `harkonnen`, `gesserit`, `fedaykin`, `tleilaxu` + `sandworm`, `ornithopter`, `stillsuit` — with descriptions containing the reversed string `niagA oG eW ereH :duluH-iahS` ("Shai-Hulud: Here We Go Again")
 - Plants persistence via `.claude/settings.json` SessionStart hook, `.vscode/tasks.json` `runOn: folderOpen`, `~/Library/LaunchAgents/com.user.kitty-monitor.plist` (macOS), `~/.config/systemd/user/kitty-monitor.service` (Linux), and a C2 daemon at `~/.local/share/kitty/cat.py`
 - Worms by searching harvested credentials for npm tokens with `bypass_2fa` scope, then republishing to other packages the compromised account maintains, including injecting `chore/add-codeql-static-analysis` branches with malicious workflows
+
+**Concurrent PyPI hit:** On the same day, three malicious versions of Microsoft's official `durabletask` Python SDK (`1.4.1`, `1.4.2`, `1.4.3`) — the SDK for Azure Durable Functions, ~400K monthly downloads — were published to PyPI within a 35-minute window using credentials harvested earlier in the campaign. The payload harvests 80+ cloud credentials and spreads laterally. The locale-skip (`ru`) and RSA-OAEP encryption match the npm payload exactly. Source: [StepSecurity — durabletask PyPI compromised](https://www.stepsecurity.io/blog/microsofts-durabletask-pypi-package-compromised-in-supply-chain-attack)
 
 **The most important development:** TeamPCP **released the worm source code publicly on BreachForums** along with a "supply chain attack contest." Within days, an unrelated actor uploaded four malicious npm packages — one a near-verbatim copy with its own C2. The barrier to entry just dropped to zero. Expect copycat waves at irregular intervals from here.
 
@@ -685,7 +696,7 @@ npm pkg get scripts --json
 
 ## Incident Response: If You Installed a Compromised Package
 
-If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), or any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window — treat the host as compromised:
+If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), the malicious `node-ipc` versions (May 14), any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window, or `microsoft/durabletask` Python SDK v1.4.1–1.4.3 (May 19) — treat the host as compromised:
 
 ### Immediate (within 1 hour)
 
@@ -750,4 +761,4 @@ If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@20
 
 ---
 
-*Last updated: April 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
+*Last updated: May 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*

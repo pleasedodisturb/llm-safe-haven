@@ -369,6 +369,7 @@ COMPROMISED_PKGS=(
   "@tanstack/react-router"
   "@tanstack/router-core"
   "@tanstack/router-cli"
+  "node-ipc"
 )
 
 if command -v npm >/dev/null 2>&1; then

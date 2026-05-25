@@ -421,6 +421,10 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 | AI Python library `.pth` file persistence | Critical | Malicious `.pth` file in compromised PyPI package executes credential stealer on every Python process startup; survives package removal; lateral movement across Kubernetes clusters | [LiteLLM/Telnyx PyPI compromise (Mar 2026)](https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/) |
 | AI coding tool content-filter bypass | High | Local attacker bypasses AI suggestion filters and consent gates, enabling malicious suggestion injection | [CVE-2026-41109 — Copilot/VS Code (May 2026)](https://www.thehackerwire.com/github-copilot-visual-studio-injection-bypasses-security-feature-cve-2026-41109/) |
 | Bare repo fsmonitor command execution | High | Nested bare git repo triggers `core.fsmonitor` during agent git operations to execute arbitrary commands | [CVE-2026-45033 — Copilot CLI](https://advisories.gitlab.com/npm/@github/copilot/CVE-2026-45033/) |
+| Poisoned IDE extension as developer trust surface | Critical | Legitimate IDE extension trojanized to harvest developer secrets and access tokens from the IDE environment; used to breach GitHub's own internal systems | [GitHub Breach via Nx Console Extension (May 2026)](https://www.helpnetsecurity.com/2026/05/20/github-breached-teampcp/) |
+| Wide-footprint transitive npm compromise | High | Supply chain worm targets packages with 10M+ weekly downloads via transitive dependency — developers who never directly installed the package are exposed | [node-ipc Supply Chain Attack (May 2026)](https://www.stepsecurity.io/blog/node-ipc-npm-supply-chain-attack) |
+| Cross-ecosystem simultaneous PyPI + npm compromise | Critical | Same threat actor publishes malicious PyPI packages concurrent with npm worm wave, maximizing credential harvest across Python and Node.js toolchains in a single operation | [durabletask PyPI + AntV npm, May 19, 2026](https://www.stepsecurity.io/blog/microsofts-durabletask-pypi-package-compromised-in-supply-chain-attack) |
+| AI agent framework unauthenticated endpoint | Critical | AI agent builder API server ships with authentication disabled by default; any networked host can hijack agent operations and drain API quotas | [CVE-2026-44338 — PraisonAI (May 2026)](https://cybersecuritynews.com/praisonai-vulnerability-exploited/) |
 
 ## Real Incidents Timeline
 
@@ -453,6 +457,32 @@ Microsoft disclosed CVE-2026-41109 on May 12, 2026 — a high-severity (CVSS 7.8
 Also: CVE-2026-45033 — Copilot CLI is vulnerable to arbitrary command execution when a malicious bare git repository nested inside a project directory triggers `core.fsmonitor` during agent-invoked git operations.
 
 Source: [TheHackerWire — CVE-2026-41109](https://www.thehackerwire.com/github-copilot-visual-studio-injection-bypasses-security-feature-cve-2026-41109/) | [GitLab Advisory — CVE-2026-45033](https://advisories.gitlab.com/npm/@github/copilot/CVE-2026-45033/)
+
+### May 2026 — GitHub Internal Repositories Breached via Poisoned Nx Console Extension (May 18-20)
+
+TeamPCP (UNC6780) breached approximately 3,800 GitHub-internal private repositories by way of a malicious Visual Studio Code extension installed by a GitHub employee. The poisoned extension was **Nx Console** (`nrwl.angular-console`), version 18.95.0, published on May 18, 2026 — one day before the AntV npm wave. The extension harvested developer secrets and access tokens from the IDE's local environment, granting lateral access to GitHub's internal codebase. TeamPCP listed the stolen repositories on cybercrime forums for $50,000+. GitHub assessed that customer repositories and user data were unaffected.
+
+**Why it matters for solo devs:** This is the same class of IDE extension supply chain attack previously documented against Cursor and Windsurf users via the OpenVSX namespace hijacking. An IDE extension with developer-level access can read all open files, harvest API keys and tokens, and exfiltrate credentials — no exploit required, no user approval prompt. Audit installed extensions the same way you audit MCP servers.
+
+Source: [VentureBeat — GitHub confirms 3,800 internal repos stolen via poisoned VS Code extension](https://venturebeat.com/security/github-confirms-3800-repos-stolen-poisoned-vs-code-extension-supply-chain-worm-microsoft-python-sdk) | [Help Net Security](https://www.helpnetsecurity.com/2026/05/20/github-breached-teampcp/) | [Aikido Dev Blog](https://www.aikido.dev/blog/github-breached-vs-code-extension)
+
+### May 2026 — node-ipc npm Supply Chain Attack (May 14)
+
+Three malicious versions of `node-ipc` — a foundational Node.js inter-process communication library with more than 10 million weekly downloads and a transitive dependency for hundreds of projects — were simultaneously published to the npm registry on May 14, 2026. The attack is attributed to TeamPCP, running in the same accelerating cadence as the AntV wave five days later. node-ipc's wide transitive footprint means developers who never directly depended on it were exposed.
+
+Source: [StepSecurity — Active Supply Chain Attack: Malicious node-ipc Versions Published to npm](https://www.stepsecurity.io/blog/node-ipc-npm-supply-chain-attack)
+
+### May 2026 — Microsoft durabletask PyPI Compromise (May 19, concurrent with AntV)
+
+On the same day as the AntV npm wave, three malicious versions of Microsoft's official `durabletask` Python SDK (`1.4.1`, `1.4.2`, `1.4.3`) were published to PyPI within a 35-minute window via credentials stolen earlier in the campaign. The package — the official SDK for Azure Durable Functions, downloaded ~400,000 times per month — contained a 28 KB payload that harvests credentials from AWS, Azure, GCP, Kubernetes, password managers, and 90+ developer tool configurations, spreads laterally through cloud infrastructure, and exits immediately on systems with a Russian locale.
+
+Source: [StepSecurity — Microsoft's durabletask PyPI Package Compromised](https://www.stepsecurity.io/blog/microsofts-durabletask-pypi-package-compromised-in-supply-chain-attack) | [NHS Digital Supply Chain Alert](https://digital.nhs.uk/cyber-alerts/2026/cc-4781)
+
+### May 2026 — PraisonAI CVE-2026-44338 Exploited Within Hours of Disclosure
+
+A critical authentication bypass in PraisonAI's legacy API server (CVE-2026-44338) was exploited within hours of public disclosure. The framework ships with authentication disabled by default, allowing any system on the network to hijack automated agent operations, execute arbitrary tasks, and drain API quotas without credentials. This mirrors the Flowise CVE-2025-59528 pattern — unauthenticated AI agent builder endpoints with full runtime access. Underscores the pattern: AI agent frameworks repeatedly ship with authentication opt-in rather than opt-out.
+
+Source: [Cybersecurity News — PraisonAI Vulnerability Exploited Within Hours](https://cybersecuritynews.com/praisonai-vulnerability-exploited/)
 
 ### May 2026 — Three MCP Database Flaws, One Vendor Refuses Fix
 
@@ -957,4 +987,4 @@ Agents that run for hours or days without human checkpoints have no meaningful h
 
 ---
 
-*Last updated: April 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
+*Last updated: May 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
