@@ -421,8 +421,56 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 | AI Python library `.pth` file persistence | Critical | Malicious `.pth` file in compromised PyPI package executes credential stealer on every Python process startup; survives package removal; lateral movement across Kubernetes clusters | [LiteLLM/Telnyx PyPI compromise (Mar 2026)](https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/) |
 | AI coding tool content-filter bypass | High | Local attacker bypasses AI suggestion filters and consent gates, enabling malicious suggestion injection | [CVE-2026-41109 — Copilot/VS Code (May 2026)](https://www.thehackerwire.com/github-copilot-visual-studio-injection-bypasses-security-feature-cve-2026-41109/) |
 | Bare repo fsmonitor command execution | High | Nested bare git repo triggers `core.fsmonitor` during agent git operations to execute arbitrary commands | [CVE-2026-45033 — Copilot CLI](https://advisories.gitlab.com/npm/@github/copilot/CVE-2026-45033/) |
+| AI config file poisoning via zero-width Unicode | Critical | Malicious `CLAUDE.md`/`.cursorrules` embeds hidden instructions with zero-width chars, tricks AI agent into "security scan" that exfiltrates credentials | [TrapDoor campaign — Socket.dev (May 2026)](https://socket.dev/blog/trapdoor-crypto-stealer-npm-pypi-crates) |
+| Mass GitHub Actions workflow injection | High | Automated campaign backdoors thousands of repos by pushing malicious CI workflow files; harvests secrets from every subsequent run | [Megalodon — StepSecurity (May 2026)](https://www.stepsecurity.io/blog/megalodon-mass-github-actions-secret-exfiltration-across-5-500-public-repositories) |
+| VS Code extension supply chain | Critical | Trojanized version of trusted, high-install-count VS Code extension harvests credentials from developer workstation; used to breach 3,800 GitHub internal repos | [TeamPCP GitHub breach via Nx Console (May 2026)](https://venturebeat.com/security/github-confirms-3800-repos-stolen-poisoned-vs-code-extension-supply-chain-worm-microsoft-python-sdk) |
+| Sandbox null-byte injection bypass | High | SOCKS5 hostname null-byte injection terminates allowlist string comparison early, permitting egress to blocked domains | [Claude Code SOCKS5 bypass — The Register (May 2026)](https://www.theregister.com/security/2026/05/20/even-claude-agrees-hole-in-its-sandbox-was-real-and-dangerous/5243662) |
 
 ## Real Incidents Timeline
+
+### May 2026 — TrapDoor: CLAUDE.md and .cursorrules Poisoning via Zero-Width Unicode (May 22)
+
+A new campaign, **TrapDoor**, deployed 34 malicious packages across npm, PyPI, and Crates.io starting May 22, 2026. Targets: developers in crypto, DeFi, Solana, and AI communities. What makes it novel: the attacker submitted pull requests to prominent open-source AI projects (LangChain, MetaGPT, OpenHands) containing poisoned `CLAUDE.md` and `.cursorrules` files. The files used **zero-width Unicode characters** (U+200B, U+200C, U+200D, U+FEFF, U+2060) to embed hidden instructions that trick AI coding assistants into running a "security scan" — which is actually a credential exfiltration routine. The attack demonstrates that AI config files in cloned repositories are now a confirmed, actively exploited vector.
+
+**Stolen data:** developer secrets, crypto wallets, SSH keys, cloud credentials, browser data, and environment variables. Ecosystem-specific execution: `build.rs` in Rust, `postinstall` hooks in npm, import-time execution in Python. The Python packages delegate to JavaScript payloads hosted on attacker-controlled GitHub Pages and run via `node -e`.
+
+**Defensive action:** Before opening any cloned project in an AI coding agent, inspect `CLAUDE.md` and `.cursorrules` for zero-width Unicode characters. The `scan-shai-hulud-may2026.sh` script in this repo now checks for this pattern.
+
+Source: [The Hacker News — TrapDoor Supply Chain Attack](https://thehackernews.com/2026/05/trapdoor-supply-chain-attack-spreads.html) | [Socket.dev — TrapDoor Crypto Stealer](https://socket.dev/blog/trapdoor-crypto-stealer-npm-pypi-crates) | [SOCRadar — TrapDoor Campaign](https://socradar.io/blog/trapdoor-npm-pypi-cratesio-secrets-ai-tooling/)
+
+---
+
+### May 2026 — GitHub Internal Breach via Poisoned VS Code Extension (May 20)
+
+GitHub confirmed that ~3,800 internal repositories were exfiltrated by threat actor **TeamPCP (UNC6780)** via a trojanized version of the **Nx Console** VS Code extension (`nrwl.angular-console` v18.95.0), published to the VS Code Marketplace on May 18, 2026, and live for approximately 11 minutes before being pulled. A GitHub employee installed the extension; the payload established persistent access that harvested GitHub internal credentials and enumerated accessible repositories.
+
+The breach underscores a persistent blind spot: the VS Code Marketplace does not enforce code review before extension publication, and developers routinely install extensions from high-trust, well-known namespaces. The Nx Console namespace had ~4.5M installs before the incident — its trust signal was the attack surface.
+
+Source: [VentureBeat — GitHub confirms 3,800 internal repos stolen](https://venturebeat.com/security/github-confirms-3800-repos-stolen-poisoned-vs-code-extension-supply-chain-worm-microsoft-python-sdk) | [Help Net Security — TeamPCP breached GitHub](https://www.helpnetsecurity.com/2026/05/20/github-breached-teampcp/) | [Phoenix Security — TeamPCP Wave Four](https://phoenix.security/teampcp-github-breach-durabletask-pypi-supply-chain-wave-four-2026/)
+
+---
+
+### May 2026 — Megalodon: 5,561 GitHub Repos Backdoored in Six Hours (May 18)
+
+The **Megalodon** campaign pushed 5,718 malicious commits to 5,561 GitHub repositories in a six-hour window on May 18, 2026. Using throwaway accounts and forged identities (`build-bot`, `auto-ci`, `pipeline-bot`), the attacker injected GitHub Actions workflows containing base64-encoded bash payloads that exfiltrate CI secrets, cloud credentials, SSH keys, and OIDC tokens to a C2 server at `216.126.225.129:8443`. Two payload variants: **SysDiag** (adds a new workflow triggering on every push/PR) and **Optimize-Build** (replaces existing workflows with `workflow_dispatch` triggers — dormant backdoors the attacker fires on-demand via the GitHub API).
+
+Origin: Hudson Rock found 33%+ of affected repo owners' accounts were direct matches to computers infected by infostealers. This is a supply-chain attack bootstrapped by an entirely separate credential compromise chain.
+
+A follow-on on May 22 saw an attacker rewrite every git tag across multiple `laravel-lang` Composer packages — anyone running `composer update` during the window pulled a credential-exfiltration payload.
+
+Source: [StepSecurity — Megalodon](https://www.stepsecurity.io/blog/megalodon-mass-github-actions-secret-exfiltration-across-5-500-public-repositories) | [SecurityWeek — 5,500 GitHub Repos Infected](https://www.securityweek.com/over-5500-github-repositories-infected-in-megalodon-supply-chain-attack/) | [The Hacker News — Megalodon](https://thehackernews.com/2026/05/megalodon-github-attack-targets-5561.html) | [The Register — Megalodon chums the waters](https://www.theregister.com/security/2026/05/22/megalodon-chums-the-waters-in-55k-github-repo-poisonings/5245342)
+
+---
+
+### May 2026 — Claude Code Network Sandbox SOCKS5 Bypass (Silently Fixed)
+
+Researcher Aonan Guan disclosed that Anthropic silently fixed a second Claude Code sandbox bypass in five months — a **SOCKS5 hostname null-byte injection** that tricks the sandbox allowlist filter into approving connections it should block. A null byte injected into the hostname portion of a SOCKS5 request causes the allowlist matcher to terminate string comparison early, allowing egress to arbitrary destinations that appear to match an allowlisted domain. No CVE was issued; no advisory was published. Fixed in a patch release without public announcement, discovered only by diffing versions.
+
+This is the second silent Claude Code sandbox fix in 2026 — the first was the `dangerouslyDisableSandbox` bypass documented in May 2026 patches (see Security Milestones in the hardening guide). The pattern of silent fixes with no CVEs or advisories is documented by The Register as a recurring problem with AI vendors.
+
+Source: [The Register — Even Claude agrees: hole in its sandbox was real and dangerous](https://www.theregister.com/security/2026/05/20/even-claude-agrees-hole-in-its-sandbox-was-real-and-dangerous/5243662)
+
+---
 
 ### May 2026 — Microsoft Semantic Kernel Prompt Injection → RCE (CVE-2026-25592 & CVE-2026-26030)
 
@@ -957,4 +1005,4 @@ Agents that run for hours or days without human checkpoints have no meaningful h
 
 ---
 
-*Last updated: April 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
+*Last updated: May 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*

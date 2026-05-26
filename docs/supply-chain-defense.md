@@ -25,6 +25,12 @@ This is not hypothetical. It is the dominant npm supply chain threat of 2026.
 
 The April–May 2026 cadence is set by **TeamPCP** (Google GTIG: UNC6780) running CanisterSprawl as the npm worm engine. With the source now public, expect copycats — Akamai already documented unrelated actors publishing variants within days of the May 19 release.
 
+**Two additional campaigns ran concurrently with the latest Shai-Hulud wave and are not part of it:**
+
+- **Megalodon (May 18, 2026):** Automated campaign pushed malicious GitHub Actions workflows to 5,561 public repos in six hours, backdooring CI pipelines to harvest secrets on every subsequent run. Distinct threat actor, distinct technique. If your repo received an unexpected `build-bot` or `auto-ci` commit to `.github/workflows/`, you are affected. Source: [StepSecurity](https://www.stepsecurity.io/blog/megalodon-mass-github-actions-secret-exfiltration-across-5-500-public-repositories)
+
+- **TrapDoor (May 22, 2026):** 34 packages across npm, PyPI, and Crates.io targeting crypto/DeFi/AI developers. The novel tactic: poisoned `CLAUDE.md` and `.cursorrules` files with zero-width Unicode characters to embed hidden instructions that trick AI coding assistants into running a "security scan" (credential exfiltration). First confirmed weaponization of AI coding assistant config files via invisible Unicode. Source: [Socket.dev](https://socket.dev/blog/trapdoor-crypto-stealer-npm-pypi-crates) | [The Hacker News](https://thehackernews.com/2026/05/trapdoor-supply-chain-attack-spreads.html)
+
 The Third Coming is what hit Bitwarden. It traces back to **February 27, 2026**, when threat actor **TeamPCP** (formally tracked by Google GTIG as **UNC6780**, payload designation **SANDCLOCK**) stole initial credentials from Aqua Security's Trivy via a misconfigured CI workflow. From there, the attacker pivoted through Checkmarx KICS and LiteLLM — these are the *entry chain within the Third Coming*, not separate Shai-Hulud waves — to reach Bitwarden's CI pipeline.
 
 TeamPCP is a Russian-speaking, financially motivated actor (no state attribution). They have a formalized affiliate partnership with the **Vect ransomware-as-a-service** operation as of April 16, 2026 — credential harvesting now feeds ransomware extortion.
@@ -121,6 +127,7 @@ High-impact packages: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor`
 4. **Search your GitHub account for dead-drop repos** matching the Dune-themed naming. If you find any, your `gh` token has been exfiltrated — revoke immediately, then rotate every credential it could reach.
 5. **Set `ignore-scripts=true` in `~/.npmrc`** if you haven't already. This single setting would have blocked execution of all six Shai-Hulud waves.
 6. **The bash-firewall and secret-guard hooks llm-safe-haven installs** catch the SessionStart-hook abuse pattern at session start. If you're not running them, install via `npx llm-safe-haven`.
+7. **Inspect `CLAUDE.md` and `.cursorrules` for zero-width Unicode characters** before opening any cloned project. The TrapDoor campaign (May 22, 2026) embeds hidden AI instructions using characters invisible to human reviewers (U+200B, U+200C, U+200D, U+FEFF, U+2060). Quick check: `cat -v CLAUDE.md | grep -P '[\x{200B}\x{200C}\x{200D}\x{FEFF}\x{2060}]'` or open in a hex editor and look for non-ASCII bytes in otherwise plain-text content. The scan script in this repo now checks for this pattern.
 
 ### Timeline
 
@@ -176,6 +183,12 @@ This is a structural change to npm publishing, not a policy update. Combined wit
 - [The Register — Shai-Hulud keeps burrowing (May 19)](https://www.theregister.com/cyber-crime/2026/05/19/shai-hulud-keeps-burrowing-314-npm-packages-infected-after-another-account-compromise/5242601)
 - [The Hacker News — Mini Shai-Hulud Pushes Malicious AntV npm Packages](https://thehackernews.com/2026/05/mini-shai-hulud-pushes-malicious-antv.html)
 - [Cybersecurity News — 600+ npm Packages Compromised](https://cybersecuritynews.com/600-npm-packages-compromised/)
+- [StepSecurity — Megalodon: Mass GitHub Actions Secret Exfiltration (May 18)](https://www.stepsecurity.io/blog/megalodon-mass-github-actions-secret-exfiltration-across-5-500-public-repositories)
+- [SecurityWeek — 5,500+ GitHub Repositories Infected in Megalodon Attack](https://www.securityweek.com/over-5500-github-repositories-infected-in-megalodon-supply-chain-attack/)
+- [The Hacker News — Megalodon GitHub Attack Targets 5,561 Repos](https://thehackernews.com/2026/05/megalodon-github-attack-targets-5561.html)
+- [Socket.dev — TrapDoor Crypto Stealer Supply Chain (May 22)](https://socket.dev/blog/trapdoor-crypto-stealer-npm-pypi-crates)
+- [The Hacker News — TrapDoor Supply Chain Attack](https://thehackernews.com/2026/05/trapdoor-supply-chain-attack-spreads.html)
+- [SOCRadar — TrapDoor: CLAUDE.md/.cursorrules Poisoning](https://socradar.io/blog/trapdoor-npm-pypi-cratesio-secrets-ai-tooling/)
 
 ---
 
@@ -685,7 +698,7 @@ npm pkg get scripts --json
 
 ## Incident Response: If You Installed a Compromised Package
 
-If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), or any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window — treat the host as compromised:
+If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), or any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window — or any **TrapDoor** package published May 22+ (check [socket.dev/blog/trapdoor-crypto-stealer-npm-pypi-crates](https://socket.dev/blog/trapdoor-crypto-stealer-npm-pypi-crates) for the full list), treat the host as compromised:
 
 ### Immediate (within 1 hour)
 
@@ -750,4 +763,4 @@ If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@20
 
 ---
 
-*Last updated: April 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
+*Last updated: May 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*

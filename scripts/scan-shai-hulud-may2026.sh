@@ -439,7 +439,61 @@ else
 fi
 
 # ============================================================================
-# 8. GitHub dead-drop repo audit (requires gh)
+# 8. TrapDoor: zero-width Unicode in CLAUDE.md / .cursorrules (May 22, 2026)
+# ============================================================================
+section "8. TrapDoor: AI config file zero-width Unicode poisoning"
+
+# The TrapDoor campaign (May 22, 2026) embeds hidden AI instructions in
+# CLAUDE.md and .cursorrules using zero-width Unicode characters invisible to
+# human reviewers. These instruct AI coding assistants to run a "security scan"
+# that is actually credential exfiltration. Check every cloned project.
+#
+# Checked codepoints:
+#   U+200B ZERO WIDTH SPACE        (0xE2 0x80 0x8B in UTF-8)
+#   U+200C ZERO WIDTH NON-JOINER   (0xE2 0x80 0x8C)
+#   U+200D ZERO WIDTH JOINER       (0xE2 0x80 0x8D)
+#   U+FEFF ZERO WIDTH NO-BREAK SPACE / BOM (0xEF 0xBB 0xBF)
+#   U+2060 WORD JOINER             (0xE2 0x81 0xA0)
+#   U+180E MONGOLIAN VOWEL SEP     (0xE1 0xA0 0x8E) -- used in some variants
+
+ZW_PATTERN=$'\xe2\x80\x8b\|\xe2\x80\x8c\|\xe2\x80\x8d\|\xef\xbb\xbf\|\xe2\x81\xa0\|\xe1\xa0\x8e'
+
+AI_CONFIG_FILES=()
+if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
+  while IFS= read -r f; do
+    [ -n "$f" ] && AI_CONFIG_FILES+=("$f")
+  done < <(find "${SEARCH_ROOTS[@]}" \( -name node_modules -prune \) -o \( -type f \( -name 'CLAUDE.md' -o -name 'AGENTS.md' -o -name '.cursorrules' -o -name '.windsurfrules' -o -name '.clinerules' \) -print \) 2>/dev/null)
+fi
+# Also check global ~/.claude/CLAUDE.md if it exists
+[ -f "$HOME/.claude/CLAUDE.md" ] && AI_CONFIG_FILES+=("$HOME/.claude/CLAUDE.md")
+
+if [ ${#AI_CONFIG_FILES[@]} -eq 0 ]; then
+  info "No AI config files (CLAUDE.md, .cursorrules, etc.) found in code roots — skipping"
+else
+  info "Scanning ${#AI_CONFIG_FILES[@]} AI config file(s) for zero-width Unicode"
+  ANY_ZW_HIT=0
+  for f in "${AI_CONFIG_FILES[@]}"; do
+    # grep -P requires PCRE; fall back to byte-level grep -c for portability
+    if LC_ALL=C grep -qP '\x{200B}|\x{200C}|\x{200D}|\x{FEFF}|\x{2060}|\x{180E}' "$f" 2>/dev/null; then
+      fail "Zero-width Unicode characters detected in: $f (TrapDoor IOC)"
+      printf "       Inspect with: cat -v '%s'\n" "$f"
+      printf "       Or: hexdump -C '%s' | grep -E 'e2 80 (8b|8c|8d)|ef bb bf|e2 81 a0|e1 a0 8e'\n" "$f"
+      ANY_ZW_HIT=1
+    elif LC_ALL=C grep -qc "$ZW_PATTERN" "$f" 2>/dev/null; then
+      fail "Zero-width Unicode characters detected in: $f (TrapDoor IOC)"
+      printf "       Inspect with: cat -v '%s'\n" "$f"
+      ANY_ZW_HIT=1
+    else
+      pass "No zero-width Unicode in $f"
+    fi
+  done
+  if [ "$ANY_ZW_HIT" -eq 0 ]; then
+    pass "No AI config files contain zero-width Unicode characters"
+  fi
+fi
+
+# ============================================================================
+# 9. GitHub dead-drop repo audit (requires gh)
 # ============================================================================
 section "8. GitHub dead-drop repository audit"
 
