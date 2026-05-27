@@ -19,6 +19,7 @@ This is not hypothetical. It is the dominant npm supply chain threat of 2026.
 | Third Coming (Bitwarden) | April 22, 2026 | `@bitwarden/cli@2026.4.0` via Checkmarx KICS Action poisoning | 1 high-trust package, 334 downloads | **First abuse of npm trusted publishing**; AI tool configs explicitly targeted |
 | Mini — SAP CAP | April 29, 2026 | 4 SAP CAP packages (`@cap-js/sqlite`, `@cap-js/postgres`, `@cap-js/db-service`, `mbt`) | ~2 hours, 1,100+ exfil repos | **First weaponization of `.claude/settings.json` SessionStart hook** |
 | Mini — TanStack | May 11, 2026 | `@tanstack/react-router` and 40+ `@tanstack/*` packages | 12M+ weekly downloads | GitHub Actions cache poisoning + **OIDC token extraction from `/proc/<pid>/mem`** — published without stealing npm credentials |
+| Mini — node-ipc | May 14, 2026 | `node-ipc` versions 9.1.6, 9.2.3, 12.0.1 via expired domain → email takeover | 822K weekly downloads | **No CI/CD compromise needed** — attacker re-registered expired project domain, reset npm account via email; DNS TXT exfiltration to lookalike Azure domain |
 | Mini — AntV ("Here We Go Again") | May 19, 2026 | 323 packages via `atool` maintainer: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor`, `timeago.js`, others | 637 versions, ~16M weekly downloads, 2,200+ exfil repos | **Worm source code released publicly on BreachForums with a "supply chain contest"**; second wave weaponizing `.claude/settings.json` |
 
 [Source: Snyk, Wiz, StepSecurity, Akamai, SafeDep — see Sources section.]
@@ -96,7 +97,23 @@ Seven days after Bitwarden. Four SAP CAP packages (`@cap-js/sqlite`, `@cap-js/po
 
 This is the second confirmed abuse of npm trusted publishing (the first being Bitwarden). Affected versions include `@tanstack/react-router` 1.169.5 and 1.169.8.
 
-#### Wave C — AntV "Here We Go Again" (May 19, 2026)
+#### Wave C — node-ipc (May 14, 2026)
+
+Three days after TanStack. Three malicious versions of `node-ipc` — a foundational Node.js IPC library with **822K weekly downloads** — were published via a compromised maintainer account. This wave introduced a novel initial-access technique that requires **no CI/CD compromise at all**:
+
+1. The project's original domain `atlantis-software.net` had expired.
+2. The attacker re-registered it on May 7, 2026 via Namecheap and configured private email.
+3. With the original maintainer's email inbox under attacker control, the attacker reset the npm account password and published three backdoored versions.
+
+Affected versions: `9.1.6`, `9.2.3`, `12.0.1`. The malicious payload activates on `require("node-ipc")` (no lifecycle scripts needed) and exfiltrates credentials through **DNS TXT queries** using a bootstrap resolver at `sh.azurestaticprovider.net:443` — a deliberate lookalike of Microsoft's Azure Static Web Apps domain. Secondary C2 at `207.90.194.2:443`.
+
+**Payload:** Collects environment variables, SSH keys, AWS/GCP/Azure credentials, Kubernetes service account tokens, database passwords, npm tokens, and AI tool configs; fragments the archive into DNS TXT query names for out-of-band exfiltration that bypasses most egress controls.
+
+**Connection to the campaign:** TeamPCP's BreachForums "supply chain attack contest" ($1,000 prize) was running simultaneously, and the DNS exfiltration method differs from CanisterSprawl's ICP channel — suggesting either a contest participant or deliberate C2 diversification.
+
+**Takeaway:** Expired domains for popular open-source projects are now a viable attack surface. Monitor your own project domains and the domains of your direct dependencies.
+
+#### Wave D — AntV "Here We Go Again" (May 19, 2026)
 
 The largest mini wave to date. **323 packages, 637 versions, ~16M weekly downloads** affected via the compromised `atool` maintainer account. Published in two automated bursts:
 
@@ -150,6 +167,8 @@ In direct response to Shai-Hulud and the broader npm supply chain attack pattern
 - **FIDO-based 2FA** replacing TOTP; legacy classic tokens being deprecated
 - **Bulk trusted publishing migration tooling** ([generally available February 18, 2026](https://github.blog/changelog/2026-02-18-npm-bulk-trusted-publishing-config-and-script-security-now-generally-available/))
 
+**May 22, 2026 — npm 2FA-gated publishing now GA (npm CLI 11.15.0):** Any `npm publish` command places the tarball in a staging queue; a human maintainer must separately authenticate with 2FA and issue explicit approval before the package goes live. This directly blocks the stolen CI/CD token vector TeamPCP used across 500+ poisoned packages in 20 waves — even with valid OIDC credentials, automated pipelines can no longer go live without a live human confirmation. Update with `npm install -g npm@latest`. ([The Hacker News — npm Adds 2FA-Gated Publishing](https://thehackernews.com/2026/05/npm-adds-2fa-gated-publishing-and.html))
+
 This is a structural change to npm publishing, not a policy update. Combined with the [GitHub Actions 2026 Security Roadmap](https://github.blog/news-insights/product-news/whats-coming-to-our-github-actions-2026-security-roadmap/) (workflow dependency locking, scoped secrets, native egress firewall), the platform is responding to the threat that Shai-Hulud demonstrated.
 
 ### Sources
@@ -176,6 +195,12 @@ This is a structural change to npm publishing, not a policy update. Combined wit
 - [The Register — Shai-Hulud keeps burrowing (May 19)](https://www.theregister.com/cyber-crime/2026/05/19/shai-hulud-keeps-burrowing-314-npm-packages-infected-after-another-account-compromise/5242601)
 - [The Hacker News — Mini Shai-Hulud Pushes Malicious AntV npm Packages](https://thehackernews.com/2026/05/mini-shai-hulud-pushes-malicious-antv.html)
 - [Cybersecurity News — 600+ npm Packages Compromised](https://cybersecuritynews.com/600-npm-packages-compromised/)
+- [The Hacker News — Stealer Backdoor Found in 3 node-ipc Versions (May 14)](https://thehackernews.com/2026/05/stealer-backdoor-found-in-3-node-ipc.html)
+- [Snyk — Malicious node-ipc Versions Published to npm](https://snyk.io/blog/malicious-node-ipc-versions-published-npm/)
+- [StepSecurity — Active Supply Chain Attack: Malicious node-ipc Versions](https://www.stepsecurity.io/blog/node-ipc-npm-supply-chain-attack)
+- [Datadog Security Labs — Backdoored node-ipc Releases Steal Credentials Through DNS Queries](https://securitylabs.datadoghq.com/articles/node-ipc-npm-malware-analysis/)
+- [Bleeping Computer — Popular node-ipc npm Package Compromised](https://www.bleepingcomputer.com/news/security/popular-node-ipc-npm-package-compromised-to-steal-credentials/)
+- [The Hacker News — npm Adds 2FA-Gated Publishing (May 22)](https://thehackernews.com/2026/05/npm-adds-2fa-gated-publishing-and.html)
 
 ---
 
@@ -685,7 +710,7 @@ npm pkg get scripts --json
 
 ## Incident Response: If You Installed a Compromised Package
 
-If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), or any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window — treat the host as compromised:
+If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), **`node-ipc` 9.1.6/9.2.3/12.0.1 (May 14)**, or any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window — treat the host as compromised:
 
 ### Immediate (within 1 hour)
 
@@ -750,4 +775,4 @@ If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@20
 
 ---
 
-*Last updated: April 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
+*Last updated: May 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*

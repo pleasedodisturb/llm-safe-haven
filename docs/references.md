@@ -1,6 +1,6 @@
 # Agent Security Resources
 
-> Last verified: May 2026
+> Last verified: May 27, 2026
 
 Curated collection of frameworks, tools, guides, and incident reports for securing AI coding agents. Focused on what's useful for solo developers — enterprise-only tools are noted but not prioritized.
 
@@ -25,7 +25,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [avast/sage](https://github.com/avast/sage) | ~182 | Lightweight Agent Detection & Response (ADR) layer. Intercepts every tool call before it hits the OS. URL reputation, YAML heuristics, package supply-chain checks. Works with Claude Code, Cursor, VS Code. March 2026. |
 | [cisco-ai-defense/mcp-scanner](https://github.com/cisco-ai-defense/mcp-scanner) | ~900 | Scans MCP servers for malicious code and hidden threats. Three scanning engines: YARA rules, LLM-as-judge, and Cisco AI Defense inspect API. |
 | [cisco-ai-defense/skill-scanner](https://github.com/cisco-ai-defense/skill-scanner) | ~1.8K | Detects risk patterns in agent skills. Combines signature-based detection, LLM-based semantic analysis, behavioral dataflow analysis, and configurable rule packs. |
-| [garagon/aguara](https://github.com/garagon/aguara) | — | Static security scanner for AI agent skills and MCP servers. 189 detection rules across 14 categories. 4-layer analysis: pattern matching, NLP, taint tracking, rug-pull detection. Single binary, offline, no LLM required. |
+| [garagon/aguara](https://github.com/garagon/aguara) | — | Static security scanner for AI agent skills and MCP servers. 219 detection rules across 14 categories. 4-layer analysis: pattern matching, NLP, taint tracking, rug-pull detection. Single binary, offline, no LLM required. Supports signed releases with SBOM and provenance attestations. |
 | [HeadyZhang/agent-audit](https://github.com/HeadyZhang/agent-audit) | — | Static security scanner for LLM agent *code* — the complementary layer to MCP server scanning. 49 rules mapped to all 10 OWASP Agentic Top 10 categories. AST-based dataflow analysis, credential detection, taint tracking, MCP config auditing. Works with LangChain, CrewAI, AutoGen. CI/CD integration via GitHub Actions. 94.6% recall. `pip install agent-audit`. February 2026. |
 | [Yelp/detect-secrets](https://github.com/Yelp/detect-secrets) | ~4.3K | Pre-commit secret detection with plugin architecture. 27 built-in detectors, scans git diffs (not full repos) — efficient for monorepos. |
 | [trufflesecurity/trufflehog](https://github.com/trufflesecurity/trufflehog) | ~25.7K | Find, verify, and analyze leaked credentials across git repos, S3 buckets, filesystems, and more. Verification reduces false positives. |
@@ -82,7 +82,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 
 | Resource | Stars | Description |
 |----------|-------|-------------|
-| [NVIDIA/garak](https://github.com/NVIDIA/garak) | ~7K | LLM vulnerability scanner. Probes for hallucination, data leakage, prompt injection, misinformation, toxicity, jailbreaks. ~100 attack vectors, up to 20K prompts per run. AVID integration for community vulnerability sharing. Apache-2.0. |
+| [NVIDIA/garak](https://github.com/NVIDIA/garak) | ~7K | LLM vulnerability scanner. Probes for hallucination, data leakage, prompt injection, misinformation, toxicity, jailbreaks. ~100 attack vectors, up to 20K prompts per run. AVID integration for community vulnerability sharing. Apache-2.0. **v0.15.0 (May 2026)** adds multi-turn GOAT probe, Agent-breaker probe (tests tools available to LLM agents), system-prompt-extraction probe, and NeMo Guardrails server support. |
 | [microsoft/PyRIT](https://github.com/microsoft/PyRIT) | ~3.4K | Python Risk Identification Tool for generative AI. Multi-turn adversarial testing across text, image, audio, video. Orchestrators, converters, scorers, and memory system. Built from experience red-teaming Bing Chat and Copilot. |
 | [praetorian-inc/augustus](https://github.com/praetorian-inc/augustus) | — | LLM vulnerability scanner. 210+ adversarial attack probes, 28 LLM providers, single Go binary. Production-oriented: concurrent scanning, rate limiting, retries, timeouts. Go-native reimplementation inspired by garak. Apache-2.0. |
 | [promptfoo/promptfoo](https://github.com/promptfoo/promptfoo) | ~20K | CLI for evaluating and red-teaming LLM apps. 50+ vulnerability types, CI/CD integration via GitHub Actions. Used by OpenAI and Anthropic. Acquired by OpenAI (Mar 2026). MIT licensed. |

@@ -5,8 +5,9 @@
 #
 # What this does:
 #   Read-only scan of a macOS machine for indicators of compromise from the
-#   May 11 + May 19, 2026 Shai-Hulud npm worm waves (AntV / ECharts / TanStack
-#   Router pivot, kitty-monitor C2 persistence, m-kosche.com beacons).
+#   May 11 + May 14 + May 19, 2026 Shai-Hulud npm worm waves (AntV / ECharts /
+#   TanStack Router pivot, node-ipc DNS exfil, kitty-monitor C2 persistence,
+#   m-kosche.com beacons, azurestaticprovider.net lookalike).
 #
 # What this does NOT do:
 #   - No file deletions, no quarantine, no network calls, no curl|sh
@@ -66,7 +67,7 @@ section() {
 # ============================================================================
 # Header
 # ============================================================================
-printf "${BOLD}Shai-Hulud npm worm IOC scanner — May 2026 waves${RESET}\n"
+printf "${BOLD}Shai-Hulud npm worm IOC scanner — May 2026 waves (May 11 / May 14 / May 19)${RESET}\n"
 printf "Host: %s\n" "$(hostname)"
 printf "User: %s\n" "$(whoami)"
 printf "Date: %s\n" "$(date)"
@@ -183,6 +184,7 @@ SUSPICIOUS_HOOK_PATTERNS=(
   'm-kosche'
   'kitty-monitor'
   'gh-token-monitor'
+  'azurestaticprovider'
   '/tmp/[^[:space:]"]*\.(sh|py|lock)'
   '\.local/share/kitty/cat\.py'
 )
@@ -296,6 +298,7 @@ RC_BAD_PATTERNS=(
   'eval[[:space:]].*base64'
   'kitty.*monitor'
   'm-kosche'
+  'azurestaticprovider'
 )
 
 for rc in "${RC_FILES[@]}"; do
@@ -330,7 +333,7 @@ done
 section "5. Shell history beacon-domain references"
 
 HIST_FILES=("$HOME/.zsh_history" "$HOME/.bash_history")
-HIST_PATTERNS=('m-kosche' 'kitty-monitor' 'gh-token-monitor')
+HIST_PATTERNS=('m-kosche' 'kitty-monitor' 'gh-token-monitor' 'azurestaticprovider' 'bt\.node\.js')
 
 for hf in "${HIST_FILES[@]}"; do
   if [ ! -f "$hf" ]; then
@@ -356,19 +359,25 @@ done
 # ============================================================================
 section "6. Global npm packages (May 2026 worm waves)"
 
-# Compromised package names from May 11 (TanStack pivot) and May 19 (AntV wave).
+# Compromised package names from May 11 (TanStack pivot), May 14 (node-ipc),
+# and May 19 (AntV wave).
 # Pinned bad versions noted but we flag presence regardless and let the user
 # verify version.
+# node-ipc bad versions: 9.1.6, 9.2.3, 12.0.1
 COMPROMISED_PKGS=(
+  # May 11 — TanStack wave
+  "@tanstack/react-router"
+  "@tanstack/router-core"
+  "@tanstack/router-cli"
+  # May 14 — node-ipc wave (domain-expiry maintainer takeover, DNS exfil)
+  "node-ipc"
+  # May 19 — AntV "Here We Go Again" wave
   "@antv/g2"
   "@antv/g6"
   "@antv/g"
   "echarts-for-react"
   "size-sensor"
   "timeago.js"
-  "@tanstack/react-router"
-  "@tanstack/router-core"
-  "@tanstack/router-cli"
 )
 
 if command -v npm >/dev/null 2>&1; then

@@ -421,6 +421,8 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 | AI Python library `.pth` file persistence | Critical | Malicious `.pth` file in compromised PyPI package executes credential stealer on every Python process startup; survives package removal; lateral movement across Kubernetes clusters | [LiteLLM/Telnyx PyPI compromise (Mar 2026)](https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/) |
 | AI coding tool content-filter bypass | High | Local attacker bypasses AI suggestion filters and consent gates, enabling malicious suggestion injection | [CVE-2026-41109 — Copilot/VS Code (May 2026)](https://www.thehackerwire.com/github-copilot-visual-studio-injection-bypasses-security-feature-cve-2026-41109/) |
 | Bare repo fsmonitor command execution | High | Nested bare git repo triggers `core.fsmonitor` during agent git operations to execute arbitrary commands | [CVE-2026-45033 — Copilot CLI](https://advisories.gitlab.com/npm/@github/copilot/CVE-2026-45033/) |
+| Expired domain → email takeover → npm account reset | High | Attacker re-registers an expired project domain, resets npm account via email verification; publishes malicious versions without any CI/CD or code compromise | [node-ipc Supply Chain Attack (May 14, 2026)](https://thehackernews.com/2026/05/stealer-backdoor-found-in-3-node-ipc.html) |
+| Network sandbox SOCKS5 null-byte bypass | High | `hostname\x00.allowlisted.com` passes sandbox endsWith() check but OS resolver dials attacker host; exfiltrates any data the agent touches | [Claude Code Sandbox Bypass (May 2026, patched v2.1.90)](https://www.securityweek.com/anthropic-silently-patches-claude-code-sandbox-bypass/) |
 
 ## Real Incidents Timeline
 
@@ -509,6 +511,14 @@ Affected versions include `@tanstack/react-router` 1.169.5 and 1.169.8. This is 
 
 Source: [Wiz — Mini Shai-Hulud Strikes Again: TanStack](https://www.wiz.io/blog/mini-shai-hulud-strikes-again-tanstack-more-npm-packages-compromised) | [The Hacker News — Mini Shai-Hulud Pushes Malicious npm Packages](https://thehackernews.com/2026/05/mini-shai-hulud-pushes-malicious-antv.html)
 
+### May 2026 — node-ipc Supply Chain Attack: Expired Domain Maintainer Takeover (May 14)
+
+Three malicious versions of `node-ipc` (versions `9.1.6`, `9.2.3`, `12.0.1`) were published to npm on May 14, 2026, via a compromised maintainer account. The attack used a **domain expiry → email takeover → npm account reset** chain requiring no CI/CD compromise: the project's domain `atlantis-software.net` had expired; the attacker re-registered it on May 7 via Namecheap, configured email infrastructure, and used control of the inbox to reset the npm account. The malicious CommonJS payload activates on `require("node-ipc")` and exfiltrates credentials through **DNS TXT queries** to a bootstrap resolver at `sh.azurestaticprovider.net:443` — a deliberate lookalike of Microsoft's Azure Static Web Apps domain. Secondary C2 at `207.90.194.2:443`. Targeted: environment variables, cloud credentials (AWS/GCP/Azure), Kubernetes tokens, SSH keys, npm tokens, and AI tool configs.
+
+**Why it matters for solo devs:** This attack required zero code compromise. Any popular open-source project whose domain expires is vulnerable to this vector. Check that the domains of your core dependencies are registered and monitored. Package: `node-ipc` had ~822K weekly downloads.
+
+Source: [The Hacker News — Stealer Backdoor Found in 3 node-ipc Versions](https://thehackernews.com/2026/05/stealer-backdoor-found-in-3-node-ipc.html) | [Snyk — Malicious node-ipc Versions Published to npm](https://snyk.io/blog/malicious-node-ipc-versions-published-npm/) | [Datadog Security Labs — Backdoored node-ipc Releases](https://securitylabs.datadoghq.com/articles/node-ipc-npm-malware-analysis/)
+
 ### May 2026 — Mini Shai-Hulud: AntV "Here We Go Again" + Worm Goes Public (May 19)
 
 The largest mini wave to date and a strategic inflection point. On May 19, 2026, between 01:39–02:06 UTC, **323 packages with 637 versions and ~16M combined weekly downloads** were compromised via the `atool` maintainer account. Affected: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor` (4.2M weekly downloads alone), `timeago.js`, and ~320 others. The 498 KB payload harvests 80+ environment variables and 100+ file paths, encrypts with RSA-OAEP, and exfiltrates to `t.m-kosche.com:443/api/public/otel/v1/traces` (masquerading as OpenTelemetry traffic) plus 2,200+ GitHub dead-drop repos under Dune-themed names (`sandworm`, `sardaukar`, `ornithopter`, `fremen`, `harkonnen`, etc.) with descriptions containing the reversed string `niagA oG eW ereH :duluH-iahS`.
@@ -526,6 +536,22 @@ The largest mini wave to date and a strategic inflection point. On May 19, 2026,
 **Defenses:** Same as Apr 29 wave, plus: pin to exact versions (caret ranges autoupgrade you into compromised releases); set `ignore-scripts=true` in `~/.npmrc` globally — this alone blocks execution of all six Shai-Hulud waves; use registry cooldown policies that quarantine packages published within the last 7 days.
 
 Source: [Snyk — Mini Shai-Hulud Hits AntV](https://snyk.io/blog/mini-shai-hulud-antv-npm-supply-chain-attack/) | [StepSecurity — Here We Go Again](https://www.stepsecurity.io/blog/shai-hulud-here-we-go-again-mass-npm-supply-chain-attack-hits-the-antv-ecosystem) | [Akamai — Worm Returns Goes Public](https://www.akamai.com/blog/security-research/mini-shai-hulud-worm-returns-goes-public) | [SafeDep — 317 npm Packages Compromised](https://safedep.io/mini-shai-hulud-strikes-again-314-npm-packages-compromised/) | [The Register — Shai-Hulud keeps burrowing](https://www.theregister.com/cyber-crime/2026/05/19/shai-hulud-keeps-burrowing-314-npm-packages-infected-after-another-account-compromise/5242601) | [Cybersecurity News — 600+ npm Packages Compromised](https://cybersecuritynews.com/600-npm-packages-compromised/)
+
+### May 2026 — Claude Code Network Sandbox Bypass: SOCKS5 Null-Byte Injection (Disclosed May 20)
+
+Researcher Aonan Guan (the same researcher who discovered the "Comment and Control" prompt injection in April 2026) disclosed that every Claude Code release from v2.0.24 (when the sandbox became GA on October 20, 2025) through v2.1.89 was vulnerable to a **SOCKS5 hostname null-byte injection**. The attack: an agent sends a hostname like `attacker-host.com\x00.google.com`. The sandbox proxy uses JavaScript's `endsWith()` and approves the trailing `.google.com`; the OS resolver (`libc getaddrinfo`) truncates at the null byte and dials `attacker-host.com`. A classic parser differential. Any data the agent touched — credentials, source code, API keys — was exfiltrable to any server on the internet for 5.5 months.
+
+**Patching:** Fixed silently in v2.1.90 on **April 1, 2026**. No CVE was assigned. No security advisory was published. No changelog note. No outreach to users running wildcard allowlists during the vulnerable window. This is the second consecutive Claude Code sandbox bypass that Anthropic patched without public disclosure.
+
+**Why it matters for solo devs:** If you ran Claude Code with a network sandbox allowlist between October 20, 2025 and April 1, 2026, your sandbox was bypassable. The mitigation is to update to v2.2.x or later and audit what the agent accessed during that window.
+
+Source: [Aonan Guan — Second Time, Same Sandbox](https://oddguan.com/blog/second-time-same-sandbox-anthropic-claude-code-network-allowlist-bypass-data-exfiltration/) | [SecurityWeek — Anthropic Silently Patches Claude Code Sandbox Bypass](https://www.securityweek.com/anthropic-silently-patches-claude-code-sandbox-bypass/) | [The Register — Even Claude agrees: hole in its sandbox was real and dangerous](https://www.theregister.com/security/2026/05/20/even-claude-agrees-hole-in-its-sandbox-was-real-and-dangerous/5243662)
+
+### May 2026 — npm 2FA-Gated Publishing Now Generally Available (May 22)
+
+GitHub shipped `npm publish` staged publishing in npm CLI 11.15.0, requiring a human 2FA confirmation before any package goes live. Any publish — automated or manual — places the tarball in a staging queue; the attacker holding a stolen CI/CD token cannot complete the publish without passing a live 2FA challenge. This directly blocks the key technique TeamPCP used across 20 documented attack waves: using valid-but-stolen OIDC or automation tokens to publish through legitimate pipelines without triggering alarms. Combined with npm's earlier granular token and FIDO 2FA work, this closes the most-exploited entry point in the Shai-Hulud campaign.
+
+Source: [The Hacker News — npm Adds 2FA-Gated Publishing](https://thehackernews.com/2026/05/npm-adds-2fa-gated-publishing-and.html) | [TechTimes — npm Supply Chain Attacks Hit GitHub](https://www.techtimes.com/articles/317209/20260526/npm-supply-chain-attacks-hit-github-2fa-approval-gate-now-blocks-stolen-ci-tokens.htm)
 
 ### April 2026 — TeamPCP Concurrent Multi-Vector Campaign (Update 008)
 
@@ -801,6 +827,7 @@ Claude Code accounts for 27 of 74 confirmed CVEs (36%) — partly because it lea
 | [Breaking MCP with Function Hijacking Attacks](https://arxiv.org/abs/2604.20994) | Apr 2026 | Novel FHA attack forces agents to invoke attacker-chosen MCP tools; 70–100% ASR across 5 models including GPT-5 and Claude Sonnet 4; attack is agnostic to context semantics |
 | [MCPSHIELD: Formal Security Framework for MCP-Based AI Agents](https://arxiv.org/abs/2604.05969) | Apr 2026 | Synthesizes 12 prior MCP security papers into unified taxonomy; 7 threat categories, 23 attack vectors across 177k+ MCP tools; finds **no single existing defense covers >34% of the threat landscape** |
 | [ARGUS: Defending LLM Agents Against Context-Aware Prompt Injection](https://arxiv.org/abs/2605.03378) | May 2026 | Provenance-aware runtime auditor that grounds tool-call decisions in trusted evidence via span-level context tracking and task-level verification; significantly reduces attack success while preserving task utility |
+| [ToolHijacker: Prompt Injection Attack to Tool Selection in LLM Agents](https://arxiv.org/abs/2504.19793) | NDSS 2026 (Feb) | First no-box prompt injection attack targeting the *tool selection* phase; two-phase optimization generates malicious tool documents that hijack retrieval and selection; evaluated against 8 LLMs and 4 retrievers; existing defenses (StruQ, SecAlign, perplexity detection) all insufficient |
 | [Model Context Protocol: Landscape, Security Threats, and Future Research Directions](https://dl.acm.org/doi/10.1145/3796519) (ACM TOSEM) | 2026 | Systematic threat taxonomy for MCP across 4 attacker types (malicious developers, external attackers, malicious users, design flaws) and 16 distinct threat scenarios; published in ACM Transactions on Software Engineering and Methodology |
 
 **Industry reports:**
@@ -957,4 +984,4 @@ Agents that run for hours or days without human checkpoints have no meaningful h
 
 ---
 
-*Last updated: April 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
+*Last updated: May 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
