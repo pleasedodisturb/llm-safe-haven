@@ -421,6 +421,8 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 | AI Python library `.pth` file persistence | Critical | Malicious `.pth` file in compromised PyPI package executes credential stealer on every Python process startup; survives package removal; lateral movement across Kubernetes clusters | [LiteLLM/Telnyx PyPI compromise (Mar 2026)](https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/) |
 | AI coding tool content-filter bypass | High | Local attacker bypasses AI suggestion filters and consent gates, enabling malicious suggestion injection | [CVE-2026-41109 — Copilot/VS Code (May 2026)](https://www.thehackerwire.com/github-copilot-visual-studio-injection-bypasses-security-feature-cve-2026-41109/) |
 | Bare repo fsmonitor command execution | High | Nested bare git repo triggers `core.fsmonitor` during agent git operations to execute arbitrary commands | [CVE-2026-45033 — Copilot CLI](https://advisories.gitlab.com/npm/@github/copilot/CVE-2026-45033/) |
+| ASGI framework Host-header auth bypass | High | Starlette constructs `request.url` from the attacker-controlled Host header; path-based auth middleware bypassed by injecting `/`, `?`, or `#` — affects FastAPI, MCP servers, vLLM, LiteLLM, AI agent APIs (325M weekly downloads) | [BadHost CVE-2026-48710 — OSTIF (May 2026)](https://ostif.org/disclosing-the-badhost-vulnerability-in-starlette/) |
+| AI agent framework prompt injection → eval() RCE chain | Critical | Four-CVE chain in CrewAI (VU#221883): Code Interpreter falls back to insecure SandboxPython when Docker unavailable, JSON loader lacks path validation, RAG tools allow SSRF; prompt injection chains all four into full host takeover | [CERT VU#221883 — CrewAI (April 2026)](https://kb.cert.org/vuls/id/221883) |
 
 ## Real Incidents Timeline
 
@@ -459,6 +461,49 @@ Source: [TheHackerWire — CVE-2026-41109](https://www.thehackerwire.com/github-
 A bug hunter reported three serious MCP server vulnerabilities affecting widely-deployed database MCP implementations. Vulnerabilities allow arbitrary SQL execution, schema enumeration, and in one case full RCE via unsanitized query parameters passed to underlying CLI tools. One vendor acknowledged the report and explicitly declined to patch, citing the behavior as "by design." This echoes Anthropic's own position on the MCP SDK architectural RCE.
 
 Source: [The Register — Bug hunter tracks down three massive MCP flaws](https://www.theregister.com/security/2026/05/13/bug-hunter-tracks-down-three-serious-mcp-database-flaws-one-left-unpatched/5238916)
+
+### May 2026 — BadHost: Starlette Host-Header Auth Bypass Exposes AI Agent Servers (CVE-2026-48710)
+
+Security firm X41 D-Sec, while auditing vLLM for OSTIF, discovered CVE-2026-48710 in the Starlette ASGI framework (versions before 1.0.1). Starlette constructs `request.url` by concatenating the attacker-controlled `Host` header with the request path. An attacker injecting `/`, `?`, or `#` into the Host header shifts where path boundaries fall in the reconstructed URL — causing `request.url.path` to diverge from the path the ASGI server actually routed. Path-based authentication middleware sees the injected path, not the real one, and grants access to protected routes.
+
+**Why AI agents specifically:** The affected stack is the foundation of the AI agent ecosystem. Starlette is the base for FastAPI, which underlies vLLM, LiteLLM, and a sprawling ecosystem of MCP servers, OpenAI-compatible API proxies, and AI agent frameworks — 325 million downloads per week in aggregate. A BadHost request against any of these can access protected endpoints without valid credentials: model inference, vector store operations, agent execution APIs.
+
+The patch (Starlette 1.0.1) shipped May 21, 2026 — one day before public disclosure. Any deployment still on Starlette < 1.0.1 is vulnerable.
+
+Source: [OSTIF — Disclosing the BADHOST Vulnerability in Starlette](https://ostif.org/disclosing-the-badhost-vulnerability-in-starlette/) | [CSO Online — FastAPI-based AI tools exposed](https://www.csoonline.com/article/4177711/fastapi-based-ai-tools-exposed-to-authentication-bypass-by-flaw-in-starlette-framework.html) | [SC Media — BadHost high-severity flaw](https://www.scworld.com/brief/high-severity-starlette-vulnerability-badhost-could-expose-sensitive-data)
+
+### May 2026 — PraisonAI Auth Bypass Exploited in Under 4 Hours (CVE-2026-44338)
+
+PraisonAI, an open-source multi-agent orchestration framework, ships a legacy Flask API server with **authentication disabled by default**. CVE-2026-44338 (CVSS 7.3) — published May 11, 2026 at 13:56 UTC — allows any caller that can reach the server to invoke `/agents` and trigger configured agent workflows via `/chat` without a token. Affected versions: 2.5.6 through 4.6.33. Fixed in 4.6.34.
+
+The exploitation timeline is notable: the first scanner identifying itself as `CVE-Detector/1.0` probed the exact vulnerable endpoint at 17:40 UTC the same day — **3 hours and 44 minutes after disclosure**. No public PoC was required; attackers read the advisory and built their probe directly. If `agents.yaml` connects to external tools, file systems, internal APIs, databases, cloud resources, or AI providers, an unauthenticated attacker can abuse those workflows indirectly.
+
+This is the same rapid-exploitation pattern as Langflow CVE-2026-33017 (exploited in 20 hours) — AI agent frameworks are high-value targets for immediate post-disclosure scanning.
+
+Source: [The Hacker News — PraisonAI CVE-2026-44338 Auth Bypass](https://thehackernews.com/2026/05/praisonai-cve-2026-44338-auth-bypass.html) | [Sysdig — CVE-2026-44338 exploited in under 4 hours](https://www.sysdig.com/blog/cve-2026-44338-praisonai-authentication-bypass-in-under-4-hours-and-the-growing-trend-of-rapid-exploitation/)
+
+### May 2026 — Azure SRE Agent Broadcasts Enterprise Operations to Any Entra ID Tenant (CVE-2026-32173)
+
+Enclave AI researcher Yanir Tsarimi discovered that Azure SRE Agent streams all activity through a SignalR WebSocket hub (`/agentHub`) that requires an Entra ID token — but the underlying app registration was configured as **multi-tenant**, meaning any valid account from any Entra ID tenant could obtain a token the hub would accept. Once connected, the hub broadcasts all events to all clients with no identity filtering: user prompts, agent responses, internal reasoning traces, every command executed with full arguments, and command output — including live deployment credentials for production applications.
+
+CVSS 8.6. The flaw stems from an authentication gap (CWE-287) in the service, not in the Azure platform itself. Microsoft patched the app registration to single-tenant after responsible disclosure.
+
+**Why it matters for solo devs:** Enterprise SRE agents are being adopted by engineering teams running autonomous deployment and incident response workflows. This is a reminder that agent-to-agent communication infrastructure — not just agent-to-LLM — needs authentication review.
+
+Source: [CSO Online — Azure SRE Agent flaw lets outsiders silently eavesdrop](https://www.csoonline.com/article/4161389/azure-sre-agent-flaw-let-outsiders-silently-eavesdrop-on-enterprise-cloud-operations.html) | [SentinelOne — CVE-2026-32173](https://www.sentinelone.com/vulnerability-database/cve-2026-32173/)
+
+### April 2026 — CrewAI Four-CVE RCE Chain (VU#221883)
+
+CERT/CC disclosed four chained vulnerabilities in CrewAI (VU#221883) enabling a prompt injection to escalate through SSRF, arbitrary file read, and sandbox escape to full host-level RCE.
+
+- **CVE-2026-2275**: The Code Interpreter Tool automatically falls back to `SandboxPython` (no Docker requirement) when Docker is unavailable — this insecure environment permits arbitrary C function calls and full RCE.
+- **CVE-2026-2287**: CrewAI fails to continuously verify Docker is running during execution, silently downgrading to the insecure sandbox at any point in a session.
+- **CVE-2026-2285**: The JSON loader tool lacks file path validation — arbitrary local file read with no access controls.
+- **CVE-2026-2286**: RAG search tools accept runtime URLs without validation — full SSRF to internal networks and cloud metadata endpoints.
+
+An attacker who can interact with a CrewAI agent that has the Code Interpreter Tool enabled can chain these via prompt injection: SSRF to discover internal services → file read to harvest credentials → Code Interpreter fallback to execute arbitrary OS commands. If Docker is present, the chain achieves Docker sandbox escape. If not, immediate host RCE.
+
+Source: [CERT/CC — VU#221883](https://kb.cert.org/vuls/id/221883) | [GBHackers — CrewAI critical vulnerabilities](https://gbhackers.com/crewai-hit-by-critical-vulnerabilities/)
 
 ### April 2026 — Bitwarden CLI Supply Chain Attack (Shai-Hulud)
 
@@ -802,6 +847,7 @@ Claude Code accounts for 27 of 74 confirmed CVEs (36%) — partly because it lea
 | [MCPSHIELD: Formal Security Framework for MCP-Based AI Agents](https://arxiv.org/abs/2604.05969) | Apr 2026 | Synthesizes 12 prior MCP security papers into unified taxonomy; 7 threat categories, 23 attack vectors across 177k+ MCP tools; finds **no single existing defense covers >34% of the threat landscape** |
 | [ARGUS: Defending LLM Agents Against Context-Aware Prompt Injection](https://arxiv.org/abs/2605.03378) | May 2026 | Provenance-aware runtime auditor that grounds tool-call decisions in trusted evidence via span-level context tracking and task-level verification; significantly reduces attack success while preserving task utility |
 | [Model Context Protocol: Landscape, Security Threats, and Future Research Directions](https://dl.acm.org/doi/10.1145/3796519) (ACM TOSEM) | 2026 | Systematic threat taxonomy for MCP across 4 attacker types (malicious developers, external attackers, malicious users, design flaws) and 16 distinct threat scenarios; published in ACM Transactions on Software Engineering and Methodology |
+| [Evaluation of Prompt Injection Defenses in Large Language Models](https://arxiv.org/abs/2604.23887) (Deep et al.) | Apr/May 2026 | Adaptive attacker probes 9 defense configurations across 20,000+ attacks; **every defense that relied on the model to protect itself eventually broke**; only output filtering via hardcoded rules in separate application code achieved zero leaks across 15,000 attacks. Practical implication: model-internal defenses (system prompt instructions, paraphrasing, sandwiching) are insufficient — enforcement must live outside the model |
 
 **Industry reports:**
 - [Trail of Bits — Lack of Isolation in Agentic Browsers (January 2026)](https://blog.trailofbits.com/2026/01/13/lack-of-isolation-in-agentic-browsers-resurfaces-old-vulnerabilities/) — Prompt injection in AI browsers mirrors XSS/CSRF; agents lack Same-Origin Policy equivalents
@@ -957,4 +1003,4 @@ Agents that run for hours or days without human checkpoints have no meaningful h
 
 ---
 
-*Last updated: April 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
+*Last updated: May 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*

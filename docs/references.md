@@ -32,6 +32,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [gitleaks/gitleaks](https://github.com/gitleaks/gitleaks) | ~26.2K | Fast git secret scanner. Pre-commit hooks and CI integration. Good complement to TruffleHog for different detection patterns. |
 | [GitGuardian/ggshield](https://github.com/GitGuardian/ggshield) | ~1.9K | CLI secret scanner with 550+ secret types. Now scans prompts, tool calls, and agent actions in real-time. Free tier available. 700K+ developers on GitHub Marketplace. |
 | [vulnerablemcp.info](https://vulnerablemcp.info/) | — | Community MCP vulnerability database. Comprehensive catalog of known CVEs and attack patterns across MCP server implementations. Purpose-built equivalent of CVE/NVD for the MCP ecosystem. |
+| [Detectify MCP Server](https://siliconangle.com/2026/05/26/detectify-debuts-mcp-server-let-ai-agents-find-fix-vulnerabilities-real-time/) | — | Security testing MCP server that plugs Detectify's scanning engines into AI-driven coding workflows. "Find & Fix" automation hands security findings to AI agents as structured remediation tasks — agent generates patch, triggers validation scan, confirms fix before human review. Conversational interface for querying scan results. Launched May 26, 2026. |
 
 ## Credential Management
 
@@ -87,6 +88,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [praetorian-inc/augustus](https://github.com/praetorian-inc/augustus) | — | LLM vulnerability scanner. 210+ adversarial attack probes, 28 LLM providers, single Go binary. Production-oriented: concurrent scanning, rate limiting, retries, timeouts. Go-native reimplementation inspired by garak. Apache-2.0. |
 | [promptfoo/promptfoo](https://github.com/promptfoo/promptfoo) | ~20K | CLI for evaluating and red-teaming LLM apps. 50+ vulnerability types, CI/CD integration via GitHub Actions. Used by OpenAI and Anthropic. Acquired by OpenAI (Mar 2026). MIT licensed. |
 | [utkusen/promptmap](https://github.com/utkusen/promptmap) | — | Automated prompt injection scanner. White-box testing (provide system prompts) and black-box testing (point at HTTP endpoint). Controller LLM judges attack success. |
+| [microsoft/RAMPART](https://www.microsoft.com/en-us/security/blog/2026/05/20/introducing-rampart-and-clarity-open-source-tools-to-bring-safety-into-agent-development-workflow/) | — | Pytest-native safety and security testing framework for AI agents. Built on PyRIT. Write test cases for cross-prompt injection, data exfiltration, and unintended behavioral regressions. Supports statistical trial policies ("safe in at least 80% of runs") to handle model non-determinism. Companion tool Clarity provides structured problem-solving for AI safety decisions. Open-sourced by Microsoft, May 20, 2026. |
 
 ## Agent Monitoring & Observability
 
@@ -161,6 +163,9 @@ These are the posts and reports that informed our threat model. Read them to und
 | [Trend Micro: "Inside the LiteLLM Supply Chain Compromise"](https://www.trendmicro.com/en_us/research/26/c/inside-litellm-supply-chain-compromise.html) | Mar 2026 | Technical analysis of TeamPCP's compromise of LiteLLM on PyPI. Three-stage payload: credential harvesting, Kubernetes lateral movement, persistent RCE backdoor. Part of the Shai-Hulud attack campaign. |
 | [The Register: "Bug hunter tracks down three massive MCP flaws"](https://www.theregister.com/security/2026/05/13/bug-hunter-tracks-down-three-serious-mcp-database-flaws-one-left-unpatched/5238916) | May 2026 | Three RCE-class vulnerabilities in popular database MCP servers. One vendor explicitly declined to patch. Illustrates the governance gap in the MCP ecosystem. |
 | [Google Security Blog: "AI Threats in the Wild — Prompt Injections"](https://security.googleblog.com/2026/04/ai-threats-in-wild-current-state-of.html) | Apr 2026 | Google documents 32% rise in malicious prompt injection activity Nov 2025–Feb 2026. Detailed breakdown of real-world techniques including pixel shrinking, near-zero opacity, HTML comments, and meta tag namespace injection. |
+| [OSTIF: "Disclosing the BADHOST Vulnerability in Starlette"](https://ostif.org/disclosing-the-badhost-vulnerability-in-starlette/) | May 2026 | CVE-2026-48710: Host-header injection in Starlette (< 1.0.1) bypasses path-based authentication middleware. Affects FastAPI, MCP servers, vLLM, LiteLLM, and AI agent APIs across 325M weekly downloads. |
+| [CERT/CC: "VU#221883 — CrewAI multiple vulnerabilities"](https://kb.cert.org/vuls/id/221883) | Apr 2026 | Four chained CVEs (2275, 2285, 2286, 2287) enabling prompt injection → SSRF → file read → sandbox escape → full host RCE via Code Interpreter's insecure Docker fallback. |
+| [Sysdig: "CVE-2026-44338: PraisonAI authentication bypass in under 4 hours"](https://www.sysdig.com/blog/cve-2026-44338-praisonai-authentication-bypass-in-under-4-hours-and-the-growing-trend-of-rapid-exploitation/) | May 2026 | PraisonAI ships a legacy API server with auth disabled by default; exploited within 3h44m of CVE publication — illustrates how quickly AI agent framework CVEs are weaponized. |
 
 ## Anthropic Issues (From Our Investigation)
 
