@@ -509,6 +509,18 @@ Affected versions include `@tanstack/react-router` 1.169.5 and 1.169.8. This is 
 
 Source: [Wiz — Mini Shai-Hulud Strikes Again: TanStack](https://www.wiz.io/blog/mini-shai-hulud-strikes-again-tanstack-more-npm-packages-compromised) | [The Hacker News — Mini Shai-Hulud Pushes Malicious npm Packages](https://thehackernews.com/2026/05/mini-shai-hulud-pushes-malicious-antv.html)
 
+### May 2026 — node-ipc npm Supply Chain Attack via Expired Domain Hijacking (May 14)
+
+On May 14, 2026, three malicious versions of `node-ipc` (9.1.6, 9.2.3, 12.0.1) were simultaneously published to the npm registry. The initial access was **expired domain hijacking**: the compromised maintainer account's contact email was hosted on `atlantis-software.net`, which had expired on January 10, 2025. The attacker re-registered it on May 7, 2026 — one week before the attack — then triggered a standard npm password reset to gain publish rights without compromising any of the maintainer's own infrastructure.
+
+**Why this wave is distinct from prior CanisterSprawl worms:** This is not a worm. There is no self-propagation component; the payload is a credential stealer only. More critically, **the payload runs at `require()` time, not `install` time** — meaning `ignore-scripts=true` in `~/.npmrc` provides zero protection. The malicious code executes the moment application code loads `require('node-ipc')`. Additionally, exfiltration uses **DNS TXT queries** rather than HTTPS, bypassing HTTP-based egress monitoring and most CSP controls.
+
+The 80 KB obfuscated payload harvests 90+ credential categories — AWS, Azure, GCP, SSH keys, Kubernetes tokens, GitHub configs, shell history — and **explicitly targets AI coding agent configs** including `~/.claude/settings.json` (Claude Code) and **Kiro IDE** (Amazon's agent IDE) settings alongside standard developer credentials.
+
+`node-ipc` has 822K direct weekly downloads and is a transitive dependency for hundreds of packages, giving this wave a large blast radius.
+
+Source: [The Hacker News — Stealer Backdoor Found in 3 Node-IPC Versions](https://thehackernews.com/2026/05/stealer-backdoor-found-in-3-node-ipc.html) | [CSO Online — Expired domain leads to supply chain attack](https://www.csoonline.com/article/4171926/expired-domain-leads-to-supply-chain-attack-on-node-ipc-npm-package.html) | [StepSecurity — Active Supply Chain Attack](https://www.stepsecurity.io/blog/node-ipc-npm-supply-chain-attack) | [Socket.dev — node-ipc Compromised](https://socket.dev/blog/node-ipc-package-compromised) | [Snyk — Malicious node-ipc versions](https://snyk.io/blog/malicious-node-ipc-versions-published-npm/) | [Semgrep — Not a Worm Analysis](https://semgrep.dev/blog/2026/not-your-ipc-but-node-ipc-npm-hit-again-with-supply-chain-attack-but-this-time-its-not-a-worm/)
+
 ### May 2026 — Mini Shai-Hulud: AntV "Here We Go Again" + Worm Goes Public (May 19)
 
 The largest mini wave to date and a strategic inflection point. On May 19, 2026, between 01:39–02:06 UTC, **323 packages with 637 versions and ~16M combined weekly downloads** were compromised via the `atool` maintainer account. Affected: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor` (4.2M weekly downloads alone), `timeago.js`, and ~320 others. The 498 KB payload harvests 80+ environment variables and 100+ file paths, encrypts with RSA-OAEP, and exfiltrates to `t.m-kosche.com:443/api/public/otel/v1/traces` (masquerading as OpenTelemetry traffic) plus 2,200+ GitHub dead-drop repos under Dune-themed names (`sandworm`, `sardaukar`, `ornithopter`, `fremen`, `harkonnen`, etc.) with descriptions containing the reversed string `niagA oG eW ereH :duluH-iahS`.
@@ -801,6 +813,7 @@ Claude Code accounts for 27 of 74 confirmed CVEs (36%) — partly because it lea
 | [Breaking MCP with Function Hijacking Attacks](https://arxiv.org/abs/2604.20994) | Apr 2026 | Novel FHA attack forces agents to invoke attacker-chosen MCP tools; 70–100% ASR across 5 models including GPT-5 and Claude Sonnet 4; attack is agnostic to context semantics |
 | [MCPSHIELD: Formal Security Framework for MCP-Based AI Agents](https://arxiv.org/abs/2604.05969) | Apr 2026 | Synthesizes 12 prior MCP security papers into unified taxonomy; 7 threat categories, 23 attack vectors across 177k+ MCP tools; finds **no single existing defense covers >34% of the threat landscape** |
 | [ARGUS: Defending LLM Agents Against Context-Aware Prompt Injection](https://arxiv.org/abs/2605.03378) | May 2026 | Provenance-aware runtime auditor that grounds tool-call decisions in trusted evidence via span-level context tracking and task-level verification; significantly reduces attack success while preserving task utility |
+| [AI Agents May Always Fall for Prompt Injections](https://arxiv.org/abs/2605.17634) (Abdelnabi et al.) | May 2026 | Recasts prompt injection via Contextual Integrity theory; argues the prevailing data-instruction separation defense paradigm both fails attacks that operate through contextual manipulation AND degrades contextually appropriate behavior; proves an impossibility result — an adversary can always construct a context where a blocked information flow appears legitimate, meaning no current defense offers complete coverage |
 | [Model Context Protocol: Landscape, Security Threats, and Future Research Directions](https://dl.acm.org/doi/10.1145/3796519) (ACM TOSEM) | 2026 | Systematic threat taxonomy for MCP across 4 attacker types (malicious developers, external attackers, malicious users, design flaws) and 16 distinct threat scenarios; published in ACM Transactions on Software Engineering and Methodology |
 
 **Industry reports:**
@@ -957,4 +970,4 @@ Agents that run for hours or days without human checkpoints have no meaningful h
 
 ---
 
-*Last updated: April 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
+*Last updated: May 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*

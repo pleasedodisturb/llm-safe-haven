@@ -5,8 +5,9 @@
 #
 # What this does:
 #   Read-only scan of a macOS machine for indicators of compromise from the
-#   May 11 + May 19, 2026 Shai-Hulud npm worm waves (AntV / ECharts / TanStack
-#   Router pivot, kitty-monitor C2 persistence, m-kosche.com beacons).
+#   May 11 + May 14 + May 19, 2026 Shai-Hulud/node-ipc npm supply chain waves
+#   (TanStack Router pivot, node-ipc expired-domain hijack, AntV/ECharts mass
+#   compromise, kitty-monitor C2 persistence, m-kosche.com beacons).
 #
 # What this does NOT do:
 #   - No file deletions, no quarantine, no network calls, no curl|sh
@@ -369,6 +370,9 @@ COMPROMISED_PKGS=(
   "@tanstack/react-router"
   "@tanstack/router-core"
   "@tanstack/router-cli"
+  # May 14 wave — expired maintainer domain hijack; payload runs at require() time
+  # --ignore-scripts does NOT protect against this wave
+  "node-ipc"
 )
 
 if command -v npm >/dev/null 2>&1; then

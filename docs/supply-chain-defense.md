@@ -19,6 +19,7 @@ This is not hypothetical. It is the dominant npm supply chain threat of 2026.
 | Third Coming (Bitwarden) | April 22, 2026 | `@bitwarden/cli@2026.4.0` via Checkmarx KICS Action poisoning | 1 high-trust package, 334 downloads | **First abuse of npm trusted publishing**; AI tool configs explicitly targeted |
 | Mini — SAP CAP | April 29, 2026 | 4 SAP CAP packages (`@cap-js/sqlite`, `@cap-js/postgres`, `@cap-js/db-service`, `mbt`) | ~2 hours, 1,100+ exfil repos | **First weaponization of `.claude/settings.json` SessionStart hook** |
 | Mini — TanStack | May 11, 2026 | `@tanstack/react-router` and 40+ `@tanstack/*` packages | 12M+ weekly downloads | GitHub Actions cache poisoning + **OIDC token extraction from `/proc/<pid>/mem`** — published without stealing npm credentials |
+| Mini — node-ipc | May 14, 2026 | `node-ipc` 9.1.6, 9.2.3, 12.0.1 via expired maintainer domain hijack (`atlantis-software.net`) | 822K+ weekly downloads (10M+ as transitive dep) | **Expired domain → npm password reset** (not a worm); payload fires at `require()` time — `--ignore-scripts` does NOT protect; **DNS TXT exfiltration** evades HTTP egress controls; explicitly targets Claude and Kiro IDE configs |
 | Mini — AntV ("Here We Go Again") | May 19, 2026 | 323 packages via `atool` maintainer: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor`, `timeago.js`, others | 637 versions, ~16M weekly downloads, 2,200+ exfil repos | **Worm source code released publicly on BreachForums with a "supply chain contest"**; second wave weaponizing `.claude/settings.json` |
 
 [Source: Snyk, Wiz, StepSecurity, Akamai, SafeDep — see Sources section.]
@@ -96,7 +97,24 @@ Seven days after Bitwarden. Four SAP CAP packages (`@cap-js/sqlite`, `@cap-js/po
 
 This is the second confirmed abuse of npm trusted publishing (the first being Bitwarden). Affected versions include `@tanstack/react-router` 1.169.5 and 1.169.8.
 
-#### Wave C — AntV "Here We Go Again" (May 19, 2026)
+#### Wave C — node-ipc (May 14, 2026)
+
+Three days after TanStack. The `node-ipc` package (822K weekly downloads; 10M+ as a transitive dependency for hundreds of packages) was compromised via **expired domain hijacking** — a completely different initial-access method from prior CanisterSprawl waves. The maintainer account's contact email was hosted on `atlantis-software.net`, which had expired on January 10, 2025. The attacker re-registered it on May 7, 2026, triggered a standard npm password reset, and gained publish rights without ever touching the original maintainer's own infrastructure.
+
+**What makes this wave distinct:**
+
+- **Not a worm.** No CanisterSprawl self-propagation component. Credential stealer only.
+- **Payload runs at `require()` time, not install time.** `--ignore-scripts=true` in `~/.npmrc` provides zero protection. The malicious code executes when application code calls `require('node-ipc')`, not during `npm install`.
+- **DNS TXT exfiltration.** Data is exfiltrated via DNS TXT queries rather than HTTPS, evading HTTP-based egress monitoring and Content Security Policy controls that caught prior waves.
+- **AI coding agent targeting.** The 80 KB payload explicitly targets `~/.claude/settings.json` (Claude Code) and **Kiro IDE** (Amazon's VS Code-based agent IDE) settings alongside the standard 90+ credential categories.
+
+Affected versions: `node-ipc@9.1.6`, `9.2.3`, `12.0.1`. All three published simultaneously on May 14 via the compromised `atiertant` account. Clean versions are `9.1.5`, `9.2.2`, and `12.0.0` or earlier.
+
+**Defenses:** `--ignore-scripts` does NOT protect against this wave. Verify your lockfiles: `npm ls node-ipc`. Socket.dev detected the obfuscated DNS exfiltration code before removal. If you have any of the affected versions in a dependency tree, treat the host as compromised and rotate all credentials.
+
+Source: [The Hacker News](https://thehackernews.com/2026/05/stealer-backdoor-found-in-3-node-ipc.html) | [CSO Online](https://www.csoonline.com/article/4171926/expired-domain-leads-to-supply-chain-attack-on-node-ipc-npm-package.html) | [StepSecurity](https://www.stepsecurity.io/blog/node-ipc-npm-supply-chain-attack) | [Socket.dev](https://socket.dev/blog/node-ipc-package-compromised) | [Snyk](https://snyk.io/blog/malicious-node-ipc-versions-published-npm/) | [Semgrep analysis](https://semgrep.dev/blog/2026/not-your-ipc-but-node-ipc-npm-hit-again-with-supply-chain-attack-but-this-time-its-not-a-worm/)
+
+#### Wave D — AntV "Here We Go Again" (May 19, 2026)
 
 The largest mini wave to date. **323 packages, 637 versions, ~16M weekly downloads** affected via the compromised `atool` maintainer account. Published in two automated bursts:
 
@@ -685,7 +703,7 @@ npm pkg get scripts --json
 
 ## Incident Response: If You Installed a Compromised Package
 
-If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), or any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window — treat the host as compromised:
+If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), `node-ipc@9.1.6`/`9.2.3`/`12.0.1` (May 14, **also check transitive deps — `--ignore-scripts` does NOT protect against this one**), or any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window — treat the host as compromised:
 
 ### Immediate (within 1 hour)
 
