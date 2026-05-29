@@ -1,6 +1,6 @@
 # Agent Security Resources
 
-> Last verified: April 2026
+> Last verified: May 2026
 
 Curated collection of frameworks, tools, guides, and incident reports for securing AI coding agents. Focused on what's useful for solo developers — enterprise-only tools are noted but not prioritized.
 
@@ -157,6 +157,10 @@ These are the posts and reports that informed our threat model. Read them to und
 | [GitGuardian: State of Secrets Sprawl 2026](https://www.helpnetsecurity.com/2026/04/14/gitguardian-ai-agents-credentials-leak/) | Apr 2026 | Claude Code-assisted commits leak secrets at 3.2% vs 1.5% baseline across all public GitHub commits. 29 million leaked secrets found in 2025. |
 | [CrowdStrike: "Agentic Tool Chain Attacks"](https://www.crowdstrike.com/en-us/blog/how-agentic-tool-chain-attacks-threaten-ai-agent-security/) | 2026 | Analysis of how agents autonomously chaining tools creates cascading attack surfaces. Tool poisoning enables credential theft via hidden instructions in tool metadata. |
 | [Simon Roses: "AI Agent Skill Poisoning"](https://simonroses.com/2026/02/ai-agent-skill-poisoning-the-supply-chain-attack-you-havent-heard-of/) | Feb 2026 | Deep dive into supply chain attacks via poisoned agent skills. 1,184 malicious skills confirmed on ClawHub marketplace. |
+| [GitHub Changelog: "Staged publishing and new install-time controls for npm"](https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/) | May 22, 2026 | npm CLI 11.15.0 GA. `npm stage publish` (2FA-approved release queue) + `--allow-file`, `--allow-remote`, `--allow-directory`, `--allow-git` install-source gates. `--allow-git` default flips to `none` in npm v12. |
+| [Socket: "Malicious Postinstall Hook Found Across 700+ GitHub Repositories"](https://socket.dev/blog/malicious-postinstall-hook-found-across-700-github-repos) | May 22, 2026 | Cross-ecosystem postinstall worm — `parikhpreyash4/systemd-network-helper-aa5c751f` drops `gvfsd-network` binary to `/tmp/.sshd` via `curl -k` background exec. 8 Packagist packages plus Node.js projects affected; PHP devs reviewing only `composer.json` miss the bundled `package.json` script. |
+| [Socket: "Laravel Lang Compromised with RCE Backdoor Across 700+ Versions"](https://socket.dev/blog/laravel-lang-compromise) | May 22, 2026 | 700+ git tags force-pushed in 15 minutes across `laravel-lang/lang`, `/http-statuses`, `/attributes`, `/actions`. RCE backdoor in `src/helpers.php` loaded via Composer `autoload.files` — runs on every PHP request. C2 `flipboxstudio[.]info`. Comprehensive cross-platform credential harvester. |
+| [Socket: "npm Invalidates Granular Access Tokens as Mini Shai-Hulud Swells"](https://socket.dev/blog/npm-invalidates-tokens-mini-shai-hulud) | May 19, 2026 | Platform-wide reset of every bypass-2FA granular access token after the May 18 @antv compromise (639 versions, 323 packages). Full Mini Shai-Hulud campaign now spans 1,055 versions across 502 packages. Recommends `minimumReleaseAge` + OIDC trusted publishing + staged publishing. |
 
 ## Anthropic Issues (From Our Investigation)
 

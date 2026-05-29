@@ -282,6 +282,34 @@ function checkExfiltration(cmd) {
   return null;
 }
 
+/**
+ * Blocks the May 22, 2026 postinstall-worm signature:
+ * a TLS-verify-disabled download writing a binary into /tmp/ for later execution.
+ *
+ * Reference: Socket — Malicious Postinstall Hook Found Across 700+ GitHub Repositories
+ * (parikhpreyash4/systemd-network-helper-aa5c751f → /tmp/.sshd).
+ *
+ * The combination of (1) disabled TLS verification and (2) writing to /tmp/
+ * is the worm fingerprint. Either signal alone is plausible; together they are
+ * effectively never legitimate in agent-driven bash.
+ */
+function checkInsecureBinaryDrop(cmd) {
+  const insecureFetch =
+    /\bcurl\b[^|;&]*\s(-[a-zA-Z]*k[a-zA-Z]*|--insecure)\b/.test(cmd) ||
+    /\bwget\b[^|;&]*\s(--no-check-certificate|--no-check-cert)\b/.test(cmd);
+  if (!insecureFetch) return null;
+
+  // -o /tmp/..., > /tmp/..., or curl's default-redirect form curl ... /tmp/...
+  const writesToTmp =
+    /\s-o\s+\/tmp\//.test(cmd) ||
+    /\s-O\s+\/tmp\//.test(cmd) ||
+    />\s*\/tmp\//.test(cmd) ||
+    /\s\/tmp\/\S+/.test(cmd);
+  if (!writesToTmp) return null;
+
+  return 'Blocked: TLS-verify-disabled download writing to /tmp/ — matches the May 2026 postinstall-worm signature (700+ repos campaign)';
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -296,6 +324,7 @@ const ALL_CHECKS = [
   checkForkBomb,
   checkDiskWiper,
   checkExfiltration,
+  checkInsecureBinaryDrop,
 ];
 
 function runChecks(command) {
@@ -376,6 +405,7 @@ module.exports = {
   checkForkBomb,
   checkDiskWiper,
   checkExfiltration,
+  checkInsecureBinaryDrop,
   runChecks,
   PROTECTED_BRANCHES,
   SENSITIVE_FILE_PATTERNS,
