@@ -895,7 +895,7 @@ If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@20
 ### Immediate (within 1 hour)
 
 1. **Rotate ALL credentials** — GitHub tokens, npm tokens, AWS/GCP/Azure credentials, SSH keys. Assume everything is compromised.
-2. **Check for persistence** (run `scripts/scan-shai-hulud-may2026.sh` from this repo, or check manually):
+2. **Check for persistence** (run `scripts/scan-shai-hulud-may2026.sh` for waves through May 19 and `scripts/scan-g747-may22.sh` for the May 22 IOCs — postinstall worm, Laravel-Lang RCE, Nx Console v18.95.0, TrapDoor zero-width injection — or check manually):
    - `~/.bashrc`, `~/.zshrc` for injected heredoc blocks or base64-decoded curl pipes
    - `/tmp/tmp.987654321.lock` (older Shai-Hulud lock file)
    - `~/Library/LaunchAgents/com.user.kitty-monitor.plist` (macOS, May 19 wave)
