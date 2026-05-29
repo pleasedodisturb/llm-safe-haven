@@ -100,7 +100,7 @@ Source: [Wiz — Mini Shai-Hulud SAP npm](https://www.wiz.io/blog/mini-shai-hulu
 
 In direct response to Shai-Hulud and the broader npm supply chain attack pattern, GitHub published [Our plan for a more secure npm supply chain](https://github.blog/security/supply-chain-security/our-plan-for-a-more-secure-npm-supply-chain/). As of May 22, 2026, the two highest-leverage items have shipped GA:
 
-- **Staged publishing — GA in npm CLI 11.15.0 (May 22, 2026).** `npm stage publish` uploads to a staging queue requiring a 2FA-verified maintainer approval before the version becomes installable. See the [May 22 case study](#case-study-may-22-2026--npm-platform-hardens-two-worms-land) above and the Publishers guide Section 3 below.
+- **Staged publishing — GA in npm CLI 11.15.0 (May 22, 2026).** `npm stage publish` uploads to a staging queue requiring a 2FA-verified maintainer approval before the version becomes installable. See the [May 2026 case study](#case-study-may-2026--npm-platform-hardens-four-waves-land) above and the Publishers guide Section 4 below.
 - **Install-time `--allow-*` controls — GA in npm CLI 11.15.0.** `--allow-file`, `--allow-remote`, `--allow-directory`, and `--allow-git` gate non-registry install sources. `--allow-git` default flips to `none` in npm v12.
 - **Bulk trusted publishing migration tooling** — [GA February 18, 2026](https://github.blog/changelog/2026-02-18-npm-bulk-trusted-publishing-config-and-script-security-now-generally-available/).
 - **Platform-wide token resets** — npm [invalidated every bypass-2FA granular access token](https://socket.dev/blog/npm-invalidates-tokens-mini-shai-hulud) on May 19, 2026 after the @antv compromise.
@@ -126,11 +126,13 @@ This is a structural change to npm publishing, not a policy update. Combined wit
 
 ---
 
-## Case Study: May 22, 2026 — npm Platform Hardens, Two Worms Land
+## Case Study: May 2026 — npm Platform Hardens, Four Waves Land
 
-May 22, 2026 was the first day where npm's platform-level defenses against the Shai-Hulud class of attack went generally available — and on the same day, researchers disclosed two distinct compromise campaigns that those defenses would have blunted.
+May 22, 2026 was the first day where npm's platform-level defenses against the Shai-Hulud class of attack went generally available. The platform response did not appear in a vacuum — it followed four distinct compromise campaigns in 11 days that collectively forced npm to invalidate ~61,274 granular write tokens, remove 640 packages, and ship `npm stage publish` and the new `--allow-*` install-time controls.
 
-We treat it as a single case study because the three events are causally linked: the npm response is the direct consequence of the wave that produced the postinstall-hook campaign, the Laravel Lang takeover, and the May 18 @antv compromise that finally forced npm to invalidate every bypass-2FA token in circulation.
+We treat the cluster as a single case study because the events are causally linked. Each wave demonstrated a defensive gap that the npm CLI 11.15.0 release directly addresses, and one wave (TanStack) bypassed npm's existing trusted-publishing protections by scraping the OIDC token from the GitHub Actions runner's memory — a path that staged publishing's human-in-the-loop approval gate is specifically designed to close.
+
+**Attribution note:** Google GTIG now formally tracks TeamPCP as **UNC6780**, with the credential-stealer payload designated **SANDCLOCK** ([SANS ISC Update 007](https://isc.sans.edu/diary/32880)). The TanStack and @antv waves are attributed to UNC6780. The May 22 700-repo postinstall campaign and the Laravel Lang takeover are **not** publicly linked to UNC6780 — treat them as independent campaigns operating in the same window until attribution is published.
 
 ### The npm response: Staged Publishing GA + install-time controls
 
@@ -148,13 +150,39 @@ We treat it as a single case study because the three events are causally linked:
 
    Each flag takes `all` (current default) or `none`, and can be set on the command line, in `.npmrc`, or in `package.json`. **In npm v12, `--allow-git` defaults to `none`** — auditing your git-URL dependencies before that change ships is the cheapest hardening move available today.
 
-This is the platform response to the broader Mini Shai-Hulud campaign. Three days earlier, [npm invalidated every granular access token with write access that bypasses 2FA](https://socket.dev/blog/npm-invalidates-tokens-mini-shai-hulud) after the May 18 wave compromised 639 malicious versions across 323 packages in the `@antv` ecosystem. The full Mini Shai-Hulud campaign now spans **1,055 compromised versions across 502 packages**. The worm's pattern is consistent: scan developer machines and CI runners for npm credentials, then republish poisoned versions of every package the victim maintains.
+This is the platform response to the broader Mini Shai-Hulud campaign. Three days earlier, [npm invalidated ~61,274 granular access tokens with write access that bypass 2FA](https://socket.dev/blog/npm-invalidates-tokens-mini-shai-hulud) after the May 18 wave compromised 639 malicious versions across 323 packages in the `@antv` ecosystem. As of late May 2026 the campaign spans **1,055 compromised versions across 502 packages** ([Mandiant counts 1,000+ downstream SaaS environments compromised](https://isc.sans.edu/diary/33014)). The worm's pattern is consistent: scan developer machines and CI runners for npm credentials, then republish poisoned versions of every package the victim maintains.
 
-### Worm #1: Postinstall hook across 700+ GitHub repositories
+### Wave #1: TanStack ecosystem (May 10–11, 2026) — OIDC scraped from runner memory
 
-[Socket disclosed on May 22, 2026](https://socket.dev/blog/malicious-postinstall-hook-found-across-700-github-repos) that the same malicious `postinstall` hook had been planted across **700+ GitHub repositories**, including **8 confirmed Packagist (PHP) packages** and an unknown number of Node.js projects. The cross-ecosystem trick is the point: PHP developers reviewing `composer.json` overlook the `package.json` script that ships in the same repository.
+[StepSecurity disclosed](https://www.stepsecurity.io/blog/mini-shai-hulud-is-back-a-self-spreading-supply-chain-attack-hits-the-npm-ecosystem) that UNC6780 compromised 84 versions across 42 `@tanstack` packages plus collateral damage in `@mistralai/mistralai` 2.2.3/2.2.4, `@opensearch-project/opensearch` 3.6.2, and PyPI variants of Guardrails AI and UiPath. Top-impact package: `@tanstack/react-router` (~12M weekly downloads). CVE assigned: **CVE-2026-45321 (CVSS 9.6)**.
 
-Affected packages include `devdojo/wave` (~6,400 stars, Laravel SaaS kit, 9,100+ Packagist installs combined with `devdojo/genesis`), `moritz-sauer-13/silverstripe-cms-theme`, `crosiersource/crosierlib-base`, `katanaui/katana`, and `elitedevsquad/sidecar-laravel`.
+**The novel TTP:** the attacker abused `pull_request_target` plus GitHub Actions cache poisoning to **scrape the OIDC token from `/proc/{pid}/mem` of `Runner.Worker`** and then publish via TanStack's legitimate npm Trusted Publishing identity. **The Sigstore provenance attestations on the malicious versions were technically valid** — they linked to the genuine GitHub repo and a real workflow run. Trusted publishing's "this version was built by the right pipeline" guarantee was satisfied while the version itself was malicious.
+
+This wave is the strongest case for staged publishing on the books. Trusted publishing alone is insufficient when the runner can be made to publish on the attacker's behalf — a 2FA-verified human approval step in the staged-publish queue catches what valid provenance cannot.
+
+IOCs: `git-tanstack[.]com` (typosquat), `filev2.getsession[.]org` (Session Protocol exfil, RSA-4096-OAEP + AES-256-GCM), `api.masscan[.]cloud`. Drop files: `.claude/router_runtime.js`, `.github/workflows/codeql_analysis.yml`, `router_init.js` (~2.3 MB). Attacker GitHub account: `voicproducoes`. Commits spoofed `claude@users.noreply.github.com` as author.
+
+**AI-config propagation: confirmed.** The payload drops `.claude/settings.json` SessionStart hook + `.vscode/tasks.json` `runOn:folderOpen` + paired `.claude/setup.mjs` and `.vscode/setup.mjs`. This is the third confirmed wave reusing the AI-coding-agent config weaponization first seen on April 22 and refined on April 29.
+
+### Wave #2: Nx Console VS Code extension (May 18, 2026) — first AI-config exfil target
+
+The `nrwl.angular-console` extension (2.2M installs, verified publisher) shipped a malicious v18.95.0 to the VS Code Marketplace for **~18 minutes** ([StepSecurity](https://www.stepsecurity.io/blog/nx-console-vs-code-extension-compromised), [GHSA-c9j4-9m59-847w](https://github.com/nrwl/nx-console/security/advisories/GHSA-c9j4-9m59-847w)). Downstream consequence: GitHub's CISO disclosed ~3,800 GitHub-internal repos exfiltrated, with OpenAI, Grafana Labs, and Mistral AI named as additional victims.
+
+**Why it matters for this guide:** Nx Console v18.95.0 is the first publicly documented supply-chain payload that **specifically targets `~/.claude/settings.json` as an exfiltration target**, not just a propagation vector. (Separately, [Microsoft's @antv writeup](https://www.microsoft.com/en-us/security/blog/2026/05/20/mini-shai-hulud-compromised-antv-npm-packages-enable-ci-cd-credential-theft/) confirmed `.claude/` second-stage execution via `bun run`, so the pattern is now established across two distinct May waves.) The attack pattern this guide warned about in the April case studies is now an active exfil objective, not just persistence.
+
+If you have Nx Console installed, verify your version is not 18.95.0, audit `~/.claude/settings.json` for unexpected hooks, and rotate any credentials accessible from a VS Code-attached terminal.
+
+### Wave #3: Postinstall hook across 700+ GitHub repositories
+
+[Socket disclosed on May 22, 2026](https://socket.dev/blog/malicious-postinstall-hook-found-across-700-github-repos) that the same malicious `postinstall` hook had been planted across **700+ GitHub repositories**, including **8 confirmed Packagist (PHP) packages** and an unknown number of Node.js projects ([Socket](https://socket.dev/blog/malicious-postinstall-hook-found-across-700-github-repos), [The Hacker News](https://thehackernews.com/2026/05/packagist-supply-chain-attack-infects-8.html)). To our knowledge this is the **first publicly disclosed instance** of bundling an npm-style `package.json` `postinstall` hook inside a Packagist package as a cross-ecosystem evasion — PHP developers reviewing `composer.json` overlook the script entirely.
+
+**Attribution:** **not** publicly linked to UNC6780, TeamPCP, Mini Shai-Hulud, or CanisterSprawl as of late May 2026. Socket, The Hacker News, and Semgrep all treat it as a separate, unnamed actor. Don't conflate it with the surrounding npm worm activity.
+
+The canonical 8 affected Packagist packages: `devdojo/wave` (~6,400 stars, `dev-main`), `devdojo/genesis` (`dev-main`), `katanaui/katana` (`dev-main`), `elitedevsquad/sidecar-laravel` (`3.x-dev`), `moritz-sauer-13/silverstripe-cms-theme` (`dev-master`), `crosiersource/crosierlib-base` (`dev-master`), `r2luna/brain` (`dev-main`), and `baskarcm/tzi-chat-ui` (`dev-main`).
+
+**Critical defensive nuance:** every compromise targeted **branch-tracking constraints** (`dev-main`, `dev-master`, `3.x-dev`) — never a published semver tag. Consumers who pinned to `^x.y.z` or any tagged version were **not** exposed. Anyone whose `composer.json` references one of those eight packages by a `dev-*` constraint AND has not refreshed their lockfile since the May 22 takedown should treat the host as compromised. The defensive rule is "audit `composer.json` for `dev-*` constraints," not "audit `composer.lock` for the package."
+
+**Takedown status (as of May 29, 2026):** the `parikhpreyash4` GitHub account has been removed, the `gvfsd-network` release URL is dead, and Packagist has pulled all 8 malicious package versions. New installs are no longer possible; previously installed hosts remain at risk.
 
 **Payload behavior:**
 
@@ -181,9 +209,9 @@ IOCs:
 
 The second-stage binary was not retrieved by researchers, so the exfiltration targets remain unconfirmed — but the access patterns of the surrounding Mini Shai-Hulud waves suggest the standard credential-harvester template.
 
-### Worm #2: Laravel Lang RCE backdoor across 700+ versions
+### Wave #4: Laravel Lang RCE backdoor across 700+ versions
 
-[Socket and Aikido jointly disclosed](https://socket.dev/blog/laravel-lang-compromise) that an attacker with push access to the Laravel-Lang GitHub organization **force-pushed 700+ git tags across four Composer packages in a 15-minute window** on May 22–23, 2026, injecting a remote-code-execution backdoor into every historical version.
+[Socket and Aikido jointly disclosed](https://socket.dev/blog/laravel-lang-compromise) that an attacker with one compromised credential for the Laravel-Lang GitHub organization **force-pushed 700+ git tags across four Composer packages in a 15-minute window** on May 22–23, 2026, injecting a remote-code-execution backdoor into every historical version. [Aikido](https://www.aikido.dev/blog/supply-chain-attack-targets-laravel-lang-packages-with-credential-stealer) attributes the mechanism to abuse of GitHub's cross-fork tag feature (tags can legitimately point to commits in a fork of the same repo). The specific initial-access vector — stolen PAT, phished maintainer, OAuth app abuse, or compromised CI — has not been published as of late May 2026.
 
 Affected packages:
 
@@ -216,23 +244,41 @@ IOCs:
 - Malicious file: `src/helpers.php`
 - Windows artifact: `DebugChromium.exe`
 
+**Cleanup nuance — no clean tag exists.** Every tag was rewritten in place, so there is no untainted semver to pin to. The only safe mitigation is to **pin to a commit SHA dated before 2026-05-22 22:32 UTC**, verified against a local clone or Packagist dist mirror, until Laravel-Lang publishes a fresh version cut from a clean fork. Phoenix Security and StepSecurity both confirm this constraint. Packagist temporarily unlisted all four packages and removed the malicious dist artifacts ([Aikido](https://www.aikido.dev/blog/supply-chain-attack-targets-laravel-lang-packages-with-credential-stealer)).
+
+**Composer-side defenses worth knowing:** `composer audit` (≥ 2.4) checks installed packages against the Packagist advisory DB; Composer 2.9 auto-blocks updates to flagged versions. `allow-plugins` config (≥ 2.2) restricts which plugins can execute code at install. There is **no native Composer flag that disables `autoload.files`** — the only mitigation is pinning to a commit SHA and diffing the `vendor/` tree for new `autoload.files` entries after every update. Packagist rolled out org-level 2FA enforcement and tag-rewrite anomaly detection post-incident ([Packagist blog](https://blog.packagist.com/an-update-on-composer-packagist-supply-chain-security/)).
+
+The exfil endpoint at `flipboxstudio[.]info` is a typosquat of the legitimate `flipboxstudio.com`. Endpoints: `GET /payload`, `POST /exfil`. XOR key on the exfil payload: `k9X2mP7vL4nQ8wR1`. The hostname is reconstructed at runtime via `array_map('chr', [...])` to evade static scans.
+
 **If you have any Laravel Lang version installed:** treat every host, container, CI runner, and developer machine that ran the package as compromised. Run `composer audit`, rotate every credential the harvester targets, and rebuild from clean images. Preserve logs before cleanup.
 
 ### Why this matters for AI agent developers
 
-1. **`--ignore-scripts` is no longer the only defense for non-registry sources.** Pair it with `--allow-remote=none` and audit your `--allow-git` exposure before npm v12 flips that default.
-2. **Cross-ecosystem postinstall is a viable attack pattern.** If you maintain a PHP project that ships a `package.json` (for build tooling, asset pipelines, etc.), reviewing only `composer.json` misses half the install-time surface.
-3. **`autoload.files` in `composer.json` is a runtime equivalent of `preinstall`.** Audit it the same way. Anything listed there runs on every PHP request.
-4. **Staged publishing changes the publisher trust model.** If you publish npm packages from CI, switch to `npm stage publish` and require human approval — see Section 3 of the Publishers guide below.
+1. **Trusted publishing alone is not sufficient when the runner can be poisoned.** The TanStack wave produced **valid Sigstore provenance attestations** on malicious versions by scraping the OIDC token from runner memory. Pair trusted publishing with **staged publishing** so a 2FA-verified human approval gates the release.
+2. **`.claude/settings.json` and `.vscode/tasks.json` are confirmed AI-agent persistence + exfil targets.** Two of the four May 2026 waves in this case study (TanStack, Nx Console) read or write these files, and the parallel @antv compromise documented by Microsoft Security used `bun run .claude/` for second-stage execution. If you use Claude Code or VS Code, audit those files on every clone — the bash-firewall hook in `hooks/bash-firewall.js` covers the `curl -k`-style drop signature.
+3. **`--ignore-scripts` is no longer the only defense for non-registry sources.** Pair it with `--allow-remote=none` and audit your `--allow-git` exposure before npm v12 flips that default.
+4. **Cross-ecosystem postinstall is a novel, in-the-wild attack pattern.** If you maintain a PHP project that ships a `package.json` (for build tooling, asset pipelines, etc.), reviewing only `composer.json` misses half the install-time surface.
+5. **`autoload.files` in `composer.json` is a stronger persistence vector than npm `preinstall`.** `preinstall` fires once at install; `autoload.files` is eager — it loads on every `require vendor/autoload.php`, which means every PHP request. Audit it on every Composer update.
+6. **Staged publishing changes the publisher trust model.** If you publish npm packages from CI, switch to `npm stage publish` and require human approval — see Section 4 of the Publishers guide below.
 
 ### Sources
 
 - [GitHub Changelog — Staged publishing and new install-time controls for npm](https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/)
-- [Socket — Malicious Postinstall Hook Found Across 700+ GitHub Repositories](https://socket.dev/blog/malicious-postinstall-hook-found-across-700-github-repos)
-- [Socket — Laravel Lang Compromised with RCE Backdoor Across 700+ Versions](https://socket.dev/blog/laravel-lang-compromise)
-- [Socket — npm Invalidates Granular Access Tokens as Mini Shai-Hulud Swells](https://socket.dev/blog/npm-invalidates-tokens-mini-shai-hulud)
-- [Phoenix Security — Laravel Lang Composer supply chain compromise](https://phoenix.security/laravel-lang-composer-supply-chain-compromise-rce-backdoor/)
+- [npm Docs — Staged publishing](https://docs.npmjs.com/staged-publishing/) | [Trusted publishers](https://docs.npmjs.com/trusted-publishers/) | [npm/cli PR #9201](https://github.com/npm/cli/pull/9201)
+- [StepSecurity — Mini Shai-Hulud is back (TanStack wave)](https://www.stepsecurity.io/blog/mini-shai-hulud-is-back-a-self-spreading-supply-chain-attack-hits-the-npm-ecosystem)
 - [Wiz — Mini Shai-Hulud Strikes Again: TanStack + more packages compromised](https://www.wiz.io/blog/mini-shai-hulud-strikes-again-tanstack-more-npm-packages-compromised)
+- [Snyk — TanStack npm packages compromised](https://snyk.io/blog/tanstack-npm-packages-compromised/)
+- [Tenable — CVE-2026-45321 Mini Shai-Hulud FAQ](https://www.tenable.com/blog/mini-shai-hulud-frequently-asked-questions)
+- [StepSecurity — Nx Console VS Code extension compromised](https://www.stepsecurity.io/blog/nx-console-vs-code-extension-compromised) | [GHSA-c9j4-9m59-847w](https://github.com/nrwl/nx-console/security/advisories/GHSA-c9j4-9m59-847w)
+- [Microsoft Security — Mini Shai-Hulud @antv CI/CD credential theft](https://www.microsoft.com/en-us/security/blog/2026/05/20/mini-shai-hulud-compromised-antv-npm-packages-enable-ci-cd-credential-theft/)
+- [Wiz — TeamPCP hits @antv supply chain](https://www.wiz.io/blog/mini-shai-hulud-teampcp-hits-antv-supply-chain)
+- [Socket — Malicious Postinstall Hook Found Across 700+ GitHub Repositories](https://socket.dev/blog/malicious-postinstall-hook-found-across-700-github-repos) | [The Hacker News — 8 Packagist packages](https://thehackernews.com/2026/05/packagist-supply-chain-attack-infects-8.html)
+- [Socket — Laravel Lang Compromised with RCE Backdoor](https://socket.dev/blog/laravel-lang-compromise) | [Aikido writeup](https://www.aikido.dev/blog/supply-chain-attack-targets-laravel-lang-packages-with-credential-stealer) | [Phoenix Security](https://phoenix.security/laravel-lang-composer-supply-chain-compromise-rce-backdoor/) | [Mend](https://www.mend.io/blog/laravel-lang-composer-tag-rewrite-supply-chain-attack/)
+- [Socket — npm Invalidates Granular Access Tokens as Mini Shai-Hulud Swells](https://socket.dev/blog/npm-invalidates-tokens-mini-shai-hulud)
+- [Datadog Security Labs — Shai-Hulud framework open-sourced (May 22)](https://securitylabs.datadoghq.com/articles/shai-hulud-open-source-framework-static-analysis/)
+- [SANS ISC — UNC6780 / SANDCLOCK attribution](https://isc.sans.edu/diary/32880) | [SANS ISC — activity through 2026-05-24](https://isc.sans.edu/diary/33014)
+- [Unit 42 — npm threat landscape May 21](https://unit42.paloaltonetworks.com/monitoring-npm-supply-chain-attacks/)
+- [Packagist — composer.audit response post-Laravel-Lang](https://blog.packagist.com/an-update-on-composer-packagist-supply-chain-security/)
 
 ---
 
@@ -490,7 +536,7 @@ jobs:
 
 ### 4. Use staged publishing for human approval before exposure
 
-Trusted publishing protects against stolen tokens but does **not** protect against a compromised CI pipeline that legitimately publishes a poisoned version (the exact Shai-Hulud Third Coming pattern). Staged publishing, GA in npm CLI 11.15.0 (May 22, 2026), inserts a 2FA-verified human approval step between CI and the registry.
+Trusted publishing protects against stolen tokens but does **not** protect against a compromised CI pipeline that legitimately publishes a poisoned version (the exact Shai-Hulud Third Coming pattern, and now the TanStack OIDC-mem-scrape pattern). Staged publishing, GA in npm CLI 11.15.0 (May 22, 2026), inserts a 2FA-verified human approval step between CI and the registry.
 
 ```yaml
 - run: npm stage publish --access public
@@ -499,17 +545,21 @@ Trusted publishing protects against stolen tokens but does **not** protect again
 
 Then a maintainer approves the staged version from a trusted device, providing a 2FA challenge. The version becomes installable only after approval.
 
+The `npm stage` subcommand family covers the full review surface: `npm stage list` (see what's queued), `npm stage view <stage-id>` (metadata), `npm stage download <stage-id>` (pull the tarball for local inspection before approving), `npm stage approve <stage-id>` and `npm stage reject <stage-id>`. **Approval and rejection require interactive auth — they cannot use OIDC or granular tokens.** CI can only call `npm stage publish`. This is the load-bearing security property: it forces proof-of-presence for the release decision.
+
 **Recommended pairing — trusted publishing in stage-only mode:**
 
-1. Configure your npm Trusted Publisher entry on npmjs.com to allow staging only (not direct publish).
-2. CI calls `npm stage publish` non-interactively.
-3. Maintainer reviews the diff, the build log, and the provenance attestation in the npmjs.com UI.
+1. On npmjs.com: Package Settings → Publishing access → "Require 2FA and disallow tokens", then in the Trusted Publisher entry set Allowed actions to `npm stage publish` only.
+2. CI calls `npm stage publish` non-interactively. The registry rejects any direct `npm publish` against a stage-only TP.
+3. Maintainer pulls the staged tarball with `npm stage download <stage-id>` and inspects it locally — `npm stage view` shows metadata, but the byte-level review happens on the downloaded tarball.
 4. Maintainer approves with 2FA. Only now is the version live.
 
-This combination would have blocked the Bitwarden CLI compromise: even with a legitimately compromised CI pipeline, the malicious version would have sat in staging until a human maintainer approved it — and the version mismatch between `package.json` (`2026.4.0`) and embedded `build/bw.js` (`2026.3.0`) would have been visible in the approval UI.
+This combination would have blocked the Bitwarden CLI compromise: even with a legitimately compromised CI pipeline, the malicious version would have sat in staging. A maintainer running `npm stage download` and diffing the tarball against the expected source tree would have seen the version mismatch between `package.json` (`2026.4.0`) and embedded `build/bw.js` (`2026.3.0`).
 
-**Requirements:**
+**Requirements and gotchas:**
 - npm CLI 11.15.0 or newer (`npm install -g npm@latest`)
+- Node ≥ 22.14.0 (npm 11.15.0 will not install on older Node versions)
+- **First publish of a new package cannot be staged** — `npm stage publish` requires the package to already exist on the registry. Use `npm publish` for `v1.0.0`, then switch to `npm stage publish` for subsequent releases. Configuring a stage-only Trusted Publisher before first publish will lock you out.
 - A trusted device with the maintainer's 2FA enrolled
 - Workflow uses `npm stage publish` instead of `npm publish`
 
@@ -851,4 +901,4 @@ If you installed `@bitwarden/cli@2026.4.0` during the 93-minute window, or any c
 
 ---
 
-*Last updated: April 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
+*Last updated: May 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
