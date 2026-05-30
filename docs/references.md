@@ -32,6 +32,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [gitleaks/gitleaks](https://github.com/gitleaks/gitleaks) | ~26.2K | Fast git secret scanner. Pre-commit hooks and CI integration. Good complement to TruffleHog for different detection patterns. |
 | [GitGuardian/ggshield](https://github.com/GitGuardian/ggshield) | ~1.9K | CLI secret scanner with 550+ secret types. Now scans prompts, tool calls, and agent actions in real-time. Free tier available. 700K+ developers on GitHub Marketplace. |
 | [vulnerablemcp.info](https://vulnerablemcp.info/) | — | Community MCP vulnerability database. Comprehensive catalog of known CVEs and attack patterns across MCP server implementations. Purpose-built equivalent of CVE/NVD for the MCP ecosystem. |
+| [golf-mcp/golf-scanner](https://github.com/golf-mcp/golf-scanner) | ~7 | Open-source Go CLI that discovers MCP server configurations across 7 IDEs (Claude Code, Cursor, VS Code, Windsurf, Gemini CLI, Kiro, Antigravity) and runs 20 security checks (9 offline + 11 online against OSV, npm, PyPI, OCI registries). Produces a 0–100 risk score per server with severity-weighted scoring. Zero telemetry, no account, single static binary. Apache 2.0. |
 
 ## Credential Management
 
