@@ -422,6 +422,8 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 | AI coding tool content-filter bypass | High | Local attacker bypasses AI suggestion filters and consent gates, enabling malicious suggestion injection | [CVE-2026-41109 — Copilot/VS Code (May 2026)](https://www.thehackerwire.com/github-copilot-visual-studio-injection-bypasses-security-feature-cve-2026-41109/) |
 | Bare repo fsmonitor command execution | High | Nested bare git repo triggers `core.fsmonitor` during agent git operations to execute arbitrary commands | [CVE-2026-45033 — Copilot CLI](https://advisories.gitlab.com/npm/@github/copilot/CVE-2026-45033/) |
 | Git worktree commondir trust bypass | High | Malicious `.git/commondir` file spoofs a previously trusted path, causing Claude Code to skip the trust dialog and execute `.claude/settings.json` hooks silently on project open | [CVE-2026-40068 — Claude Code (May 2026)](https://github.com/anthropics/claude-code/security/advisories/GHSA-q5hj-mxqh-vv77) |
+| Unauthenticated MCP endpoint — nginx-ui | Critical | nginx-ui `/mcp_message` endpoint lacks authentication middleware; empty default IP whitelist treated as allow-all; unauthenticated network attacker invokes all MCP tools including nginx restart, config creation/deletion, and service reload — complete nginx service takeover | [CVE-2026-33032 / MCPwn — nginx-ui (Apr 2026)](https://github.com/advisories/GHSA-h6c2-x2m2-mwhf) |
+| Azure MCP Server SSRF → cloud credential theft | High | SSRF in Azure MCP Server causes it to make outbound requests to attacker-controlled URLs while attaching its managed identity token; enables cloud lateral movement and privilege escalation across Azure Resource Manager, storage, and other services | [CVE-2026-26118 — Azure MCP Server (Mar 2026)](https://github.com/advisories/GHSA-hhfx-wfvq-7g9c) |
 
 ## Real Incidents Timeline
 
@@ -470,6 +472,16 @@ Anthropic patched CVE-2026-40068 in Claude Code v2.1.84 (CVSS 7.7). The folder t
 **Why it matters for solo devs:** This is the third Claude Code trust-model bypass (after CVE-2025-59536 and CVE-2026-24887). The `.git/commondir` file is not naturally visible or suspicious during a manual repo inspection. Upgrading to v2.1.84 or later is the only fix. Users on auto-update received the patch automatically; users who pin versions must update manually.
 
 Source: [GitHub Advisory GHSA-q5hj-mxqh-vv77 / CVE-2026-40068](https://github.com/anthropics/claude-code/security/advisories/GHSA-q5hj-mxqh-vv77) | Reported by masato_anzai via HackerOne
+
+### May 2026 — Typosquatted OpenSearch npm Packages Steal Cloud Secrets (vpmdhaj, May 28)
+
+Microsoft Threat Intelligence identified 14 typosquatted npm packages published in a 4-hour window on May 28, 2026 under the maintainer alias **vpmdhaj**. Packages impersonate OpenSearch, ElasticSearch, and generic DevOps configuration tools. The ~195 KB Bun-compiled payload harvests AWS credentials (IMDSv2, ECS metadata, STS, Secrets Manager), HashiCorp Vault tokens, npm publish tokens, and GitHub Actions credentials, exfiltrating to `aab.sportsontheweb[.]net/x.php`.
+
+**Attribution:** Not linked to UNC6780/TeamPCP/CanisterSprawl — a separate independent actor.
+
+**Affected packages include:** `opensearch-security-scanner`, `opensearch-setup`, `opensearch-setup-tool`, `@vpmdhaj/elastic-helper`, `@vpmdhaj/devops-tools`, `env-config-manager`, and 8 others.
+
+Source: [Microsoft Security Blog — Typosquatted npm packages used to steal cloud and CI/CD secrets (May 28, 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/28/typosquatted-npm-packages-used-steal-cloud-ci-cd-secrets/)
 
 ### April 2026 — Bitwarden CLI Supply Chain Attack (Shai-Hulud)
 
@@ -601,6 +613,12 @@ Source: [The Hacker News — Claude Mythos Finds Thousands of Zero-Day Flaws](ht
 Within 24 hours of the March source code leak, threat actors pivoted to distributing Vidar stealer and GhostSocks proxy malware through fake "leaked" Claude Code downloads. 38 distinct 7z archives impersonating 25+ software brands. Active campaign since February 2026.
 
 Source: [Trend Micro — Weaponizing Trust Signals](https://www.trendmicro.com/en_us/research/26/d/weaponizing-trust-claude-code-lures-and-github-release-payloads.html)
+
+### April 2026 — nginx-ui MCP Endpoint Authentication Bypass Actively Exploited (CVE-2026-33032)
+
+Pluto Security researcher yotampe-pluto disclosed that nginx-ui's MCP integration exposes an unauthenticated endpoint. The `/mcp_message` endpoint lacks the authentication middleware protecting `/mcp`, while the default IP whitelist is empty (treated as allow-all). Any network attacker can invoke all MCP tools without credentials — including nginx restart, configuration file creation/modification/deletion, and service reload — achieving complete nginx service takeover. CVSS 9.8. ~2,600 publicly reachable instances. Exploitation in the wild confirmed.
+
+Source: [GitHub Advisory GHSA-h6c2-x2m2-mwhf / CVE-2026-33032](https://github.com/advisories/GHSA-h6c2-x2m2-mwhf)
 
 ### March 2026 — Claude Code Source Code Leak
 

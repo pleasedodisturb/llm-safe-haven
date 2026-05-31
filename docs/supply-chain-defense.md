@@ -299,6 +299,18 @@ The exfil endpoint at `flipboxstudio[.]info` is a typosquat of the legitimate `f
 
 **If you have any Laravel Lang version installed:** treat every host, container, CI runner, and developer machine that ran the package as compromised. Run `composer audit`, rotate every credential the harvester targets, and rebuild from clean images. Preserve logs before cleanup.
 
+### Follow-on: May 28, 2026 — Typosquatted npm packages (vpmdhaj)
+
+Four days after the May 22 wave, Microsoft Threat Intelligence tracked a separate, unattributed actor publishing 14 typosquatted npm packages in a 4-hour window under the alias **vpmdhaj**. The packages impersonate OpenSearch, ElasticSearch, and generic DevOps configuration tooling — prime targets for developer environments that already use the real `@opensearch-project/` family.
+
+**Payload:** A ~195 KB Bun-compiled binary that harvests AWS credentials (IMDSv2, ECS task metadata, STS, Secrets Manager), HashiCorp Vault tokens, npm publish tokens, and GitHub Actions runtime credentials. Exfiltration target: `aab.sportsontheweb[.]net/x.php`.
+
+**Affected packages (14 total):** `opensearch-security-scanner`, `opensearch-setup`, `opensearch-setup-tool`, `opensearch-client-helper`, `opensearch-node-client`, `elasticsearch-helper`, `elasticsearch-node-client`, `@vpmdhaj/elastic-helper`, `@vpmdhaj/devops-tools`, `@vpmdhaj/cloud-config`, `env-config-manager`, `aws-env-loader`, `vault-secret-loader`, `ci-env-helper`.
+
+**Attribution:** Microsoft does not link vpmdhaj to UNC6780/TeamPCP/CanisterSprawl. This is a separate independent actor demonstrating that cloud-credential typosquatting has become a repeatable playbook, not a single-actor operation.
+
+Source: [Microsoft Security Blog — Typosquatted npm packages used to steal cloud and CI/CD secrets (May 28, 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/28/typosquatted-npm-packages-used-steal-cloud-ci-cd-secrets/)
+
 ### Why this matters for AI agent developers
 
 1. **Trusted publishing alone is not sufficient when the runner can be poisoned.** The TanStack wave produced **valid Sigstore provenance attestations** on malicious versions by scraping the OIDC token from runner memory. Pair trusted publishing with **staged publishing** so a 2FA-verified human approval gates the release.
