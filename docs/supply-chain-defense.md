@@ -341,6 +341,55 @@ Source: [Microsoft Security Blog — Typosquatted npm packages used to steal clo
 
 ---
 
+## Case Study: GlassWorm — First Self-Propagating IDE Extension Worm (2025–May 2026 Takedown)
+
+While Shai-Hulud/CanisterSprawl targets the npm ecosystem, a parallel supply-chain threat has been operating in the VS Code extension marketplace. GlassWorm is the first confirmed self-propagating worm to spread through an IDE extension registry, and its takedown on May 26, 2026 revealed a campaign that had been active for over a year.
+
+### What happened
+
+GlassWorm spread through the OpenVSX marketplace via trojanized extensions (including `specstudio/code-wakatime-activity-tracker` and `floktokbok.autoimport`). Once installed, the worm used each IDE's own command-line installer to push the GlasswormRAT payload to every VS Code fork on the machine — VS Code, Cursor, Windsurf, VSCodium, and Positron. Zig-compiled native binaries bypassed signature-based detection.
+
+The payload (GlasswormRAT) harvested npm tokens, GitHub tokens, Git credentials, and 49 browser-based crypto wallet extensions. It also deployed a SOCKS5 proxy and used stolen publisher credentials to self-propagate by publishing additional trojanized extensions under the victim's publisher account.
+
+An enabling condition was the **Open Sesame** vulnerability (Koi Security, Feb 8, 2026 disclosure, fixed in Open VSX 0.32.0): a logic bug in the pre-publish scanner pipeline caused scanner failures to be silently treated as "nothing to scan" — malicious extensions passed the vetting process on demand.
+
+### C2 infrastructure
+
+GlassWorm used four independent C2 channels simultaneously, which is why single-channel blocking was insufficient:
+
+| Channel | Mechanism |
+|---------|-----------|
+| Solana blockchain | C2 server addresses encoded in transaction memo fields |
+| BitTorrent DHT | Configuration data stored in the distributed hash table |
+| Google Calendar | Base64-encoded C2 paths embedded in public event titles |
+| Direct VPS | Fallback connections to commercial hosting providers |
+
+CrowdStrike Counter Adversary Operations, Google, and Shadowserver Foundation struck all four channels simultaneously at 14:00 UTC, May 26, 2026. Infected machines now beacon to the CrowdStrike sinkhole `164.92.88[.]210`.
+
+### Scale and attribution
+
+300+ GitHub repositories were poisoned across Windows, macOS, and Linux. Attribution: likely Russia-based (runtime CIS locale check; no state-level attribution confirmed by CrowdStrike).
+
+### What to do right now
+
+1. **Audit your installed VS Code extensions against the two known malicious publishers:** `specstudio/code-wakatime-activity-tracker` and `floktokbok.autoimport`. If either is installed, treat the machine as fully compromised.
+2. **Check for GlasswormRAT sinkhole beacons:** If your machine is making outbound connections to `164.92.88[.]210`, GlasswormRAT was or is present.
+3. **Pin extensions to known-good versions.** Unlike npm, VS Code extensions auto-update silently by default. Disable auto-update in settings: `"extensions.autoUpdate": false`.
+4. **Prefer the VS Code Marketplace over Open VSX where possible.** Microsoft's marketplace has stricter publisher vetting and faster revocation than Open VSX.
+5. **If you are an Open VSX publisher:** rotate your Open VSX publish token (it may have been harvested). Check your extension's publish history for unauthorized releases.
+6. **npm tokens:** If your machine ran any version of the affected extensions, rotate npm tokens. GlasswormRAT specifically targeted npm publish tokens for self-propagation.
+
+### Sources
+
+- [CrowdStrike — Inside CrowdStrike's Takedown of a Developer-Targeting Botnet](https://www.crowdstrike.com/en-us/blog/inside-crowdstrike-takedown-of-a-developer-targeting-botnet/)
+- [CyberScoop — CrowdStrike disrupts Glassworm botnet that preyed on open-source supply chain](https://cyberscoop.com/crowdstrike-glassworm-botnet-takedown/)
+- [The Register — CrowdStrike, Google shatter Glassworm botnet](https://www.theregister.com/cyber-crime/2026/05/27/crowdstrike-google-shatter-glassworm-botnet/5247337)
+- [TechCrunch — CrowdStrike and Google take down botnet used by hackers to target software developers in supply chain attacks](https://techcrunch.com/2026/05/27/crowdstrike-and-google-take-down-botnet-used-by-hackers-to-target-software-developers-in-supply-chain-attacks/)
+- [The Hacker News — Open VSX Bug Let Malicious VS Code Extensions Bypass Pre-Publish Security Checks](https://thehackernews.com/2026/03/open-vsx-bug-let-malicious-vs-code.html)
+- [SecurityWeek — Vulnerability Exposed All Open VSX Repositories to Takeover](https://www.securityweek.com/vulnerability-exposed-all-open-vsx-repositories-to-takeover/)
+
+---
+
 ## Defense Guide for npm Package Consumers
 
 These defenses protect you when *installing* packages. Ordered from easiest to most comprehensive.

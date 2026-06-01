@@ -424,6 +424,8 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 | Git worktree commondir trust bypass | High | Malicious `.git/commondir` file spoofs a previously trusted path, causing Claude Code to skip the trust dialog and execute `.claude/settings.json` hooks silently on project open | [CVE-2026-40068 — Claude Code (May 2026)](https://github.com/anthropics/claude-code/security/advisories/GHSA-q5hj-mxqh-vv77) |
 | Unauthenticated MCP endpoint — nginx-ui | Critical | nginx-ui `/mcp_message` endpoint lacks authentication middleware; empty default IP whitelist treated as allow-all; unauthenticated network attacker invokes all MCP tools including nginx restart, config creation/deletion, and service reload — complete nginx service takeover | [CVE-2026-33032 / MCPwn — nginx-ui (Apr 2026)](https://github.com/advisories/GHSA-h6c2-x2m2-mwhf) |
 | Azure MCP Server SSRF → cloud credential theft | High | SSRF in Azure MCP Server causes it to make outbound requests to attacker-controlled URLs while attaching its managed identity token; enables cloud lateral movement and privilege escalation across Azure Resource Manager, storage, and other services | [CVE-2026-26118 — Azure MCP Server (Mar 2026)](https://github.com/advisories/GHSA-hhfx-wfvq-7g9c) |
+| Self-propagating IDE extension worm via marketplace | Critical | First confirmed self-propagating VS Code extension worm (GlassWorm); trojanized OpenVSX extensions used each IDE's own command-line installer to push GlasswormRAT to VS Code, Cursor, Windsurf, VSCodium, and Positron; Zig-compiled native binaries for evasion; harvested npm/GitHub/Git tokens + 49 crypto wallet browser extensions; C2 via Solana blockchain, BitTorrent DHT, Google Calendar dead-drops, and direct VPS; 300+ GitHub repos poisoned | [GlassWorm campaign + CrowdStrike takedown (May 26, 2026)](https://www.crowdstrike.com/en-us/blog/inside-crowdstrike-takedown-of-a-developer-targeting-botnet/) |
+| Open VSX scanner bypass — marketplace extension vetting failure | High | Boolean return value conflated "no scanners configured" with "all scanners failed to run"; scanner failures under load silently waved extensions through as passed; a free publisher account was sufficient to exploit reliably; all VS Code forks consuming Open VSX (Cursor, Windsurf, Kiro, VSCodium) at risk; fixed in Open VSX 0.32.0 | [Open Sesame — Feb 8, 2026 disclosure, fixed Open VSX 0.32.0](https://thehackernews.com/2026/03/open-vsx-bug-let-malicious-vs-code.html) |
 
 ## Real Incidents Timeline
 
@@ -482,6 +484,40 @@ Microsoft Threat Intelligence identified 14 typosquatted npm packages published 
 **Affected packages include:** `opensearch-security-scanner`, `opensearch-setup`, `opensearch-setup-tool`, `@vpmdhaj/elastic-helper`, `@vpmdhaj/devops-tools`, `env-config-manager`, and 8 others.
 
 Source: [Microsoft Security Blog — Typosquatted npm packages used to steal cloud and CI/CD secrets (May 28, 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/28/typosquatted-npm-packages-used-steal-cloud-ci-cd-secrets/)
+
+### May 2026 — GlassWorm Botnet Disrupted by CrowdStrike + Google + Shadowserver Foundation (May 26)
+
+CrowdStrike Counter Adversary Operations, Google, and Shadowserver Foundation struck simultaneously on all four of GlassWorm's C2 channels at 14:00 UTC, May 26, 2026, severing operators from their infected machines and cutting off payload delivery.
+
+**What GlassWorm is:** The first confirmed self-propagating VS Code extension worm. Active since at least early 2025 (first publicly disclosed by Koi Security, October 2025), GlassWorm spread via trojanized extensions on the OpenVSX marketplace — including `specstudio/code-wakatime-activity-tracker` and `floktokbok.autoimport` — and used each IDE's own command-line installer to push the GlasswormRAT Node.js payload to VS Code, Cursor, Windsurf, VSCodium, and Positron. Zig-compiled native binaries were used to evade signature-based detection.
+
+**C2 infrastructure (four channels struck simultaneously):**
+1. **Solana blockchain** — C2 server addresses encoded in transaction memo fields
+2. **BitTorrent DHT** — configuration data propagated through the distributed hash table
+3. **Google Calendar** — Base64-encoded C2 paths embedded in event titles as dead-drops
+4. **Direct VPS connections** — fallback C2 on commercial hosting providers
+
+**Payload (GlasswormRAT):** Credential harvesting from npm, GitHub, and Git tokens; extraction of 49 crypto wallet browser extensions; SOCKS5 proxy deployment; self-propagation using stolen publisher tokens to distribute via additional extensions.
+
+**Scale:** 300+ GitHub repositories poisoned. Cross-platform infections on Windows, macOS, and Linux. Attribution: likely Russia-based (CIS locale check at runtime; no state-level attribution confirmed by CrowdStrike).
+
+**IOC:** Post-sinkhole, infected machines now beacon to CrowdStrike sinkhole `164.92.88[.]210`.
+
+**Connection to Open Sesame:** The Open VSX scanner bypass vulnerability (Feb 8, 2026 — see the March 2026 entry below) was disclosed while GlassWorm was actively publishing malicious extensions; it enabled reliable bypassing of marketplace pre-publish security checks.
+
+Source: [CrowdStrike — Inside CrowdStrike's Takedown of a Developer-Targeting Botnet](https://www.crowdstrike.com/en-us/blog/inside-crowdstrike-takedown-of-a-developer-targeting-botnet/) | [CyberScoop](https://cyberscoop.com/crowdstrike-glassworm-botnet-takedown/) | [The Register](https://www.theregister.com/cyber-crime/2026/05/27/crowdstrike-google-shatter-glassworm-botnet/5247337) | [TechCrunch](https://techcrunch.com/2026/05/27/crowdstrike-and-google-take-down-botnet-used-by-hackers-to-target-software-developers-in-supply-chain-attacks/)
+
+### March 2026 — Open Sesame: Open VSX Bug Lets Malicious Extensions Bypass Pre-Publish Security Checks
+
+Koi Security responsibly disclosed a logic bug in Open VSX's pre-publish scanning pipeline on February 8, 2026. The flaw was patched in Open VSX 0.32.0; public disclosure occurred March 27, 2026.
+
+**The bug:** The scanning pipeline returned a single boolean value that conflated two distinct states: "no scanners are configured" and "all scanners failed to run." Under load, scanner job failures were misinterpreted as "nothing to scan" — extensions were marked as passed and immediately activated for download with no human review.
+
+**Exploitability:** A free publisher account was sufficient. An attacker could reliably trigger scanner overload to get any malicious extension into the registry on demand.
+
+**Scope:** All VS Code forks that consume Open VSX — Cursor, Windsurf, Kiro, VSCodium — with an estimated 10M+ machines at risk. The GlassWorm worm campaign (documented above) operated during the period when this bypass was available, using Open VSX as its propagation channel.
+
+Source: [The Hacker News — Open VSX Bug Let Malicious VS Code Extensions Bypass Pre-Publish Security Checks](https://thehackernews.com/2026/03/open-vsx-bug-let-malicious-vs-code.html) | [SecurityWeek — Vulnerability Exposed All Open VSX Repositories to Takeover](https://www.securityweek.com/vulnerability-exposed-all-open-vsx-repositories-to-takeover/) | [SecurityAffairs](https://securityaffairs.com/179398/hacking/taking-over-millions-of-developers-exploiting-an-open-vsx-registry-flaw.html) | [GBHackers](https://gbhackers.com/open-vsx-marketplace-flaw/)
 
 ### April 2026 — Bitwarden CLI Supply Chain Attack (Shai-Hulud)
 
@@ -988,4 +1024,4 @@ Agents that run for hours or days without human checkpoints have no meaningful h
 
 ---
 
-*Last updated: April 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
+*Last updated: June 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
