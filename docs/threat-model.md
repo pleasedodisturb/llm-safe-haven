@@ -421,6 +421,11 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 | AI Python library `.pth` file persistence | Critical | Malicious `.pth` file in compromised PyPI package executes credential stealer on every Python process startup; survives package removal; lateral movement across Kubernetes clusters | [LiteLLM/Telnyx PyPI compromise (Mar 2026)](https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/) |
 | AI coding tool content-filter bypass | High | Local attacker bypasses AI suggestion filters and consent gates, enabling malicious suggestion injection | [CVE-2026-41109 — Copilot/VS Code (May 2026)](https://www.thehackerwire.com/github-copilot-visual-studio-injection-bypasses-security-feature-cve-2026-41109/) |
 | Bare repo fsmonitor command execution | High | Nested bare git repo triggers `core.fsmonitor` during agent git operations to execute arbitrary commands | [CVE-2026-45033 — Copilot CLI](https://advisories.gitlab.com/npm/@github/copilot/CVE-2026-45033/) |
+| Git worktree commondir trust bypass | High | Malicious `.git/commondir` file spoofs a previously trusted path, causing Claude Code to skip the trust dialog and execute `.claude/settings.json` hooks silently on project open | [CVE-2026-40068 — Claude Code (May 2026)](https://github.com/anthropics/claude-code/security/advisories/GHSA-q5hj-mxqh-vv77) |
+| Unauthenticated MCP endpoint — nginx-ui | Critical | nginx-ui `/mcp_message` endpoint lacks authentication middleware; empty default IP whitelist treated as allow-all; unauthenticated network attacker invokes all MCP tools including nginx restart, config creation/deletion, and service reload — complete nginx service takeover | [CVE-2026-33032 / MCPwn — nginx-ui (Apr 2026)](https://github.com/advisories/GHSA-h6c2-x2m2-mwhf) |
+| Azure MCP Server SSRF → cloud credential theft | High | SSRF in Azure MCP Server causes it to make outbound requests to attacker-controlled URLs while attaching its managed identity token; enables cloud lateral movement and privilege escalation across Azure Resource Manager, storage, and other services | [CVE-2026-26118 — Azure MCP Server (Mar 2026)](https://github.com/advisories/GHSA-hhfx-wfvq-7g9c) |
+| Self-propagating IDE extension worm via marketplace | Critical | First confirmed self-propagating VS Code extension worm (GlassWorm); trojanized OpenVSX extensions used each IDE's own command-line installer to push GlasswormRAT to VS Code, Cursor, Windsurf, VSCodium, and Positron; Zig-compiled native binaries for evasion; harvested npm/GitHub/Git tokens + 49 crypto wallet browser extensions; C2 via Solana blockchain, BitTorrent DHT, Google Calendar dead-drops, and direct VPS; 300+ GitHub repos poisoned | [GlassWorm campaign + CrowdStrike takedown (May 26, 2026)](https://www.crowdstrike.com/en-us/blog/inside-crowdstrike-takedown-of-a-developer-targeting-botnet/) |
+| Open VSX scanner bypass — marketplace extension vetting failure | High | Boolean return value conflated "no scanners configured" with "all scanners failed to run"; scanner failures under load silently waved extensions through as passed; a free publisher account was sufficient to exploit reliably; all VS Code forks consuming Open VSX (Cursor, Windsurf, Kiro, VSCodium) at risk; fixed in Open VSX 0.32.0 | [Open Sesame — Feb 8, 2026 disclosure, fixed Open VSX 0.32.0](https://thehackernews.com/2026/03/open-vsx-bug-let-malicious-vs-code.html) |
 
 ## Real Incidents Timeline
 
@@ -459,6 +464,60 @@ Source: [TheHackerWire — CVE-2026-41109](https://www.thehackerwire.com/github-
 A bug hunter reported three serious MCP server vulnerabilities affecting widely-deployed database MCP implementations. Vulnerabilities allow arbitrary SQL execution, schema enumeration, and in one case full RCE via unsanitized query parameters passed to underlying CLI tools. One vendor acknowledged the report and explicitly declined to patch, citing the behavior as "by design." This echoes Anthropic's own position on the MCP SDK architectural RCE.
 
 Source: [The Register — Bug hunter tracks down three massive MCP flaws](https://www.theregister.com/security/2026/05/13/bug-hunter-tracks-down-three-serious-mcp-database-flaws-one-left-unpatched/5238916)
+
+### May 2026 — Claude Code Trust Dialog Bypass via Git Worktree Spoofing (CVE-2026-40068)
+
+Anthropic patched CVE-2026-40068 in Claude Code v2.1.84 (CVSS 7.7). The folder trust determination logic read the git worktree `commondir` file verbatim without verifying the path pointed to a real, attacker-uncontrolled repository. A malicious repository whose `.git/commondir` pointed to any path the victim had previously trusted (e.g., a common project directory like `~/projects/my-app`) caused Claude Code to skip the trust confirmation dialog entirely and immediately execute hooks defined in `.claude/settings.json` — with no user prompt shown.
+
+**Exploitation requirements:** victim clones attacker-controlled repo; attacker knows or guesses a path the victim had already approved. No elevated privileges required.
+
+**Why it matters for solo devs:** This is the third Claude Code trust-model bypass (after CVE-2025-59536 and CVE-2026-24887). The `.git/commondir` file is not naturally visible or suspicious during a manual repo inspection. Upgrading to v2.1.84 or later is the only fix. Users on auto-update received the patch automatically; users who pin versions must update manually.
+
+Source: [GitHub Advisory GHSA-q5hj-mxqh-vv77 / CVE-2026-40068](https://github.com/anthropics/claude-code/security/advisories/GHSA-q5hj-mxqh-vv77) | Reported by masato_anzai via HackerOne
+
+### May 2026 — Typosquatted OpenSearch npm Packages Steal Cloud Secrets (vpmdhaj, May 28)
+
+Microsoft Threat Intelligence identified 14 typosquatted npm packages published in a 4-hour window on May 28, 2026 under the maintainer alias **vpmdhaj**. Packages impersonate OpenSearch, ElasticSearch, and generic DevOps configuration tools. The ~195 KB Bun-compiled payload harvests AWS credentials (IMDSv2, ECS metadata, STS, Secrets Manager), HashiCorp Vault tokens, npm publish tokens, and GitHub Actions credentials, exfiltrating to `aab.sportsontheweb[.]net/x.php`.
+
+**Attribution:** Not linked to UNC6780/TeamPCP/CanisterSprawl — a separate independent actor.
+
+**Affected packages include:** `opensearch-security-scanner`, `opensearch-setup`, `opensearch-setup-tool`, `@vpmdhaj/elastic-helper`, `@vpmdhaj/devops-tools`, `env-config-manager`, and 8 others.
+
+Source: [Microsoft Security Blog — Typosquatted npm packages used to steal cloud and CI/CD secrets (May 28, 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/28/typosquatted-npm-packages-used-steal-cloud-ci-cd-secrets/)
+
+### May 2026 — GlassWorm Botnet Disrupted by CrowdStrike + Google + Shadowserver Foundation (May 26)
+
+CrowdStrike Counter Adversary Operations, Google, and Shadowserver Foundation struck simultaneously on all four of GlassWorm's C2 channels at 14:00 UTC, May 26, 2026, severing operators from their infected machines and cutting off payload delivery.
+
+**What GlassWorm is:** The first confirmed self-propagating VS Code extension worm. Active since at least early 2025 (first publicly disclosed by Koi Security, October 2025), GlassWorm spread via trojanized extensions on the OpenVSX marketplace — including `specstudio/code-wakatime-activity-tracker` and `floktokbok.autoimport` — and used each IDE's own command-line installer to push the GlasswormRAT Node.js payload to VS Code, Cursor, Windsurf, VSCodium, and Positron. Zig-compiled native binaries were used to evade signature-based detection.
+
+**C2 infrastructure (four channels struck simultaneously):**
+1. **Solana blockchain** — C2 server addresses encoded in transaction memo fields
+2. **BitTorrent DHT** — configuration data propagated through the distributed hash table
+3. **Google Calendar** — Base64-encoded C2 paths embedded in event titles as dead-drops
+4. **Direct VPS connections** — fallback C2 on commercial hosting providers
+
+**Payload (GlasswormRAT):** Credential harvesting from npm, GitHub, and Git tokens; extraction of 49 crypto wallet browser extensions; SOCKS5 proxy deployment; self-propagation using stolen publisher tokens to distribute via additional extensions.
+
+**Scale:** 300+ GitHub repositories poisoned. Cross-platform infections on Windows, macOS, and Linux. Attribution: likely Russia-based (CIS locale check at runtime; no state-level attribution confirmed by CrowdStrike).
+
+**IOC:** Post-sinkhole, infected machines now beacon to CrowdStrike sinkhole `164.92.88[.]210`.
+
+**Connection to Open Sesame:** The Open VSX scanner bypass vulnerability (Feb 8, 2026 — see the March 2026 entry below) was disclosed while GlassWorm was actively publishing malicious extensions; it enabled reliable bypassing of marketplace pre-publish security checks.
+
+Source: [CrowdStrike — Inside CrowdStrike's Takedown of a Developer-Targeting Botnet](https://www.crowdstrike.com/en-us/blog/inside-crowdstrike-takedown-of-a-developer-targeting-botnet/) | [CyberScoop](https://cyberscoop.com/crowdstrike-glassworm-botnet-takedown/) | [The Register](https://www.theregister.com/cyber-crime/2026/05/27/crowdstrike-google-shatter-glassworm-botnet/5247337) | [TechCrunch](https://techcrunch.com/2026/05/27/crowdstrike-and-google-take-down-botnet-used-by-hackers-to-target-software-developers-in-supply-chain-attacks/)
+
+### March 2026 — Open Sesame: Open VSX Bug Lets Malicious Extensions Bypass Pre-Publish Security Checks
+
+Koi Security responsibly disclosed a logic bug in Open VSX's pre-publish scanning pipeline on February 8, 2026. The flaw was patched in Open VSX 0.32.0; public disclosure occurred March 27, 2026.
+
+**The bug:** The scanning pipeline returned a single boolean value that conflated two distinct states: "no scanners are configured" and "all scanners failed to run." Under load, scanner job failures were misinterpreted as "nothing to scan" — extensions were marked as passed and immediately activated for download with no human review.
+
+**Exploitability:** A free publisher account was sufficient. An attacker could reliably trigger scanner overload to get any malicious extension into the registry on demand.
+
+**Scope:** All VS Code forks that consume Open VSX — Cursor, Windsurf, Kiro, VSCodium — with an estimated 10M+ machines at risk. The GlassWorm worm campaign (documented above) operated during the period when this bypass was available, using Open VSX as its propagation channel.
+
+Source: [The Hacker News — Open VSX Bug Let Malicious VS Code Extensions Bypass Pre-Publish Security Checks](https://thehackernews.com/2026/03/open-vsx-bug-let-malicious-vs-code.html) | [SecurityWeek — Vulnerability Exposed All Open VSX Repositories to Takeover](https://www.securityweek.com/vulnerability-exposed-all-open-vsx-repositories-to-takeover/) | [SecurityAffairs](https://securityaffairs.com/179398/hacking/taking-over-millions-of-developers-exploiting-an-open-vsx-registry-flaw.html) | [GBHackers](https://gbhackers.com/open-vsx-marketplace-flaw/)
 
 ### April 2026 — Bitwarden CLI Supply Chain Attack (Shai-Hulud)
 
@@ -590,6 +649,12 @@ Source: [The Hacker News — Claude Mythos Finds Thousands of Zero-Day Flaws](ht
 Within 24 hours of the March source code leak, threat actors pivoted to distributing Vidar stealer and GhostSocks proxy malware through fake "leaked" Claude Code downloads. 38 distinct 7z archives impersonating 25+ software brands. Active campaign since February 2026.
 
 Source: [Trend Micro — Weaponizing Trust Signals](https://www.trendmicro.com/en_us/research/26/d/weaponizing-trust-claude-code-lures-and-github-release-payloads.html)
+
+### April 2026 — nginx-ui MCP Endpoint Authentication Bypass Actively Exploited (CVE-2026-33032)
+
+Pluto Security researcher yotampe-pluto disclosed that nginx-ui's MCP integration exposes an unauthenticated endpoint. The `/mcp_message` endpoint lacks the authentication middleware protecting `/mcp`, while the default IP whitelist is empty (treated as allow-all). Any network attacker can invoke all MCP tools without credentials — including nginx restart, configuration file creation/modification/deletion, and service reload — achieving complete nginx service takeover. CVSS 9.8. ~2,600 publicly reachable instances. Exploitation in the wild confirmed.
+
+Source: [GitHub Advisory GHSA-h6c2-x2m2-mwhf / CVE-2026-33032](https://github.com/advisories/GHSA-h6c2-x2m2-mwhf)
 
 ### March 2026 — Claude Code Source Code Leak
 
@@ -802,6 +867,8 @@ Claude Code accounts for 27 of 74 confirmed CVEs (36%) — partly because it lea
 | [MCPSHIELD: Formal Security Framework for MCP-Based AI Agents](https://arxiv.org/abs/2604.05969) | Apr 2026 | Synthesizes 12 prior MCP security papers into unified taxonomy; 7 threat categories, 23 attack vectors across 177k+ MCP tools; finds **no single existing defense covers >34% of the threat landscape** |
 | [ARGUS: Defending LLM Agents Against Context-Aware Prompt Injection](https://arxiv.org/abs/2605.03378) | May 2026 | Provenance-aware runtime auditor that grounds tool-call decisions in trusted evidence via span-level context tracking and task-level verification; significantly reduces attack success while preserving task utility |
 | [Model Context Protocol: Landscape, Security Threats, and Future Research Directions](https://dl.acm.org/doi/10.1145/3796519) (ACM TOSEM) | 2026 | Systematic threat taxonomy for MCP across 4 attacker types (malicious developers, external attackers, malicious users, design flaws) and 16 distinct threat scenarios; published in ACM Transactions on Software Engineering and Methodology |
+| [Reframing LLM Agent Security as an Agent-Human Interaction Problem](https://arxiv.org/abs/2605.24309) (Wang, Li, Tian — UCLA) | May 2026 | Systematic analysis of 59 papers + 21 production systems + 26 security plugins; finds the three dominant production controls (policy specification, runtime approval, scope configuration) each adopted by ≥14/21 systems yet almost unstudied academically, while categories dominating academic literature see zero production deployment; approval fatigue, brittle scope bounds, and inaccessible policy languages are the core design failures |
+| [A Systematic Survey of Security Threats and Defenses in LLM-Based AI Agents: A Layered Attack Surface Framework](https://arxiv.org/abs/2604.23338) (Kexin Chu) | Apr 2026 | Proposes the Layered Attack Surface Model (LASM) decomposing the agentic stack into 7 layers (Foundation, Cognitive, Memory, Tool Execution, Multi-Agent Coordination, Ecosystem, Governance); proves via non-transferability theorem that a defense at one layer has zero detection power against an attack localized at another; attacks are emergent, compositional, and temporally extended |
 
 **Industry reports:**
 - [Trail of Bits — Lack of Isolation in Agentic Browsers (January 2026)](https://blog.trailofbits.com/2026/01/13/lack-of-isolation-in-agentic-browsers-resurfaces-old-vulnerabilities/) — Prompt injection in AI browsers mirrors XSS/CSRF; agents lack Same-Origin Policy equivalents
@@ -957,4 +1024,4 @@ Agents that run for hours or days without human checkpoints have no meaningful h
 
 ---
 
-*Last updated: April 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
+*Last updated: June 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*

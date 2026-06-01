@@ -330,7 +330,7 @@ done
 section "5. Shell history beacon-domain references"
 
 HIST_FILES=("$HOME/.zsh_history" "$HOME/.bash_history")
-HIST_PATTERNS=('m-kosche' 'kitty-monitor' 'gh-token-monitor')
+HIST_PATTERNS=('m-kosche' 'kitty-monitor' 'gh-token-monitor' 'sportsontheweb')
 
 for hf in "${HIST_FILES[@]}"; do
   if [ ! -f "$hf" ]; then
@@ -369,6 +369,21 @@ COMPROMISED_PKGS=(
   "@tanstack/react-router"
   "@tanstack/router-core"
   "@tanstack/router-cli"
+  # vpmdhaj typosquatted packages (May 28, 2026) — exfil: aab.sportsontheweb[.]net
+  "opensearch-security-scanner"
+  "opensearch-setup"
+  "opensearch-setup-tool"
+  "opensearch-client-helper"
+  "opensearch-node-client"
+  "elasticsearch-helper"
+  "elasticsearch-node-client"
+  "@vpmdhaj/elastic-helper"
+  "@vpmdhaj/devops-tools"
+  "@vpmdhaj/cloud-config"
+  "env-config-manager"
+  "aws-env-loader"
+  "vault-secret-loader"
+  "ci-env-helper"
 )
 
 if command -v npm >/dev/null 2>&1; then

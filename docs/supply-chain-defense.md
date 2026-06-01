@@ -299,6 +299,18 @@ The exfil endpoint at `flipboxstudio[.]info` is a typosquat of the legitimate `f
 
 **If you have any Laravel Lang version installed:** treat every host, container, CI runner, and developer machine that ran the package as compromised. Run `composer audit`, rotate every credential the harvester targets, and rebuild from clean images. Preserve logs before cleanup.
 
+### Follow-on: May 28, 2026 — Typosquatted npm packages (vpmdhaj)
+
+Four days after the May 22 wave, Microsoft Threat Intelligence tracked a separate, unattributed actor publishing 14 typosquatted npm packages in a 4-hour window under the alias **vpmdhaj**. The packages impersonate OpenSearch, ElasticSearch, and generic DevOps configuration tooling — prime targets for developer environments that already use the real `@opensearch-project/` family.
+
+**Payload:** A ~195 KB Bun-compiled binary that harvests AWS credentials (IMDSv2, ECS task metadata, STS, Secrets Manager), HashiCorp Vault tokens, npm publish tokens, and GitHub Actions runtime credentials. Exfiltration target: `aab.sportsontheweb[.]net/x.php`.
+
+**Affected packages (14 total):** `opensearch-security-scanner`, `opensearch-setup`, `opensearch-setup-tool`, `opensearch-client-helper`, `opensearch-node-client`, `elasticsearch-helper`, `elasticsearch-node-client`, `@vpmdhaj/elastic-helper`, `@vpmdhaj/devops-tools`, `@vpmdhaj/cloud-config`, `env-config-manager`, `aws-env-loader`, `vault-secret-loader`, `ci-env-helper`.
+
+**Attribution:** Microsoft does not link vpmdhaj to UNC6780/TeamPCP/CanisterSprawl. This is a separate independent actor demonstrating that cloud-credential typosquatting has become a repeatable playbook, not a single-actor operation.
+
+Source: [Microsoft Security Blog — Typosquatted npm packages used to steal cloud and CI/CD secrets (May 28, 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/28/typosquatted-npm-packages-used-steal-cloud-ci-cd-secrets/)
+
 ### Why this matters for AI agent developers
 
 1. **Trusted publishing alone is not sufficient when the runner can be poisoned.** The TanStack wave produced **valid Sigstore provenance attestations** on malicious versions by scraping the OIDC token from runner memory. Pair trusted publishing with **staged publishing** so a 2FA-verified human approval gates the release.
@@ -326,6 +338,55 @@ The exfil endpoint at `flipboxstudio[.]info` is a typosquat of the legitimate `f
 - [SANS ISC — UNC6780 / SANDCLOCK attribution](https://isc.sans.edu/diary/32880) | [SANS ISC — activity through 2026-05-24](https://isc.sans.edu/diary/33014)
 - [Unit 42 — npm threat landscape May 21](https://unit42.paloaltonetworks.com/monitoring-npm-supply-chain-attacks/)
 - [Packagist — composer.audit response post-Laravel-Lang](https://blog.packagist.com/an-update-on-composer-packagist-supply-chain-security/)
+
+---
+
+## Case Study: GlassWorm — First Self-Propagating IDE Extension Worm (2025–May 2026 Takedown)
+
+While Shai-Hulud/CanisterSprawl targets the npm ecosystem, a parallel supply-chain threat has been operating in the VS Code extension marketplace. GlassWorm is the first confirmed self-propagating worm to spread through an IDE extension registry, and its takedown on May 26, 2026 revealed a campaign that had been active for over a year.
+
+### What happened
+
+GlassWorm spread through the OpenVSX marketplace via trojanized extensions (including `specstudio/code-wakatime-activity-tracker` and `floktokbok.autoimport`). Once installed, the worm used each IDE's own command-line installer to push the GlasswormRAT payload to every VS Code fork on the machine — VS Code, Cursor, Windsurf, VSCodium, and Positron. Zig-compiled native binaries bypassed signature-based detection.
+
+The payload (GlasswormRAT) harvested npm tokens, GitHub tokens, Git credentials, and 49 browser-based crypto wallet extensions. It also deployed a SOCKS5 proxy and used stolen publisher credentials to self-propagate by publishing additional trojanized extensions under the victim's publisher account.
+
+An enabling condition was the **Open Sesame** vulnerability (Koi Security, Feb 8, 2026 disclosure, fixed in Open VSX 0.32.0): a logic bug in the pre-publish scanner pipeline caused scanner failures to be silently treated as "nothing to scan" — malicious extensions passed the vetting process on demand.
+
+### C2 infrastructure
+
+GlassWorm used four independent C2 channels simultaneously, which is why single-channel blocking was insufficient:
+
+| Channel | Mechanism |
+|---------|-----------|
+| Solana blockchain | C2 server addresses encoded in transaction memo fields |
+| BitTorrent DHT | Configuration data stored in the distributed hash table |
+| Google Calendar | Base64-encoded C2 paths embedded in public event titles |
+| Direct VPS | Fallback connections to commercial hosting providers |
+
+CrowdStrike Counter Adversary Operations, Google, and Shadowserver Foundation struck all four channels simultaneously at 14:00 UTC, May 26, 2026. Infected machines now beacon to the CrowdStrike sinkhole `164.92.88[.]210`.
+
+### Scale and attribution
+
+300+ GitHub repositories were poisoned across Windows, macOS, and Linux. Attribution: likely Russia-based (runtime CIS locale check; no state-level attribution confirmed by CrowdStrike).
+
+### What to do right now
+
+1. **Audit your installed VS Code extensions against the two known malicious publishers:** `specstudio/code-wakatime-activity-tracker` and `floktokbok.autoimport`. If either is installed, treat the machine as fully compromised.
+2. **Check for GlasswormRAT sinkhole beacons:** If your machine is making outbound connections to `164.92.88[.]210`, GlasswormRAT was or is present.
+3. **Pin extensions to known-good versions.** Unlike npm, VS Code extensions auto-update silently by default. Disable auto-update in settings: `"extensions.autoUpdate": false`.
+4. **Prefer the VS Code Marketplace over Open VSX where possible.** Microsoft's marketplace has stricter publisher vetting and faster revocation than Open VSX.
+5. **If you are an Open VSX publisher:** rotate your Open VSX publish token (it may have been harvested). Check your extension's publish history for unauthorized releases.
+6. **npm tokens:** If your machine ran any version of the affected extensions, rotate npm tokens. GlasswormRAT specifically targeted npm publish tokens for self-propagation.
+
+### Sources
+
+- [CrowdStrike — Inside CrowdStrike's Takedown of a Developer-Targeting Botnet](https://www.crowdstrike.com/en-us/blog/inside-crowdstrike-takedown-of-a-developer-targeting-botnet/)
+- [CyberScoop — CrowdStrike disrupts Glassworm botnet that preyed on open-source supply chain](https://cyberscoop.com/crowdstrike-glassworm-botnet-takedown/)
+- [The Register — CrowdStrike, Google shatter Glassworm botnet](https://www.theregister.com/cyber-crime/2026/05/27/crowdstrike-google-shatter-glassworm-botnet/5247337)
+- [TechCrunch — CrowdStrike and Google take down botnet used by hackers to target software developers in supply chain attacks](https://techcrunch.com/2026/05/27/crowdstrike-and-google-take-down-botnet-used-by-hackers-to-target-software-developers-in-supply-chain-attacks/)
+- [The Hacker News — Open VSX Bug Let Malicious VS Code Extensions Bypass Pre-Publish Security Checks](https://thehackernews.com/2026/03/open-vsx-bug-let-malicious-vs-code.html)
+- [SecurityWeek — Vulnerability Exposed All Open VSX Repositories to Takeover](https://www.securityweek.com/vulnerability-exposed-all-open-vsx-repositories-to-takeover/)
 
 ---
 

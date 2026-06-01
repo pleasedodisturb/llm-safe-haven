@@ -1,6 +1,6 @@
 # Agent Security Resources
 
-> Last verified: May 2026
+> Last verified: June 2026
 
 Curated collection of frameworks, tools, guides, and incident reports for securing AI coding agents. Focused on what's useful for solo developers — enterprise-only tools are noted but not prioritized.
 
@@ -32,6 +32,8 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [gitleaks/gitleaks](https://github.com/gitleaks/gitleaks) | ~26.2K | Fast git secret scanner. Pre-commit hooks and CI integration. Good complement to TruffleHog for different detection patterns. |
 | [GitGuardian/ggshield](https://github.com/GitGuardian/ggshield) | ~1.9K | CLI secret scanner with 550+ secret types. Now scans prompts, tool calls, and agent actions in real-time. Free tier available. 700K+ developers on GitHub Marketplace. |
 | [vulnerablemcp.info](https://vulnerablemcp.info/) | — | Community MCP vulnerability database. Comprehensive catalog of known CVEs and attack patterns across MCP server implementations. Purpose-built equivalent of CVE/NVD for the MCP ecosystem. |
+| [golf-mcp/golf-scanner](https://github.com/golf-mcp/golf-scanner) | ~7 | Open-source Go CLI that discovers MCP server configurations across 7 IDEs (Claude Code, Cursor, VS Code, Windsurf, Gemini CLI, Kiro, Antigravity) and runs 20 security checks (9 offline + 11 online against OSV, npm, PyPI, OCI registries). Produces a 0–100 risk score per server with severity-weighted scoring. Zero telemetry, no account, single static binary. Apache 2.0. |
+| [Claude Code Security](https://www.anthropic.com/news/claude-code-security) | — | Anthropic's security product (public beta, May 4, 2026) powered by Opus 4.7. Scans codebases for vulnerabilities and generates patches. Includes a free terminal plugin for Claude Code users. Complements static analysis tools with LLM-based semantic understanding of security flaws in context. |
 
 ## Credential Management
 
@@ -171,6 +173,9 @@ These are the posts and reports that informed our threat model. Read them to und
 | [Aikido: "Supply Chain Attack Targets Laravel-Lang"](https://www.aikido.dev/blog/supply-chain-attack-targets-laravel-lang-packages-with-credential-stealer) | May 22, 2026 | Co-discoverer writeup. Attributes mechanism to abuse of GitHub's cross-fork tag feature (tags can point to commits in a fork of the same repo). Initial-access vector unattributed beyond "one compromised organizational credential." |
 | [Datadog Security Labs: "Shai-Hulud framework open-sourced"](https://securitylabs.datadoghq.com/articles/shai-hulud-open-source-framework-static-analysis/) | May 22, 2026 | TeamPCP published the worm framework itself. ≥3 copycat forks observed within hours. Static analysis of the framework's exfil and persistence modules. |
 | [SANS ISC — UNC6780 / SANDCLOCK attribution](https://isc.sans.edu/diary/32880) + [activity through 2026-05-24](https://isc.sans.edu/diary/33014) | May 24, 2026 | Google GTIG formally tracks TeamPCP as UNC6780. Credential-stealer payload designated SANDCLOCK. ~2,200 attacker-created GitHub repos observed. Mandiant counts 1,000+ downstream SaaS environments compromised. |
+| [CrowdStrike — Inside CrowdStrike's Takedown of a Developer-Targeting Botnet](https://www.crowdstrike.com/en-us/blog/inside-crowdstrike-takedown-of-a-developer-targeting-botnet/) | May 26, 2026 | Technical writeup of the GlassWorm botnet disruption. First self-propagating VS Code extension worm; C2 via Solana blockchain, BitTorrent DHT, Google Calendar dead-drops. 300+ GitHub repos poisoned. Attribution: likely Russia-based. Sinkholed to 164.92.88[.]210. |
+| [CyberScoop — CrowdStrike disrupts Glassworm botnet that preyed on open-source supply chain](https://cyberscoop.com/crowdstrike-glassworm-botnet-takedown/) | May 26, 2026 | News coverage of the GlassWorm takedown coordinated by CrowdStrike Counter Adversary Operations, Google, and Shadowserver Foundation. Covers propagation via OpenVSX, targeting of developer credentials and crypto wallets. |
+| [The Hacker News — Open VSX Bug Let Malicious VS Code Extensions Bypass Pre-Publish Security Checks](https://thehackernews.com/2026/03/open-vsx-bug-let-malicious-vs-code.html) | Mar 27, 2026 | Disclosure of the "Open Sesame" vulnerability (Koi Security, Feb 8, 2026). Scanner pipeline logic bug meant failures were treated as passes; any free publisher account could get malicious extensions into the registry. Fixed in Open VSX 0.32.0. Affects Cursor, Windsurf, Kiro, VSCodium — 10M+ machines. |
 
 ## Anthropic Issues (From Our Investigation)
 
