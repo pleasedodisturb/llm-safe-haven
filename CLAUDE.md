@@ -5,6 +5,8 @@
 Security toolkit and reference for solo developers running autonomous AI coding agents.
 `npx llm-safe-haven` installs hooks and hardens your setup in 60 seconds.
 
+This file does not restate global rules — read `~/.claude/CLAUDE.md` first.
+
 ## Project Structure
 
 bin/                         — CLI entry point (npx llm-safe-haven)
