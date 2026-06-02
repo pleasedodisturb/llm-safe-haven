@@ -20,6 +20,7 @@ This is not hypothetical. It is the dominant npm supply chain threat of 2026.
 | Mini — SAP CAP | April 29, 2026 | 4 SAP CAP packages (`@cap-js/sqlite`, `@cap-js/postgres`, `@cap-js/db-service`, `mbt`) | ~2 hours, 1,100+ exfil repos | **First weaponization of `.claude/settings.json` SessionStart hook** |
 | Mini — TanStack | May 11, 2026 | `@tanstack/react-router` and 40+ `@tanstack/*` packages | 12M+ weekly downloads | GitHub Actions cache poisoning + **OIDC token extraction from `/proc/<pid>/mem`** — published without stealing npm credentials |
 | Mini — AntV ("Here We Go Again") | May 19, 2026 | 323 packages via `atool` maintainer: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor`, `timeago.js`, others | 637 versions, ~16M weekly downloads, 2,200+ exfil repos | **Worm source code released publicly on BreachForums with a "supply chain contest"**; second wave weaponizing `.claude/settings.json` |
+| Mini — Miasma ("The Spreading Blight") | June 1, 2026 | 32 `@redhat-cloud-services` packages (`@redhat-cloud-services/frontend-components`, `@redhat-cloud-services/chrome`, and 30 others — see [RHSB-2026-006](https://access.redhat.com/security/vulnerabilities/RHSB-2026-006)) | 96 versions, ~116,991 weekly downloads | **GitHub Actions OIDC compromise** (no stolen developer credentials); 4.1 MB obfuscated JS preinstall hook; **no attacker C2 domain** — exfil routes through legitimate vendor endpoints using stolen credentials |
 
 [Source: Snyk, Wiz, StepSecurity, Akamai, SafeDep — see Sources section.]
 
@@ -113,6 +114,23 @@ High-impact packages: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor`
 
 **The most important development:** TeamPCP **released the worm source code publicly on BreachForums** along with a "supply chain attack contest." Within days, an unrelated actor uploaded four malicious npm packages — one a near-verbatim copy with its own C2. The barrier to entry just dropped to zero. Expect copycat waves at irregular intervals from here.
 
+#### Wave D — Miasma "The Spreading Blight" (June 1, 2026)
+
+Five days after TeamPCP released the worm source code publicly, a new wave hit the `@redhat-cloud-services` npm namespace. **96 versions across 32 packages** (~116,991 weekly downloads) were published with a malicious 4.1 MB obfuscated JS preinstall hook.
+
+**Compromise vector:** Unlike all prior Shai-Hulud waves, Miasma did **not** rely on stolen developer npm credentials. TeamPCP compromised a GitHub Actions OIDC token directly from a Red Hat CI/CD pipeline — the same pipeline-poisoning technique as the TanStack Wave B attack, with no individual developer account compromise required.
+
+**Payload targets:** AWS, Azure, GCP, HashiCorp Vault, Kubernetes service account tokens, GitHub Actions OIDC tokens, npm publish tokens, Bitwarden, and 1Password.
+
+**Novel characteristics vs. prior waves:**
+- **No attacker C2 domain** — all data exfiltration routes through legitimate vendor API endpoints (AWS STS, Azure AD, GCP IAM, GitHub API, npm registry, vault APIs) with stolen credentials. Standard egress-based C2 detection tools cannot detect this exfil channel.
+- **Bun-based payload** — the preinstall hook downloads a Bun runtime binary to `/tmp/b-<random>/bun` and a JS payload to `/tmp/p<base36>.js`. Both are removed on successful exfiltration but may persist if the process crashes.
+- **Dead-drop IOC** — attacker GitHub repos with description "Miasma: The Spreading Blight" (same TeamPCP dead-drop pattern as prior waves).
+
+Red Hat published RHSB-2026-006 within hours of Wiz Research's disclosure. The full list of 32 affected packages and specific compromised version ranges is in [RHSB-2026-006](https://access.redhat.com/security/vulnerabilities/RHSB-2026-006).
+
+Source: [Wiz — Miasma: The Spreading Blight](https://www.wiz.io/blog/miasma-supply-chain-attack-targeting-redhat-npm-packages) | [Snyk — Miasma supply chain attack](https://snyk.io/blog/miasma-supply-chain-attack-malicious-code-redhat-cloud-services-npm-packages/) | [Red Hat RHSB-2026-006](https://access.redhat.com/security/vulnerabilities/RHSB-2026-006) | [JFrog — Shai-Hulud Miasma](https://research.jfrog.com/post/shai-hulud-miasma-redhat-cloud-services/) | [BleepingComputer — Red Hat npm packages compromised](https://www.bleepingcomputer.com/news/security/red-hat-npm-packages-compromised-to-steal-developer-credentials/) (all HTTP 403 — bot-protection pattern; search-confirmed live)
+
 #### What to do right now if you use Claude Code
 
 1. **Audit `.claude/settings.json` in every project you've opened** in the last 30 days. Any `SessionStart`, `PreToolUse`, or `PostToolUse` hook that doesn't point to your own scripts or known-good plugin paths (`~/.claude/hooks/<your-tooling>/`) should be treated as suspicious until verified.
@@ -121,6 +139,7 @@ High-impact packages: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor`
 4. **Search your GitHub account for dead-drop repos** matching the Dune-themed naming. If you find any, your `gh` token has been exfiltrated — revoke immediately, then rotate every credential it could reach.
 5. **Set `ignore-scripts=true` in `~/.npmrc`** if you haven't already. This single setting would have blocked execution of all six Shai-Hulud waves.
 6. **The bash-firewall and secret-guard hooks llm-safe-haven installs** catch the SessionStart-hook abuse pattern at session start. If you're not running them, install via `npx llm-safe-haven`.
+7. **Wave D (Miasma, June 1): Check for Bun-based IOCs and the new dead-drop pattern.** Run `find /tmp -maxdepth 2 -name "bun" -path "*/b-*"` and `find /tmp -maxdepth 1 -name "p*.js"` — either file surviving means the Miasma payload crashed mid-run on your machine. Also search GitHub for repos with description "Miasma: The Spreading Blight" — that is the Wave D dead-drop equivalent of the Dune-themed naming used in Waves A–C.
 
 ### Timeline
 
@@ -951,7 +970,7 @@ npm pkg get scripts --json
 
 ## Incident Response: If You Installed a Compromised Package
 
-If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), or any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window — treat the host as compromised:
+If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window, or any `@redhat-cloud-services/*` version published on June 1, 2026 (see [RHSB-2026-006](https://access.redhat.com/security/vulnerabilities/RHSB-2026-006) for the full list of 32 packages) — treat the host as compromised:
 
 ### Immediate (within 1 hour)
 

@@ -426,8 +426,20 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 | Azure MCP Server SSRF → cloud credential theft | High | SSRF in Azure MCP Server causes it to make outbound requests to attacker-controlled URLs while attaching its managed identity token; enables cloud lateral movement and privilege escalation across Azure Resource Manager, storage, and other services | [CVE-2026-26118 — Azure MCP Server (Mar 2026)](https://github.com/advisories/GHSA-hhfx-wfvq-7g9c) |
 | Self-propagating IDE extension worm via marketplace | Critical | First confirmed self-propagating VS Code extension worm (GlassWorm); trojanized OpenVSX extensions used each IDE's own command-line installer to push GlasswormRAT to VS Code, Cursor, Windsurf, VSCodium, and Positron; Zig-compiled native binaries for evasion; harvested npm/GitHub/Git tokens + 49 crypto wallet browser extensions; C2 via Solana blockchain, BitTorrent DHT, Google Calendar dead-drops, and direct VPS; 300+ GitHub repos poisoned | [GlassWorm campaign + CrowdStrike takedown (May 26, 2026)](https://www.crowdstrike.com/en-us/blog/inside-crowdstrike-takedown-of-a-developer-targeting-botnet/) |
 | Open VSX scanner bypass — marketplace extension vetting failure | High | Boolean return value conflated "no scanners configured" with "all scanners failed to run"; scanner failures under load silently waved extensions through as passed; a free publisher account was sufficient to exploit reliably; all VS Code forks consuming Open VSX (Cursor, Windsurf, Kiro, VSCodium) at risk; fixed in Open VSX 0.32.0 | [Open Sesame — Feb 8, 2026 disclosure, fixed Open VSX 0.32.0](https://thehackernews.com/2026/03/open-vsx-bug-let-malicious-vs-code.html) |
+| Symlink hijacking via project instruction file (SymJack) | Critical | Booby-trapped repo places renamed symlink as CLAUDE.md/`.cursorrules`; agent's file-copy approval shows symlink name not target; agent follows symlink and overwrites its own config (settings.json, mcp.json) with malicious MCP server entry; on restart, attacker MCP server runs with full user privileges; affects 6 agents: Claude Code, Cursor, Gemini CLI, Antigravity CLI, Copilot CLI, Grok Build | [SymJack — Adversa AI (May 2026)](https://adversa.ai/blog/the-approval-prompt-is-lying-to-you-symlink-rce-in-five-ai-coding-agents-claude-code-cursor-antigravity-copilot-grok-build/) |
 
 ## Real Incidents Timeline
+
+### June 2026 — Mini Shai-Hulud Wave D: Miasma Targets @redhat-cloud-services npm Namespace (June 1)
+
+On June 1, 2026, Wiz Research disclosed **"Miasma: The Spreading Blight"** — the fourth Mini Shai-Hulud wave and the fifth confirmed TeamPCP/UNC6780 npm supply chain attack. Unlike previous waves which used stolen developer credentials, Miasma compromised the `@redhat-cloud-services` npm namespace via **GitHub Actions OIDC credential theft** from a Red Hat CI/CD pipeline. 96 versions across 32 packages (~116,991 weekly downloads) were affected. See [Supply Chain Defense Guide](supply-chain-defense.md) for the full case study.
+
+**Key novel characteristics:**
+- **No attacker C2 domain** — the 4.1 MB obfuscated JS preinstall hook exfiltrates through legitimate vendor endpoints (AWS STS, Azure AD, GCP IAM, GitHub API, npm registry, HashiCorp Vault, Bitwarden, 1Password) using stolen credentials. Standard egress-based C2 detection is effectively impossible.
+- **Bun-based payload** — Bun runtime fetched to `/tmp/b-<random>/bun`; JS payload at `/tmp/p<base36>.js`. Both removed on success; may persist after a crash.
+- **Dead-drop IOC** — attacker GitHub repos with description "Miasma: The Spreading Blight".
+
+Source: [Wiz — Miasma: The Spreading Blight](https://www.wiz.io/blog/miasma-supply-chain-attack-targeting-redhat-npm-packages) | [Snyk — Miasma](https://snyk.io/blog/miasma-supply-chain-attack-malicious-code-redhat-cloud-services-npm-packages/) | [Red Hat RHSB-2026-006](https://access.redhat.com/security/vulnerabilities/RHSB-2026-006) | [BleepingComputer](https://www.bleepingcomputer.com/news/security/red-hat-npm-packages-compromised-to-steal-developer-credentials/) (all HTTP 403 — bot-protection pattern; search-confirmed live)
 
 ### May 2026 — Microsoft Semantic Kernel Prompt Injection → RCE (CVE-2026-25592 & CVE-2026-26030)
 
@@ -506,6 +518,20 @@ CrowdStrike Counter Adversary Operations, Google, and Shadowserver Foundation st
 **Connection to Open Sesame:** The Open VSX scanner bypass vulnerability (Feb 8, 2026 — see the March 2026 entry below) was disclosed while GlassWorm was actively publishing malicious extensions; it enabled reliable bypassing of marketplace pre-publish security checks.
 
 Source: [CrowdStrike — Inside CrowdStrike's Takedown of a Developer-Targeting Botnet](https://www.crowdstrike.com/en-us/blog/inside-crowdstrike-takedown-of-a-developer-targeting-botnet/) | [CyberScoop](https://cyberscoop.com/crowdstrike-glassworm-botnet-takedown/) | [The Register](https://www.theregister.com/cyber-crime/2026/05/27/crowdstrike-google-shatter-glassworm-botnet/5247337) | [TechCrunch](https://techcrunch.com/2026/05/27/crowdstrike-and-google-take-down-botnet-used-by-hackers-to-target-software-developers-in-supply-chain-attacks/)
+
+### May 2026 — SymJack: Symlink Hijacking Flaw in Six AI Coding Agents (Adversa AI, May 27)
+
+Adversa AI disclosed **SymJack** — an architectural attack pattern affecting Claude Code, Cursor, Gemini CLI, Antigravity CLI, GitHub Copilot CLI, Grok Build, and OpenAI Codex CLI. The attack exploits how AI coding agents handle file-copy approval prompts when a symlink is involved:
+
+1. Attacker publishes a repo with a renamed symlink in place of the project instruction file (CLAUDE.md, `.cursorrules`, `.windsurfrules`, etc.).
+2. The agent shows a "copy this file?" approval prompt — using the symlink's name, not its target.
+3. User approves. The agent follows the symlink and overwrites its own configuration file (`settings.json`, `mcp.json`) with attacker-controlled content.
+4. The attacker inserts a malicious MCP server definition.
+5. On the next agent restart, the MCP server runs with full user privileges — enabling credential theft and CI pipeline compromise.
+
+This is an architectural flaw, not a product-specific bug. No CVE had been assigned as of the disclosure date.
+
+Source: [Adversa AI — The Approval Prompt Is Lying to You: SymJack in AI Coding Agents](https://adversa.ai/blog/the-approval-prompt-is-lying-to-you-symlink-rce-in-five-ai-coding-agents-claude-code-cursor-antigravity-copilot-grok-build/) | [SecurityWeek — SymJack Attack Turns AI Coding Agents into Supply Chain Attack Delivery Systems](https://www.securityweek.com/symjack-attack-turns-ai-coding-agents-into-supply-chain-attack-delivery-systems/) (both HTTP 403 — bot-protection pattern; search-confirmed live)
 
 ### March 2026 — Open Sesame: Open VSX Bug Lets Malicious Extensions Bypass Pre-Publish Security Checks
 

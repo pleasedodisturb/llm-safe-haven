@@ -108,6 +108,28 @@ else
   info "No LaunchAgents directory (~/Library/LaunchAgents) — skipping"
 fi
 
+# Miasma Wave D (June 1, 2026) IOC: Bun binary in /tmp/b-*/
+# Payload downloads Bun runtime to a random temp dir matching /tmp/b-<random>/bun
+MIASMA_BUN=$(find /tmp -maxdepth 2 -name "bun" -path "*/b-*" -type f 2>/dev/null || true)
+if [ -n "$MIASMA_BUN" ]; then
+  while IFS= read -r f; do
+    fail "Miasma Wave D IOC: Bun binary found at $f (Wave D / RHSB-2026-006 — payload may have crashed)"
+  done <<< "$MIASMA_BUN"
+else
+  pass "No Miasma Wave D Bun binary found in /tmp/b-*/"
+fi
+
+# Miasma Wave D IOC: JS payload file in /tmp/p*.js
+# Payload writes a JS file matching /tmp/p<base36>.js; removed on success, persists on crash
+MIASMA_JS=$(find /tmp -maxdepth 1 -name "p*.js" -type f 2>/dev/null || true)
+if [ -n "$MIASMA_JS" ]; then
+  while IFS= read -r f; do
+    fail "Miasma Wave D IOC: Possible payload JS at $f (p<base36>.js pattern — Wave D / RHSB-2026-006)"
+  done <<< "$MIASMA_JS"
+else
+  pass "No Miasma Wave D payload JS file found in /tmp/p*.js"
+fi
+
 # ============================================================================
 # 2. VSCode autorun task IOC (.vscode/tasks.json with runOn: folderOpen)
 # ============================================================================
@@ -384,6 +406,10 @@ COMPROMISED_PKGS=(
   "aws-env-loader"
   "vault-secret-loader"
   "ci-env-helper"
+  # @redhat-cloud-services packages (Wave D / Miasma, June 1, 2026)
+  # Two names confirmed from public sources; see RHSB-2026-006 for the full list of 32 packages
+  "@redhat-cloud-services/frontend-components"
+  "@redhat-cloud-services/chrome"
 )
 
 if command -v npm >/dev/null 2>&1; then
@@ -461,6 +487,8 @@ section "8. GitHub dead-drop repository audit"
 DEAD_DROP_PATTERNS=(
   "Shai-Hulud"
   "Here We Go Again"
+  "Miasma"
+  "Spreading Blight"
   "sandworm"
   "sardaukar"
   "ornithopter"
