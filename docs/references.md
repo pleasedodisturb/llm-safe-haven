@@ -34,6 +34,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [vulnerablemcp.info](https://vulnerablemcp.info/) | — | Community MCP vulnerability database. Comprehensive catalog of known CVEs and attack patterns across MCP server implementations. Purpose-built equivalent of CVE/NVD for the MCP ecosystem. |
 | [golf-mcp/golf-scanner](https://github.com/golf-mcp/golf-scanner) | ~7 | Open-source Go CLI that discovers MCP server configurations across 7 IDEs (Claude Code, Cursor, VS Code, Windsurf, Gemini CLI, Kiro, Antigravity) and runs 20 security checks (9 offline + 11 online against OSV, npm, PyPI, OCI registries). Produces a 0–100 risk score per server with severity-weighted scoring. Zero telemetry, no account, single static binary. Apache 2.0. |
 | [Claude Code Security](https://www.anthropic.com/news/claude-code-security) | — | Anthropic's security product (public beta, May 4, 2026) powered by Opus 4.7. Scans codebases for vulnerabilities and generates patches. Includes a free terminal plugin for Claude Code users. Complements static analysis tools with LLM-based semantic understanding of security flaws in context. |
+| [Pantheon-Security/medusa](https://github.com/Pantheon-Security/medusa) | ~592 | AI-first security scanner with 9,600+ detection rules across 79 analyzers covering AI/ML, LLM agents, and MCP servers. Repo poisoning detection scans 28+ AI editor config files (Cursor, Claude Code, VS Code). v2026.5.11 released May 28, 2026. AGPL-3.0. |
 
 ## Credential Management
 
