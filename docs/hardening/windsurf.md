@@ -177,6 +177,8 @@ Monitor Cognition's release cadence and changelog for security fixes. The Chromi
 version has been updated, but it is unclear whether the new ownership will maintain
 regular security patches. Treat any gap in updates as increased risk.
 
+**[2026-06-02 update]: Windsurf is now Devin Desktop.** Cognition shipped the rebrand as a standard over-the-air update on June 2, 2026. The product is now called Devin Desktop; plans, settings, and extensions carry over unchanged. Cascade has been replaced by Devin Local (Rust rewrite, ~30% more token efficient, subagents). Cascade is deprecated July 1, 2026. Source: [devin.ai/blog/windsurf-is-now-devin-desktop](https://devin.ai/blog/windsurf-is-now-devin-desktop) (HTTP 403 — bot-protection pattern; search-confirmed live via TechCrunch, multiple outlets)
+
 ## What You CANNOT Harden
 
 These are fundamental limitations, not configuration gaps:

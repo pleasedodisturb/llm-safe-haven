@@ -10,7 +10,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 
 | Resource | Stars | Description |
 |----------|-------|-------------|
-| [microsoft/agent-governance-toolkit](https://github.com/microsoft/agent-governance-toolkit) | ~1.2K | Policy enforcement, zero-trust identity, and execution sandboxing for AI agents. Covers 10/10 OWASP Agentic Top 10. MIT licensed, multi-language (Python, TS, .NET, Rust, Go). |
+| [microsoft/agent-governance-toolkit](https://github.com/microsoft/agent-governance-toolkit) | ~3.9K | Policy enforcement, zero-trust identity, and execution sandboxing for AI agents. Covers 10/10 OWASP Agentic Top 10. MIT licensed, multi-language (Python, TS, .NET, Rust, Go). |
 | [precize/Agentic-AI-Top10-Vulnerability](https://github.com/precize/Agentic-AI-Top10-Vulnerability) | — | OWASP-style top 10 for agentic AI. Detailed attack descriptions, examples, and mitigations for each category. |
 | [slowmist/slowmist-agent-security](https://github.com/slowmist/slowmist-agent-security) | — | Security review framework for AI agents in adversarial environments. Includes GitHub repo audit, URL/document analysis, and on-chain address review. |
 | [OWASP Top 10 for LLM Applications](https://genai.owasp.org/resource/owasp-top-10-for-llm-applications-2025/) | — | Foundation taxonomy for LLM risks. 2025 edition adds system prompt leakage and vector/embedding weaknesses. |
@@ -54,7 +54,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [Anthropic: Claude Code Sandboxing](https://www.anthropic.com/engineering/claude-code-sandboxing) | — | Engineering blog post on Seatbelt (macOS) / Bubblewrap (Linux) sandboxing. Reduces permission prompts by 84% while maintaining OS-level filesystem and network isolation. |
 | [anthropic-experimental/sandbox-runtime](https://github.com/anthropic-experimental/sandbox-runtime) | — | Open-source lightweight sandboxing tool. Enforces filesystem and network restrictions at the OS level without containers. Research preview. |
 | [stacklok/brood-box](https://github.com/stacklok/brood-box) | — | CLI tool for running AI coding agents (Claude Code, Codex, OpenCode) inside hardware-isolated microVMs. COW snapshot isolation, DNS-aware egress policies, Cedar-based MCP authorization. Reviews diffs before flush-back. Apache-2.0. |
-| [dagger/container-use](https://github.com/dagger/container-use) | — | MCP server giving each agent a fresh container in its own git branch. Run multiple agents without conflicts. Early development. |
+| [dagger/container-use](https://github.com/dagger/container-use) | ~3.8K | MCP server giving each agent a fresh container in its own git branch. Run multiple agents without conflicts. Early development. |
 | [trailofbits/claude-code-devcontainer](https://github.com/trailofbits/claude-code-devcontainer) | — | Security-hardened devcontainer for running Claude Code in bypass mode safely. Built for security audits and untrusted code review. Includes `devc` CLI. |
 | [e2b-dev/E2B](https://github.com/e2b-dev/E2B) | ~11.5K | Open-source cloud sandbox for AI agents. Isolated Firecracker microVM environments with a single API call. 24-hour session limit. |
 | [superradcompany/microsandbox](https://github.com/superradcompany/microsandbox) | ~5K | Lightweight VMs that spin up in milliseconds from SDKs. Local-first, no server, no daemon, rootless. Embedded microVM runtime. |
