@@ -428,6 +428,7 @@ Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615
 | Open VSX scanner bypass — marketplace extension vetting failure | High | Boolean return value conflated "no scanners configured" with "all scanners failed to run"; scanner failures under load silently waved extensions through as passed; a free publisher account was sufficient to exploit reliably; all VS Code forks consuming Open VSX (Cursor, Windsurf, Kiro, VSCodium) at risk; fixed in Open VSX 0.32.0 | [Open Sesame — Feb 8, 2026 disclosure, fixed Open VSX 0.32.0](https://thehackernews.com/2026/03/open-vsx-bug-let-malicious-vs-code.html) |
 | Symlink hijacking via project instruction file (SymJack) | Critical | Booby-trapped repo places renamed symlink as CLAUDE.md/`.cursorrules`; agent's file-copy approval shows symlink name not target; agent follows symlink and overwrites its own config (settings.json, mcp.json) with malicious MCP server entry; on restart, attacker MCP server runs with full user privileges; affects 6 agents: Claude Code, Cursor, Gemini CLI, Antigravity CLI, Copilot CLI, Grok Build | [SymJack — Adversa AI (May 2026)](https://adversa.ai/blog/the-approval-prompt-is-lying-to-you-symlink-rce-in-five-ai-coding-agents-claude-code-cursor-antigravity-copilot-grok-build/) |
 | CI/CD bot-trust bypass in AI GitHub Actions workflow | High | `checkWritePermissions` in `anthropics/claude-code-action` unconditionally trusted any actor ending in `[bot]` regardless of actual write permissions; unauthenticated attacker creates a GitHub App, gets installation token, opens issue/PR on any public repo using the workflow, injects prompt-injection payload; Claude Code GitHub Actions bot processes it with elevated `GITHUB_TOKEN` → full supply chain compromise: secret exfiltration, OIDC token theft, malicious code push | [GMO Flatt Security — Poisoning Claude Code (June 2026)](https://flatt.tech/research/posts/poisoning-claude-code-one-github-issue-to-break-the-supply-chain/) |
+| Project folder-trust MCP auto-exec (TrustFall) | High | Accepting a folder trust prompt in Claude Code, Gemini CLI, Cursor CLI, or GitHub Copilot CLI automatically launches all project-defined MCP servers — one Enter keypress on a malicious repo causes RCE; in CI headless mode, zero user interaction required | [TrustFall — Adversa AI (May 2026)](https://adversa.ai/blog/trustfall-coding-agent-security-flaw-rce-claude-cursor-gemini-cli-copilot/) |
 
 ## Real Incidents Timeline
 
@@ -543,6 +544,32 @@ Adversa AI disclosed **SymJack** — an architectural attack pattern affecting C
 This is an architectural flaw, not a product-specific bug. No CVE had been assigned as of the disclosure date.
 
 Source: [Adversa AI — The Approval Prompt Is Lying to You: SymJack in AI Coding Agents](https://adversa.ai/blog/the-approval-prompt-is-lying-to-you-symlink-rce-in-five-ai-coding-agents-claude-code-cursor-antigravity-copilot-grok-build/) | [SecurityWeek — SymJack Attack Turns AI Coding Agents into Supply Chain Attack Delivery Systems](https://www.securityweek.com/symjack-attack-turns-ai-coding-agents-into-supply-chain-attack-delivery-systems/) (both HTTP 403 — bot-protection pattern; search-confirmed live)
+
+### May 2026 — 33 Malicious npm Packages Abuse Dependency Confusion to Profile Developer Environments (Microsoft, May 29)
+
+Microsoft Security disclosed 33 malicious npm packages published under three maintainer aliases that abuse **dependency confusion** to silently install into corporate developer environments. Unlike the Mini Shai-Hulud waves, this campaign uses **version inflation** — publishing at version `100.100.100` to win automatically over internal corporate packages registered at lower version numbers.
+
+**Maintainer aliases:** `mr.4nd3r50n` (mr.4nd3r50n@yandex.ru, 26 packages), `ce-rwb` (ogvanta@yandex.ru, 7 packages), `t-in-one` (t-in-one@yandex.ru, 12 packages).
+
+**Targeted scopes:** Nine corporate npm scopes including `@cloudplatform-single-spa`, `@wb-track`, `@data-science`, `@ce-rwb`, `@payments-widget`, `@travel-autotests`, `@t-in-one`, `@capibar.chat`, and `@sber-ecom-core`.
+
+**Payload behavior:** Reconnaissance-only by default. Full exploit capability is server-side toggle-enabled via a shared authentication token (`l95HdDaz3kQx1Zsg3WxH6HvKANf51RY1`). C2 domain: `oob.moika.tech`.
+
+**Attribution:** Not linked to TeamPCP/UNC6780. An independent actor whose public profile traces from a legitimate bug-bounty researcher in April 2024 to an active malware developer by May 2026.
+
+Source: [Microsoft Security Blog — 33 malicious npm packages abuse dependency confusion (May 29, 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/29/33-malicious-npm-packages-abuse-dependency-confusion-profile-developer-environments/) (HTTP 200 verified)
+
+### May 2026 — TrustFall: Project Folder Trust Auto-Executes MCP Servers in Four AI Coding Agents (Adversa AI, May 7)
+
+Adversa AI disclosed **TrustFall** — an architectural flaw in how four AI coding agents handle project-defined MCP servers. When a developer accepts a folder trust prompt, the agent automatically launches all MCP servers defined in the project configuration with no separate approval step. In interactive mode, one Enter keypress on a malicious repository causes RCE. In CI headless mode, simply checking out and running on an attacker-controlled repository is sufficient — zero user interaction required.
+
+**Affected agents:** Claude Code, Gemini CLI, Cursor CLI, GitHub Copilot CLI. OpenAI Codex CLI was not listed as affected.
+
+**Attack chain:** Attacker publishes a repository with a malicious MCP server definition in `.claude/settings.json` (or equivalent). Victim clones and opens the repo; agent shows a single folder-trust prompt. Victim presses Enter. MCP server executes with full user privileges — no further approvals shown.
+
+**Anthropic's position:** "Code execution happens only after the user has consented to the project." The trust prompt is the intended consent gate. No CVE was assigned as of disclosure.
+
+Source: [Adversa AI — TrustFall: Coding Agent Security Flaw / RCE in Claude Code, Cursor, Gemini CLI, Copilot](https://adversa.ai/blog/trustfall-coding-agent-security-flaw-rce-claude-cursor-gemini-cli-copilot/) | [DarkReading — TrustFall Exposes Claude Code Execution Risk](https://www.darkreading.com/application-security/trustfall-exposes-claude-code-execution-risk) | [Help Net Security](https://www.helpnetsecurity.com/2026/05/07/trustfall-ai-coding-cli-vulnerability-research/) (all HTTP 403 — bot-protection pattern; search-confirmed live)
 
 ### March 2026 — Open Sesame: Open VSX Bug Lets Malicious Extensions Bypass Pre-Publish Security Checks
 
@@ -906,6 +933,7 @@ Claude Code accounts for 27 of 74 confirmed CVEs (36%) — partly because it lea
 | [Model Context Protocol: Landscape, Security Threats, and Future Research Directions](https://dl.acm.org/doi/10.1145/3796519) (ACM TOSEM) | 2026 | Systematic threat taxonomy for MCP across 4 attacker types (malicious developers, external attackers, malicious users, design flaws) and 16 distinct threat scenarios; published in ACM Transactions on Software Engineering and Methodology |
 | [Reframing LLM Agent Security as an Agent-Human Interaction Problem](https://arxiv.org/abs/2605.24309) (Wang, Li, Tian — UCLA) | May 2026 | Systematic analysis of 59 papers + 21 production systems + 26 security plugins; finds the three dominant production controls (policy specification, runtime approval, scope configuration) each adopted by ≥14/21 systems yet almost unstudied academically, while categories dominating academic literature see zero production deployment; approval fatigue, brittle scope bounds, and inaccessible policy languages are the core design failures |
 | [A Systematic Survey of Security Threats and Defenses in LLM-Based AI Agents: A Layered Attack Surface Framework](https://arxiv.org/abs/2604.23338) (Kexin Chu) | Apr 2026 | Proposes the Layered Attack Surface Model (LASM) decomposing the agentic stack into 7 layers (Foundation, Cognitive, Memory, Tool Execution, Multi-Agent Coordination, Ecosystem, Governance); proves via non-transferability theorem that a defense at one layer has zero detection power against an attack localized at another; attacks are emergent, compositional, and temporally extended |
+| [VIPER-MCP: Detecting and Exploiting Taint-Style Vulnerabilities in Model Context Protocol Servers](https://arxiv.org/abs/2605.21392) | May 2026 | Scanned 39,884 real-world open-source MCP server repos; found 106 zero-day vulnerabilities with end-to-end exploit traces; 67 CVE IDs assigned; first framework combining taint-style static detection with dynamic PoC-confirmed exploitability; 4.6% FPR, 7.7% FNR |
 
 **Industry reports:**
 - [Trail of Bits — Lack of Isolation in Agentic Browsers (January 2026)](https://blog.trailofbits.com/2026/01/13/lack-of-isolation-in-agentic-browsers-resurfaces-old-vulnerabilities/) — Prompt injection in AI browsers mirrors XSS/CSRF; agents lack Same-Origin Policy equivalents
