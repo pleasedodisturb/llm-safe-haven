@@ -453,6 +453,28 @@ RyotaK (GMO Flatt Security) disclosed a bot-trust bypass in `anthropics/claude-c
 
 Source: [flatt.tech — Poisoning Claude Code](https://flatt.tech/research/posts/poisoning-claude-code-one-github-issue-to-break-the-supply-chain/) (HTTP 403 — bot-protection pattern; search-confirmed live)
 
+### June 2026 — Mini Shai-Hulud Wave E: Phantom Gyp Bypasses `--ignore-scripts` (June 3)
+
+Two days after Miasma (Wave D), TeamPCP returned with a technique that invalidates `--ignore-scripts` as a defense. **57 packages** across multiple maintainer accounts — `vapi`, `ai-sdk-ollama`, and 55 others — were compromised in under two hours via a 157-byte weaponized `binding.gyp` file.
+
+**The bypass:** npm automatically invokes `node-gyp` when a `binding.gyp` file is present. This execution path is entirely outside the `scripts` block — `--ignore-scripts` has no effect on it. The attacker placed a minimal `binding.gyp` that triggers a shell command at install time, delivering the same credential-harvesting payload as prior waves plus a new persistence layer that injects backdoor entries into `.claude/settings.json`, `.cursor/settings.json`, and `.vscode/tasks.json` on every project open.
+
+**Signed attestations are insufficient:** All 57 packages carried forged SLSA provenance and Sigstore signatures. `npm audit signatures` returns clean. The only reliable prevention at time of disclosure was `npm stage publish` staged approval (GA in npm CLI 11.15.0).
+
+**Dead-drop IOC:** Credentials exfiltrated to GitHub repos under account `liuende501` (236+ repositories, encrypted JSON payloads).
+
+Source: [StepSecurity — Binding.gyp npm supply chain attack](https://www.stepsecurity.io/blog/binding-gyp-npm-supply-chain-attack-spreads-like-worm) | [Snyk — Node-gyp supply chain compromise](https://snyk.io/blog/node-gyp-supply-chain-compromise-self-propagating-npm-worm-binding-gyp/) | [Corgea — Phantom Gyp Miasma](https://corgea.com/research/miasma-phantom-gyp-npm-worm-vapi-ai-sdk-ollama-june-2026) (all HTTP 403 — bot-protection pattern; search-confirmed live)
+
+### June 2026 — IronWorm: Independent Rust+eBPF+Tor npm Campaign (June 4)
+
+One day after Phantom Gyp, a **separate, unrelated actor** launched IronWorm — a novel npm supply chain attack distinct from TeamPCP and the Shai-Hulud worm family. The compromised account `asteroiddao` was used to publish malicious versions of Rust-adjacent npm packages.
+
+**What makes IronWorm different:** Unlike Shai-Hulud's JavaScript+Bun payload architecture, IronWorm drops a compiled **Rust binary** at install time, uses **eBPF kernel probes** to intercept credential reads directly from process memory (bypassing env-var scrubbing and vault abstraction layers), and exfiltrates via **Tor hidden services** — making C2 traffic invisible to standard network monitoring. This is the first publicly documented npm supply chain campaign to combine all three techniques.
+
+**Attribution:** No confirmed threat actor overlap with TeamPCP / UNC6780. The eBPF approach requires deeper OS-level knowledge than prior npm campaigns; researchers assessed this as a different actor with a higher technical profile.
+
+Source: [The Hacker News — IronWorm and new Miasma worm variant](https://thehackernews.com/2026/06/ironworm-and-new-miasma-worm-variant.html) (HTTP 403 — bot-protection pattern; search-confirmed live)
+
 ### May 2026 — Microsoft Semantic Kernel Prompt Injection → RCE (CVE-2026-25592 & CVE-2026-26030)
 
 Microsoft disclosed two critical vulnerabilities in Semantic Kernel on May 7, 2026. **CVE-2026-26030** affects the Python SDK: the `InMemoryVectorStore` filter interpolates user-supplied city values into a Python lambda executed via `eval()`. Any prompt injection route into the agent — a malicious document, web content, or tool output — escalates to host-level RCE without requiring a browser exploit or memory corruption bug. **CVE-2026-25592** affects the .NET SDK: a helper method was accidentally annotated with `[KernelFunction]`, exposing arbitrary file-write capability to the AI model with no path validation (CVSS 10.0). A manipulated agent can write to any location on the host filesystem, escaping the workspace. Both patches are available: Python SDK >= 1.39.4, .NET SDK >= 1.71.0.

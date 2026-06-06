@@ -6,7 +6,7 @@ Your npm dependencies, GitHub Actions, and credential managers are all attack su
 
 ## Case Study: Shai-Hulud — Sustained npm Supply Chain Campaign (Sept 2025–May 2026)
 
-Shai-Hulud is not a single attack. It is a continuous campaign that has produced **six named waves in nine months**, with the cadence accelerating through April–May 2026 to roughly one wave every 7–10 days. The latest waves have shifted focus from credential managers to **AI agent configuration files** — `.claude/settings.json`, `.vscode/tasks.json` — as primary persistence vectors.
+Shai-Hulud is not a single attack. It is a continuous campaign that has produced **seven named waves in nine months**, with the cadence accelerating through April–June 2026 to roughly one wave every 7–10 days. The latest waves have shifted focus from credential managers to **AI agent configuration files** — `.claude/settings.json`, `.vscode/tasks.json` — as primary persistence vectors.
 
 This is not hypothetical. It is the dominant npm supply chain threat of 2026.
 
@@ -21,6 +21,7 @@ This is not hypothetical. It is the dominant npm supply chain threat of 2026.
 | Mini — TanStack | May 11, 2026 | `@tanstack/react-router` and 40+ `@tanstack/*` packages | 12M+ weekly downloads | GitHub Actions cache poisoning + **OIDC token extraction from `/proc/<pid>/mem`** — published without stealing npm credentials |
 | Mini — AntV ("Here We Go Again") | May 19, 2026 | 323 packages via `atool` maintainer: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor`, `timeago.js`, others | 637 versions, ~16M weekly downloads, 2,200+ exfil repos | **Worm source code released publicly on BreachForums with a "supply chain contest"**; second wave weaponizing `.claude/settings.json` |
 | Mini — Miasma ("The Spreading Blight") | June 1, 2026 | 32 `@redhat-cloud-services` packages (`@redhat-cloud-services/frontend-components`, `@redhat-cloud-services/chrome`, and 30 others — see [RHSB-2026-006](https://access.redhat.com/security/vulnerabilities/RHSB-2026-006)) | 96 versions, ~116,991 weekly downloads | **GitHub Actions OIDC compromise** (no stolen developer credentials); 4.1 MB obfuscated JS preinstall hook; **no attacker C2 domain** — exfil routes through legitimate vendor endpoints using stolen credentials |
+| Mini — Phantom Gyp | June 3, 2026 | 57 packages across multiple maintainer accounts (`vapi`, `ai-sdk-ollama`, and 55 others) | ~2 hours, 57 packages | **`binding.gyp` hijack** — 157-byte file triggers code execution at install time without using `preinstall`/`postinstall` hooks; bypasses `--ignore-scripts` and most security tools; forged SLSA provenance + Sigstore signing; injects backdoor into AI IDE configs on every project open |
 
 [Source: Snyk, Wiz, StepSecurity, Akamai, SafeDep — see Sources section.]
 
@@ -131,15 +132,36 @@ Red Hat published RHSB-2026-006 within hours of Wiz Research's disclosure. The f
 
 Source: [Wiz — Miasma: The Spreading Blight](https://www.wiz.io/blog/miasma-supply-chain-attack-targeting-redhat-npm-packages) | [Snyk — Miasma supply chain attack](https://snyk.io/blog/miasma-supply-chain-attack-malicious-code-redhat-cloud-services-npm-packages/) | [Red Hat RHSB-2026-006](https://access.redhat.com/security/vulnerabilities/RHSB-2026-006) | [JFrog — Shai-Hulud Miasma](https://research.jfrog.com/post/shai-hulud-miasma-redhat-cloud-services/) | [BleepingComputer — Red Hat npm packages compromised](https://www.bleepingcomputer.com/news/security/red-hat-npm-packages-compromised-to-steal-developer-credentials/) (all HTTP 403 — bot-protection pattern; search-confirmed live)
 
+#### Wave E — Phantom Gyp (June 3, 2026)
+
+Two days after Miasma, the same worm family returned with a new evasion technique. **57 packages** across multiple maintainer accounts were compromised in under two hours, including `vapi`, `ai-sdk-ollama`, and 55 others.
+
+**The Phantom Gyp technique:** Instead of using `preinstall` or `postinstall` hooks in `package.json` — the fields security tools and `--ignore-scripts` specifically monitor — the attacker placed a weaponized **157-byte `binding.gyp` file** in each package. When npm encounters a `binding.gyp` file, it automatically invokes `node-gyp` as a build step; this execution path is **outside** the `scripts` block and **not suppressed by `--ignore-scripts`**.
+
+**Why this matters:** Every defense built on `--ignore-scripts` fails against this wave. This includes:
+- `npm install --ignore-scripts` (does not block `binding.gyp` execution)
+- `npm ci --ignore-scripts`
+- npm audit hooks that only inspect `package.json` scripts fields
+- The Shai-Hulud scanner script's `npm config ignore-scripts` check
+
+**Payload capabilities:** Same credential-harvesting template as Wave D plus a new persistence layer — the malware injects a backdoor file into AI coding assistant project configurations (`.claude/settings.json`, `.cursor/settings.json`, `.vscode/tasks.json`) so that opening the project in any supported IDE re-executes the payload.
+
+**Dead-drop IOC:** Stolen credentials exfiltrated to GitHub repos created under the account `liuende501` (236+ repositories, encrypted JSON files). No named C2 beacon domain confirmed by research sources as of June 6.
+
+**Signed attestations do not help:** The wave also forged SLSA provenance and Sigstore signatures on all republished packages — `npm audit signatures` shows green. The only reliable defense is staged publishing approval, which was not yet widely adopted across affected maintainer accounts.
+
+Source: [StepSecurity — Binding.gyp npm supply chain attack](https://www.stepsecurity.io/blog/binding-gyp-npm-supply-chain-attack-spreads-like-worm) | [Snyk — Node-gyp supply chain compromise](https://snyk.io/blog/node-gyp-supply-chain-compromise-self-propagating-npm-worm-binding-gyp/) | [The Hacker News — IronWorm and new Miasma worm variant](https://thehackernews.com/2026/06/ironworm-and-new-miasma-worm-variant.html) | [Corgea — Phantom Gyp Miasma](https://corgea.com/research/miasma-phantom-gyp-npm-worm-vapi-ai-sdk-ollama-june-2026) (all HTTP 403 — bot-protection pattern; search-confirmed live)
+
 #### What to do right now if you use Claude Code
 
 1. **Audit `.claude/settings.json` in every project you've opened** in the last 30 days. Any `SessionStart`, `PreToolUse`, or `PostToolUse` hook that doesn't point to your own scripts or known-good plugin paths (`~/.claude/hooks/<your-tooling>/`) should be treated as suspicious until verified.
 2. **Audit `.vscode/tasks.json` for `"runOn": "folderOpen"`**. Legitimate uses exist but are rare; assume malicious until proven otherwise.
 3. **Run the IOC scan**: check `~/Library/LaunchAgents/com.user.kitty-monitor.plist`, `~/.local/share/kitty/cat.py`, `~/.local/bin/gh-token-monitor.sh`, and `/tmp/tmp.987654321.lock`. Any of these = compromised host.
 4. **Search your GitHub account for dead-drop repos** matching the Dune-themed naming. If you find any, your `gh` token has been exfiltrated — revoke immediately, then rotate every credential it could reach.
-5. **Set `ignore-scripts=true` in `~/.npmrc`** if you haven't already. This single setting would have blocked execution of all six Shai-Hulud waves.
+5. **Set `ignore-scripts=true` in `~/.npmrc`** if you haven't already. This setting blocks Waves A–D but does **not** block Wave E (Phantom Gyp) — see item 8.
 6. **The bash-firewall and secret-guard hooks llm-safe-haven installs** catch the SessionStart-hook abuse pattern at session start. If you're not running them, install via `npx llm-safe-haven`.
 7. **Wave D (Miasma, June 1): Check for Bun-based IOCs and the new dead-drop pattern.** Run `find /tmp -maxdepth 2 -name "bun" -path "*/b-*"` and `find /tmp -maxdepth 1 -name "p*.js"` — either file surviving means the Miasma payload crashed mid-run on your machine. Also search GitHub for repos with description "Miasma: The Spreading Blight" — that is the Wave D dead-drop equivalent of the Dune-themed naming used in Waves A–C.
+8. **Wave E (Phantom Gyp, June 3): `--ignore-scripts` does NOT block `binding.gyp`-triggered code execution.** Audit any package you install for unexpected `binding.gyp` files before running `npm install`, and consider Socket.dev or snyk/agent-scan which detect the `binding.gyp` attack pattern. `npm audit signatures` shows green for compromised Phantom Gyp packages — provenance verification alone is insufficient.
 
 ### Timeline
 

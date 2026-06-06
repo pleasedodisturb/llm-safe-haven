@@ -40,7 +40,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 
 | Resource | Stars | Description |
 |----------|-------|-------------|
-| [Infisical/agent-vault](https://github.com/Infisical/agent-vault) | — | TLS-intercepting, credential-injecting forward proxy for AI agents. Agents route requests through the proxy which injects credentials at the network layer — agents never see plaintext secrets. Officially launched April 22, 2026. |
+| [Infisical/agent-vault](https://github.com/Infisical/agent-vault) | ~1.6K | TLS-intercepting, credential-injecting forward proxy for AI agents. Agents route requests through the proxy which injects credentials at the network layer — agents never see plaintext secrets. Officially launched April 22, 2026. |
 | [DemiPass](https://www.demipass.com/) | — | MCP-native secrets management using 30-second, single-use cryptographic nonces. Agents get use-tokens, never raw credentials. Injects credentials into HTTP headers, request bodies, or SSH commands server-side. Commercial. |
 | [1Password/agent-hooks](https://github.com/1Password/agent-hooks) | — | PreToolUse hooks for AI agents (Claude Code, Cursor, Copilot, Windsurf). Validates mounted .env files against 1Password vault. |
 | [hashicorp/vault-mcp-server](https://github.com/hashicorp/vault-mcp-server) | — | Official HashiCorp Vault MCP server. Vault-backed secret management for AI agents via MCP protocol. Beta. |
@@ -88,14 +88,14 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [NVIDIA/garak](https://github.com/NVIDIA/garak) | ~8K | LLM vulnerability scanner. Probes for hallucination, data leakage, prompt injection, misinformation, toxicity, jailbreaks. ~100 attack vectors, up to 20K prompts per run. AVID integration for community vulnerability sharing. Apache-2.0. |
 | [microsoft/PyRIT](https://github.com/microsoft/PyRIT) | ~3.4K | Python Risk Identification Tool for generative AI. Multi-turn adversarial testing across text, image, audio, video. Orchestrators, converters, scorers, and memory system. Built from experience red-teaming Bing Chat and Copilot. |
 | [praetorian-inc/augustus](https://github.com/praetorian-inc/augustus) | — | LLM vulnerability scanner. 210+ adversarial attack probes, 28 LLM providers, single Go binary. Production-oriented: concurrent scanning, rate limiting, retries, timeouts. Go-native reimplementation inspired by garak. Apache-2.0. |
-| [promptfoo/promptfoo](https://github.com/promptfoo/promptfoo) | ~20K | CLI for evaluating and red-teaming LLM apps. 50+ vulnerability types, CI/CD integration via GitHub Actions. Used by OpenAI and Anthropic. Acquired by OpenAI (Mar 2026). MIT licensed. |
+| [promptfoo/promptfoo](https://github.com/promptfoo/promptfoo) | ~21.9K | CLI for evaluating and red-teaming LLM apps. 50+ vulnerability types, CI/CD integration via GitHub Actions. Used by OpenAI and Anthropic. Acquired by OpenAI (Mar 2026). MIT licensed. |
 | [utkusen/promptmap](https://github.com/utkusen/promptmap) | — | Automated prompt injection scanner. White-box testing (provide system prompts) and black-box testing (point at HTTP endpoint). Controller LLM judges attack success. |
 
 ## Agent Monitoring & Observability
 
 | Resource | Stars | Description |
 |----------|-------|-------------|
-| [langfuse/langfuse](https://github.com/langfuse/langfuse) | ~25K | Open-source LLM engineering platform. Traces, metrics, evals, prompt management. Framework-agnostic, built on OpenTelemetry. Self-hosted option available. Acquired by ClickHouse. |
+| [langfuse/langfuse](https://github.com/langfuse/langfuse) | ~28.6K | Open-source LLM engineering platform. Traces, metrics, evals, prompt management. Framework-agnostic, built on OpenTelemetry. Self-hosted option available. Acquired by ClickHouse. |
 | [LangSmith](https://www.langchain.com/langsmith/observability) | — | AI agent observability platform by LangChain. Near-zero overhead async tracing. If LangSmith goes down, your agent keeps running. Commercial with free tier. |
 
 ## CI/CD Runtime Hardening
@@ -126,9 +126,9 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | Resource | Stars | Description |
 |----------|-------|-------------|
 | [ProjectRecon/awesome-ai-agents-security](https://github.com/ProjectRecon/awesome-ai-agents-security) | — | Living map of the AI agent security ecosystem. Organized by security lifecycle: red teaming, runtime protection, sandboxing, governance. |
-| [bureado/awesome-agent-runtime-security](https://github.com/bureado/awesome-agent-runtime-security) | — | Curated list focused on runtime security for AI agents. Covers sandboxing, process isolation, credential management, and monitoring. |
+| [bureado/awesome-agent-runtime-security](https://github.com/bureado/awesome-agent-runtime-security) | ~59 | Curated list focused on runtime security for AI agents. Covers sandboxing, process isolation, credential management, and monitoring. |
 | [corca-ai/awesome-llm-security](https://github.com/corca-ai/awesome-llm-security) | — | Broad curation of LLM security tools, documents, and projects. Good starting point for exploring the space. |
-| [restyler/awesome-sandbox](https://github.com/restyler/awesome-sandbox) | — | Curated list of code sandboxing solutions for AI agents. Covers microVMs, containers, gVisor, WASM, and cloud platforms. |
+| [restyler/awesome-sandbox](https://github.com/restyler/awesome-sandbox) | ~514 | Curated list of code sandboxing solutions for AI agents. Covers microVMs, containers, gVisor, WASM, and cloud platforms. |
 | [pleasedodisturb/awesome-llm-token-optimization](https://github.com/pleasedodisturb/awesome-llm-token-optimization) | — | Curated strategies, tools, papers for reducing LLM token costs 80-99%. Covers prompt caching, batch APIs, model routing, compression, KV cache. Companion to this repo — cost overruns from retries are a security-adjacent concern. |
 
 ## Community Guides

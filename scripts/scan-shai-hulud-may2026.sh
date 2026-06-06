@@ -410,6 +410,9 @@ COMPROMISED_PKGS=(
   # Two names confirmed from public sources; see RHSB-2026-006 for the full list of 32 packages
   "@redhat-cloud-services/frontend-components"
   "@redhat-cloud-services/chrome"
+  # Wave E / Phantom Gyp (June 3, 2026) — binding.gyp hijack; --ignore-scripts does NOT protect
+  "vapi"
+  "ai-sdk-ollama"
 )
 
 if command -v npm >/dev/null 2>&1; then
