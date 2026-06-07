@@ -132,6 +132,18 @@ Red Hat published RHSB-2026-006 within hours of Wiz Research's disclosure. The f
 
 Source: [Wiz — Miasma: The Spreading Blight](https://www.wiz.io/blog/miasma-supply-chain-attack-targeting-redhat-npm-packages) | [Snyk — Miasma supply chain attack](https://snyk.io/blog/miasma-supply-chain-attack-malicious-code-redhat-cloud-services-npm-packages/) | [Red Hat RHSB-2026-006](https://access.redhat.com/security/vulnerabilities/RHSB-2026-006) | [JFrog — Shai-Hulud Miasma](https://research.jfrog.com/post/shai-hulud-miasma-redhat-cloud-services/) | [BleepingComputer — Red Hat npm packages compromised](https://www.bleepingcomputer.com/news/security/red-hat-npm-packages-compromised-to-steal-developer-credentials/) (all HTTP 403 — bot-protection pattern; search-confirmed live)
 
+#### Wave D Extension — Miasma Reaches Microsoft Azure GitHub Organizations (June 5–6, 2026)
+
+Four days after the initial Miasma npm wave, the worm's propagation capabilities reached a new phase: it jumped from npm to GitHub repository configuration files. On June 5–6, 2026, GitHub disabled **73 Microsoft repositories** across four organizations (Azure, Azure-Samples, Microsoft, MicrosoftDocs) in a 105-second automated sweep after detecting malicious commits.
+
+**How the worm spread:** A compromised contributor account with write access to `Azure/durabletask` pushed a commit that planted AI agent configuration files — `.claude/settings.json`, `.vscode/tasks.json`, `.cursor/settings.json`, and cursor rules — into the repository. The configuration files contained a credential-harvesting payload that executes when any developer opens the repository in Claude Code, Gemini CLI, Cursor, or VS Code Insiders.
+
+**Scale:** 73 repositories disabled in 105 seconds. Worm fingerprints (dead-drop patterns, payload structure, exfil routing) match the Miasma/TeamPCP wave. No Microsoft Azure credentials are confirmed stolen; GitHub's automated abuse detection interrupted propagation before confirmed exfil.
+
+**Why AI agent config files:** `.claude/settings.json` `SessionStart` hooks execute on every Claude Code session open; `.vscode/tasks.json` `"runOn": "folderOpen"` tasks execute when VS Code opens the folder. A developer cloning any of the 73 affected repos and opening in a supported IDE would have triggered the payload. This marks an explicit shift in TeamPCP strategy — from npm install-time execution to IDE open-time execution via repository configuration files.
+
+Source: [The Hacker News — Miasma Worm Jumps to GitHub, Disables 73 Microsoft Repos in 105 Seconds](https://thehackernews.com/2026/06/miasma-worm-jumps-github-disables-73.html) (HTTP 403 — bot-protection pattern; search-confirmed live via The Next Web, byteiota, thecybersecguru, opensourcemalware.com)
+
 #### Wave E — Phantom Gyp (June 3, 2026)
 
 Two days after Miasma, the same worm family returned with a new evasion technique. **57 packages** across multiple maintainer accounts were compromised in under two hours, including `vapi`, `ai-sdk-ollama`, and 55 others.
@@ -162,6 +174,7 @@ Source: [StepSecurity — Binding.gyp npm supply chain attack](https://www.steps
 6. **The bash-firewall and secret-guard hooks llm-safe-haven installs** catch the SessionStart-hook abuse pattern at session start. If you're not running them, install via `npx llm-safe-haven`.
 7. **Wave D (Miasma, June 1): Check for Bun-based IOCs and the new dead-drop pattern.** Run `find /tmp -maxdepth 2 -name "bun" -path "*/b-*"` and `find /tmp -maxdepth 1 -name "p*.js"` — either file surviving means the Miasma payload crashed mid-run on your machine. Also search GitHub for repos with description "Miasma: The Spreading Blight" — that is the Wave D dead-drop equivalent of the Dune-themed naming used in Waves A–C.
 8. **Wave E (Phantom Gyp, June 3): `--ignore-scripts` does NOT block `binding.gyp`-triggered code execution.** Audit any package you install for unexpected `binding.gyp` files before running `npm install`, and consider Socket.dev or snyk/agent-scan which detect the `binding.gyp` attack pattern. `npm audit signatures` shows green for compromised Phantom Gyp packages — provenance verification alone is insufficient.
+9. **Wave D Extension (Miasma Azure GitHub, June 5–6): Audit any Microsoft Azure/Azure-Samples/Microsoft/MicrosoftDocs repository** you cloned between June 5–7, 2026. If you opened a clone in Claude Code, VS Code, Cursor, or Gemini CLI during that window, rotate credentials. Check `.claude/settings.json`, `.vscode/tasks.json`, and `.cursor/settings.json` for hooks you did not add.
 
 ### Timeline
 
@@ -992,7 +1005,7 @@ npm pkg get scripts --json
 
 ## Incident Response: If You Installed a Compromised Package
 
-If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window, or any `@redhat-cloud-services/*` version published on June 1, 2026 (see [RHSB-2026-006](https://access.redhat.com/security/vulnerabilities/RHSB-2026-006) for the full list of 32 packages) — treat the host as compromised:
+If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window, or any `@redhat-cloud-services/*` version published on June 1, 2026 (see [RHSB-2026-006](https://access.redhat.com/security/vulnerabilities/RHSB-2026-006) for the full list of 32 packages) — or if you **cloned and opened in Claude Code, VS Code, Cursor, or Gemini CLI** any of the 73 disabled Microsoft Azure/Azure-Samples/Microsoft/MicrosoftDocs repositories between June 5–7, 2026 — treat the host as compromised:
 
 ### Immediate (within 1 hour)
 

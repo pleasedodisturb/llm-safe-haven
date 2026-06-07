@@ -15,7 +15,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [slowmist/slowmist-agent-security](https://github.com/slowmist/slowmist-agent-security) | — | Security review framework for AI agents in adversarial environments. Includes GitHub repo audit, URL/document analysis, and on-chain address review. |
 | [OWASP Top 10 for LLM Applications](https://genai.owasp.org/resource/owasp-top-10-for-llm-applications-2025/) | — | Foundation taxonomy for LLM risks. 2025 edition adds system prompt leakage and vector/embedding weaknesses. |
 | [OWASP Top 10 for Agentic Applications 2026](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/) | — | Purpose-built for agentic AI. Covers agent goal hijack, tool misuse, identity/privilege abuse, supply chain poisoning, memory poisoning, and rogue agents. Developed by 100+ industry experts. |
-| [requie/LLMSecurityGuide](https://github.com/requie/LLMSecurityGuide) | — | Comprehensive guide to offensive and defensive LLM security. Updated Feb 2026 with OWASP Top 10 for LLMs 2025 and Agentic Applications 2026. |
+| [requie/LLMSecurityGuide](https://github.com/requie/LLMSecurityGuide) | ~103 | Comprehensive guide to offensive and defensive LLM security. Updated Feb 2026 with OWASP Top 10 for LLMs 2025 and Agentic Applications 2026. |
 
 ## Scanning & Detection
 
@@ -35,6 +35,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [golf-mcp/golf-scanner](https://github.com/golf-mcp/golf-scanner) | ~7 | Open-source Go CLI that discovers MCP server configurations across 7 IDEs (Claude Code, Cursor, VS Code, Windsurf, Gemini CLI, Kiro, Antigravity) and runs 20 security checks (9 offline + 11 online against OSV, npm, PyPI, OCI registries). Produces a 0–100 risk score per server with severity-weighted scoring. Zero telemetry, no account, single static binary. Apache 2.0. |
 | [Claude Code Security](https://www.anthropic.com/news/claude-code-security) | — | Anthropic's security product (public beta, May 4, 2026) powered by Opus 4.7. Scans codebases for vulnerabilities and generates patches. Includes a free terminal plugin for Claude Code users. Complements static analysis tools with LLM-based semantic understanding of security flaws in context. |
 | [Pantheon-Security/medusa](https://github.com/Pantheon-Security/medusa) | ~592 | AI-first security scanner with 9,600+ detection rules across 79 analyzers covering AI/ML, LLM agents, and MCP servers. Repo poisoning detection scans 28+ AI editor config files (Cursor, Claude Code, VS Code). v2026.5.11 released May 28, 2026. AGPL-3.0. |
+| [cisco-ai-defense/defenseclaw](https://github.com/cisco-ai-defense/defenseclaw) | ~718 | Security governance platform for OpenClaw and agentic AI runtimes. Integrates skill-scanner, mcp-scanner, a2a-scanner, CodeGuard static analysis, AI bill-of-materials generator, operator CLI, and a terminal UI dashboard. v0.6.6 released June 3, 2026. Apache 2.0. |
 
 ## Credential Management
 
@@ -57,9 +58,9 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [dagger/container-use](https://github.com/dagger/container-use) | ~3.8K | MCP server giving each agent a fresh container in its own git branch. Run multiple agents without conflicts. Early development. |
 | [trailofbits/claude-code-devcontainer](https://github.com/trailofbits/claude-code-devcontainer) | — | Security-hardened devcontainer for running Claude Code in bypass mode safely. Built for security audits and untrusted code review. Includes `devc` CLI. |
 | [e2b-dev/E2B](https://github.com/e2b-dev/E2B) | ~11.5K | Open-source cloud sandbox for AI agents. Isolated Firecracker microVM environments with a single API call. 24-hour session limit. |
-| [superradcompany/microsandbox](https://github.com/superradcompany/microsandbox) | ~5K | Lightweight VMs that spin up in milliseconds from SDKs. Local-first, no server, no daemon, rootless. Embedded microVM runtime. |
+| [superradcompany/microsandbox](https://github.com/superradcompany/microsandbox) | ~6.4K | Lightweight VMs that spin up in milliseconds from SDKs. Local-first, no server, no daemon, rootless. Embedded microVM runtime. |
 | [superhq-ai/shuru](https://github.com/superhq-ai/shuru) | — | Local-first microVM sandbox for macOS (Virtualization.framework) and Linux (KVM). Ships as an agent skill so AI agents can use it automatically. |
-| [abshkbh/arrakis](https://github.com/abshkbh/arrakis) | — | Self-hosted sandboxing for AI agent code execution. Backtracking support, REST API, Python SDK, automatic port forwarding, MicroVM isolation. |
+| [abshkbh/arrakis](https://github.com/abshkbh/arrakis) | ~816 | Self-hosted sandboxing for AI agent code execution. Backtracking support, REST API, Python SDK, automatic port forwarding, MicroVM isolation. |
 | [firecracker-microvm/firecracker](https://github.com/firecracker-microvm/firecracker) | ~30K | AWS-built microVM monitor for serverless workloads. Hardware-level isolation via KVM. The engine behind E2B and many agent sandboxes. Not agent-specific, but the foundation most agent isolation tools build on. |
 | [google/gvisor](https://github.com/google/gvisor) | ~18K | Application kernel that intercepts syscalls in user space. Stronger than containers, lighter than VMs. Used by Modal and Northflank for agent isolation. |
 | [google/nsjail](https://github.com/google/nsjail) | ~3.2K | Process isolation tool using Linux namespaces and seccomp-bpf. Lightweight, used in production by Google. Good for isolating individual agent processes. |
@@ -89,7 +90,8 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [microsoft/PyRIT](https://github.com/microsoft/PyRIT) | ~3.4K | Python Risk Identification Tool for generative AI. Multi-turn adversarial testing across text, image, audio, video. Orchestrators, converters, scorers, and memory system. Built from experience red-teaming Bing Chat and Copilot. |
 | [praetorian-inc/augustus](https://github.com/praetorian-inc/augustus) | — | LLM vulnerability scanner. 210+ adversarial attack probes, 28 LLM providers, single Go binary. Production-oriented: concurrent scanning, rate limiting, retries, timeouts. Go-native reimplementation inspired by garak. Apache-2.0. |
 | [promptfoo/promptfoo](https://github.com/promptfoo/promptfoo) | ~21.9K | CLI for evaluating and red-teaming LLM apps. 50+ vulnerability types, CI/CD integration via GitHub Actions. Used by OpenAI and Anthropic. Acquired by OpenAI (Mar 2026). MIT licensed. |
-| [utkusen/promptmap](https://github.com/utkusen/promptmap) | — | Automated prompt injection scanner. White-box testing (provide system prompts) and black-box testing (point at HTTP endpoint). Controller LLM judges attack success. |
+| [utkusen/promptmap](https://github.com/utkusen/promptmap) | ~1.2K | Automated prompt injection scanner. White-box testing (provide system prompts) and black-box testing (point at HTTP endpoint). Controller LLM judges attack success. |
+| [microsoft/RAMPART](https://github.com/microsoft/RAMPART) | ~351 | pytest-native safety and security testing framework for agentic AI. Covers cross-prompt injection, behavioral regressions, and data exfiltration. Built atop PyRIT. v0.1.0 released May 20, 2026. MIT. |
 
 ## Agent Monitoring & Observability
 
@@ -108,7 +110,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 
 | Resource | Stars | Description |
 |----------|-------|-------------|
-| [smtg-ai/claude-squad](https://github.com/smtg-ai/claude-squad) | ~6.9K | TUI for managing multiple Claude Code / Codex / Amp sessions. Each agent gets its own git worktree. Spawn, monitor, pause, resume, merge. |
+| [smtg-ai/claude-squad](https://github.com/smtg-ai/claude-squad) | ~7.7K | TUI for managing multiple Claude Code / Codex / Amp sessions. Each agent gets its own git worktree. Spawn, monitor, pause, resume, merge. |
 | [anthropics/claude-agent-sdk-python](https://github.com/anthropics/claude-agent-sdk-python) | — | Official Python SDK for Claude Agent. Claude Code CLI bundled — no separate install. |
 | [anthropics/claude-agent-sdk-demos](https://github.com/anthropics/claude-agent-sdk-demos) | — | Reference implementations demonstrating Claude Agent SDK patterns. |
 
@@ -125,7 +127,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 
 | Resource | Stars | Description |
 |----------|-------|-------------|
-| [ProjectRecon/awesome-ai-agents-security](https://github.com/ProjectRecon/awesome-ai-agents-security) | — | Living map of the AI agent security ecosystem. Organized by security lifecycle: red teaming, runtime protection, sandboxing, governance. |
+| [ProjectRecon/awesome-ai-agents-security](https://github.com/ProjectRecon/awesome-ai-agents-security) | ~41 | Living map of the AI agent security ecosystem. Organized by security lifecycle: red teaming, runtime protection, sandboxing, governance. |
 | [bureado/awesome-agent-runtime-security](https://github.com/bureado/awesome-agent-runtime-security) | ~59 | Curated list focused on runtime security for AI agents. Covers sandboxing, process isolation, credential management, and monitoring. |
 | [corca-ai/awesome-llm-security](https://github.com/corca-ai/awesome-llm-security) | — | Broad curation of LLM security tools, documents, and projects. Good starting point for exploring the space. |
 | [restyler/awesome-sandbox](https://github.com/restyler/awesome-sandbox) | ~514 | Curated list of code sandboxing solutions for AI agents. Covers microVMs, containers, gVisor, WASM, and cloud platforms. |
