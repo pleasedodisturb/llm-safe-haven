@@ -413,6 +413,13 @@ COMPROMISED_PKGS=(
   # Wave E / Phantom Gyp (June 3, 2026) — binding.gyp hijack; --ignore-scripts does NOT protect
   "vapi"
   "ai-sdk-ollama"
+  # Wave F / Hades (June 8, 2026) — PyPI ONLY; not scannable via npm
+  # This script cannot check PyPI packages. Run separately:
+  #   pip list | grep -E "ensmallen|embiggen|gpsea|pyphetools|mflux-streamlit|nhmpy|ppkt2synergy"
+  # Any match on a version published June 8, 2026 = treat host as compromised.
+  # Note: import-time execution (payload in __init__.py) — if you ran `import ensmallen`
+  # (or any affected package) after June 8, rotate credentials regardless of pip audit results.
+  # AI-powered scanners may return false-clean: the payload includes AI Analyst Misdirection.
 )
 
 if command -v npm >/dev/null 2>&1; then

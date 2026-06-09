@@ -486,6 +486,20 @@ Four days after the initial Miasma npm wave, the TeamPCP worm extended its propa
 
 Source: [The Hacker News — Miasma Worm Jumps to GitHub, Disables 73 Microsoft Repos in 105 Seconds](https://thehackernews.com/2026/06/miasma-worm-jumps-github-disables-73.html) (HTTP 403 — bot-protection pattern; search-confirmed live via The Next Web, byteiota, thecybersecguru, opensourcemalware.com)
 
+### June 2026 — Mini Shai-Hulud Wave F: Hades Campaign Hits PyPI with Import-Time Execution (June 8)
+
+Five days after Phantom Gyp, a related campaign targeted PyPI — the first wave in the Shai-Hulud lineage to target Python packages exclusively. **19 packages** in the scientific computing, bioinformatics, and graph ML space were trojanized across 37 malicious wheel artifacts, targeting researchers and AI developers.
+
+**Key novel characteristics:**
+- **Import-time execution** — payload embeds in `__init__.py` and executes on `import`, not at install time. `pip install --no-deps`, `pip audit`, and `safety check` offer no protection.
+- **AI Analyst Misdirection** — the payload detects AI-powered security scanners and returns benign-looking output when inspected. First publicly documented supply chain payload to actively target AI security tooling as an evasion surface.
+- **Cross-platform memory scrapers** — tailored scrapers for Linux (`/proc/<pid>/maps`), macOS, and Windows extract encrypted credentials from process memory rather than filesystem reads, bypassing credential managers that store secrets in memory.
+- **Wiper deterrent** — payload includes a wiper component to erase forensic evidence on detection.
+
+**Attribution:** Multiple vendors describe Hades as a Miasma/Shai-Hulud lineage campaign. Socket Research did not explicitly attribute Hades to TeamPCP/UNC6780. Treat it as a related campaign with uncertain direct attribution.
+
+Source: [StepSecurity — The Hades Campaign: Graph ML PyPI Packages Deploy Cross-Platform Memory Scrapers](https://www.stepsecurity.io/blog/the-hades-campaign-pypi-packages) | [Socket.dev — Shai-Hulud Descends to Hades: Miasma Worm Campaign Spreads with New PyPI Wave](https://socket.dev/blog/shai-hulud-descends-to-hades-miasma-pypi-wave) | [DarkReading — 'Hades' Campaign Against PyPI Puts New Spin on Shai-Hulud](https://www.darkreading.com/application-security/hades-campaign-pypi-shai-hulud) | [BleepingComputer — New Shai-Hulud Attack Trojanizes 19 Science-Focused PyPI Packages](https://www.bleepingcomputer.com/news/security/new-shai-hulud-attack-trojanizes-19-science-focused-pypi-packages/) (all HTTP 403 — bot-protection pattern; search-confirmed live)
+
 ### May 2026 — Microsoft Semantic Kernel Prompt Injection → RCE (CVE-2026-25592 & CVE-2026-26030)
 
 Microsoft disclosed two critical vulnerabilities in Semantic Kernel on May 7, 2026. **CVE-2026-26030** affects the Python SDK: the `InMemoryVectorStore` filter interpolates user-supplied city values into a Python lambda executed via `eval()`. Any prompt injection route into the agent — a malicious document, web content, or tool output — escalates to host-level RCE without requiring a browser exploit or memory corruption bug. **CVE-2026-25592** affects the .NET SDK: a helper method was accidentally annotated with `[KernelFunction]`, exposing arbitrary file-write capability to the AI model with no path validation (CVSS 10.0). A manipulated agent can write to any location on the host filesystem, escaping the workspace. Both patches are available: Python SDK >= 1.39.4, .NET SDK >= 1.71.0.
