@@ -6,7 +6,7 @@ Your npm dependencies, GitHub Actions, and credential managers are all attack su
 
 ## Case Study: Shai-Hulud — Sustained npm Supply Chain Campaign (Sept 2025–May 2026)
 
-Shai-Hulud is not a single attack. It is a continuous campaign that has produced **seven named waves in nine months**, with the cadence accelerating through April–June 2026 to roughly one wave every 7–10 days. The latest waves have shifted focus from credential managers to **AI agent configuration files** — `.claude/settings.json`, `.vscode/tasks.json` — as primary persistence vectors.
+Shai-Hulud is not a single attack. It is a continuous campaign that has produced **ten named waves in nine months**, with the cadence accelerating through April–June 2026 to roughly one wave every 7–10 days. The latest waves have shifted focus from credential managers to **AI agent configuration files** — `.claude/settings.json`, `.vscode/tasks.json` — as primary persistence vectors.
 
 This is not hypothetical. It is the dominant npm supply chain threat of 2026.
 
@@ -23,6 +23,7 @@ This is not hypothetical. It is the dominant npm supply chain threat of 2026.
 | Mini — Miasma ("The Spreading Blight") | June 1, 2026 | 32 `@redhat-cloud-services` packages (`@redhat-cloud-services/frontend-components`, `@redhat-cloud-services/chrome`, and 30 others — see [RHSB-2026-006](https://access.redhat.com/security/vulnerabilities/RHSB-2026-006)) | 96 versions, ~116,991 weekly downloads | **GitHub Actions OIDC compromise** (no stolen developer credentials); 4.1 MB obfuscated JS preinstall hook; **no attacker C2 domain** — exfil routes through legitimate vendor endpoints using stolen credentials |
 | Mini — Phantom Gyp | June 3, 2026 | 57 packages across multiple maintainer accounts (`vapi`, `ai-sdk-ollama`, and 55 others) | ~2 hours, 57 packages | **`binding.gyp` hijack** — 157-byte file triggers code execution at install time without using `preinstall`/`postinstall` hooks; bypasses `--ignore-scripts` and most security tools; forged SLSA provenance + Sigstore signing; injects backdoor into AI IDE configs on every project open |
 | Mini — Hades | June 8, 2026 | 19 PyPI packages in scientific computing / graph ML / bioinformatics ecosystem (`ensmallen`, `embiggen`, `gpsea`, `pyphetools`, `mflux-streamlit`, `nhmpy`, `ppkt2synergy`, and 12 others) | 19 packages, 37 malicious wheel artifacts | **First wave in this lineage to target PyPI exclusively**; **import-time execution** — payload fires in `__init__.py` on `import`, not at install; **AI Analyst Misdirection** — malware includes evasion techniques targeting AI-powered security scanners; cross-platform memory scrapers (Linux/macOS/Windows); wiper deterrent |
+| Mini — Hades (MCP-targeting) | June 9, 2026 | 23 new PyPI packages targeting MCP developers and AI tooling consumers — typosquats (`rsquests`, `tlask`, `rlask`), MCP/AI-themed packages, `langchain-core-mcp` loader variant | 23 packages; campaign total: 471 artifacts (411 npm, 60 PyPI) | **Split-loader technique** — `langchain-core-mcp` deploys a `.pth` startup hook that searches `sys.path` for an externally staged `_index.js` payload instead of bundling it, bypassing static analysis that scans for JS payloads inside Python packages; first wave in this lineage explicitly targeting MCP developer tooling consumers |
 
 [Source: Snyk, Wiz, StepSecurity, Akamai, SafeDep — see Sources section.]
 
@@ -183,6 +184,26 @@ Five days after Phantom Gyp, a new wave hit PyPI — the first in this campaign 
 
 Source: [StepSecurity — The Hades Campaign: Graph ML PyPI Packages Deploy Cross-Platform Memory Scrapers](https://www.stepsecurity.io/blog/the-hades-campaign-pypi-packages) | [Socket.dev — Shai-Hulud Descends to Hades: Miasma Worm Campaign Spreads with New PyPI Wave](https://socket.dev/blog/shai-hulud-descends-to-hades-miasma-pypi-wave) | [DarkReading — 'Hades' Campaign Against PyPI Puts New Spin on Shai-Hulud](https://www.darkreading.com/application-security/hades-campaign-pypi-shai-hulud) | [BleepingComputer — New Shai-Hulud Attack Trojanizes 19 Science-Focused PyPI Packages](https://www.bleepingcomputer.com/news/security/new-shai-hulud-attack-trojanizes-19-science-focused-pypi-packages/) (all HTTP 403 — bot-protection pattern; search-confirmed live)
 
+#### Wave G — Hades MCP-Targeting (June 9, 2026)
+
+One day after the bioinformatics wave, the same Hades campaign expanded its scope to **MCP developers and AI tooling consumers**. **23 new malicious PyPI packages** were published in three clusters: typosquats of widely-used Python libraries, MCP/AI-themed packages impersonating LangChain and OpenAI tooling, and a novel loader variant.
+
+**Typosquats:** `rsquests`, `tlask`, `rlask` — single-character misspellings of `requests` and `flask` that capture install-time typos.
+
+**MCP/AI-themed packages:** packages with names suggesting LangChain MCP adapters, OpenAI tooling, and MCP server helpers, targeting developers searching for MCP integration libraries.
+
+**Split-loader technique (`langchain-core-mcp`):** This is the technically novel artifact in Wave G. Prior Hades packages bundled `_index.js` directly inside the wheel. `langchain-core-mcp` instead installs only a `.pth` Python startup hook. Rather than including its own JavaScript payload, the loader searches `sys.path` for an `_index.js` staged by a companion package that the attacker published separately. The effect: static analyzers that scan for bundled JavaScript inside Python packages find nothing suspicious in `langchain-core-mcp` itself. Detection requires identifying the `.pth` loader's suspicious `sys.path` search behavior.
+
+**Payload:** Same Bun-staged obfuscated JavaScript stealer as Wave F. Targets API tokens, cloud credentials (AWS, Azure, GCP), SSH keys, Kubernetes service account tokens, Docker configurations, package registry secrets, and shell histories.
+
+**Persistence:** The `.pth` startup hook persists in `site-packages` even after `pip uninstall langchain-core-mcp` — it continues executing on every Python process until the `.pth` file is manually removed from site-packages. Same persistence model as the LiteLLM `.pth` attack (March 2026).
+
+**Campaign total after Wave G:** 471 artifacts — 411 npm across 106 packages, 60 PyPI across 37 packages.
+
+**Attribution:** Same Hades/Shai-Hulud lineage as Wave F. Not explicitly attributed to TeamPCP/UNC6780 by Socket Research; treat as related campaign pending further attribution.
+
+Source: [Socket.dev — Mini Shai-Hulud, Miasma, and Hades Worms Target Bioinformatics and MCP Developers via Malicious PyPI Packages](https://socket.dev/blog/mini-shai-hulud-miasma-and-hades-worms-target-bioinformatics-and-mcp-developers-via-malicious) | [SecurityWeek — Over 100 NPM, PyPI Packages Hit in New Shai-Hulud Supply Chain Attacks](https://www.securityweek.com/over-100-npm-pypi-packages-hit-in-new-shai-hulud-supply-chain-attacks/) | [CyberSecurityNews — New Shai-Hulud Attack Compromises 23 PyPI Packages to Target MCP Developers](https://cybersecuritynews.com/23-pypi-packages-compromised/) | [TechNadu — New PyPI Wave in Mini Shai-Hulud, Miasma, and Hades Campaign](https://www.technadu.com/new-pypi-wave-in-mini-shai-hulud-miasma-and-hades-campaign-23-new-malicious-pypi-artifacts/629139/) (all HTTP 403 — bot-protection pattern; search-confirmed live)
+
 #### What to do right now if you use Claude Code
 
 1. **Audit `.claude/settings.json` in every project you've opened** in the last 30 days. Any `SessionStart`, `PreToolUse`, or `PostToolUse` hook that doesn't point to your own scripts or known-good plugin paths (`~/.claude/hooks/<your-tooling>/`) should be treated as suspicious until verified.
@@ -195,6 +216,7 @@ Source: [StepSecurity — The Hades Campaign: Graph ML PyPI Packages Deploy Cros
 8. **Wave E (Phantom Gyp, June 3): `--ignore-scripts` does NOT block `binding.gyp`-triggered code execution.** Audit any package you install for unexpected `binding.gyp` files before running `npm install`, and consider Socket.dev or snyk/agent-scan which detect the `binding.gyp` attack pattern. `npm audit signatures` shows green for compromised Phantom Gyp packages — provenance verification alone is insufficient.
 9. **Wave D Extension (Miasma Azure GitHub, June 5–6): Audit any Microsoft Azure/Azure-Samples/Microsoft/MicrosoftDocs repository** you cloned between June 5–7, 2026. If you opened a clone in Claude Code, VS Code, Cursor, or Gemini CLI during that window, rotate credentials. Check `.claude/settings.json`, `.vscode/tasks.json`, and `.cursor/settings.json` for hooks you did not add.
 10. **Wave F (Hades, June 8, 2026): If you use any scientific computing, bioinformatics, or graph ML Python packages**, run `pip list | grep -E "ensmallen|embiggen|gpsea|pyphetools|mflux-streamlit|nhmpy|ppkt2synergy"`. Any match → treat the host as compromised (import-time execution; payload fired the moment the package was imported). Standard install-time audit (`pip audit`, `safety check`) will not flag packages delivered as malicious wheels; cross-reference your installed versions against the affected version lists at PyPI's removal notices. AI-powered security scanners may return false-clean results — the payload actively evades them (AI Analyst Misdirection). If any package was imported since June 8, rotate all credentials accessible from that environment.
+11. **Wave G (Hades MCP-targeting, June 9, 2026): If you use LangChain, Flask, requests, OpenAI, or MCP integration libraries from PyPI**, run `pip list | grep -E "rsquests|tlask|rlask|langchain-core-mcp"`. Any match → treat the host as compromised. Import-time execution: same payload model as Wave F. Additionally: check for orphaned `.pth` loader entries with `find $(python3 -c "import site; print(' '.join(site.getsitepackages()))") -name "*.pth" | xargs grep -l "_index.js" 2>/dev/null` — the `langchain-core-mcp` split-loader deposits a `.pth` file in `site-packages` that persists after `pip uninstall` and re-executes on every Python process start. Delete any such `.pth` file manually if found.
 
 ### Timeline
 

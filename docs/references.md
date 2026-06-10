@@ -36,6 +36,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [Claude Code Security](https://www.anthropic.com/news/claude-code-security) | — | Anthropic's security product (public beta, May 4, 2026) powered by Opus 4.7. Scans codebases for vulnerabilities and generates patches. Includes a free terminal plugin for Claude Code users. Complements static analysis tools with LLM-based semantic understanding of security flaws in context. |
 | [Pantheon-Security/medusa](https://github.com/Pantheon-Security/medusa) | ~592 | AI-first security scanner with 9,600+ detection rules across 79 analyzers covering AI/ML, LLM agents, and MCP servers. Repo poisoning detection scans 28+ AI editor config files (Cursor, Claude Code, VS Code). v2026.5.11 released May 28, 2026. AGPL-3.0. |
 | [cisco-ai-defense/defenseclaw](https://github.com/cisco-ai-defense/defenseclaw) | ~718 | Security governance platform for OpenClaw and agentic AI runtimes. Integrates skill-scanner, mcp-scanner, a2a-scanner, CodeGuard static analysis, AI bill-of-materials generator, operator CLI, and a terminal UI dashboard. v0.6.6 released June 3, 2026. Apache 2.0. |
+| [lateos-ai/npm-scan](https://github.com/lateos-ai/npm-scan) | ~15 | Behavioral npm supply chain scanner targeting what static tools miss: eBPF rootkits, OIDC token extraction from runner memory, GitHub author spoofing, worm-style transitive propagation, and AI platform credential targeting. 23 detectors. SBOM and SARIF export. Zero telemetry, offline. v1.2.9, June 2026. MIT/BLA. |
 
 ## Credential Management
 
@@ -56,7 +57,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [anthropic-experimental/sandbox-runtime](https://github.com/anthropic-experimental/sandbox-runtime) | — | Open-source lightweight sandboxing tool. Enforces filesystem and network restrictions at the OS level without containers. Research preview. |
 | [stacklok/brood-box](https://github.com/stacklok/brood-box) | — | CLI tool for running AI coding agents (Claude Code, Codex, OpenCode) inside hardware-isolated microVMs. COW snapshot isolation, DNS-aware egress policies, Cedar-based MCP authorization. Reviews diffs before flush-back. Apache-2.0. |
 | [dagger/container-use](https://github.com/dagger/container-use) | ~3.8K | MCP server giving each agent a fresh container in its own git branch. Run multiple agents without conflicts. Early development. |
-| [trailofbits/claude-code-devcontainer](https://github.com/trailofbits/claude-code-devcontainer) | — | Security-hardened devcontainer for running Claude Code in bypass mode safely. Built for security audits and untrusted code review. Includes `devc` CLI. |
+| [trailofbits/claude-code-devcontainer](https://github.com/trailofbits/claude-code-devcontainer) | ~850 | Security-hardened devcontainer for running Claude Code in bypass mode safely. Built for security audits and untrusted code review. Includes `devc` CLI. |
 | [e2b-dev/E2B](https://github.com/e2b-dev/E2B) | ~11.5K | Open-source cloud sandbox for AI agents. Isolated Firecracker microVM environments with a single API call. 24-hour session limit. |
 | [superradcompany/microsandbox](https://github.com/superradcompany/microsandbox) | ~6.4K | Lightweight VMs that spin up in milliseconds from SDKs. Local-first, no server, no daemon, rootless. Embedded microVM runtime. |
 | [superhq-ai/shuru](https://github.com/superhq-ai/shuru) | — | Local-first microVM sandbox for macOS (Virtualization.framework) and Linux (KVM). Ships as an agent skill so AI agents can use it automatically. |
@@ -80,7 +81,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 |----------|-------|-------------|
 | [NVIDIA-NeMo/Guardrails](https://github.com/NVIDIA-NeMo/Guardrails) | ~6K | Programmable guardrails for LLM-based systems. Input/output/dialog/retrieval/execution rails. Jailbreak and injection detection, hallucination checking, topic safety. Integrates with LangChain, LlamaIndex. GPU-accelerated. |
 | [guardrails-ai/guardrails](https://github.com/guardrails-ai/guardrails) | ~6.7K | Validation framework for LLM outputs. Define guardrails in RAIL spec, validate structured output, retry on failure. Hub of community validators. |
-| [luckyPipewrench/pipelock](https://github.com/luckyPipewrench/pipelock) | 694 | Firewall for AI agents. DLP scanning (48 patterns), SSRF protection, bidirectional MCP scanning, tool poisoning detection (SHA-256 fingerprinting), prompt injection blocking (25 patterns). Capability separation: agent has secrets but no network; Pipelock has network but no secrets. Apache-2.0 core. v2.6.0 released May 31, 2026. |
+| [luckyPipewrench/pipelock](https://github.com/luckyPipewrench/pipelock) | ~706 | Firewall for AI agents. DLP scanning (48 patterns), SSRF protection, bidirectional MCP scanning, tool poisoning detection (SHA-256 fingerprinting), prompt injection blocking (25 patterns). Capability separation: agent has secrets but no network; Pipelock has network but no secrets. Apache-2.0 core. v2.6.0 released May 31, 2026. |
 
 ## Red Teaming & Pentesting
 

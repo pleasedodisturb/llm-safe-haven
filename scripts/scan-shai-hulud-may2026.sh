@@ -420,6 +420,14 @@ COMPROMISED_PKGS=(
   # Note: import-time execution (payload in __init__.py) — if you ran `import ensmallen`
   # (or any affected package) after June 8, rotate credentials regardless of pip audit results.
   # AI-powered scanners may return false-clean: the payload includes AI Analyst Misdirection.
+  # Wave G / Hades MCP-targeting (June 9, 2026) — PyPI ONLY; not scannable via npm
+  # Targets MCP developers and AI tooling consumers. Run separately:
+  #   pip list | grep -E "rsquests|tlask|rlask|langchain-core-mcp"
+  # Any match = treat host as compromised. Also check for orphaned .pth loader:
+  #   find $(python3 -c "import site; print(' '.join(site.getsitepackages()))") \
+  #     -name "*.pth" -exec grep -l "_index.js" {} \;
+  # The langchain-core-mcp split-loader deposits a .pth file in site-packages that persists
+  # after pip uninstall and re-executes on every Python process start. Delete it if found.
 )
 
 if command -v npm >/dev/null 2>&1; then
