@@ -247,6 +247,21 @@ This is separate from VS Code's existing workspace trust and terminal sandboxing
 
 Source: [GitHub Changelog — Cloud and local sandboxes for GitHub Copilot now in public preview](https://github.blog/changelog/2026-06-02-cloud-and-local-sandboxes-for-github-copilot-now-in-public-preview/) (HTTP 403 — bot-protection pattern; search-confirmed live via Help Net Security, multiple outlets)
 
+### 11. Use the `/security-review` Command (Experimental Public Preview, June 2026)
+
+GitHub shipped a dedicated `/security-review` slash command for the Copilot CLI on June 10, 2026 (experimental public preview). It runs an AI-driven scan of local code changes and returns severity-scored findings without requiring a full CI pass or external tool.
+
+**What it scans:** Injection flaws, XSS, insecure data handling, path traversal, and weak cryptography in staged and unstaged local changes.
+
+```bash
+# Scan local code changes before committing:
+gh copilot /security-review
+```
+
+Catches security issues before a commit, complementing runtime hook protection with a static pre-commit analysis layer. The AI-based scan surfaces semantic vulnerabilities that pattern-matching tools miss. Experimental public preview — validate findings before acting on them.
+
+Source: [GitHub Changelog — Dedicated security review command now available in Copilot CLI](https://github.blog/changelog/2026-06-10-dedicated-security-review-command-now-available-in-copilot-cli/) (HTTP 403 — bot-protection pattern; search-confirmed live)
+
 ## Security Comparison: GitHub Copilot vs Claude Code
 
 | Feature | Claude Code | GitHub Copilot (Agent Mode) |
