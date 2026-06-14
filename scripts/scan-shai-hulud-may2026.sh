@@ -428,6 +428,12 @@ COMPROMISED_PKGS=(
   #     -name "*.pth" -exec grep -l "_index.js" {} \;
   # The langchain-core-mcp split-loader deposits a .pth file in site-packages that persists
   # after pip uninstall and re-executes on every Python process start. Delete it if found.
+  # Atomic Arch AUR attack (June 11-12, 2026) — INDEPENDENT actor (not TeamPCP/UNC6780)
+  # Attack vector: orphaned AUR PKGBUILDs modified to install malicious npm/bun packages.
+  # Malicious npm packages used as intermediaries: atomic-lockfile (Sonatype-2026-003775, CVSS 8.7), js-digest.
+  # If you run Arch Linux or a derivative, also run: https://github.com/lenucksi/aur-malware-check
+  "atomic-lockfile"
+  "js-digest"
 )
 
 if command -v npm >/dev/null 2>&1; then

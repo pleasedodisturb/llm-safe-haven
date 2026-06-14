@@ -518,6 +518,18 @@ One day after the bioinformatics-targeting Hades wave (Wave F), the campaign pub
 
 Source: [Socket.dev — Mini Shai-Hulud, Miasma, and Hades Worms Target Bioinformatics and MCP Developers via Malicious PyPI Packages](https://socket.dev/blog/mini-shai-hulud-miasma-and-hades-worms-target-bioinformatics-and-mcp-developers-via-malicious) | [SecurityWeek — Over 100 NPM, PyPI Packages Hit in New Shai-Hulud Supply Chain Attacks](https://www.securityweek.com/over-100-npm-pypi-packages-hit-in-new-shai-hulud-supply-chain-attacks/) | [CyberSecurityNews — New Shai-Hulud Attack Compromises 23 PyPI Packages to Target MCP Developers](https://cybersecuritynews.com/23-pypi-packages-compromised/) (all HTTP 403 — bot-protection pattern; search-confirmed live)
 
+### June 2026 — Atomic Arch: Independent AUR Supply Chain Attack (June 11–12)
+
+An independent threat actor (not attributed to TeamPCP/UNC6780) compromised over **1,600 Arch User Repository (AUR) packages** in a two-wave campaign discovered June 11, 2026. The attack vector: orphaned AUR packages claimed through AUR's standard adoption process had their `PKGBUILD` scripts silently modified to install malicious npm/bun packages.
+
+**Wave 1 (June 11):** PKGBUILDs injected two malicious npm packages: `atomic-lockfile` (Sonatype-2026-003775, CVSS 8.7) and `lockfile-js`. Malicious npm accounts: `krisztinavража`, `franziskaweber`, `tobiaswesterburg`, `ellenmyklebust`. Payload: ELF credential stealer targeting GitHub PATs, npm tokens, SSH keys, Discord tokens, and browser data.
+
+**Wave 2 (June 12):** Accounts `custodiatovar` and `veramagalhaes` added Bun-based installation paths via `js-digest`. Payload added **eBPF rootkit** capability (process/file hiding when running as root) and **systemd persistence** (auto-restart service).
+
+**Why it matters:** Arch Linux and derivatives (Manjaro, EndeavourOS, Garuda) are disproportionately popular among developers and security researchers. AUR is unmoderated — any claimed package is implicitly trusted by `makepkg`. The cross-ecosystem path (AUR → npm → ELF binary) evades scan tools that check only npm or PyPI registries.
+
+Source: [github.com/lenucksi/aur-malware-check](https://github.com/lenucksi/aur-malware-check) (HTTP 200 verified — community detection scripts and IOC database) | Sonatype, StepSecurity, BleepingComputer, The Hacker News (all HTTP 403 — bot-protection pattern; search-confirmed live)
+
 ### May 2026 — Microsoft Semantic Kernel Prompt Injection → RCE (CVE-2026-25592 & CVE-2026-26030)
 
 Microsoft disclosed two critical vulnerabilities in Semantic Kernel on May 7, 2026. **CVE-2026-26030** affects the Python SDK: the `InMemoryVectorStore` filter interpolates user-supplied city values into a Python lambda executed via `eval()`. Any prompt injection route into the agent — a malicious document, web content, or tool output — escalates to host-level RCE without requiring a browser exploit or memory corruption bug. **CVE-2026-25592** affects the .NET SDK: a helper method was accidentally annotated with `[KernelFunction]`, exposing arbitrary file-write capability to the AI model with no path validation (CVSS 10.0). A manipulated agent can write to any location on the host filesystem, escaping the workspace. Both patches are available: Python SDK >= 1.39.4, .NET SDK >= 1.71.0.
