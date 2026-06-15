@@ -108,6 +108,28 @@ else
   info "No LaunchAgents directory (~/Library/LaunchAgents) — skipping"
 fi
 
+# Miasma Wave D (June 1, 2026) IOC: Bun binary in /tmp/b-*/
+# Payload downloads Bun runtime to a random temp dir matching /tmp/b-<random>/bun
+MIASMA_BUN=$(find /tmp -maxdepth 2 -name "bun" -path "*/b-*" -type f 2>/dev/null || true)
+if [ -n "$MIASMA_BUN" ]; then
+  while IFS= read -r f; do
+    fail "Miasma Wave D IOC: Bun binary found at $f (Wave D / RHSB-2026-006 — payload may have crashed)"
+  done <<< "$MIASMA_BUN"
+else
+  pass "No Miasma Wave D Bun binary found in /tmp/b-*/"
+fi
+
+# Miasma Wave D IOC: JS payload file in /tmp/p*.js
+# Payload writes a JS file matching /tmp/p<base36>.js; removed on success, persists on crash
+MIASMA_JS=$(find /tmp -maxdepth 1 -name "p*.js" -type f 2>/dev/null || true)
+if [ -n "$MIASMA_JS" ]; then
+  while IFS= read -r f; do
+    fail "Miasma Wave D IOC: Possible payload JS at $f (p<base36>.js pattern — Wave D / RHSB-2026-006)"
+  done <<< "$MIASMA_JS"
+else
+  pass "No Miasma Wave D payload JS file found in /tmp/p*.js"
+fi
+
 # ============================================================================
 # 2. VSCode autorun task IOC (.vscode/tasks.json with runOn: folderOpen)
 # ============================================================================
@@ -330,7 +352,7 @@ done
 section "5. Shell history beacon-domain references"
 
 HIST_FILES=("$HOME/.zsh_history" "$HOME/.bash_history")
-HIST_PATTERNS=('m-kosche' 'kitty-monitor' 'gh-token-monitor')
+HIST_PATTERNS=('m-kosche' 'kitty-monitor' 'gh-token-monitor' 'sportsontheweb')
 
 for hf in "${HIST_FILES[@]}"; do
   if [ ! -f "$hf" ]; then
@@ -369,6 +391,49 @@ COMPROMISED_PKGS=(
   "@tanstack/react-router"
   "@tanstack/router-core"
   "@tanstack/router-cli"
+  # vpmdhaj typosquatted packages (May 28, 2026) — exfil: aab.sportsontheweb[.]net
+  "opensearch-security-scanner"
+  "opensearch-setup"
+  "opensearch-setup-tool"
+  "opensearch-client-helper"
+  "opensearch-node-client"
+  "elasticsearch-helper"
+  "elasticsearch-node-client"
+  "@vpmdhaj/elastic-helper"
+  "@vpmdhaj/devops-tools"
+  "@vpmdhaj/cloud-config"
+  "env-config-manager"
+  "aws-env-loader"
+  "vault-secret-loader"
+  "ci-env-helper"
+  # @redhat-cloud-services packages (Wave D / Miasma, June 1, 2026)
+  # Two names confirmed from public sources; see RHSB-2026-006 for the full list of 32 packages
+  "@redhat-cloud-services/frontend-components"
+  "@redhat-cloud-services/chrome"
+  # Wave E / Phantom Gyp (June 3, 2026) — binding.gyp hijack; --ignore-scripts does NOT protect
+  "vapi"
+  "ai-sdk-ollama"
+  # Wave F / Hades (June 8, 2026) — PyPI ONLY; not scannable via npm
+  # This script cannot check PyPI packages. Run separately:
+  #   pip list | grep -E "ensmallen|embiggen|gpsea|pyphetools|mflux-streamlit|nhmpy|ppkt2synergy"
+  # Any match on a version published June 8, 2026 = treat host as compromised.
+  # Note: import-time execution (payload in __init__.py) — if you ran `import ensmallen`
+  # (or any affected package) after June 8, rotate credentials regardless of pip audit results.
+  # AI-powered scanners may return false-clean: the payload includes AI Analyst Misdirection.
+  # Wave G / Hades MCP-targeting (June 9, 2026) — PyPI ONLY; not scannable via npm
+  # Targets MCP developers and AI tooling consumers. Run separately:
+  #   pip list | grep -E "rsquests|tlask|rlask|langchain-core-mcp"
+  # Any match = treat host as compromised. Also check for orphaned .pth loader:
+  #   find $(python3 -c "import site; print(' '.join(site.getsitepackages()))") \
+  #     -name "*.pth" -exec grep -l "_index.js" {} \;
+  # The langchain-core-mcp split-loader deposits a .pth file in site-packages that persists
+  # after pip uninstall and re-executes on every Python process start. Delete it if found.
+  # Atomic Arch AUR attack (June 11-12, 2026) — INDEPENDENT actor (not TeamPCP/UNC6780)
+  # Attack vector: orphaned AUR PKGBUILDs modified to install malicious npm/bun packages.
+  # Malicious npm packages used as intermediaries: atomic-lockfile (Sonatype-2026-003775, CVSS 8.7), js-digest.
+  # If you run Arch Linux or a derivative, also run: https://github.com/lenucksi/aur-malware-check
+  "atomic-lockfile"
+  "js-digest"
 )
 
 if command -v npm >/dev/null 2>&1; then
@@ -446,6 +511,8 @@ section "8. GitHub dead-drop repository audit"
 DEAD_DROP_PATTERNS=(
   "Shai-Hulud"
   "Here We Go Again"
+  "Miasma"
+  "Spreading Blight"
   "sandworm"
   "sardaukar"
   "ornithopter"

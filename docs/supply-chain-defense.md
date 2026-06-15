@@ -6,7 +6,7 @@ Your npm dependencies, GitHub Actions, and credential managers are all attack su
 
 ## Case Study: Shai-Hulud — Sustained npm Supply Chain Campaign (Sept 2025–May 2026)
 
-Shai-Hulud is not a single attack. It is a continuous campaign that has produced **six named waves in nine months**, with the cadence accelerating through April–May 2026 to roughly one wave every 7–10 days. The latest waves have shifted focus from credential managers to **AI agent configuration files** — `.claude/settings.json`, `.vscode/tasks.json` — as primary persistence vectors.
+Shai-Hulud is not a single attack. It is a continuous campaign that has produced **ten named waves in nine months**, with the cadence accelerating through April–June 2026 to roughly one wave every 7–10 days. The latest waves have shifted focus from credential managers to **AI agent configuration files** — `.claude/settings.json`, `.vscode/tasks.json` — as primary persistence vectors.
 
 This is not hypothetical. It is the dominant npm supply chain threat of 2026.
 
@@ -20,6 +20,10 @@ This is not hypothetical. It is the dominant npm supply chain threat of 2026.
 | Mini — SAP CAP | April 29, 2026 | 4 SAP CAP packages (`@cap-js/sqlite`, `@cap-js/postgres`, `@cap-js/db-service`, `mbt`) | ~2 hours, 1,100+ exfil repos | **First weaponization of `.claude/settings.json` SessionStart hook** |
 | Mini — TanStack | May 11, 2026 | `@tanstack/react-router` and 40+ `@tanstack/*` packages | 12M+ weekly downloads | GitHub Actions cache poisoning + **OIDC token extraction from `/proc/<pid>/mem`** — published without stealing npm credentials |
 | Mini — AntV ("Here We Go Again") | May 19, 2026 | 323 packages via `atool` maintainer: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor`, `timeago.js`, others | 637 versions, ~16M weekly downloads, 2,200+ exfil repos | **Worm source code released publicly on BreachForums with a "supply chain contest"**; second wave weaponizing `.claude/settings.json` |
+| Mini — Miasma ("The Spreading Blight") | June 1, 2026 | 32 `@redhat-cloud-services` packages (`@redhat-cloud-services/frontend-components`, `@redhat-cloud-services/chrome`, and 30 others — see [RHSB-2026-006](https://access.redhat.com/security/vulnerabilities/RHSB-2026-006)) | 96 versions, ~116,991 weekly downloads | **GitHub Actions OIDC compromise** (no stolen developer credentials); 4.1 MB obfuscated JS preinstall hook; **no attacker C2 domain** — exfil routes through legitimate vendor endpoints using stolen credentials |
+| Mini — Phantom Gyp | June 3, 2026 | 57 packages across multiple maintainer accounts (`vapi`, `ai-sdk-ollama`, and 55 others) | ~2 hours, 57 packages | **`binding.gyp` hijack** — 157-byte file triggers code execution at install time without using `preinstall`/`postinstall` hooks; bypasses `--ignore-scripts` and most security tools; forged SLSA provenance + Sigstore signing; injects backdoor into AI IDE configs on every project open |
+| Mini — Hades | June 8, 2026 | 19 PyPI packages in scientific computing / graph ML / bioinformatics ecosystem (`ensmallen`, `embiggen`, `gpsea`, `pyphetools`, `mflux-streamlit`, `nhmpy`, `ppkt2synergy`, and 12 others) | 19 packages, 37 malicious wheel artifacts | **First wave in this lineage to target PyPI exclusively**; **import-time execution** — payload fires in `__init__.py` on `import`, not at install; **AI Analyst Misdirection** — malware includes evasion techniques targeting AI-powered security scanners; cross-platform memory scrapers (Linux/macOS/Windows); wiper deterrent |
+| Mini — Hades (MCP-targeting) | June 9, 2026 | 23 new PyPI packages targeting MCP developers and AI tooling consumers — typosquats (`rsquests`, `tlask`, `rlask`), MCP/AI-themed packages, `langchain-core-mcp` loader variant | 23 packages; campaign total: 471 artifacts (411 npm, 60 PyPI) | **Split-loader technique** — `langchain-core-mcp` deploys a `.pth` startup hook that searches `sys.path` for an externally staged `_index.js` payload instead of bundling it, bypassing static analysis that scans for JS payloads inside Python packages; first wave in this lineage explicitly targeting MCP developer tooling consumers |
 
 [Source: Snyk, Wiz, StepSecurity, Akamai, SafeDep — see Sources section.]
 
@@ -113,14 +117,106 @@ High-impact packages: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor`
 
 **The most important development:** TeamPCP **released the worm source code publicly on BreachForums** along with a "supply chain attack contest." Within days, an unrelated actor uploaded four malicious npm packages — one a near-verbatim copy with its own C2. The barrier to entry just dropped to zero. Expect copycat waves at irregular intervals from here.
 
+#### Wave D — Miasma "The Spreading Blight" (June 1, 2026)
+
+Five days after TeamPCP released the worm source code publicly, a new wave hit the `@redhat-cloud-services` npm namespace. **96 versions across 32 packages** (~116,991 weekly downloads) were published with a malicious 4.1 MB obfuscated JS preinstall hook.
+
+**Compromise vector:** Unlike all prior Shai-Hulud waves, Miasma did **not** rely on stolen developer npm credentials. TeamPCP compromised a GitHub Actions OIDC token directly from a Red Hat CI/CD pipeline — the same pipeline-poisoning technique as the TanStack Wave B attack, with no individual developer account compromise required.
+
+**Payload targets:** AWS, Azure, GCP, HashiCorp Vault, Kubernetes service account tokens, GitHub Actions OIDC tokens, npm publish tokens, Bitwarden, and 1Password.
+
+**Novel characteristics vs. prior waves:**
+- **No attacker C2 domain** — all data exfiltration routes through legitimate vendor API endpoints (AWS STS, Azure AD, GCP IAM, GitHub API, npm registry, vault APIs) with stolen credentials. Standard egress-based C2 detection tools cannot detect this exfil channel.
+- **Bun-based payload** — the preinstall hook downloads a Bun runtime binary to `/tmp/b-<random>/bun` and a JS payload to `/tmp/p<base36>.js`. Both are removed on successful exfiltration but may persist if the process crashes.
+- **Dead-drop IOC** — attacker GitHub repos with description "Miasma: The Spreading Blight" (same TeamPCP dead-drop pattern as prior waves).
+
+Red Hat published RHSB-2026-006 within hours of Wiz Research's disclosure. The full list of 32 affected packages and specific compromised version ranges is in [RHSB-2026-006](https://access.redhat.com/security/vulnerabilities/RHSB-2026-006).
+
+Source: [Wiz — Miasma: The Spreading Blight](https://www.wiz.io/blog/miasma-supply-chain-attack-targeting-redhat-npm-packages) | [Snyk — Miasma supply chain attack](https://snyk.io/blog/miasma-supply-chain-attack-malicious-code-redhat-cloud-services-npm-packages/) | [Red Hat RHSB-2026-006](https://access.redhat.com/security/vulnerabilities/RHSB-2026-006) | [JFrog — Shai-Hulud Miasma](https://research.jfrog.com/post/shai-hulud-miasma-redhat-cloud-services/) | [BleepingComputer — Red Hat npm packages compromised](https://www.bleepingcomputer.com/news/security/red-hat-npm-packages-compromised-to-steal-developer-credentials/) (all HTTP 403 — bot-protection pattern; search-confirmed live)
+
+#### Wave D Extension — Miasma Reaches Microsoft Azure GitHub Organizations (June 5–6, 2026)
+
+Four days after the initial Miasma npm wave, the worm's propagation capabilities reached a new phase: it jumped from npm to GitHub repository configuration files. On June 5–6, 2026, GitHub disabled **73 Microsoft repositories** across four organizations (Azure, Azure-Samples, Microsoft, MicrosoftDocs) in a 105-second automated sweep after detecting malicious commits.
+
+**How the worm spread:** A compromised contributor account with write access to `Azure/durabletask` pushed a commit that planted AI agent configuration files — `.claude/settings.json`, `.vscode/tasks.json`, `.cursor/settings.json`, and cursor rules — into the repository. The configuration files contained a credential-harvesting payload that executes when any developer opens the repository in Claude Code, Gemini CLI, Cursor, or VS Code Insiders.
+
+**Scale:** 73 repositories disabled in 105 seconds. Worm fingerprints (dead-drop patterns, payload structure, exfil routing) match the Miasma/TeamPCP wave. No Microsoft Azure credentials are confirmed stolen; GitHub's automated abuse detection interrupted propagation before confirmed exfil.
+
+**Why AI agent config files:** `.claude/settings.json` `SessionStart` hooks execute on every Claude Code session open; `.vscode/tasks.json` `"runOn": "folderOpen"` tasks execute when VS Code opens the folder. A developer cloning any of the 73 affected repos and opening in a supported IDE would have triggered the payload. This marks an explicit shift in TeamPCP strategy — from npm install-time execution to IDE open-time execution via repository configuration files.
+
+Source: [The Hacker News — Miasma Worm Jumps to GitHub, Disables 73 Microsoft Repos in 105 Seconds](https://thehackernews.com/2026/06/miasma-worm-jumps-github-disables-73.html) (HTTP 403 — bot-protection pattern; search-confirmed live via The Next Web, byteiota, thecybersecguru, opensourcemalware.com)
+
+#### Wave E — Phantom Gyp (June 3, 2026)
+
+Two days after Miasma, the same worm family returned with a new evasion technique. **57 packages** across multiple maintainer accounts were compromised in under two hours, including `vapi`, `ai-sdk-ollama`, and 55 others.
+
+**The Phantom Gyp technique:** Instead of using `preinstall` or `postinstall` hooks in `package.json` — the fields security tools and `--ignore-scripts` specifically monitor — the attacker placed a weaponized **157-byte `binding.gyp` file** in each package. When npm encounters a `binding.gyp` file, it automatically invokes `node-gyp` as a build step; this execution path is **outside** the `scripts` block and **not suppressed by `--ignore-scripts`**.
+
+**Why this matters:** Every defense built on `--ignore-scripts` fails against this wave. This includes:
+- `npm install --ignore-scripts` (does not block `binding.gyp` execution)
+- `npm ci --ignore-scripts`
+- npm audit hooks that only inspect `package.json` scripts fields
+- The Shai-Hulud scanner script's `npm config ignore-scripts` check
+
+**Payload capabilities:** Same credential-harvesting template as Wave D plus a new persistence layer — the malware injects a backdoor file into AI coding assistant project configurations (`.claude/settings.json`, `.cursor/settings.json`, `.vscode/tasks.json`) so that opening the project in any supported IDE re-executes the payload.
+
+**Dead-drop IOC:** Stolen credentials exfiltrated to GitHub repos created under the account `liuende501` (236+ repositories, encrypted JSON files). No named C2 beacon domain confirmed by research sources as of June 6.
+
+**Signed attestations do not help:** The wave also forged SLSA provenance and Sigstore signatures on all republished packages — `npm audit signatures` shows green. The only reliable defense is staged publishing approval, which was not yet widely adopted across affected maintainer accounts.
+
+Source: [StepSecurity — Binding.gyp npm supply chain attack](https://www.stepsecurity.io/blog/binding-gyp-npm-supply-chain-attack-spreads-like-worm) | [Snyk — Node-gyp supply chain compromise](https://snyk.io/blog/node-gyp-supply-chain-compromise-self-propagating-npm-worm-binding-gyp/) | [The Hacker News — IronWorm and new Miasma worm variant](https://thehackernews.com/2026/06/ironworm-and-new-miasma-worm-variant.html) | [Corgea — Phantom Gyp Miasma](https://corgea.com/research/miasma-phantom-gyp-npm-worm-vapi-ai-sdk-ollama-june-2026) (all HTTP 403 — bot-protection pattern; search-confirmed live)
+
+#### Wave F — Hades (June 8, 2026)
+
+Five days after Phantom Gyp, a new wave hit PyPI — the first in this campaign family to target Python packages exclusively. **19 packages** in the scientific computing, bioinformatics, and graph ML space (targeting researchers, data scientists, and AI developers) were trojanized across 37 malicious wheel artifacts.
+
+**Key affected packages:** `ensmallen` (v0.8.101), `embiggen`, `gpsea`, `pyphetools`, `mflux-streamlit`, `nhmpy`, `ppkt2sinergy`, and 12 others in the computational biology / MCP developer ecosystem.
+
+**Import-time execution:** Unlike Waves A–E which fired at npm install time, the Hades payload embeds an obfuscated script inside each package's `__init__.py`. It executes the moment you run `import ensmallen` (or any affected package) — **even if you installed with `pip install --no-deps` and audited `setup.py`**. Standard install-time defenses offer no protection.
+
+**AI Analyst Misdirection:** The payload includes a layer specifically designed to evade AI-powered security tools. When an AI security agent or LLM-based scanner inspects the compromised package, the malware returns benign-looking output, masking its credential-harvesting behavior. This is the first publicly documented supply chain payload that actively targets AI security tooling as an evasion surface.
+
+**Cross-platform memory scrapers:** The payload deploys tailored memory scrapers for Linux (parsing `/proc/<pid>/maps`), macOS, and Windows — extracting encrypted credentials directly from process memory rather than filesystem reads. This approach bypasses credential managers that store secrets in memory rather than disk.
+
+**Wiper deterrent:** The payload includes a deterrent against forensic analysis — a wiper component that can erase evidence on detection.
+
+**Attribution:** Multiple vendors describe Hades as a Miasma/Shai-Hulud lineage campaign. Socket Research did not explicitly attribute Hades to TeamPCP/UNC6780. Treat it as a related campaign with uncertain direct attribution.
+
+Source: [StepSecurity — The Hades Campaign: Graph ML PyPI Packages Deploy Cross-Platform Memory Scrapers](https://www.stepsecurity.io/blog/the-hades-campaign-pypi-packages) | [Socket.dev — Shai-Hulud Descends to Hades: Miasma Worm Campaign Spreads with New PyPI Wave](https://socket.dev/blog/shai-hulud-descends-to-hades-miasma-pypi-wave) | [DarkReading — 'Hades' Campaign Against PyPI Puts New Spin on Shai-Hulud](https://www.darkreading.com/application-security/hades-campaign-pypi-shai-hulud) | [BleepingComputer — New Shai-Hulud Attack Trojanizes 19 Science-Focused PyPI Packages](https://www.bleepingcomputer.com/news/security/new-shai-hulud-attack-trojanizes-19-science-focused-pypi-packages/) (all HTTP 403 — bot-protection pattern; search-confirmed live)
+
+#### Wave G — Hades MCP-Targeting (June 9, 2026)
+
+One day after the bioinformatics wave, the same Hades campaign expanded its scope to **MCP developers and AI tooling consumers**. **23 new malicious PyPI packages** were published in three clusters: typosquats of widely-used Python libraries, MCP/AI-themed packages impersonating LangChain and OpenAI tooling, and a novel loader variant.
+
+**Typosquats:** `rsquests`, `tlask`, `rlask` — single-character misspellings of `requests` and `flask` that capture install-time typos.
+
+**MCP/AI-themed packages:** packages with names suggesting LangChain MCP adapters, OpenAI tooling, and MCP server helpers, targeting developers searching for MCP integration libraries.
+
+**Split-loader technique (`langchain-core-mcp`):** This is the technically novel artifact in Wave G. Prior Hades packages bundled `_index.js` directly inside the wheel. `langchain-core-mcp` instead installs only a `.pth` Python startup hook. Rather than including its own JavaScript payload, the loader searches `sys.path` for an `_index.js` staged by a companion package that the attacker published separately. The effect: static analyzers that scan for bundled JavaScript inside Python packages find nothing suspicious in `langchain-core-mcp` itself. Detection requires identifying the `.pth` loader's suspicious `sys.path` search behavior.
+
+**Payload:** Same Bun-staged obfuscated JavaScript stealer as Wave F. Targets API tokens, cloud credentials (AWS, Azure, GCP), SSH keys, Kubernetes service account tokens, Docker configurations, package registry secrets, and shell histories.
+
+**Persistence:** The `.pth` startup hook persists in `site-packages` even after `pip uninstall langchain-core-mcp` — it continues executing on every Python process until the `.pth` file is manually removed from site-packages. Same persistence model as the LiteLLM `.pth` attack (March 2026).
+
+**Campaign total after Wave G:** 471 artifacts — 411 npm across 106 packages, 60 PyPI across 37 packages.
+
+**Attribution:** Same Hades/Shai-Hulud lineage as Wave F. Not explicitly attributed to TeamPCP/UNC6780 by Socket Research; treat as related campaign pending further attribution.
+
+Source: [Socket.dev — Mini Shai-Hulud, Miasma, and Hades Worms Target Bioinformatics and MCP Developers via Malicious PyPI Packages](https://socket.dev/blog/mini-shai-hulud-miasma-and-hades-worms-target-bioinformatics-and-mcp-developers-via-malicious) | [SecurityWeek — Over 100 NPM, PyPI Packages Hit in New Shai-Hulud Supply Chain Attacks](https://www.securityweek.com/over-100-npm-pypi-packages-hit-in-new-shai-hulud-supply-chain-attacks/) | [CyberSecurityNews — New Shai-Hulud Attack Compromises 23 PyPI Packages to Target MCP Developers](https://cybersecuritynews.com/23-pypi-packages-compromised/) | [TechNadu — New PyPI Wave in Mini Shai-Hulud, Miasma, and Hades Campaign](https://www.technadu.com/new-pypi-wave-in-mini-shai-hulud-miasma-and-hades-campaign-23-new-malicious-pypi-artifacts/629139/) (all HTTP 403 — bot-protection pattern; search-confirmed live)
+
 #### What to do right now if you use Claude Code
 
 1. **Audit `.claude/settings.json` in every project you've opened** in the last 30 days. Any `SessionStart`, `PreToolUse`, or `PostToolUse` hook that doesn't point to your own scripts or known-good plugin paths (`~/.claude/hooks/<your-tooling>/`) should be treated as suspicious until verified.
 2. **Audit `.vscode/tasks.json` for `"runOn": "folderOpen"`**. Legitimate uses exist but are rare; assume malicious until proven otherwise.
 3. **Run the IOC scan**: check `~/Library/LaunchAgents/com.user.kitty-monitor.plist`, `~/.local/share/kitty/cat.py`, `~/.local/bin/gh-token-monitor.sh`, and `/tmp/tmp.987654321.lock`. Any of these = compromised host.
 4. **Search your GitHub account for dead-drop repos** matching the Dune-themed naming. If you find any, your `gh` token has been exfiltrated — revoke immediately, then rotate every credential it could reach.
-5. **Set `ignore-scripts=true` in `~/.npmrc`** if you haven't already. This single setting would have blocked execution of all six Shai-Hulud waves.
+5. **Set `ignore-scripts=true` in `~/.npmrc`** if you haven't already. This setting blocks Waves A–D but does **not** block Wave E (Phantom Gyp) — see item 8.
 6. **The bash-firewall and secret-guard hooks llm-safe-haven installs** catch the SessionStart-hook abuse pattern at session start. If you're not running them, install via `npx llm-safe-haven`.
+7. **Wave D (Miasma, June 1): Check for Bun-based IOCs and the new dead-drop pattern.** Run `find /tmp -maxdepth 2 -name "bun" -path "*/b-*"` and `find /tmp -maxdepth 1 -name "p*.js"` — either file surviving means the Miasma payload crashed mid-run on your machine. Also search GitHub for repos with description "Miasma: The Spreading Blight" — that is the Wave D dead-drop equivalent of the Dune-themed naming used in Waves A–C.
+8. **Wave E (Phantom Gyp, June 3): `--ignore-scripts` does NOT block `binding.gyp`-triggered code execution.** Audit any package you install for unexpected `binding.gyp` files before running `npm install`, and consider Socket.dev or snyk/agent-scan which detect the `binding.gyp` attack pattern. `npm audit signatures` shows green for compromised Phantom Gyp packages — provenance verification alone is insufficient.
+9. **Wave D Extension (Miasma Azure GitHub, June 5–6): Audit any Microsoft Azure/Azure-Samples/Microsoft/MicrosoftDocs repository** you cloned between June 5–7, 2026. If you opened a clone in Claude Code, VS Code, Cursor, or Gemini CLI during that window, rotate credentials. Check `.claude/settings.json`, `.vscode/tasks.json`, and `.cursor/settings.json` for hooks you did not add.
+10. **Wave F (Hades, June 8, 2026): If you use any scientific computing, bioinformatics, or graph ML Python packages**, run `pip list | grep -E "ensmallen|embiggen|gpsea|pyphetools|mflux-streamlit|nhmpy|ppkt2synergy"`. Any match → treat the host as compromised (import-time execution; payload fired the moment the package was imported). Standard install-time audit (`pip audit`, `safety check`) will not flag packages delivered as malicious wheels; cross-reference your installed versions against the affected version lists at PyPI's removal notices. AI-powered security scanners may return false-clean results — the payload actively evades them (AI Analyst Misdirection). If any package was imported since June 8, rotate all credentials accessible from that environment.
+11. **Wave G (Hades MCP-targeting, June 9, 2026): If you use LangChain, Flask, requests, OpenAI, or MCP integration libraries from PyPI**, run `pip list | grep -E "rsquests|tlask|rlask|langchain-core-mcp"`. Any match → treat the host as compromised. Import-time execution: same payload model as Wave F. Additionally: check for orphaned `.pth` loader entries with `find $(python3 -c "import site; print(' '.join(site.getsitepackages()))") -name "*.pth" | xargs grep -l "_index.js" 2>/dev/null` — the `langchain-core-mcp` split-loader deposits a `.pth` file in `site-packages` that persists after `pip uninstall` and re-executes on every Python process start. Delete any such `.pth` file manually if found.
 
 ### Timeline
 
@@ -299,6 +395,18 @@ The exfil endpoint at `flipboxstudio[.]info` is a typosquat of the legitimate `f
 
 **If you have any Laravel Lang version installed:** treat every host, container, CI runner, and developer machine that ran the package as compromised. Run `composer audit`, rotate every credential the harvester targets, and rebuild from clean images. Preserve logs before cleanup.
 
+### Follow-on: May 28, 2026 — Typosquatted npm packages (vpmdhaj)
+
+Four days after the May 22 wave, Microsoft Threat Intelligence tracked a separate, unattributed actor publishing 14 typosquatted npm packages in a 4-hour window under the alias **vpmdhaj**. The packages impersonate OpenSearch, ElasticSearch, and generic DevOps configuration tooling — prime targets for developer environments that already use the real `@opensearch-project/` family.
+
+**Payload:** A ~195 KB Bun-compiled binary that harvests AWS credentials (IMDSv2, ECS task metadata, STS, Secrets Manager), HashiCorp Vault tokens, npm publish tokens, and GitHub Actions runtime credentials. Exfiltration target: `aab.sportsontheweb[.]net/x.php`.
+
+**Affected packages (14 total):** `opensearch-security-scanner`, `opensearch-setup`, `opensearch-setup-tool`, `opensearch-client-helper`, `opensearch-node-client`, `elasticsearch-helper`, `elasticsearch-node-client`, `@vpmdhaj/elastic-helper`, `@vpmdhaj/devops-tools`, `@vpmdhaj/cloud-config`, `env-config-manager`, `aws-env-loader`, `vault-secret-loader`, `ci-env-helper`.
+
+**Attribution:** Microsoft does not link vpmdhaj to UNC6780/TeamPCP/CanisterSprawl. This is a separate independent actor demonstrating that cloud-credential typosquatting has become a repeatable playbook, not a single-actor operation.
+
+Source: [Microsoft Security Blog — Typosquatted npm packages used to steal cloud and CI/CD secrets (May 28, 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/28/typosquatted-npm-packages-used-steal-cloud-ci-cd-secrets/)
+
 ### Why this matters for AI agent developers
 
 1. **Trusted publishing alone is not sufficient when the runner can be poisoned.** The TanStack wave produced **valid Sigstore provenance attestations** on malicious versions by scraping the OIDC token from runner memory. Pair trusted publishing with **staged publishing** so a 2FA-verified human approval gates the release.
@@ -326,6 +434,55 @@ The exfil endpoint at `flipboxstudio[.]info` is a typosquat of the legitimate `f
 - [SANS ISC — UNC6780 / SANDCLOCK attribution](https://isc.sans.edu/diary/32880) | [SANS ISC — activity through 2026-05-24](https://isc.sans.edu/diary/33014)
 - [Unit 42 — npm threat landscape May 21](https://unit42.paloaltonetworks.com/monitoring-npm-supply-chain-attacks/)
 - [Packagist — composer.audit response post-Laravel-Lang](https://blog.packagist.com/an-update-on-composer-packagist-supply-chain-security/)
+
+---
+
+## Case Study: GlassWorm — First Self-Propagating IDE Extension Worm (2025–May 2026 Takedown)
+
+While Shai-Hulud/CanisterSprawl targets the npm ecosystem, a parallel supply-chain threat has been operating in the VS Code extension marketplace. GlassWorm is the first confirmed self-propagating worm to spread through an IDE extension registry, and its takedown on May 26, 2026 revealed a campaign that had been active for over a year.
+
+### What happened
+
+GlassWorm spread through the OpenVSX marketplace via trojanized extensions (including `specstudio/code-wakatime-activity-tracker` and `floktokbok.autoimport`). Once installed, the worm used each IDE's own command-line installer to push the GlasswormRAT payload to every VS Code fork on the machine — VS Code, Cursor, Windsurf, VSCodium, and Positron. Zig-compiled native binaries bypassed signature-based detection.
+
+The payload (GlasswormRAT) harvested npm tokens, GitHub tokens, Git credentials, and 49 browser-based crypto wallet extensions. It also deployed a SOCKS5 proxy and used stolen publisher credentials to self-propagate by publishing additional trojanized extensions under the victim's publisher account.
+
+An enabling condition was the **Open Sesame** vulnerability (Koi Security, Feb 8, 2026 disclosure, fixed in Open VSX 0.32.0): a logic bug in the pre-publish scanner pipeline caused scanner failures to be silently treated as "nothing to scan" — malicious extensions passed the vetting process on demand.
+
+### C2 infrastructure
+
+GlassWorm used four independent C2 channels simultaneously, which is why single-channel blocking was insufficient:
+
+| Channel | Mechanism |
+|---------|-----------|
+| Solana blockchain | C2 server addresses encoded in transaction memo fields |
+| BitTorrent DHT | Configuration data stored in the distributed hash table |
+| Google Calendar | Base64-encoded C2 paths embedded in public event titles |
+| Direct VPS | Fallback connections to commercial hosting providers |
+
+CrowdStrike Counter Adversary Operations, Google, and Shadowserver Foundation struck all four channels simultaneously at 14:00 UTC, May 26, 2026. Infected machines now beacon to the CrowdStrike sinkhole `164.92.88[.]210`.
+
+### Scale and attribution
+
+300+ GitHub repositories were poisoned across Windows, macOS, and Linux. Attribution: likely Russia-based (runtime CIS locale check; no state-level attribution confirmed by CrowdStrike).
+
+### What to do right now
+
+1. **Audit your installed VS Code extensions against the two known malicious publishers:** `specstudio/code-wakatime-activity-tracker` and `floktokbok.autoimport`. If either is installed, treat the machine as fully compromised.
+2. **Check for GlasswormRAT sinkhole beacons:** If your machine is making outbound connections to `164.92.88[.]210`, GlasswormRAT was or is present.
+3. **Pin extensions to known-good versions.** Unlike npm, VS Code extensions auto-update silently by default. Disable auto-update in settings: `"extensions.autoUpdate": false`.
+4. **Prefer the VS Code Marketplace over Open VSX where possible.** Microsoft's marketplace has stricter publisher vetting and faster revocation than Open VSX.
+5. **If you are an Open VSX publisher:** rotate your Open VSX publish token (it may have been harvested). Check your extension's publish history for unauthorized releases.
+6. **npm tokens:** If your machine ran any version of the affected extensions, rotate npm tokens. GlasswormRAT specifically targeted npm publish tokens for self-propagation.
+
+### Sources
+
+- [CrowdStrike — Inside CrowdStrike's Takedown of a Developer-Targeting Botnet](https://www.crowdstrike.com/en-us/blog/inside-crowdstrike-takedown-of-a-developer-targeting-botnet/)
+- [CyberScoop — CrowdStrike disrupts Glassworm botnet that preyed on open-source supply chain](https://cyberscoop.com/crowdstrike-glassworm-botnet-takedown/)
+- [The Register — CrowdStrike, Google shatter Glassworm botnet](https://www.theregister.com/cyber-crime/2026/05/27/crowdstrike-google-shatter-glassworm-botnet/5247337)
+- [TechCrunch — CrowdStrike and Google take down botnet used by hackers to target software developers in supply chain attacks](https://techcrunch.com/2026/05/27/crowdstrike-and-google-take-down-botnet-used-by-hackers-to-target-software-developers-in-supply-chain-attacks/)
+- [The Hacker News — Open VSX Bug Let Malicious VS Code Extensions Bypass Pre-Publish Security Checks](https://thehackernews.com/2026/03/open-vsx-bug-let-malicious-vs-code.html)
+- [SecurityWeek — Vulnerability Exposed All Open VSX Repositories to Takeover](https://www.securityweek.com/vulnerability-exposed-all-open-vsx-repositories-to-takeover/)
 
 ---
 
@@ -890,7 +1047,7 @@ npm pkg get scripts --json
 
 ## Incident Response: If You Installed a Compromised Package
 
-If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), or any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window — treat the host as compromised:
+If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@2026.4.0` (Apr 22), the SAP CAP set (Apr 29), `@tanstack/react-router` 1.169.5/1.169.8 (May 11), any `@antv/*` / `echarts-for-react` / `size-sensor` / `timeago.js` version published in the May 19 window, or any `@redhat-cloud-services/*` version published on June 1, 2026 (see [RHSB-2026-006](https://access.redhat.com/security/vulnerabilities/RHSB-2026-006) for the full list of 32 packages) — or if you **cloned and opened in Claude Code, VS Code, Cursor, or Gemini CLI** any of the 73 disabled Microsoft Azure/Azure-Samples/Microsoft/MicrosoftDocs repositories between June 5–7, 2026 — or if you **imported** any Hades-wave PyPI package (`ensmallen`, `embiggen`, `gpsea`, `pyphetools`, `mflux-streamlit`, `nhmpy`, `ppkt2synergy`, or related scientific computing packages) from June 8, 2026 onward — treat the host as compromised:
 
 ### Immediate (within 1 hour)
 

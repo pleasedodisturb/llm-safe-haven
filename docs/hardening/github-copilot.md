@@ -234,12 +234,40 @@ VS Code allows disabling Copilot for specific languages or files:
 This prevents Copilot from processing `.env` files and similar configuration formats
 that commonly contain secrets.
 
+### 10. Enable GitHub Copilot Secure Sandboxes (Public Preview, June 2026)
+
+GitHub shipped secure local and cloud sandboxes for Copilot agent mode on June 2, 2026 (public preview). This is the single highest-leverage hardening step now available for Copilot agent workflows.
+
+- **Local sandbox (MXC):** Microsoft Execution Containers technology. Restricts Copilot agent access to filesystem, network, and system capabilities per configurable policies. Consistent across macOS, Linux, and Windows. Enterprise teams can enforce policies centrally via Microsoft Intune/MDM.
+- **Cloud sandbox:** Fully isolated GitHub-hosted environments for agents that don't need local filesystem access. Strongest isolation option.
+- **What it prevents:** A sandboxed agent cannot exfiltrate files outside the workspace or make unauthorized network calls — even if prompt-injected. Directly mitigates the IronWorm eBPF credential-interception technique and the `.claude/settings.json`-injection persistence vector documented in Waves D and E.
+- **Configuration:** Opt-in during public preview. Enable via VS Code GitHub Copilot settings panel or organization admin.
+
+This is separate from VS Code's existing workspace trust and terminal sandboxing — it is a dedicated, GitHub-built isolation layer that runs below the IDE level.
+
+Source: [GitHub Changelog — Cloud and local sandboxes for GitHub Copilot now in public preview](https://github.blog/changelog/2026-06-02-cloud-and-local-sandboxes-for-github-copilot-now-in-public-preview/) (HTTP 403 — bot-protection pattern; search-confirmed live via Help Net Security, multiple outlets)
+
+### 11. Use the `/security-review` Command (Experimental Public Preview, June 2026)
+
+GitHub shipped a dedicated `/security-review` slash command for the Copilot CLI on June 10, 2026 (experimental public preview). It runs an AI-driven scan of local code changes and returns severity-scored findings without requiring a full CI pass or external tool.
+
+**What it scans:** Injection flaws, XSS, insecure data handling, path traversal, and weak cryptography in staged and unstaged local changes.
+
+```bash
+# Scan local code changes before committing:
+gh copilot /security-review
+```
+
+Catches security issues before a commit, complementing runtime hook protection with a static pre-commit analysis layer. The AI-based scan surfaces semantic vulnerabilities that pattern-matching tools miss. Experimental public preview — validate findings before acting on them.
+
+Source: [GitHub Changelog — Dedicated security review command now available in Copilot CLI](https://github.blog/changelog/2026-06-10-dedicated-security-review-command-now-available-in-copilot-cli/) (HTTP 403 — bot-protection pattern; search-confirmed live)
+
 ## Security Comparison: GitHub Copilot vs Claude Code
 
 | Feature | Claude Code | GitHub Copilot (Agent Mode) |
 |---------|------------|--------------------------|
-| Sandbox | Seatbelt (macOS) / bubblewrap (Linux) | VS Code terminal sandbox (configurable) |
-| Sandbox Scope | Workspace-scoped | Workspace-scoped (VS Code) / None (CLI) |
+| Sandbox | Seatbelt (macOS) / bubblewrap (Linux) | VS Code terminal sandbox (configurable) + MXC local sandbox + cloud sandbox (June 2026, public preview) |
+| Sandbox Scope | Workspace-scoped | Workspace-scoped (VS Code) / None (CLI) / Fully isolated (cloud sandbox) |
 | Tool Hooks | PreToolUse / PostToolUse (user-defined) | None |
 | Permission Model | Per-tool approval with allowlists | Tiered approval (session/workspace/user) |
 | MCP Security | User approval per server | Tiered trust with registry support |
