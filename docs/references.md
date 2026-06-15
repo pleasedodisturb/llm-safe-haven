@@ -105,7 +105,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 
 | Resource | Stars | Description |
 |----------|-------|-------------|
-| [step-security/harden-runner](https://github.com/step-security/harden-runner) | ~1K | GitHub Actions runner hardening. Runtime egress filtering with allowlists, file integrity monitoring, anomaly detection. Maintains a Global Block List of IOC domains updated 24/7 from active supply chain attacks. Drop-in workflow step. Kubernetes ARC + third-party runner support (Depot, Blacksmith, Namespace, WarpBuild). Would have prevented Shai-Hulud egress in block mode. |
+| [step-security/harden-runner](https://github.com/step-security/harden-runner) | ~1.2K | GitHub Actions runner hardening. Runtime egress filtering with allowlists, file integrity monitoring, anomaly detection. Maintains a Global Block List of IOC domains updated 24/7 from active supply chain attacks. Drop-in workflow step. Kubernetes ARC + third-party runner support (Depot, Blacksmith, Namespace, WarpBuild). Would have prevented Shai-Hulud egress in block mode. |
 
 ## Agent Orchestration
 
