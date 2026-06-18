@@ -98,6 +98,18 @@ lies in Anthropic's MCP SDK, meaning any tool using the protocol inherits the
 vulnerability regardless of their own security measures. This affects Windsurf, Cursor,
 Claude Code, Gemini CLI, and GitHub Copilot equally.
 
+### CVE-2026-30615 — Zero-Click Prompt Injection RCE via MCP Config Injection (CVSS 8.0)
+
+OX Security disclosed this vulnerability as part of a cross-IDE supply chain advisory. In Windsurf 1.9544.26, attacker-controlled HTML content rendered by the IDE contains malicious instructions that silently modify the local MCP JSON configuration and register a malicious MCP STDIO server — without any click, approval prompt, or warning. The MCP SDK then launches the server binary, handing the attacker arbitrary command execution.
+
+**Windsurf was the only AI IDE in the disclosure chain where exploitation required zero user interaction.** Other affected IDEs required at least one user action.
+
+CVSS 8.0 (High): Attack Vector: Local, Privileges Required: None, User Interaction: None.
+
+**Fix:** Update to a Windsurf/Devin Desktop version beyond 1.9544.26.
+
+Source: [GitHub Advisory GHSA-wj2m-jvpr-64cq](https://github.com/advisories/GHSA-wj2m-jvpr-64cq) (HTTP 200 verified) | [NVD CVE-2026-30615](https://nvd.nist.gov/vuln/detail/CVE-2026-30615) (HTTP 403 — bot-protection pattern; search-confirmed live)
+
 ## What You CAN Harden
 
 ### 1. Configure .codeiumignore
