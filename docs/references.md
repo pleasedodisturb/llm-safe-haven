@@ -21,7 +21,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 
 | Resource | Stars | Description |
 |----------|-------|-------------|
-| [snyk/agent-scan](https://github.com/snyk/agent-scan) | ~2.6K | Security scanner for AI agents, MCP servers, and agent skills. Auto-discovers local agent configs (Claude, Cursor, Windsurf, Gemini CLI). Scans for prompt injection, tool poisoning, toxic flows, and 15+ risks. Originally MCP-Scan by Invariant Labs (acquired by Snyk June 2025). v0.5.10 released June 11, 2026. |
+| [snyk/agent-scan](https://github.com/snyk/agent-scan) | ~2.6K | Security scanner for AI agents, MCP servers, and agent skills. Auto-discovers local agent configs (Claude, Cursor, Windsurf, Gemini CLI). Scans for prompt injection, tool poisoning, toxic flows, and 15+ risks. Originally MCP-Scan by Invariant Labs (acquired by Snyk June 2025). v0.5.11 released June 19, 2026. |
 | [avast/sage](https://github.com/avast/sage) | ~229 | Lightweight Agent Detection & Response (ADR) layer. Intercepts every tool call before it hits the OS. URL reputation, YAML heuristics, package supply-chain checks. Works with Claude Code, Cursor, VS Code. March 2026. |
 | [cisco-ai-defense/mcp-scanner](https://github.com/cisco-ai-defense/mcp-scanner) | ~900 | Scans MCP servers for malicious code and hidden threats. Three scanning engines: YARA rules, LLM-as-judge, and Cisco AI Defense inspect API. |
 | [cisco-ai-defense/skill-scanner](https://github.com/cisco-ai-defense/skill-scanner) | ~1.8K | Detects risk patterns in agent skills. Combines signature-based detection, LLM-based semantic analysis, behavioral dataflow analysis, and configurable rule packs. |
@@ -37,6 +37,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [Pantheon-Security/medusa](https://github.com/Pantheon-Security/medusa) | ~598 | AI-first security scanner with 9,600+ detection rules across 79 analyzers covering AI/ML, LLM agents, and MCP servers. Repo poisoning detection scans 28+ AI editor config files (Cursor, Claude Code, VS Code). v2026.6.0 released June 10, 2026. AGPL-3.0. |
 | [cisco-ai-defense/defenseclaw](https://github.com/cisco-ai-defense/defenseclaw) | ~718 | Security governance platform for OpenClaw and agentic AI runtimes. Integrates skill-scanner, mcp-scanner, a2a-scanner, CodeGuard static analysis, AI bill-of-materials generator, operator CLI, and a terminal UI dashboard. v0.6.6 released June 3, 2026. Apache 2.0. |
 | [lateos-ai/npm-scan](https://github.com/lateos-ai/npm-scan) | ~15 | Behavioral npm supply chain scanner targeting what static tools miss: eBPF rootkits, OIDC token extraction from runner memory, GitHub author spoofing, worm-style transitive propagation, and AI platform credential targeting. 23 detectors. SBOM and SARIF export. Zero telemetry, offline. v1.2.9, June 2026. MIT/BLA. |
+| [sattyamjjain/agent-audit-kit](https://github.com/sattyamjjain/agent-audit-kit) | ~6 | Agent pipeline security scanner with 221 detection rules across 75 modules. Covers OWASP MCP Top 10, flags CVE-2026-21852 class injections, produces SARIF and JSON reports. Lightweight CLI. v0.3.34, June 2026. |
 
 ## Credential Management
 
@@ -74,6 +75,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [protectai/llm-guard](https://github.com/protectai/llm-guard) | ~2.5K | Security toolkit for LLM interactions. Sanitization, harmful language detection, data leakage prevention, prompt injection resistance. Input and output scanners. |
 | [Lakera Guard](https://www.lakera.ai/lakera-guard) | — | AI security API with 98%+ prompt injection detection, sub-50ms latency, 100+ language support. PII detection/redaction, secrets detection. Trained on 80M+ adversarial prompts from Gandalf game. Acquired by Check Point (Sep 2025). Commercial. |
 | [tldrsec/prompt-injection-defenses](https://github.com/tldrsec/prompt-injection-defenses) | ~678 | Catalog of practical and proposed defenses against prompt injection. Covers instructional defense, guardrails, firewalls, canaries, and research proposals. |
+| [StackOneHQ/defender](https://github.com/StackOneHQ/defender) | ~106 | Three-tier prompt injection defense for Node.js: regex pattern matching → MiniLM ML classifier → optional LLM judge (escalating cost, escalating accuracy). F1 score 90.8% on adversarial benchmarks. npm: `@stackone/defender`. v0.7.1, June 2026. |
 
 ## LLM Guardrails & Firewalls
 
