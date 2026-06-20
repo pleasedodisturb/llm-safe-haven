@@ -83,7 +83,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 |----------|-------|-------------|
 | [NVIDIA-NeMo/Guardrails](https://github.com/NVIDIA-NeMo/Guardrails) | ~6K | Programmable guardrails for LLM-based systems. Input/output/dialog/retrieval/execution rails. Jailbreak and injection detection, hallucination checking, topic safety. Integrates with LangChain, LlamaIndex. GPU-accelerated. |
 | [guardrails-ai/guardrails](https://github.com/guardrails-ai/guardrails) | ~6.7K | Validation framework for LLM outputs. Define guardrails in RAIL spec, validate structured output, retry on failure. Hub of community validators. |
-| [luckyPipewrench/pipelock](https://github.com/luckyPipewrench/pipelock) | ~706 | Firewall for AI agents. DLP scanning (48 patterns), SSRF protection, bidirectional MCP scanning, tool poisoning detection (SHA-256 fingerprinting), prompt injection blocking (25 patterns). Capability separation: agent has secrets but no network; Pipelock has network but no secrets. Apache-2.0 core. v2.6.0 released May 31, 2026. |
+| [luckyPipewrench/pipelock](https://github.com/luckyPipewrench/pipelock) | ~724 | Firewall for AI agents. DLP scanning (48 patterns), SSRF protection, bidirectional MCP scanning, tool poisoning detection (SHA-256 fingerprinting), prompt injection blocking (25 patterns). Capability separation: agent has secrets but no network; Pipelock has network but no secrets. Apache-2.0 core. v2.8.0 released June 18, 2026. |
 
 ## Red Teaming & Pentesting
 
@@ -189,7 +189,7 @@ These are the GitHub issues we filed or tracked while building [rbw-proxy](https
 
 | Issue | Topic |
 |-------|-------|
-| [anthropics/claude-code#52471](https://github.com/anthropics/claude-code/issues/52471) | Sandbox blocks Unix domain socket IPC with credential managers |
+| [anthropics/claude-code#52471](https://github.com/anthropics/claude-code/issues/52471) | Sandbox blocks Unix domain socket IPC with credential managers — **closed as not planned** (June 2026) |
 | [#40209](https://github.com/anthropics/claude-code/issues/40209) | Related sandbox restriction |
 | [#41817](https://github.com/anthropics/claude-code/issues/41817) | Path-scoped Unix socket creation (bind) support in sandbox |
 | [#50165](https://github.com/anthropics/claude-code/issues/50165) | Related sandbox restriction |
