@@ -85,6 +85,7 @@ Curated collection of frameworks, tools, guides, and incident reports for securi
 | [NVIDIA-NeMo/Guardrails](https://github.com/NVIDIA-NeMo/Guardrails) | ~6K | Programmable guardrails for LLM-based systems. Input/output/dialog/retrieval/execution rails. Jailbreak and injection detection, hallucination checking, topic safety. Integrates with LangChain, LlamaIndex. GPU-accelerated. |
 | [guardrails-ai/guardrails](https://github.com/guardrails-ai/guardrails) | ~6.7K | Validation framework for LLM outputs. Define guardrails in RAIL spec, validate structured output, retry on failure. Hub of community validators. |
 | [luckyPipewrench/pipelock](https://github.com/luckyPipewrench/pipelock) | ~724 | Firewall for AI agents. DLP scanning (48 patterns), SSRF protection, bidirectional MCP scanning, tool poisoning detection (SHA-256 fingerprinting), prompt injection blocking (25 patterns). Capability separation: agent has secrets but no network; Pipelock has network but no secrets. Apache-2.0 core. v2.8.0 released June 18, 2026. |
+| [meta-llama/PurpleLlama (LlamaFirewall)](https://github.com/meta-llama/PurpleLlama) | ~4.2K | Three-layer guardrail stack for LLM agents: PromptGuard 2 (fine-tuned classifier blocking prompt injection and jailbreaks), Agent Alignment Checks (behavioral policy enforcement for agentic actions), and CodeShield (unsafe code detection). In production use at Meta. Apache 2.0. |
 
 ## Red Teaming & Pentesting
 
