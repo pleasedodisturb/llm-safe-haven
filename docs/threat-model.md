@@ -159,6 +159,14 @@ Researchers at MacCarita Security disclosed a prompt injection vulnerability in 
 
 Source: [MacCarita Security — CVE-2026-41109](https://maccarita.com/posts/idesaster) (HTTP 403 — bot-protection pattern; search-confirmed live) | [TheHackerWire — CVE-2026-41109](https://www.thehackerwire.com/github-copilot-visual-studio-injection-bypasses-microsoft-security-ai-systems/) (HTTP 403 — bot-protection pattern; search-confirmed live)
 
+### May 2026 — Megalodon: TeamPCP Backdoors 5,561 GitHub Repositories in Six Hours (May 18)
+
+Using throwaway GitHub accounts and forged CI bot identities, TeamPCP (UNC6780) pushed **5,718 malicious commits to 5,561 GitHub repositories in under six hours** on May 18, 2026 — from approximately 11:36 to 17:48 UTC. Each commit backdoored the repository's CI/CD workflows to exfiltrate cloud credentials, SSH keys, OIDC tokens, and source-code secrets at scale. Attribution confirmed by CSA Labs, Protos Labs, and multiple security vendors.
+
+**Why it matters:** Megalodon targeted repositories' CI/CD workflows directly — a distinct attack surface from the npm/PyPI package poisoning in the concurrent Shai-Hulud waves. A developer whose repository was among the 5,561 affected would have unknowingly triggered credential exfiltration on their next CI run. The scale (5,718 commits in 6 hours) was enabled by automation, consistent with TeamPCP's established tooling from the CanisterSprawl campaign.
+
+Source: The Hacker News, SecurityWeek, CPO Magazine, The Register, CSA Labs — Shai-Hulud/Megalodon: A Two-Wave AI Developer Supply Chain Attack (all HTTP 403 — bot-protection pattern; search-confirmed live)
+
 ### April 2026 — MCP Design Flaw: Zero-Click Prompt Injection in IDEs, 9 of 11 Registries Poisoned
 
 On April 16, 2026, OX Security (as part of the broader AI security community) published a sweeping disclosure covering systemic vulnerabilities in the MCP protocol and its ecosystem. The key findings:
