@@ -20,13 +20,13 @@ The sandbox prevents breakout, hooks enforce policy, permissions require approva
 
 ## What to configure
 
-### 1. Enable the sandbox (off by default)
+### 1. Verify the sandbox is active
 
 ```json
 { "sandbox": true }
 ```
 
-macOS activates Apple Seatbelt; Linux activates bubblewrap (`apt install bubblewrap` / `pacman -S bubblewrap` — if `bwrap` is missing it falls back to no sandbox with a warning). Default: read/write limited to the project directory; no access to `~/.ssh`, `~/.aws`, `~/.config`. Expand only when you must, via `sandboxAllowedPaths`.
+macOS activates Apple Seatbelt (on by default); Linux activates bubblewrap — if `bwrap` is missing, install it (`apt install bubblewrap` / `pacman -S bubblewrap`) before relying on the sandbox. Default: read/write limited to the project directory; no access to `~/.ssh`, `~/.aws`, `~/.config`. `sandboxAllowedPaths` only expands an already-enabled sandbox — expand only when you must.
 
 ### 2. Install the bash firewall hook
 
@@ -113,10 +113,10 @@ Otherwise review `.claude/settings.json` before opening. Update to v2.1.84+ — 
 ## Audit & monitoring
 
 ```bash
-npx llm-safe-haven audit   # sandbox on? hook SHA256s match? known-bad MCP? version current?
+npx llm-safe-haven audit   # sandbox on? hook SHA256s match? settings wired? hook integrity?
 ```
 
-Add a `PostToolUse` hook (`"matcher": "*"`) that logs every tool call and response to a file for post-session review; the bash firewall already logs blocked commands to stderr.
+Add a `PostToolUse` hook (catch-all matcher) that logs tool metadata to a file for post-session review — Write, Edit, MultiEdit, and Bash inputs are excluded from logging to avoid capturing secrets; the bash firewall already logs blocked commands to stderr.
 
 ## Quick reference: minimum viable hardening
 
