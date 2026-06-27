@@ -170,7 +170,7 @@ Source: [StepSecurity — Binding.gyp npm supply chain attack](https://www.steps
 
 Five days after Phantom Gyp, a new wave hit PyPI — the first in this campaign family to target Python packages exclusively. **19 packages** in the scientific computing, bioinformatics, and graph ML space (targeting researchers, data scientists, and AI developers) were trojanized across 37 malicious wheel artifacts.
 
-**Key affected packages:** `ensmallen` (v0.8.101), `embiggen`, `gpsea`, `pyphetools`, `mflux-streamlit`, `nhmpy`, `ppkt2sinergy`, and 12 others in the computational biology / MCP developer ecosystem.
+**Key affected packages:** `ensmallen` (v0.8.101), `embiggen`, `gpsea`, `pyphetools`, `mflux-streamlit`, `nhmpy`, `ppkt2synergy`, and 12 others in the computational biology / MCP developer ecosystem.
 
 **Import-time execution:** Unlike Waves A–E which fired at npm install time, the Hades payload embeds an obfuscated script inside each package's `__init__.py`. It executes the moment you run `import ensmallen` (or any affected package) — **even if you installed with `pip install --no-deps` and audited `setup.py`**. Standard install-time defenses offer no protection.
 
@@ -469,7 +469,15 @@ CrowdStrike Counter Adversary Operations, Google, and Shadowserver Foundation st
 ### What to do right now
 
 1. **Audit your installed VS Code extensions against the two known malicious publishers:** `specstudio/code-wakatime-activity-tracker` and `floktokbok.autoimport`. If either is installed, treat the machine as fully compromised.
+   ```bash
+   code --list-extensions | grep -Ei "code-wakatime-activity-tracker|autoimport" \
+     && echo "MATCH — treat machine as compromised" || echo "clean"
+   ```
 2. **Check for GlasswormRAT sinkhole beacons:** If your machine is making outbound connections to `164.92.88[.]210`, GlasswormRAT was or is present.
+   ```bash
+   lsof -nP -i 2>/dev/null | grep "164.92.88.210" \
+     && echo "ACTIVE BEACON — isolate host and rotate credentials" || echo "no active beacon"
+   ```
 3. **Pin extensions to known-good versions.** Unlike npm, VS Code extensions auto-update silently by default. Disable auto-update in settings: `"extensions.autoUpdate": false`.
 4. **Prefer the VS Code Marketplace over Open VSX where possible.** Microsoft's marketplace has stricter publisher vetting and faster revocation than Open VSX.
 5. **If you are an Open VSX publisher:** rotate your Open VSX publish token (it may have been harvested). Check your extension's publish history for unauthorized releases.
@@ -1054,7 +1062,7 @@ If you installed any Shai-Hulud–era compromised package — `@bitwarden/cli@20
 ### Immediate (within 1 hour)
 
 1. **Rotate ALL credentials** — GitHub tokens, npm tokens, AWS/GCP/Azure credentials, SSH keys. Assume everything is compromised.
-2. **Check for persistence** (run `scripts/scan-shai-hulud-may2026.sh` for waves through May 19 and `scripts/scan-g747-may22.sh` for the May 22 IOCs — postinstall worm, Laravel-Lang RCE, Nx Console v18.95.0, TrapDoor zero-width injection — or check manually):
+2. **Check for persistence** (run `scripts/scan-shai-hulud-may2026.sh` for the Shai-Hulud / Miasma / Phantom Gyp / Atomic-Arch waves through June 2026 (npm IOCs A–G plus the Miasma Bun/JS temp-file checks; PyPI Hades waves F–G are covered as documented `pip list` checks in the script comments) and `scripts/scan-g747-may22.sh` for the May 22 IOCs — postinstall worm, Laravel-Lang RCE, Nx Console v18.95.0, TrapDoor zero-width injection — or check manually):
    - `~/.bashrc`, `~/.zshrc` for injected heredoc blocks or base64-decoded curl pipes
    - `/tmp/tmp.987654321.lock` (older Shai-Hulud lock file)
    - `~/Library/LaunchAgents/com.user.kitty-monitor.plist` (macOS, May 19 wave)

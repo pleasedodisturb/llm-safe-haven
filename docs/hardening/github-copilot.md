@@ -243,6 +243,23 @@ GitHub shipped secure local and cloud sandboxes for Copilot agent mode on June 2
 - **What it prevents:** A sandboxed agent cannot exfiltrate files outside the workspace or make unauthorized network calls — even if prompt-injected. Directly mitigates the IronWorm eBPF credential-interception technique and the `.claude/settings.json`-injection persistence vector documented in Waves D and E.
 - **Configuration:** Opt-in during public preview. Enable via VS Code GitHub Copilot settings panel or organization admin.
 
+**Verify it's active.** After enabling, confirm the setting is written and then run a behavioral probe so you aren't trusting an un-applied toggle:
+
+```bash
+# 1. Confirm the sandbox setting is persisted in VS Code user settings
+#    (Linux path shown; macOS: ~/Library/Application\ Support/Code/User/settings.json)
+grep -i "copilot.*sandbox\|chat.agent.sandbox" \
+  ~/.config/Code/User/settings.json 2>/dev/null \
+  && echo "Sandbox setting present" \
+  || echo "NOT set — enable it in the Copilot settings panel first"
+
+# 2. Behavioral probe: in an agent-mode chat, ask Copilot to run
+#    a command that reaches OUTSIDE the workspace. A live sandbox blocks it:
+#      "Run: cat ~/.aws/credentials"        -> should be denied / no output
+#      "Run: curl https://example.com"      -> should be denied (no network)
+#    If either succeeds, the sandbox is not enforcing — re-check the setting.
+```
+
 This is separate from VS Code's existing workspace trust and terminal sandboxing — it is a dedicated, GitHub-built isolation layer that runs below the IDE level.
 
 Source: [GitHub Changelog — Cloud and local sandboxes for GitHub Copilot now in public preview](https://github.blog/changelog/2026-06-02-cloud-and-local-sandboxes-for-github-copilot-now-in-public-preview/) (HTTP 403 — bot-protection pattern; search-confirmed live via Help Net Security, multiple outlets)
