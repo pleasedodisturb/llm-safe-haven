@@ -434,6 +434,16 @@ COMPROMISED_PKGS=(
   # If you run Arch Linux or a derivative, also run: https://github.com/lenucksi/aur-malware-check
   "atomic-lockfile"
   "js-digest"
+  # Wave H / Miasma — Leo Platform / RStreams (June 24, 2026); compromised maintainers "czirker" + "llxlr"
+  # 20+ LeoPlatform/RStreams pkgs (SDK/CLI/AWS/cron/logging/connector/serverless) trojanized in a ~6s window.
+  # binding.gyp install-time execution (--ignore-scripts does NOT protect) + Bun-staged /tmp/p.js (checked in section 1 above).
+  # Exact LeoPlatform/RStreams versions vary — run `npm ls` against your LeoPlatform deps and treat any
+  # version published June 24, 2026 onward as compromised. The Verana Blockchain Go project also staged
+  # payloads in a .claude/setup.mjs invoked by a .vscode/tasks.json folderOpen task.
+  # Individually confirmed names:
+  "hexo-deployer-wrangler"
+  "hexo-shoka-swiper"
+  "prism-silq"
 )
 
 if command -v npm >/dev/null 2>&1; then

@@ -279,6 +279,21 @@ Catches security issues before a commit, complementing runtime hook protection w
 
 Source: [GitHub Changelog — Dedicated security review command now available in Copilot CLI](https://github.blog/changelog/2026-06-10-dedicated-security-review-command-now-available-in-copilot-cli/) (HTTP 403 — bot-protection pattern; search-confirmed live)
 
+### 12. Update Copilot CLI to v1.0.64+ and Review the New Security Toggles (June 23, 2026)
+
+The Copilot CLI terminal interface went generally available in v1.0.64 (June 23, 2026) with several security-relevant changes worth adopting:
+
+- **Path-access prompts now resolve symlinks** — the prompt shows the resolved symlink target, so you see exactly what a grant exposes. This is a direct mitigation for the SymJack symlink-confusion class.
+- **MCP auth hardening** — static OAuth client overrides (including client secrets) and host-provided OAuth tokens for remote MCP servers; MCP org policy is re-applied when a session creates or reloads servers.
+- **Shell-safety** — `2>/dev/null` redirects are now treated as read-only in shell-safety prompts, and repo-scoped plugins no longer leak into global config across projects.
+- **`/security-review` is now generally available** to all users (no `--experimental` flag — see §11).
+
+**Two toggles to audit after updating:**
+1. The new option to **bypass the sandbox for shell commands** — leave it off unless a specific workflow requires it.
+2. **Content-exclusion behavior when the rules service is unreachable** — confirm your content-exclusion rules still apply during a network outage before treating exclusions as a security boundary; check the changelog entry for the current fail-open/fail-closed behavior.
+
+Source: [Copilot CLI: New terminal interface is generally available (June 23, 2026)](https://github.blog/changelog/2026-06-23-copilot-cli-new-terminal-interface-is-generally-available/) | [copilot-cli changelog](https://github.com/github/copilot-cli/blob/main/changelog.md) (HTTP 403 — bot-protection pattern; search-confirmed live)
+
 ## Security Comparison: GitHub Copilot vs Claude Code
 
 | Feature | Claude Code | GitHub Copilot (Agent Mode) |
