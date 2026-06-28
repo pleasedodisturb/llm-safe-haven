@@ -288,7 +288,7 @@ Source: [Invariant Labs — MCP Security Research](https://invariantlabs.ai/blog
 
 **Why you're a target:** Solo developers using AI coding agents are disproportionately likely to install new npm packages quickly, run `npm install` without auditing, and have high-value credentials (GitHub tokens, AWS keys, API keys) on their machines.
 
-**Current wave:** Wave G (Hades MCP-targeting, June 2026) — first wave directly targeting MCP server packages.
+**Current wave:** Wave H (Miasma — Leo Platform / RStreams, June 24, 2026) — first Go-ecosystem element; uses Bun runtime to evade Node-focused EDR.
 
 ### OX Security / Cross-IDE Research Disclosures
 
