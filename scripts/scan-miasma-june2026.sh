@@ -536,7 +536,9 @@ DEAD_DROP_PATTERNS=(
   "Here We Go Again"
 )
 
-if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+if [ -n "${LSH_NO_NETWORK:-}" ]; then
+  info "Network checks disabled (LSH_NO_NETWORK set) — skipping gh dead-drop audit"
+elif command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
   REPO_JSON=$(gh repo list --limit 200 --json name,description 2>/dev/null || true)
   if [ -z "$REPO_JSON" ]; then
     warn "gh repo list returned no data (rate-limited or no repos?)"
