@@ -31,13 +31,14 @@ const TARGETS = {
 
 // Paths we never scan — this hook's own source and test fixtures, to avoid
 // self-trips (mirrors secret-guard.js's allowlist approach).
+// Only the hook's own source and test/spec FILES are allowlisted — NOT whole
+// test/fixture directories. A malicious binding.gyp or settings.json is still
+// worth blocking even under a tests/ path, and config-guard's own tests call
+// the functions directly (they never round-trip through a real file).
 const ALLOWLISTED_PATHS = [
   /config-guard\.js$/,
   /\.test\.[jt]sx?$/,
   /\.spec\.[jt]sx?$/,
-  /tests?\//,
-  /__tests__\//,
-  /fixtures?\//,
 ];
 
 // ---------------------------------------------------------------------------
@@ -57,10 +58,27 @@ const GYP_EXEC = /"(sh|bash|cmd|powershell|curl|wget|nc|eval)"|node\s+-e/;
 // `curl | sh` is NOT included: it is the standard way legit CI installs rustup,
 // bun, nvm, sentry-cli, so blocking it would be a constant false positive.
 const SECRET_SCRAPE = /"isSecret"\s*:\s*true|Runner\.Worker|169\.254\.169\.254|liuende501/;
-const WF_UNTRUSTED_CHECKOUT = /github\.event\.pull_request\.head\.(sha|ref)|github\.event\.workflow_run\.head_(branch|sha)/;
+// Kept in sync with scan-miasma-june2026.sh WF_UNTRUSTED_CHECKOUT_RE.
+const WF_UNTRUSTED_CHECKOUT = /github\.event\.pull_request\.head\.(sha|ref)|github\.event\.workflow_run\.head_(branch|sha)|github\.head_ref/;
 
-// Commands that are dangerous when auto-run (folderOpen / agent hooks).
-const AUTORUN_DANGER = /(curl|wget)\b[^|&;\n]*\|\s*(ba)?sh\b|base64\s+(-d|--decode)\b[^|\n]*\|\s*(ba)?sh\b|eval\s+\$?\(?\s*(curl|wget|echo)|node\s+-e\b|setup\.(mjs|js|sh)\b|\.claude\/|\.github\/setup|\/tmp\/[^"\s]*\.(sh|py|mjs|lock)|liuende501|169\.254\.169\.254|thebeautifulmarchoftime/;
+// Exec/network/dead-drop signatures shared by both auto-run contexts.
+const EXEC_NET = /(curl|wget)\b[^|&;\n]*\|\s*(ba)?sh\b|base64\s+(-d|--decode)\b[^|\n]*\|\s*(ba)?sh\b|eval\s+\$?\(?\s*(curl|wget|echo)|node\s+-e\b|\/tmp\/[^"\s]*\.(sh|py|mjs|lock)|liuende501|169\.254\.169\.254|thebeautifulmarchoftime/;
+// The specific Miasma payload entrypoints — `.claude/setup.mjs`, `.github/setup.js`.
+// Matching the FILE (not the whole .claude/ dir) avoids flagging the normal case
+// of a hook command that points at ~/.claude/hooks/<something>.js.
+const SETUP_IMPLANT = /[./]\.?(claude|github)\/setup\.(mjs|js|cjs|sh)\b/;
+
+// Hook commands (.claude/settings.json, any event): exec/net + the setup implant.
+// Deliberately does NOT match a bare `.claude/` reference — canonical hooks live
+// in ~/.claude/hooks/ and a normal `node ~/.claude/hooks/x.js` command is fine.
+function hookCmdDanger(cmd) {
+  return EXEC_NET.test(cmd) || SETUP_IMPLANT.test(cmd);
+}
+// folderOpen tasks are stricter: a dev-server autorun has no business referencing
+// .claude/ or invoking any setup script, so flag those too.
+function autorunDanger(cmd) {
+  return hookCmdDanger(cmd) || /\.claude\//.test(cmd) || /setup\.(mjs|js|sh)\b/.test(cmd);
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -92,7 +110,7 @@ function tasksJsonIsDangerous(content) {
   const re = /"command"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
   let m;
   while ((m = re.exec(content)) !== null) {
-    if (AUTORUN_DANGER.test(m[1])) return true;
+    if (autorunDanger(m[1])) return true;
   }
   return false;
 }
@@ -105,14 +123,15 @@ function settingsJsonIsDangerous(content) {
   const cmdRe = /"command"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
   let m;
   while ((m = cmdRe.exec(content)) !== null) {
-    if (AUTORUN_DANGER.test(m[1])) return true;
+    if (hookCmdDanger(m[1])) return true;
   }
-  // type:"http" hook to a non-localhost URL.
+  // type:"http" hook to a non-localhost URL. Anchor the host boundary so
+  // `localhost.evil.com` / `127.0.0.1.attacker.net` are NOT treated as local.
   if (/"type"\s*:\s*"http"/.test(content)) {
     const urlRe = /"url"\s*:\s*"(https?:\/\/[^"]+)"/g;
     let u;
     while ((u = urlRe.exec(content)) !== null) {
-      if (!/^https?:\/\/(localhost|127\.0\.0\.1)/.test(u[1])) return true;
+      if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(u[1])) return true;
     }
   }
   return false;

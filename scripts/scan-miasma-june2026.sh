@@ -20,8 +20,10 @@
 #        Cursor rules — local-environment persistence + instruction injection.
 #
 # What this does NOT do:
-#   - No file deletions, no quarantine, no network calls, no curl|sh
+#   - No file deletions, no quarantine, no curl|sh, no payload execution
 #   - No modifications to your shell, npm, or system config
+#   - No network calls EXCEPT the optional `gh repo list` dead-drop audit in
+#     Section 7 (skipped entirely if gh is absent or not authenticated)
 #   - Safe to run multiple times
 #
 # Requirements:
@@ -137,7 +139,10 @@ GYP_SUBST_RE='<!@?\('
 # ALSO carries a danger token: a network fetch, base64/eval, output suppression
 # (> /dev/null), or the "&& echo <stub>" trick the Phantom Gyp payload uses to
 # return a fake source filename so gyp doesn't error.
-GYP_DANGER_RE='curl|wget|base64|eval|fromCharCode|Invoke-WebRequest|>[[:space:]]*/dev/null|&&[[:space:]]*echo'
+# Note: bare `eval` is intentionally omitted — it substring-matches benign words
+# like "retrieval"/"evaluation" inside `<!(node -p "require('retrieval')")`. The
+# documented Phantom Gyp pattern is caught by `> /dev/null` + `&& echo` anyway.
+GYP_DANGER_RE='curl|wget|base64|fromCharCode|Invoke-WebRequest|>[[:space:]]*/dev/null|&&[[:space:]]*echo'
 # An action/rule "action" array that shells out or fetches the network.
 GYP_EXEC_RE='"(sh|bash|cmd|powershell|curl|wget|nc|eval)"|node[[:space:]]+-e|curl|wget|Invoke-WebRequest|fromCharCode|base64'
 
@@ -214,7 +219,8 @@ WF_SCRAPE_RE='"isSecret"[[:space:]]*:[[:space:]]*true|Runner\.Worker|169\.254\.1
 # Pipe-to-shell — extremely common for LEGIT tool installers in CI (rustup, bun,
 # nvm, sentry-cli). Not an IOC by itself, so this is a WARN, not a FAIL.
 WF_PIPE_RE='(curl|wget)[^|&;]*\|[[:space:]]*(ba)?sh|base64[[:space:]]+(-d|--decode)[^|]*\|[[:space:]]*(ba)?sh'
-WF_UNTRUSTED_CHECKOUT_RE='github\.event\.pull_request\.head\.(sha|ref)|github\.event\.workflow_run\.head_(branch|sha)|head\.ref'
+# Kept in sync with config-guard.js WF_UNTRUSTED_CHECKOUT.
+WF_UNTRUSTED_CHECKOUT_RE='github\.event\.pull_request\.head\.(sha|ref)|github\.event\.workflow_run\.head_(branch|sha)|github\.head_ref'
 
 if [ ${#SEARCH_ROOTS[@]} -eq 0 ]; then
   info "No code roots — skipping workflow scan"
@@ -346,11 +352,13 @@ SETTINGS_FILES=()
 for f in "$HOME/.claude/settings.json" "$HOME/.claude/settings.local.json"; do
   [ -f "$f" ] && SETTINGS_FILES+=("$f")
 done
-for root in "${SEARCH_ROOTS[@]}"; do
-  while IFS= read -r f; do
-    [ -n "$f" ] && SETTINGS_FILES+=("$f")
-  done < <(find "$root" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -path '*/.claude/settings.json' -o -path '*/.claude/settings.local.json' \) -print \) 2>/dev/null)
-done
+if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
+  for root in "${SEARCH_ROOTS[@]}"; do
+    while IFS= read -r f; do
+      [ -n "$f" ] && SETTINGS_FILES+=("$f")
+    done < <(find "$root" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -path '*/.claude/settings.json' -o -path '*/.claude/settings.local.json' \) -print \) 2>/dev/null)
+  done
+fi
 
 if [ ${#SETTINGS_FILES[@]} -eq 0 ]; then
   info "No Claude settings.json files found — skipping hook audit"
@@ -394,7 +402,7 @@ if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
     # Zero-width / bidi / tag chars (high signal — legit rules are plain text).
     # Use perl for Unicode-aware matching (BSD/macOS grep lacks -P); skip if absent.
     if command -v perl >/dev/null 2>&1; then
-      if perl -CSD -ne 'if (/[\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}\x{FEFF}\x{E0000}-\x{E007F}]/) { exit 0 } END { exit 1 }' "$rf" 2>/dev/null; then
+      if perl -CSD -ne 'BEGIN{$f=0} $f=1 if /[\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}\x{FEFF}\x{E0000}-\x{E007F}]/; END{exit($f?0:1)}' "$rf" 2>/dev/null; then
         fail "Rules file contains hidden/zero-width Unicode — $rf"
       fi
     fi
