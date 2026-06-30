@@ -16,6 +16,6 @@ Keeping the real instructions in the repo (instead of inline in the trigger conf
 | File | Trigger | Cadence | Purpose |
 |------|---------|---------|---------|
 | `maintenance-sweep.md` | LLM Safe Haven — Weekly Wide Sweep | Weekly (Mon 08:00 UTC) | Comprehensive research sweep (incidents/CVEs, npm+PyPI supply chain, tools, changelogs, papers, link health) in rolling-PR mode. |
-| `high-severity-triage.md` | LLM Safe Haven — Daily High-Severity Alert | Daily (08:00 UTC) | Lean triage for incidents that need immediate maintainer action; opens a `🚨 ACTION REQUIRED` issue + push notification, or exits quietly. |
+| `high-severity-triage.md` | LLM Safe Haven — Daily High-Severity Alert | Daily (08:00 UTC) | Lean triage for incidents that need immediate maintainer action; files a `🚨 ACTION REQUIRED` Linear ticket (team G, Triage) + email/push notification, or exits quietly. Uses the Linear MCP connector (cloud session), not the local CLI. |
 
 To change what a job does, edit its file here and merge — the next run picks it up.
