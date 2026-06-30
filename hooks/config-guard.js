@@ -45,12 +45,17 @@ const ALLOWLISTED_PATHS = [
 // ---------------------------------------------------------------------------
 
 // GYP command-substitution executes a shell command when node-gyp processes
-// the file. Legit native addons virtually never use it this way.
+// the file. Legit native addons (e.g. sharp) DO use <!(node -p "require(...)")
+// to read build config — that alone is not malicious. We only flag a <!() that
+// ALSO carries a danger token: network fetch, base64/eval, output suppression,
+// or the "&& echo <stub>" trick the Phantom Gyp payload uses.
 const GYP_SUBST = /<!@?\(/;
-const GYP_EXEC = /"(sh|bash|cmd|powershell|node|curl|wget|nc|eval)"|node\s+-e|\bcurl\b|\bwget\b|Invoke-WebRequest|fromCharCode|base64/;
+const GYP_DANGER = /\bcurl\b|\bwget\b|base64|\beval\b|fromCharCode|Invoke-WebRequest|>\s*\/dev\/null|&&\s*echo/;
+const GYP_EXEC = /"(sh|bash|cmd|powershell|curl|wget|nc|eval)"|node\s+-e/;
 
-// Shared exec/exfil signatures.
-const PIPE_TO_SHELL = /(curl|wget)\b[^|&;\n]*\|\s*(ba)?sh\b|base64\s+(-d|--decode)\b[^|\n]*\|\s*(ba)?sh\b/;
+// Secret-scrape / dead-drop signatures — the actual Miasma workflow IOC. A bare
+// `curl | sh` is NOT included: it is the standard way legit CI installs rustup,
+// bun, nvm, sentry-cli, so blocking it would be a constant false positive.
 const SECRET_SCRAPE = /"isSecret"\s*:\s*true|Runner\.Worker|169\.254\.169\.254|liuende501/;
 const WF_UNTRUSTED_CHECKOUT = /github\.event\.pull_request\.head\.(sha|ref)|github\.event\.workflow_run\.head_(branch|sha)/;
 
@@ -118,17 +123,24 @@ function settingsJsonIsDangerous(content) {
  */
 function workflowIsDangerous(content) {
   if (/^\s*name:\s*["']?Run Copilot/m.test(content)) return true;
-  if (PIPE_TO_SHELL.test(content)) return true;
   if (SECRET_SCRAPE.test(content)) return true;
   if (/pull_request_target|workflow_run/.test(content) && WF_UNTRUSTED_CHECKOUT.test(content)) return true;
   return false;
 }
 
 /**
- * Returns true if a binding.gyp body carries an exec signature.
+ * Returns true if a binding.gyp body carries an exec signature. A bare
+ * command-substitution that only reads config (sharp-style `<!(node -p ...)`)
+ * is allowed; we require a danger token on a substitution line, or an
+ * action/rule array that shells out.
  */
 function bindingGypIsDangerous(content) {
-  return GYP_SUBST.test(content) || GYP_EXEC.test(content);
+  if (GYP_EXEC.test(content)) return true;
+  const lines = content.split('\n');
+  for (const line of lines) {
+    if (GYP_SUBST.test(line) && GYP_DANGER.test(line)) return true;
+  }
+  return false;
 }
 
 /**

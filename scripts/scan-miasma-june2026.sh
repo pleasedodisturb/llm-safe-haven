@@ -107,6 +107,13 @@ done
 # Known-bad SHA256 of the reused binding.gyp implant (Jun 3 + ImmobiliareLabs).
 KNOWN_BAD_GYP_SHA="ef641e956f91d501b748085996303c96a64d67f63bfeef0dda175e5aa19cca90"
 
+# This scanner's own repo root. Its docs/hooks/fixtures legitimately CONTAIN the
+# IOC signatures and marker strings as detection data, so we exclude it from the
+# content scans to avoid the scanner flagging itself.
+SELF_ROOT=""
+_sd=$(cd "$(dirname "$0")" 2>/dev/null && pwd) || _sd=""
+[ -n "$_sd" ] && SELF_ROOT=$(dirname "$_sd")  # scripts/ -> repo root
+
 # ============================================================================
 # 1. binding.gyp "Phantom Gyp" install vector (NEW)
 # ============================================================================
@@ -119,8 +126,14 @@ section "1. binding.gyp 'Phantom Gyp' install vector"
 #   <!(cmd)   runs cmd, substitutes stdout
 #   <!@(cmd)  runs cmd, splits stdout into a list
 GYP_SUBST_RE='<!@?\('
+# IMPORTANT: legit native addons (e.g. sharp) use <!(node -p "require(...)") to
+# read build config — that alone is NOT an IOC. We only FAIL when a <!() line
+# ALSO carries a danger token: a network fetch, base64/eval, output suppression
+# (> /dev/null), or the "&& echo <stub>" trick the Phantom Gyp payload uses to
+# return a fake source filename so gyp doesn't error.
+GYP_DANGER_RE='curl|wget|base64|eval|fromCharCode|Invoke-WebRequest|>[[:space:]]*/dev/null|&&[[:space:]]*echo'
 # An action/rule "action" array that shells out or fetches the network.
-GYP_EXEC_RE='"(sh|bash|cmd|powershell|node|curl|wget|nc|eval)"|node[[:space:]]+-e|curl|wget|Invoke-WebRequest|fromCharCode|base64'
+GYP_EXEC_RE='"(sh|bash|cmd|powershell|curl|wget|nc|eval)"|node[[:space:]]+-e|curl|wget|Invoke-WebRequest|fromCharCode|base64'
 
 if [ ${#SEARCH_ROOTS[@]} -eq 0 ]; then
   info "No common code directories found — skipping binding.gyp scan"
@@ -139,11 +152,18 @@ else
       continue
     fi
 
-    # (b) Command-substitution token anywhere in the file — high signal.
-    if grep -Eq "$GYP_SUBST_RE" "$gyp" 2>/dev/null; then
-      fail "binding.gyp uses GYP command-substitution <!()/<!@() — $gyp"
-      grep -nE "$GYP_SUBST_RE" "$gyp" 2>/dev/null | head -5 | sed 's/^/         /'
-      continue
+    # (b) Command-substitution that ALSO carries a danger token — high signal.
+    subst_lines=$(grep -nE "$GYP_SUBST_RE" "$gyp" 2>/dev/null || true)
+    if [ -n "$subst_lines" ]; then
+      danger=$(printf "%s\n" "$subst_lines" | grep -Ei "$GYP_DANGER_RE" || true)
+      if [ -n "$danger" ]; then
+        fail "binding.gyp command-substitution runs a suspicious command (Phantom Gyp) — $gyp"
+        printf "%s\n" "$danger" | head -5 | sed 's/^/         /'
+        continue
+      else
+        # Benign <!() — common in real native addons (sharp, etc.). Note, don't fail.
+        info "binding.gyp uses command-substitution but no danger token (likely legit native addon) — $gyp"
+      fi
     fi
 
     # (c) action/rule arrays that shell out or fetch the network.
@@ -183,7 +203,11 @@ section "2. GitHub Actions workflow injection (.github/workflows)"
 # Privileged triggers (pull_request_target, workflow_run) run with a
 # read-write token + secret access. Abuse = checking out the UNTRUSTED PR head
 # and running it, or scraping secrets from the runner and exfiltrating them.
-WF_EXFIL_RE='curl[^|&;]*\|[[:space:]]*(ba)?sh|wget[^|&;]*\|[[:space:]]*(ba)?sh|base64[[:space:]]+(-d|--decode)[^|]*\|[[:space:]]*(ba)?sh|"isSecret"[[:space:]]*:[[:space:]]*true|Runner\.Worker|169\.254\.169\.254|liuende501'
+# Secret-scrape / dead-drop signatures — these are the actual Miasma IOC (FAIL).
+WF_SCRAPE_RE='"isSecret"[[:space:]]*:[[:space:]]*true|Runner\.Worker|169\.254\.169\.254|liuende501'
+# Pipe-to-shell — extremely common for LEGIT tool installers in CI (rustup, bun,
+# nvm, sentry-cli). Not an IOC by itself, so this is a WARN, not a FAIL.
+WF_PIPE_RE='(curl|wget)[^|&;]*\|[[:space:]]*(ba)?sh|base64[[:space:]]+(-d|--decode)[^|]*\|[[:space:]]*(ba)?sh'
 WF_UNTRUSTED_CHECKOUT_RE='github\.event\.pull_request\.head\.(sha|ref)|github\.event\.workflow_run\.head_(branch|sha)|head\.ref'
 
 if [ ${#SEARCH_ROOTS[@]} -eq 0 ]; then
@@ -192,6 +216,8 @@ else
   WF_ANY=0
   while IFS= read -r wf; do
     [ -z "$wf" ] && continue
+    # Skip this scanner's own repo (its workflows are detection data / legit CI).
+    if [ -n "$SELF_ROOT" ]; then case "$wf" in "$SELF_ROOT"/*) continue;; esac; fi
     WF_ANY=1
     wf_bad=0
 
@@ -208,11 +234,17 @@ else
       wf_bad=1
     fi
 
-    # (c) Direct exfil / secret-scrape signatures in run: steps.
-    if grep -Eq "$WF_EXFIL_RE" "$wf" 2>/dev/null; then
-      fail "Workflow contains exfil/secret-scrape signature — $wf"
-      grep -nE "$WF_EXFIL_RE" "$wf" 2>/dev/null | head -3 | sed 's/^/         /'
+    # (c) Secret-scrape / dead-drop signatures in run: steps — real IOC.
+    if grep -Eq "$WF_SCRAPE_RE" "$wf" 2>/dev/null; then
+      fail "Workflow scrapes/exfiltrates secrets (Miasma signature) — $wf"
+      grep -nE "$WF_SCRAPE_RE" "$wf" 2>/dev/null | head -3 | sed 's/^/         /'
       wf_bad=1
+    fi
+
+    # (c2) Pipe-to-shell — common for legit installers; WARN, review the URL.
+    if [ "$wf_bad" -eq 0 ] && grep -Eq "$WF_PIPE_RE" "$wf" 2>/dev/null; then
+      warn "Workflow pipes a download to a shell (legit installer or implant?) — review: $wf"
+      grep -nE "$WF_PIPE_RE" "$wf" 2>/dev/null | head -3 | sed 's/^/         /'
     fi
 
     # (d) Soft signal: github.event.* interpolated straight into a run: shell.
@@ -453,7 +485,13 @@ if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
   MARK_RE=$(printf '%s|' "${MARKER_STRINGS[@]}"); MARK_RE="${MARK_RE%|}"
   HIT=$(grep -rIlE "$MARK_RE" "${SEARCH_ROOTS[@]}" \
         --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.cache \
-        --exclude-dir=Library 2>/dev/null | head -10 || true)
+        --exclude-dir=Library 2>/dev/null || true)
+  # Exclude this scanner's own repo — its docs/hooks/fixtures contain the marker
+  # strings as detection data, not as an infection.
+  if [ -n "$SELF_ROOT" ]; then
+    HIT=$(printf "%s\n" "$HIT" | grep -v "^${SELF_ROOT}/" || true)
+  fi
+  HIT=$(printf "%s\n" "$HIT" | grep -v '^[[:space:]]*$' | head -10 || true)
   if [ -n "$HIT" ]; then
     fail "Campaign marker string(s) found in files:"
     printf "%s\n" "$HIT" | sed 's/^/         /'
