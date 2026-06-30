@@ -296,7 +296,7 @@ Source: [Invariant Labs — MCP Security Research](https://invariantlabs.ai/blog
 
 **Why you're a target:** Solo developers using AI coding agents are disproportionately likely to install new npm packages quickly, run `npm install` without auditing, and have high-value credentials (GitHub tokens, AWS keys, API keys) on their machines.
 
-**Current wave:** Wave G (Hades MCP-targeting, June 2026) — first wave directly targeting MCP server packages.
+**Current wave:** Wave I (Miasma — ImmobiliareLabs Backstage plugins, June 26, 2026) — reuses the Wave H "Phantom Gyp" `binding.gyp` implant; targets internal developer portals, GitLab integration, and LDAP auth.
 
 ### OX Security / Cross-IDE Research Disclosures
 
