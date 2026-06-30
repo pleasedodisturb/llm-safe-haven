@@ -153,12 +153,19 @@ else
     fi
 
     # (d) binding.gyp present in a package that ships no native sources.
-    #     Pure-JS packages have no reason to carry one.
-    if ! find "$pkgdir" -maxdepth 2 \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) 2>/dev/null | grep -q .; then
-      if ! grep -Eq '"gypfile"[[:space:]]*:[[:space:]]*true' "$pkgdir/package.json" 2>/dev/null; then
-        warn "binding.gyp in a package with no native sources (pure-JS?) — review: $gyp"
-      fi
-    fi
+    #     Pure-JS packages have no reason to carry one. Skipped inside
+    #     node_modules: spawning a find per dependency is slow and noisy there,
+    #     and the cheap hash/token/exec checks above already cover deps.
+    case "$gyp" in
+      */node_modules/*) ;;  # skip the source-tree heuristic for installed deps
+      *)
+        if ! find "$pkgdir" -maxdepth 2 \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) 2>/dev/null | grep -q .; then
+          if ! grep -Eq '"gypfile"[[:space:]]*:[[:space:]]*true' "$pkgdir/package.json" 2>/dev/null; then
+            warn "binding.gyp in a package with no native sources (pure-JS?) — review: $gyp"
+          fi
+        fi
+        ;;
+    esac
   done < <(find "${SEARCH_ROOTS[@]}" -type f -name 'binding.gyp' 2>/dev/null)
 
   if [ "$GYP_ANY" -eq 0 ]; then
@@ -439,16 +446,19 @@ for hf in "$HOME/.zsh_history" "$HOME/.bash_history"; do
     fi
   done
 done
-# Code roots (bounded: skip node_modules, only small text files)
+# Code roots — single recursive pass over all markers (skip heavy dirs).
 if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
-  for s in "${MARKER_STRINGS[@]}"; do
-    HIT=$(grep -rIlF "$s" "${SEARCH_ROOTS[@]}" --exclude-dir=node_modules --exclude-dir=.git 2>/dev/null | head -3 || true)
-    if [ -n "$HIT" ]; then
-      fail "Marker string '$s' found in files:"
-      printf "%s\n" "$HIT" | sed 's/^/         /'
-      MARK_HITS=1
-    fi
-  done
+  # Build one alternation regex from the marker list (ERE-safe: markers contain
+  # only letters, spaces and a colon).
+  MARK_RE=$(printf '%s|' "${MARKER_STRINGS[@]}"); MARK_RE="${MARK_RE%|}"
+  HIT=$(grep -rIlE "$MARK_RE" "${SEARCH_ROOTS[@]}" \
+        --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.cache \
+        --exclude-dir=Library 2>/dev/null | head -10 || true)
+  if [ -n "$HIT" ]; then
+    fail "Campaign marker string(s) found in files:"
+    printf "%s\n" "$HIT" | sed 's/^/         /'
+    MARK_HITS=1
+  fi
 fi
 [ "$MARK_HITS" -eq 0 ] && pass "No campaign marker strings found"
 
