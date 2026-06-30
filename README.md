@@ -32,7 +32,7 @@ LLM Safe Haven -- Security Scorecard
 
 | Agent | Tier | What It Configures |
 |-------|------|--------------------|
-| Claude Code | Full | Hooks, settings.json, sandbox, audit logging |
+| Claude Code | Full | Hooks (bash-firewall, secret-guard, config-guard, audit-logger), settings.json, sandbox, audit logging |
 | Cursor | Solid | .cursorignore, workspace trust guidance |
 | Windsurf | Solid | .codeiumignore, limitation warnings |
 | Cline | Solid | .clineignore |
@@ -64,7 +64,8 @@ npx llm-safe-haven --dry-run      # Preview without changing anything
 
 ## Go Deeper
 
-- [Threat Model](docs/threat-model.md) -- OWASP Agentic Top 10 for solo devs (26+ real incidents)
+- [Threat Model](docs/threat-model.md) -- OWASP Agentic Top 10 for solo devs (30+ real incidents)
+- [Supply Chain Defense](docs/supply-chain-defense.md) -- npm worm case studies + the `scan --supply-chain` IOC scanners
 - [Claude Code Hardening](docs/hardening/claude-code.md) -- Full guide with hooks, sandbox, permissions
 - [Cursor Hardening](docs/hardening/cursor.md) -- 7 CVEs documented, hardening steps
 - [Windsurf Hardening](docs/hardening/windsurf.md) -- Honest assessment of limitations

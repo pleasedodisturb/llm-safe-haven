@@ -29,7 +29,17 @@ jobs:
       # workflow CANNOT authenticate — do not merge before configuring it.
       # Provenance is automatic under OIDC; the flag is kept for clarity.
       - run: npm publish --provenance --access public
-      - name: Verify published package signatures
+      # `npm audit signatures` verifies DEPENDENCIES — useless here (zero-dep
+      # package) and it errors with "no installed dependencies to audit".
+      # Instead, confirm the version we just published carries a provenance
+      # attestation on the registry.
+      - name: Verify published provenance
         run: |
           sleep 30
-          npm audit signatures
+          VERSION="${GITHUB_REF_NAME#v}"
+          PROV=$(npm view "llm-safe-haven@${VERSION}" dist.attestations.provenance.predicateType 2>/dev/null)
+          if [ -z "$PROV" ]; then
+            echo "::error::No provenance attestation found for llm-safe-haven@${VERSION}"
+            exit 1
+          fi
+          echo "Provenance OK for ${VERSION}: ${PROV}"
