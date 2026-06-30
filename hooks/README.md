@@ -12,6 +12,10 @@ Intercepts every shell command before execution. Blocks destructive operations (
 
 Scans every file write and edit for leaked secrets before the content reaches disk. Detects AWS keys, GitHub tokens (PAT, OAuth, fine-grained, server, refresh), Slack tokens, OpenAI/Anthropic/Stripe keys, private keys, generic API key assignments, hardcoded passwords, and connection strings with embedded credentials. Skips test files, fixtures, and template files (.env.example) to avoid false positives.
 
+### config-guard.js (PreToolUse — Write|Edit|MultiEdit)
+
+Blocks the agent from writing supply-chain execution implants into config files that auto-run code — the vectors abused by the June 2026 Miasma / Mini Shai-Hulud wave. Inspects writes to `binding.gyp` (node-gyp runs it on `npm install` with no postinstall, via GYP command-substitution `<!(...)`), `.github/workflows/*.yml` (privileged-trigger + untrusted-head checkout, secret exfil, the "Run Copilot" workflow), `.vscode/tasks.json` (`runOn:folderOpen` autorun), and `.claude/settings.json` (hook commands on any event, or `type:http` posting off-box). A legitimate edit — a real native addon, a normal dev task, a formatting hook — does not match; it only blocks on execution/network/secret signatures. This is the write-time complement to the point-in-time `scripts/scan-miasma-june2026.sh` scanner.
+
 ### audit-logger.js (PostToolUse — all tools)
 
 Logs every tool call to a JSONL file for forensic review. Records timestamp, session ID, tool name, project, and a truncated input preview. For security, Write/Edit/MultiEdit calls only log the file path — never the content (which could contain secrets). Audit files are created with 0600 permissions in a 0700 directory. Never blocks or fails visibly.
@@ -28,6 +32,7 @@ The `checksums.json` file contains SHA256 hashes of each hook file. These checks
 mkdir -p ~/.claude/hooks
 cp hooks/bash-firewall.js ~/.claude/hooks/
 cp hooks/secret-guard.js ~/.claude/hooks/
+cp hooks/config-guard.js ~/.claude/hooks/
 cp hooks/audit-logger.js ~/.claude/hooks/
 chmod +x ~/.claude/hooks/*.js
 ```
@@ -53,6 +58,15 @@ chmod +x ~/.claude/hooks/*.js
           {
             "type": "command",
             "command": "node ~/.claude/hooks/secret-guard.js"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ~/.claude/hooks/config-guard.js"
           }
         ]
       }
@@ -103,6 +117,7 @@ Verify syntax (catches parse errors):
 ```bash
 node -c hooks/bash-firewall.js
 node -c hooks/secret-guard.js
+node -c hooks/config-guard.js
 node -c hooks/audit-logger.js
 ```
 
@@ -110,6 +125,7 @@ Verify exports (catches runtime errors):
 ```bash
 node -e "const m = require('./hooks/bash-firewall.js'); console.log(Object.keys(m))"
 node -e "const m = require('./hooks/secret-guard.js'); console.log(Object.keys(m))"
+node -e "const m = require('./hooks/config-guard.js'); console.log(Object.keys(m))"
 node -e "const m = require('./hooks/audit-logger.js'); console.log(Object.keys(m))"
 ```
 
