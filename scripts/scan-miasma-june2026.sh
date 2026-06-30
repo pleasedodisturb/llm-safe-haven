@@ -114,6 +114,12 @@ SELF_ROOT=""
 _sd=$(cd "$(dirname "$0")" 2>/dev/null && pwd) || _sd=""
 [ -n "$_sd" ] && SELF_ROOT=$(dirname "$_sd")  # scripts/ -> repo root
 
+# Directories pruned from filesystem scans: VCS, build artifacts, and transient
+# agent worktrees (which duplicate a repo's workflows/config N times). node_modules
+# is pruned per-section — the binding.gyp scan intentionally keeps it (the worm
+# lands in installed deps), the others prune it.
+PRUNE_COMMON=( -name .git -o -name target -o -name dist -o -name build -o -name .next -o -name .nuxt -o -path '*/.claude/worktrees' )
+
 # ============================================================================
 # 1. binding.gyp "Phantom Gyp" install vector (NEW)
 # ============================================================================
@@ -186,7 +192,7 @@ else
         fi
         ;;
     esac
-  done < <(find "${SEARCH_ROOTS[@]}" -type f -name 'binding.gyp' 2>/dev/null)
+  done < <(find "${SEARCH_ROOTS[@]}" \( \( "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f -name 'binding.gyp' -print \) 2>/dev/null)
 
   if [ "$GYP_ANY" -eq 0 ]; then
     pass "No binding.gyp files found under code roots"
@@ -242,17 +248,26 @@ else
     fi
 
     # (c2) Pipe-to-shell — common for legit installers; WARN, review the URL.
-    if [ "$wf_bad" -eq 0 ] && grep -Eq "$WF_PIPE_RE" "$wf" 2>/dev/null; then
-      warn "Workflow pipes a download to a shell (legit installer or implant?) — review: $wf"
-      grep -nE "$WF_PIPE_RE" "$wf" 2>/dev/null | head -3 | sed 's/^/         /'
+    #      Ignore matches inside an echo / step-summary / comment: those write
+    #      the command as TEXT (e.g. install instructions), they don't run it.
+    if [ "$wf_bad" -eq 0 ]; then
+      pipe_lines=$(grep -nE "$WF_PIPE_RE" "$wf" 2>/dev/null \
+                    | grep -vE 'echo|GITHUB_STEP_SUMMARY|^[[:space:]]*[0-9]+:[[:space:]]*#' || true)
+      if [ -n "$pipe_lines" ]; then
+        warn "Workflow pipes a download to a shell (legit installer or implant?) — review: $wf"
+        printf "%s\n" "$pipe_lines" | head -3 | sed 's/^/         /'
+      fi
     fi
 
-    # (d) Soft signal: github.event.* interpolated straight into a run: shell.
+    # (d) Generic CI-hygiene smell (NOT a Miasma IOC): github.event.* near run:.
+    #     Kept at INFO so it doesn't drown the real findings — interpolating
+    #     attacker-controllable event fields into a shell is a known injection
+    #     class worth a glance, but legit on commitlint/labeler/Claude workflows.
     if [ "$wf_bad" -eq 0 ] && grep -Eq '\$\{\{[[:space:]]*github\.event\.[^}]*\}\}' "$wf" 2>/dev/null \
        && grep -Eq '^[[:space:]]*run:' "$wf" 2>/dev/null; then
-      warn "Workflow interpolates github.event.* near run: (possible script injection) — $wf"
+      info "Workflow interpolates github.event.* near run: (review for script injection) — $wf"
     fi
-  done < <(find "${SEARCH_ROOTS[@]}" \( -name node_modules -prune \) -o \( -type f -path '*/.github/workflows/*' \( -name '*.yml' -o -name '*.yaml' \) -print \) 2>/dev/null)
+  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f -path '*/.github/workflows/*' \( -name '*.yml' -o -name '*.yaml' \) -print \) 2>/dev/null)
 
   if [ "$WF_ANY" -eq 0 ]; then
     pass "No GitHub Actions workflow files found under code roots"
@@ -297,7 +312,7 @@ else
     else
       info "tasks.json runOn:folderOpen with recognized dev command — $f"
     fi
-  done < <(find "${SEARCH_ROOTS[@]}" -type f -path '*/.vscode/tasks.json' 2>/dev/null)
+  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f -path '*/.vscode/tasks.json' -print \) 2>/dev/null)
 
   if [ "$TASK_ANY" -eq 0 ]; then
     pass "No tasks.json files with runOn:folderOpen found"
@@ -334,7 +349,7 @@ done
 for root in "${SEARCH_ROOTS[@]}"; do
   while IFS= read -r f; do
     [ -n "$f" ] && SETTINGS_FILES+=("$f")
-  done < <(find "$root" \( -name node_modules -prune \) -o \( -type f \( -path '*/.claude/settings.json' -o -path '*/.claude/settings.local.json' \) -print \) 2>/dev/null)
+  done < <(find "$root" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -path '*/.claude/settings.json' -o -path '*/.claude/settings.local.json' \) -print \) 2>/dev/null)
 done
 
 if [ ${#SETTINGS_FILES[@]} -eq 0 ]; then
@@ -387,7 +402,7 @@ if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
     if grep -Eiq 'ignore (all |the )?previous instructions|you are now|exfiltrat|send .*(secret|token|credential)|run this (command|silently)|disable (safety|security)' "$rf" 2>/dev/null; then
       warn "Rules file contains injection-style imperatives — review: $rf"
     fi
-  done < <(find "${SEARCH_ROOTS[@]}" \( -name node_modules -prune \) -o \( -type f \( -name '.cursorrules' -o -name '.clinerules' -o -path '*/.cursor/rules/*.mdc' \) -print \) 2>/dev/null)
+  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -name '.cursorrules' -o -name '.clinerules' -o -path '*/.cursor/rules/*.mdc' \) -print \) 2>/dev/null)
 fi
 [ "$RULES_FOUND" -eq 0 ] && info "No Cursor/Cline rules files found under code roots"
 
@@ -441,7 +456,7 @@ if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
         printf "%s\n\n" "$M" | sed 's/^/    /' >> "$LOCK_HITS"
       fi
     done
-  done < <(find "${SEARCH_ROOTS[@]}" \( -name node_modules -prune \) -o \( -type f \( -name 'package-lock.json' -o -name 'yarn.lock' -o -name 'pnpm-lock.yaml' \) -print \) 2>/dev/null)
+  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -name 'package-lock.json' -o -name 'yarn.lock' -o -name 'pnpm-lock.yaml' \) -print \) 2>/dev/null)
   if [ -s "$LOCK_HITS" ]; then
     N=$(grep -c '^  FILE:' "$LOCK_HITS" || echo 0)
     fail "$N lockfile/package combination(s) reference compromised packages"
@@ -485,7 +500,8 @@ if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
   MARK_RE=$(printf '%s|' "${MARKER_STRINGS[@]}"); MARK_RE="${MARK_RE%|}"
   HIT=$(grep -rIlE "$MARK_RE" "${SEARCH_ROOTS[@]}" \
         --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.cache \
-        --exclude-dir=Library 2>/dev/null || true)
+        --exclude-dir=Library --exclude-dir=target --exclude-dir=dist \
+        --exclude-dir=build --exclude-dir=.next --exclude-dir=worktrees 2>/dev/null || true)
   # Exclude this scanner's own repo — its docs/hooks/fixtures contain the marker
   # strings as detection data, not as an infection.
   if [ -n "$SELF_ROOT" ]; then
