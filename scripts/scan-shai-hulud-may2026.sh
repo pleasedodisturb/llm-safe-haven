@@ -444,6 +444,15 @@ COMPROMISED_PKGS=(
   "hexo-deployer-wrangler"
   "hexo-shoka-swiper"
   "prism-silq"
+  # Wave I / Miasma — @immobiliarelabs Backstage Plugins (June 26, 2026); codfish/semantic-release-action tag-hijacking
+  # 4 @immobiliarelabs/backstage-plugin-* packages backdoored via compromised CI action; ~600K monthly downloads.
+  # binding.gyp install-time execution (--ignore-scripts does NOT protect) + Bun-staged AES-128-GCM payload.
+  # Plants SessionStart hook in .claude/settings.json and folderOpen task in .vscode/tasks.json for AI agent persistence.
+  # Check both install artifacts and AI coding assistant config files if these packages are or were installed.
+  "@immobiliarelabs/backstage-plugin-gitlab"
+  "@immobiliarelabs/backstage-plugin-gitlab-backend"
+  "@immobiliarelabs/backstage-plugin-ldap-auth"
+  "@immobiliarelabs/backstage-plugin-ldap-auth-backend"
 )
 
 if command -v npm >/dev/null 2>&1; then
