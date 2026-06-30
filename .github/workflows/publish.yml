@@ -5,22 +5,41 @@ on:
 
 permissions:
   contents: read
-  id-token: write  # Required for provenance
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Least privilege: token-minting rights live on the publish job only.
+    permissions:
+      contents: read
+      id-token: write  # Mint the OIDC token for trusted publishing
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
+      # OIDC Trusted Publishing needs npm >= 11.5.0 (node 22 ships ~10.9).
+      # Pinned (not @latest) per our own supply-chain hygiene — bump deliberately.
+      - run: npm install -g npm@11.18.0
       - run: node scripts/generate-checksums.js
+      # No NODE_AUTH_TOKEN: authentication is via OIDC (id-token: write above).
+      # REQUIRES a Trusted Publisher configured for this package on npmjs.com
+      # pointing at this repo + this workflow file. Until that is set up, this
+      # workflow CANNOT authenticate — do not merge before configuring it.
+      # Provenance is automatic under OIDC; the flag is kept for clarity.
       - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Verify published package signatures
+      # `npm audit signatures` verifies DEPENDENCIES — useless here (zero-dep
+      # package) and it errors with "no installed dependencies to audit".
+      # Instead, confirm the version we just published carries a provenance
+      # attestation on the registry.
+      - name: Verify published provenance
         run: |
           sleep 30
-          npm audit signatures
+          VERSION="${GITHUB_REF_NAME#v}"
+          PROV=$(npm view "llm-safe-haven@${VERSION}" dist.attestations.provenance.predicateType 2>/dev/null)
+          if [ -z "$PROV" ]; then
+            echo "::error::No provenance attestation found for llm-safe-haven@${VERSION}"
+            exit 1
+          fi
+          echo "Provenance OK for ${VERSION}: ${PROV}"

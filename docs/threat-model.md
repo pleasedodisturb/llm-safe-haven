@@ -182,17 +182,19 @@ The Shai-Hulud/Miasma lineage continued past Wave G. On June 24, 2026 (≈23:04 
 
 Source: [Socket.dev — Miasma hits Leo Platform npm packages / Go ecosystem](https://socket.dev/blog/miasma-mini-shai-hulud-hits-leoplatform-npm-packages-go-ecosystem)
 
+### June 2026 — Mini Shai-Hulud Wave I: Miasma Hits ImmobiliareLabs Backstage Plugins (June 26)
+
+Two days after the Leo Platform wave, the same lineage published **22 malicious versions across four `@immobiliarelabs` Backstage plugins** — `backstage-plugin-gitlab`, `backstage-plugin-gitlab-backend`, `backstage-plugin-ldap-auth`, and `backstage-plugin-ldap-auth-backend` (~600K combined monthly downloads) — implicating the maintainer account `simonecorsi`. Delivery is attributed to **tag-hijacking of the `codfish/semantic-release-action` GitHub Action** (a Backstage CI dependency, force-pushed June 24): the hijacked action ran a malicious `setup.sh` that published the trojanized plugin versions. The implant reuses the **exact same `binding.gyp`** as the June 3 wave (SHA256 `ef641e95…cca90`), confirming a shared toolkit; the payload is Bun-staged and **AES-128-GCM-encrypted** with the key fetched from a GitHub-API dead-drop to frustrate static analysis. The targeting is notable: Backstage is an internal developer-portal framework, and these plugins back **GitLab CI/MR integration and LDAP/AD authentication** — so the blast radius is internal portals, source-control integration, and auth infrastructure. Uniquely, the payload plants **AI coding-assistant persistence hooks** — a `SessionStart` hook in `.claude/settings.json` and a `folderOpen` task in `.vscode/tasks.json` — for re-execution on every agent session. Credentials are staged to GitHub dead-drop repos (the campaign's `liuende501` account held 236 auto-created repos at time of reporting).
+
+**Detection in this toolkit:** `scripts/scan-miasma-june2026.sh` flags the `binding.gyp` Phantom Gyp pattern (command-substitution tokens, the known implant SHA, and binding.gyp in pure-JS packages), the affected package names in global installs and lockfiles, the `runOn:folderOpen` execution vector, and weaponized `.claude/settings.json` hooks across **all** events (not just SessionStart). The `config-guard.js` PreToolUse hook additionally blocks the agent itself from *writing* any of these implants if it is prompt-injected.
+
+Source: [Socket.dev — Miasma hits ImmobiliareLabs npm packages](https://socket.dev/blog/miasma-mini-shai-hulud-hits-immobiliarelabs-npm-packages) | [StepSecurity — ImmobiliareLabs packages compromised](https://www.stepsecurity.io/blog/immobiliarelabs-npm-packages-compromised)
+
 ### June 2026 — Anthropic Alleges Large-Scale Claude Model-Distillation Campaign (June 24)
 
 Per a June 10 letter to the U.S. Senate Banking Committee (reported by CNBC on June 24, 2026), Anthropic alleges that operators affiliated with Alibaba's Qwen lab ran roughly 28.8M Claude exchanges through ~25,000 fraudulent accounts and commercial proxies between April 22 and June 5, 2026, targeting Claude's agentic-reasoning, software-engineering, and long-horizon capabilities for model distillation. Treat this as an **allegation, not established fact** — the figures are Anthropic-internal and Alibaba denies them — but it is relevant to the threat model as an example of API-abuse / account-fraud at scale against agent providers.
 
 Source: [CNBC — Anthropic accuses Alibaba of distillation campaign (June 24, 2026)](https://www.cnbc.com/2026/06/24/anthropic-alibaba-distillation-campaign.html)
-
-### June 2026 — Mini Shai-Hulud Wave I: @immobiliarelabs Backstage Plugin Compromise (June 26)
-
-The Miasma lineage added a ninth npm wave. On June 26, 2026, four `@immobiliarelabs/backstage-plugin-*` packages (~600K monthly downloads combined) were backdoored via **tag-hijacking of the `codfish/semantic-release-action` GitHub Action**, a Backstage CI dependency. The hijacked action ran a malicious `setup.sh` that published trojanized plugin versions to npm. Execution vector: **Phantom Gyp `binding.gyp`** (bypasses `--ignore-scripts`); Bun-staged payload encrypted with **AES-128-GCM**, key fetched from a GitHub API dead-drop. Uniquely, the payload plants **AI coding assistant persistence hooks** — injects a `SessionStart` hook into `.claude/settings.json` and a `folderOpen` task into `.vscode/tasks.json` in any affected repository.
-
-Source: [StepSecurity — @immobiliarelabs Backstage Plugin Supply Chain Attack](https://www.stepsecurity.io/blog/immobiliarelabs-backstage-plugin-supply-chain-attack) (HTTP 403 — bot-protection pattern; search-confirmed live)
 
 ### May 2026 — PraisonAI CVE-2026-44338: Auth Bypass Exploited Within 3h44m of Disclosure (May 11)
 
@@ -304,7 +306,7 @@ Source: [Invariant Labs — MCP Security Research](https://invariantlabs.ai/blog
 
 **Why you're a target:** Solo developers using AI coding agents are disproportionately likely to install new npm packages quickly, run `npm install` without auditing, and have high-value credentials (GitHub tokens, AWS keys, API keys) on their machines.
 
-**Current wave:** Wave I (@immobiliarelabs Backstage, June 26, 2026) — plants AI coding assistant persistence hooks into `.claude/settings.json` and `.vscode/tasks.json`.
+**Current wave:** Wave I (Miasma — ImmobiliareLabs Backstage plugins, June 26, 2026) — reuses the Wave H "Phantom Gyp" `binding.gyp` implant; targets internal developer portals (GitLab integration, LDAP auth) and plants AI coding-assistant persistence hooks into `.claude/settings.json` and `.vscode/tasks.json`.
 
 ### OX Security / Cross-IDE Research Disclosures
 
@@ -352,6 +354,7 @@ Source: [Invariant Labs — MCP Security Research](https://invariantlabs.ai/blog
 | Paper | Date | Key Finding |
 |-------|------|-------------|
 | [Prompt Injection Attacks on Agentic Coding Assistants](https://arxiv.org/abs/2601.17548) (Maloyan & Namiot) | Jan 2026 | 42 attack techniques identified; attack success >85% against state-of-the-art defenses; most defenses achieve <50% mitigation |
+| [Prompt Injection as Role Confusion](https://role-confusion.github.io/) (Ye, Cui, Hadfield-Menell) | ICML 2026 | Models infer role identity (`system`/`user`/`tool`) from writing style, not the role tags themselves — "sounding like a role is enough to become that role." A "CoT Forgery" attack that mimics the model's own reasoning style raised jailbreak success from ~0 to ~60%. Implication: pattern-memorization defenses stay reactive; agent rules/config files (`.cursorrules`, `CLAUDE.md`) are a live injection surface that a scanner should match on role-spoofing phrasing and forged reasoning, not just literal shell commands |
 | [EchoLeak: First Zero-Click Prompt Injection](https://arxiv.org/abs/2509.10540) | Sep 2025 | First zero-click exploit on production LLM system (Microsoft 365 Copilot): malicious email silently exfiltrates data, no user interaction required; validated against live production system |
 | [Reframing LLM Agent Security as an Agent-Human Interaction Problem](https://arxiv.org/abs/2605.24309) (Wang, Li, Tian — UCLA) | May 2026 | Systematic analysis of 59 papers + 21 production systems + 26 security plugins; finds approval fatigue, brittle scope bounds, and inaccessible policy languages are the core design failures; three production controls (policy specification, runtime approval, scope configuration) each adopted by ≥14/21 systems yet almost unstudied academically |
 | [Layered Attack Surface Model (LASM)](https://arxiv.org/abs/2604.23338) (Kexin Chu) | Apr 2026 | 7-layer decomposition of the agentic stack with non-transferability theorem proving a defense at one layer has zero detection power against attacks at another |
