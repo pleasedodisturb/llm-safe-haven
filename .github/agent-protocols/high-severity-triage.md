@@ -46,28 +46,40 @@ confirm HTTP 200 before trusting any finding. Restrict to the last 72 hours / th
 For any hit, establish: is it ACTIVELY exploited / actively spreading / does it touch Vitalik's
 stack? If not → drop it (it's the weekly sweep's job, not yours).
 
+## Task tracking — Linear, NOT GitHub Issues
+
+Per this project's convention (and the global rule): **Linear is the single source of truth for
+tasks; GitHub Issues are NOT used for task tracking** — GitHub is for code and PRs only. So
+action-required alerts are filed as **Linear tickets in Triage**, never as GitHub issues.
+
+You are a cloud session, so use the **Linear MCP connector** (the `mcp__*linear*` tools — e.g.
+list/create issue), NOT the `linearis` CLI (that's local-only and unavailable here). Team: `G`.
+
 ## Cooldown (avoid repeat-alerting)
 
-Do not re-alert the same incident two days running. Before alerting, check the last 7 days of
-issues labeled `action-required` (`gh issue list --label action-required --state all --limit 20`)
-and any open `🚨 ACTION REQUIRED` items. If this incident is already represented, skip it.
+Do not re-alert the same incident two days running. Before filing, list recent Linear tickets in
+team `G` whose title starts with `🚨 ACTION REQUIRED` or that carry the `action-required` label
+(created/updated in the last 7 days, any status). If this incident is already represented there,
+skip it.
 
 ## Output
 
 **If one or more action-required incidents are found:**
-1. Open (or update) a single GitHub issue titled `🚨 ACTION REQUIRED — <YYYY-MM-DD>` with the
-   `action-required` label (create the label if missing). Body, per incident:
+1. Create a **Linear ticket** in team `G`, status **Triage**, titled
+   `🚨 ACTION REQUIRED: <short incident name> (<YYYY-MM-DD>)`, labelled `action-required`
+   (create the label if it doesn't exist). If multiple incidents fire the same day, create one
+   ticket per incident (so each can be triaged/closed independently). Body, per incident:
    - **Incident:** name + one-line what
    - **Why it's urgent:** actively exploited / active wave / affects your deps / etc.
-   - **What YOU need to do:** the specific step — e.g. `run npx llm-safe-haven scan --supply-chain on both Macs`,
-     rotate the npm token, pin <pkg> to a safe version, patch Claude Code to >= N
+   - **What YOU need to do:** the specific step — e.g. run `npx llm-safe-haven scan --supply-chain`
+     on both Macs, rotate the npm token, pin <pkg> to a safe version, patch Claude Code to >= N
    - **Deadline:** now / within 24h / before next install
    - **Source:** verified URL (WebFetched, HTTP 200; never a guessed URL; never in backticks)
-2. End your run with the summary line: `ACTION REQUIRED: <n> high-severity item(s) — see issue #<n>`.
-   (Push notification delivers this to Vitalik.)
+2. End your run with the summary line: `ACTION REQUIRED: <n> high-severity item(s) — filed in Linear (team G, Triage)`.
+   (Email + app push deliver this to Vitalik.)
 
 **If nothing qualifies:**
-- Do NOT open an issue, do NOT open a PR, do NOT edit any file.
+- Do NOT create a Linear ticket, do NOT open a GitHub issue/PR, do NOT edit any file.
 - End with exactly: `No action-required incidents today.`
 
 ## Hard rules
