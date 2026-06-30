@@ -47,6 +47,7 @@ npx llm-safe-haven               # Install hooks and harden (default)
 npx llm-safe-haven audit          # Check security posture
 npx llm-safe-haven audit --json   # Machine-readable for CI
 npx llm-safe-haven scan           # Find exposed .env files
+npx llm-safe-haven scan --supply-chain  # Scan for Miasma/Shai-Hulud IOCs (macOS/Linux)
 npx llm-safe-haven update         # Update hooks to latest
 npx llm-safe-haven --dry-run      # Preview without changing anything
 ```
