@@ -4,7 +4,7 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
 
-const { runSupplyChainScan, SUPPLY_CHAIN_SCANNER } = require('../lib/scan.js');
+const { scan, runSupplyChainScan, SUPPLY_CHAIN_SCANNER } = require('../lib/scan.js');
 const { parseArgs } = require('../lib/cli.js');
 
 const REAL_SCRIPTS_DIR = path.join(__dirname, '..', 'scripts');
@@ -29,7 +29,7 @@ describe('parseArgs --supply-chain', () => {
 });
 
 describe('runSupplyChainScan', () => {
-  it('does not spawn on Windows; returns win32 reason', () => {
+  it('does not spawn on Windows; returns win32 reason with non-zero code (not "clean")', () => {
     let called = false;
     const r = quiet(() => runSupplyChainScan({}, {
       platform: 'win32',
@@ -37,10 +37,11 @@ describe('runSupplyChainScan', () => {
     }));
     assert.equal(r.ran, false);
     assert.equal(r.reason, 'win32');
+    assert.equal(r.code, 2);
     assert.equal(called, false);
   });
 
-  it('returns missing when the scanner script is absent', () => {
+  it('returns missing with non-zero code when the scanner script is absent', () => {
     let called = false;
     const r = quiet(() => runSupplyChainScan({}, {
       platform: 'linux',
@@ -49,7 +50,30 @@ describe('runSupplyChainScan', () => {
     }));
     assert.equal(r.ran, false);
     assert.equal(r.reason, 'missing');
+    assert.equal(r.code, 2);
     assert.equal(called, false);
+  });
+
+  it('dispatches from scan() when flags.supplyChain is set (forwards opts)', () => {
+    let called = false;
+    const r = quiet(() => scan({ supplyChain: true }, {
+      platform: 'win32',
+      spawnSync: () => { called = true; return {}; },
+    }));
+    assert.equal(r.reason, 'win32');
+    assert.equal(r.code, 2);
+    assert.equal(called, false);
+  });
+
+  it('treats a signal-killed scan as incomplete (code 2), never clean', () => {
+    const r = quiet(() => runSupplyChainScan({}, {
+      platform: 'linux',
+      scriptsDir: REAL_SCRIPTS_DIR,
+      spawnSync: () => ({ status: null, signal: 'SIGKILL' }),
+    }));
+    assert.equal(r.ran, false);
+    assert.equal(r.reason, 'killed');
+    assert.equal(r.code, 2);
   });
 
   it('spawns bash on the bundled scanner, network-free, and returns its code', () => {
@@ -85,5 +109,6 @@ describe('runSupplyChainScan', () => {
     }));
     assert.equal(r.ran, false);
     assert.equal(r.reason, 'spawn-error');
+    assert.equal(r.code, 2);
   });
 });
