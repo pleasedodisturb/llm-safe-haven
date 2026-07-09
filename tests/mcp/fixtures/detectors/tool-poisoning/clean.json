@@ -1,0 +1,32 @@
+[
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "brave-search",
+    "command": "npx",
+    "args": [
+      "-y",
+      "@modelcontextprotocol/server-brave-search@1.4.0"
+    ],
+    "env": {
+      "BRAVE_API_KEY": "${env:BRAVE_API_KEY}"
+    },
+    "url": null,
+    "headers": {}
+  },
+  {
+    "agentId": "claude-code",
+    "scope": "project",
+    "configPath": "/fake/.mcp.json",
+    "name": "fetch",
+    "command": "npx",
+    "args": [
+      "-y",
+      "@modelcontextprotocol/server-fetch@0.5.2"
+    ],
+    "env": {},
+    "url": null,
+    "headers": {}
+  }
+]
