@@ -9,6 +9,7 @@ const os = require('os');
 const {
   readConfigSafe,
   stripProtoPollution,
+  stripJsonc,
   MAX_CONFIG_SIZE,
 } = require('../../lib/mcp/base.js');
 
@@ -75,6 +76,47 @@ describe('readConfigSafe', () => {
 
     assert.doesNotThrow(() => readConfigSafe(linkPath));
     assert.doesNotThrow(() => readConfigSafe(path.join(tmpDir, 'nope.json')));
+  });
+});
+
+describe('stripJsonc', () => {
+  // Combines a // line comment, a /* block */ comment, a trailing comma
+  // before }, and a URL value containing // in one blob — the single
+  // fixture required by RESEARCH.md Pattern 6 / Pitfall 5.
+  const blob = `{
+  // this is a line comment
+  "name": "test-server", /* inline block comment */
+  "url": "https://mcp.example.com/mcp",
+  "args": ["a", "b",],
+}`;
+
+  it('removes // line comments and /* block */ comments and trailing commas', () => {
+    const stripped = stripJsonc(blob);
+    const parsed = JSON.parse(stripped);
+    assert.strictEqual(parsed.name, 'test-server');
+    assert.deepStrictEqual(parsed.args, ['a', 'b']);
+  });
+
+  it('does NOT truncate a URL value containing //', () => {
+    const stripped = stripJsonc(blob);
+    const parsed = JSON.parse(stripped);
+    assert.strictEqual(parsed.url, 'https://mcp.example.com/mcp');
+  });
+
+  it('does not strip a // that appears inside a string literal', () => {
+    const input = '{"comment_lookalike": "http://example.com//path"}';
+    const parsed = JSON.parse(stripJsonc(input));
+    assert.strictEqual(parsed.comment_lookalike, 'http://example.com//path');
+  });
+
+  it('preserves escaped quotes inside strings so string boundaries are tracked correctly', () => {
+    const input = '{"quoted": "a \\"quoted\\" value // not a comment"}';
+    const parsed = JSON.parse(stripJsonc(input));
+    assert.strictEqual(parsed.quoted, 'a "quoted" value // not a comment');
+  });
+
+  it('produces output parseable by JSON.parse for a full valid JSONC sample', () => {
+    assert.doesNotThrow(() => JSON.parse(stripJsonc(blob)));
   });
 });
 
