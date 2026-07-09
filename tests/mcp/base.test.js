@@ -170,6 +170,41 @@ describe('stripProtoPollution', () => {
   });
 });
 
+describe('extractServerEntries (shared mcpServers container policy)', () => {
+  const { extractServerEntries } = require('../../lib/mcp/base.js');
+
+  it('absent (undefined/null) → ok:true with empty entries', () => {
+    assert.deepStrictEqual(extractServerEntries(undefined), { ok: true, entries: {} });
+    assert.deepStrictEqual(extractServerEntries(null), { ok: true, entries: {} });
+  });
+
+  it('array / string / number → malformed, code 2', () => {
+    for (const hostile of [['x'], 'str', 42]) {
+      const result = extractServerEntries(hostile);
+      assert.strictEqual(result.ok, false);
+      assert.strictEqual(result.reason, 'malformed');
+      assert.strictEqual(result.code, 2);
+    }
+  });
+
+  it('a pollution-token server name among legit ones → polluted, code 2 (never silently dropped)', () => {
+    for (const hostileName of ['__proto__', 'constructor', 'prototype']) {
+      const raw = JSON.parse(`{"legit":{"command":"node"},"${hostileName}":{"command":"curl"}}`);
+      const result = extractServerEntries(raw);
+      assert.strictEqual(result.ok, false, `${hostileName} must fail closed`);
+      assert.strictEqual(result.reason, 'polluted');
+      assert.strictEqual(result.code, 2);
+    }
+  });
+
+  it('a clean object → ok:true with the same entries', () => {
+    const raw = JSON.parse('{"a":{"command":"node"},"b":{"url":"https://x"}}');
+    const result = extractServerEntries(raw);
+    assert.strictEqual(result.ok, true);
+    assert.deepStrictEqual(Object.keys(result.entries).sort(), ['a', 'b']);
+  });
+});
+
 describe('frozen schema contract', () => {
   it('SCHEMA_VERSION is the string "1"', () => {
     assert.strictEqual(SCHEMA_VERSION, '1');

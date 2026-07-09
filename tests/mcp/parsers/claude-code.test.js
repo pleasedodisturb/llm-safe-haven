@@ -150,10 +150,24 @@ describe('claude-code parser', () => {
       assert.deepStrictEqual(result.servers, []);
     });
 
-    it('treats a non-object mcpServers value as zero servers, not pollution', () => {
+    // WR-01: this previously asserted ok:true with [] — silently treating
+    // a structurally wrong mcpServers as "nothing configured", diverging
+    // from windsurf/cline (which returned malformed code 2). The review
+    // proved that divergence hostile-unsafe: a payload's detectability
+    // must never depend on which agent's file it lands in, and malformed
+    // input must surface as exit 2, never pass as clean.
+    it('treats a non-object mcpServers value as malformed (code 2), matching the shared container policy', () => {
       const result = _extractServers('not-an-object', 'claude-code', 'user', '/fake/.claude.json');
-      assert.strictEqual(result.ok, true);
-      assert.deepStrictEqual(result.servers, []);
+      assert.strictEqual(result.ok, false);
+      assert.strictEqual(result.reason, 'malformed');
+      assert.strictEqual(result.code, 2);
+    });
+
+    it('treats an array mcpServers value as malformed (code 2), matching the shared container policy', () => {
+      const result = _extractServers(['x'], 'claude-code', 'user', '/fake/.claude.json');
+      assert.strictEqual(result.ok, false);
+      assert.strictEqual(result.reason, 'malformed');
+      assert.strictEqual(result.code, 2);
     });
   });
 });
