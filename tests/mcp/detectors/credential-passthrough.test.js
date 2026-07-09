@@ -169,6 +169,33 @@ describe('credential-passthrough detector (MCPD-04)', () => {
     });
   });
 
+  describe('WR-05 regression: remediation tokens render in matched backticks', () => {
+    it('the inlined-secret message wraps the interpolation token in a matched backtick pair', () => {
+      const findings = run(loadFixture('bad'), {});
+      const finding = findings.find(f => f.id === 'credential-passthrough/inlined-secret');
+      assert.ok(finding);
+      assert.ok(finding.message.includes('`${env:AWS_ACCESS_KEY_ID}`'), `unbalanced token formatting: ${finding.message}`);
+    });
+
+    it('the sensitive-name-literal message wraps both interpolation tokens in matched backtick pairs', () => {
+      const servers = [makeServer({ env: { AUTH_TOKEN: 'myinlinedtokenvalue42' } })];
+      const findings = run(servers, {});
+      const finding = findings.find(f => f.id === 'credential-passthrough/sensitive-name-literal');
+      assert.ok(finding);
+      assert.ok(finding.message.includes('`${env:AUTH_TOKEN}`'), `unbalanced env token: ${finding.message}`);
+      assert.ok(finding.message.includes('`${input:AUTH_TOKEN}`'), `unbalanced input token: ${finding.message}`);
+    });
+
+    it('no finding message contains a dangling (odd-count) backtick', () => {
+      const findings = run(loadFixture('bad'), {});
+      assert.ok(findings.length > 0);
+      for (const f of findings) {
+        const backticks = (f.message.match(/`/g) || []).length;
+        assert.strictEqual(backticks % 2, 0, `odd backtick count in: ${f.message}`);
+      }
+    });
+  });
+
   describe('hostile / edge-case handling', () => {
     it('empty servers array returns [] and does not throw', () => {
       assert.deepStrictEqual(run([], {}), []);
