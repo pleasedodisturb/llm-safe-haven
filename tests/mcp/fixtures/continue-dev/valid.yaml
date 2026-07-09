@@ -1,0 +1,11 @@
+name: my-assistant
+version: 1.0.0
+
+mcpServers:
+  - name: local-server
+    command: node
+    args: [server.js, --flag]
+    env:
+      API_KEY: ${env:API_KEY}
+  - name: remote-server
+    url: https://mcp.example.com/mcp

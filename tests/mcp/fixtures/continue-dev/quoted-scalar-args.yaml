@@ -1,0 +1,6 @@
+mcpServers:
+  - name: ok
+    command: node
+    args:
+      - "server.js"
+      - "--flag"

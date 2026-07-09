@@ -1,0 +1,7 @@
+defaults: &defaults
+  command: node
+
+mcpServers:
+  - name: local-server
+    <<: *defaults
+    args: [server.js]

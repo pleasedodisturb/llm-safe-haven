@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "broken": {
+      "command": "node"
+      "args": ["missing", "comma", "above"]
+    }
+  }
+}

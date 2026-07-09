@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "user-server": {
+      "command": "node",
+      "args": ["user-server.js"]
+    }
+  },
+  "projects": {
+    "/repo": {
+      "mcpServers": {
+        "local-server": {
+          "command": "node",
+          "args": ["local-server.js"]
+        }
+      }
+    }
+  }
+}
