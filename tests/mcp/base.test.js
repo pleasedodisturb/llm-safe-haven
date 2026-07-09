@@ -143,6 +143,15 @@ describe('stripJsonc', () => {
     assert.doesNotThrow(() => JSON.parse(stripJsonc(blob)));
   });
 
+  it('WR-04: a trailing backslash at EOF never appends the literal string "undefined"', () => {
+    const input = '{"a": "x\\';
+    const output = stripJsonc(input);
+    assert.ok(!output.includes('undefined'), 'output must not contain phantom "undefined"');
+    assert.strictEqual(output, input);
+    // Still correctly rejected downstream as malformed (exit-2 path).
+    assert.throws(() => JSON.parse(output));
+  });
+
   it('WR-02: does NOT delete a ", }" or ", ]" sequence inside a string value', () => {
     const parsed = JSON.parse(stripJsonc('{"note":"end, }"}'));
     assert.strictEqual(parsed.note, 'end, }');
