@@ -53,6 +53,24 @@ describe('readConfigSafe', () => {
     assert.strictEqual(result.code, 2);
   });
 
+  it('CR-02: returns { ok:false, reason:"not-regular-file", code:2 } for a FIFO/named pipe — must never block in readFileSync', (t) => {
+    // mkfifo is POSIX-only; skip on platforms without it (e.g. Windows).
+    const { spawnSync } = require('child_process');
+    const fifoPath = path.join(tmpDir, 'fifo.json');
+    const mkfifo = spawnSync('mkfifo', [fifoPath]);
+    if (mkfifo.error || mkfifo.status !== 0) {
+      t.skip('mkfifo not available on this platform');
+      return;
+    }
+
+    // If the isFile() guard is missing this call hangs forever (fail-open
+    // DoS) — the guard must reject BEFORE any read is attempted.
+    const result = readConfigSafe(fifoPath);
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.reason, 'not-regular-file');
+    assert.strictEqual(result.code, 2);
+  });
+
   it('returns { ok:false, reason:"unreadable", code:2 } for a nonexistent path, and never throws', () => {
     const missingPath = path.join(tmpDir, 'does-not-exist.json');
 
