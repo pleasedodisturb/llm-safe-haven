@@ -1,0 +1,35 @@
+[
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "npx-pinned",
+    "command": "npx",
+    "args": ["some-mcp-server@1.2.3"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  },
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "uvx-from-pinned",
+    "command": "uvx",
+    "args": ["--from", "some-mcp-server==2.0.0", "some-mcp-server"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  },
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "remote-url-versioned",
+    "command": null,
+    "args": [],
+    "env": {},
+    "url": "https://mcp.example.com/v2.0/server",
+    "headers": {}
+  }
+]

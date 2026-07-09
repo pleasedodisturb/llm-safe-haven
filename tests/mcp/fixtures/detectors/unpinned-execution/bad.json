@@ -1,0 +1,35 @@
+[
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "npx-bare-name",
+    "command": "npx",
+    "args": ["some-mcp-server"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  },
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "uvx-bare-name",
+    "command": "uvx",
+    "args": ["some-mcp-server"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  },
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "remote-url-no-version",
+    "command": null,
+    "args": [],
+    "env": {},
+    "url": "https://mcp.example.com/server",
+    "headers": {}
+  }
+]
