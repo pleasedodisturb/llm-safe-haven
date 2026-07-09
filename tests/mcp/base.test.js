@@ -11,6 +11,12 @@ const {
   stripProtoPollution,
   stripJsonc,
   MAX_CONFIG_SIZE,
+  SCHEMA_VERSION,
+  CONFIDENCE,
+  SEVERITY,
+  EXIT,
+  Finding,
+  normalizeServer,
 } = require('../../lib/mcp/base.js');
 
 describe('readConfigSafe', () => {
@@ -143,5 +149,124 @@ describe('stripProtoPollution', () => {
   it('returns {} for a non-plain-object input (primitive string)', () => {
     const result = stripProtoPollution('not an object');
     assert.deepStrictEqual(result, {});
+  });
+});
+
+describe('frozen schema contract', () => {
+  it('SCHEMA_VERSION is the string "1"', () => {
+    assert.strictEqual(SCHEMA_VERSION, '1');
+  });
+
+  it('CONFIDENCE enum has exactly verified and unverified members', () => {
+    assert.strictEqual(CONFIDENCE.VERIFIED, 'verified');
+    assert.strictEqual(CONFIDENCE.UNVERIFIED, 'unverified');
+    assert.deepStrictEqual(Object.keys(CONFIDENCE).sort(), ['UNVERIFIED', 'VERIFIED']);
+  });
+
+  it('CONFIDENCE is frozen (Object.freeze)', () => {
+    assert.strictEqual(Object.isFrozen(CONFIDENCE), true);
+  });
+
+  it('SEVERITY enum has the ordered set info/low/medium/high/critical', () => {
+    assert.strictEqual(SEVERITY.INFO, 'info');
+    assert.strictEqual(SEVERITY.LOW, 'low');
+    assert.strictEqual(SEVERITY.MEDIUM, 'medium');
+    assert.strictEqual(SEVERITY.HIGH, 'high');
+    assert.strictEqual(SEVERITY.CRITICAL, 'critical');
+  });
+
+  it('SEVERITY is frozen (Object.freeze)', () => {
+    assert.strictEqual(Object.isFrozen(SEVERITY), true);
+  });
+
+  it('EXIT constants are CLEAN=0, FINDINGS=1, INCOMPLETE=2', () => {
+    assert.strictEqual(EXIT.CLEAN, 0);
+    assert.strictEqual(EXIT.FINDINGS, 1);
+    assert.strictEqual(EXIT.INCOMPLETE, 2);
+  });
+
+  it('EXIT is frozen (Object.freeze)', () => {
+    assert.strictEqual(Object.isFrozen(EXIT), true);
+  });
+
+  it('Finding() returns an object with the frozen key set, confidence defaulting to unverified', () => {
+    const finding = Finding({
+      id: 'f1',
+      detector: 'test-detector',
+      severity: SEVERITY.HIGH,
+      agentId: 'claude-code',
+      scope: 'user',
+      serverName: 'test-server',
+      message: 'a message',
+    });
+    assert.deepStrictEqual(Object.keys(finding).sort(), [
+      'agentId', 'confidence', 'detector', 'id', 'message', 'scope', 'serverName', 'severity',
+    ]);
+    assert.strictEqual(finding.confidence, 'unverified');
+  });
+
+  it('Finding() coerces an invalid confidence value to unverified', () => {
+    const finding = Finding({
+      id: 'f2',
+      detector: 'test-detector',
+      severity: SEVERITY.LOW,
+      confidence: 'bogus',
+      agentId: 'claude-code',
+      scope: 'user',
+      serverName: 'test-server',
+      message: 'a message',
+    });
+    assert.strictEqual(finding.confidence, 'unverified');
+  });
+
+  it('Finding() accepts a valid confidence value (verified) unchanged', () => {
+    const finding = Finding({
+      id: 'f3',
+      detector: 'test-detector',
+      severity: SEVERITY.CRITICAL,
+      confidence: CONFIDENCE.VERIFIED,
+      agentId: 'claude-code',
+      scope: 'user',
+      serverName: 'test-server',
+      message: 'a message',
+    });
+    assert.strictEqual(finding.confidence, 'verified');
+  });
+
+  it('normalizeServer() returns all nine keys with args/env/headers defaulting correctly', () => {
+    const server = normalizeServer({
+      agentId: 'claude-code',
+      scope: 'user',
+      configPath: '/home/x/.claude.json',
+    });
+    assert.deepStrictEqual(Object.keys(server).sort(), [
+      'agentId', 'args', 'command', 'configPath', 'env', 'headers', 'name', 'scope', 'url',
+    ]);
+    assert.strictEqual(server.name, null);
+    assert.strictEqual(server.command, null);
+    assert.deepStrictEqual(server.args, []);
+    assert.deepStrictEqual(server.env, {});
+    assert.strictEqual(server.url, null);
+    assert.deepStrictEqual(server.headers, {});
+  });
+
+  it('normalizeServer() preserves provided values and treats ${...} tokens as opaque', () => {
+    const server = normalizeServer({
+      agentId: 'cursor',
+      scope: 'project',
+      configPath: '/repo/.cursor/mcp.json',
+      name: 'my-server',
+      command: 'node',
+      args: ['server.js'],
+      env: { API_KEY: '${env:API_KEY}' },
+      url: 'https://mcp.example.com',
+      headers: { Authorization: 'Bearer ${TOKEN}' },
+    });
+    assert.strictEqual(server.name, 'my-server');
+    assert.strictEqual(server.command, 'node');
+    assert.deepStrictEqual(server.args, ['server.js']);
+    assert.strictEqual(server.env.API_KEY, '${env:API_KEY}');
+    assert.strictEqual(server.url, 'https://mcp.example.com');
+    assert.strictEqual(server.headers.Authorization, 'Bearer ${TOKEN}');
   });
 });
