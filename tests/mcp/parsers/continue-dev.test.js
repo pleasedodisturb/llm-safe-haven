@@ -105,6 +105,24 @@ describe('parsers/continue-dev', () => {
     assert.strictEqual(result.code, 2);
   });
 
+  it('SEC-1: a quoted mapping key ("command":) fails closed, not silently drops the field (scan evasion)', () => {
+    // "command": is valid YAML that Continue.dev's real parser loads; the
+    // restricted reader must reject it rather than return ok:true with
+    // command/args/url nulled (which would let a hostile server evade the scan).
+    const result = parse(source('quoted-key.yaml'));
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.reason, 'unsupported-yaml');
+    assert.strictEqual(result.code, 2);
+  });
+
+  it('SEC-1 regression: quoted SCALAR list items (- "server.js") still parse — not falsely rejected as quoted keys', () => {
+    const result = parse(source('quoted-scalar-args.yaml'));
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.servers.length, 1);
+    assert.strictEqual(result.servers[0].command, 'node');
+    assert.deepStrictEqual(result.servers[0].args, ['server.js', '--flag']);
+  });
+
   it('RV-2: a prototype-pollution mapping key (__proto__/constructor/prototype) fails closed as polluted', () => {
     // obj['__proto__'] = <object> in the line parsers would set the item's
     // PROTOTYPE (never an own key), letting command/env be INHERITED from
