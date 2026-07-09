@@ -113,6 +113,50 @@ describe('credential-passthrough detector (MCPD-04)', () => {
     });
   });
 
+  describe('WR-04 regression: sensitive-name-literal requires a secret-like value', () => {
+    const nonSecretValues = {
+      AUTH_TYPE: 'oauth', // short enum-like value
+      CREDENTIAL_PROCESS: 'aws-vault', // legitimate AWS pattern
+      TOKEN_ENDPOINT: 'https://auth.example.com/oauth2/token', // URL-shaped
+      PASSWORD_MIN_LENGTH: '12', // pure integer
+      AUTH_REQUIRED: 'true', // boolean
+    };
+    for (const [key, value] of Object.entries(nonSecretValues)) {
+      it(`does NOT flag ${key}=${value} (non-secret value under a sensitive key)`, () => {
+        const servers = [makeServer({ env: { [key]: value } })];
+        const findings = run(servers, {});
+        assert.ok(
+          !findings.some(f => f.id === 'credential-passthrough/sensitive-name-literal'),
+          `false positive on ${key}=${value}`,
+        );
+      });
+    }
+
+    it('still flags a secret-like literal under a sensitive key', () => {
+      const servers = [makeServer({ env: { AUTH_TOKEN: 'myinlinedtokenvalue42' } })];
+      const findings = run(servers, {});
+      const finding = findings.find(f => f.id === 'credential-passthrough/sensitive-name-literal');
+      assert.ok(finding, 'expected sensitive-name-literal finding');
+      assert.strictEqual(finding.severity, 'high');
+    });
+
+    it('a wildcard under a sensitive key is classified as broad-inheritance (low), not sensitive-name-literal (high)', () => {
+      const servers = [makeServer({ env: { AUTH_PASSTHROUGH: '*' } })];
+      const findings = run(servers, {});
+      assert.ok(!findings.some(f => f.id === 'credential-passthrough/sensitive-name-literal'));
+      const finding = findings.find(f => f.id === 'credential-passthrough/broad-inheritance');
+      assert.ok(finding, 'expected broad-inheritance finding');
+      assert.strictEqual(finding.severity, 'low');
+    });
+
+    it('a whole-env passthrough token under a sensitive key is broad-inheritance (low)', () => {
+      const servers = [makeServer({ env: { SECRET_ENV: '${env:*}' } })];
+      const findings = run(servers, {});
+      assert.ok(!findings.some(f => f.id === 'credential-passthrough/sensitive-name-literal'));
+      assert.ok(findings.some(f => f.id === 'credential-passthrough/broad-inheritance'));
+    });
+  });
+
   describe('D-14: named interpolation is the clean pattern', () => {
     it('${env:NAME} yields zero findings', () => {
       const servers = [makeServer({ env: { API_KEY: '${env:API_KEY}' } })];
