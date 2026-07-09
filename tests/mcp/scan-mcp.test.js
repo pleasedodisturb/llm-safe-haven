@@ -21,12 +21,12 @@ function source(overrides = {}) {
   };
 }
 
-function okParser(servers) {
-  return { parse: () => ({ ok: true, servers }), agentId: 'claude-code' };
+function okParser(servers, agentId = 'claude-code') {
+  return { parse: () => ({ ok: true, servers }), agentId };
 }
 
-function failParser(reason) {
-  return { parse: () => ({ ok: false, reason, code: 2 }), agentId: 'claude-code' };
+function failParser(reason, agentId = 'claude-code') {
+  return { parse: () => ({ ok: false, reason, code: 2 }), agentId };
 }
 
 describe('buildEnvelope', () => {
@@ -82,7 +82,7 @@ describe('buildEnvelope', () => {
       discoverAll: () => sources,
       parsers: {
         'claude-code': okParser([{ name: 'good-server' }]),
-        cursor: failParser('malformed'),
+        cursor: failParser('malformed', 'cursor'),
       },
       now: FIXED_NOW,
     });
@@ -109,10 +109,28 @@ describe('buildEnvelope', () => {
     assert.strictEqual(envelope.sources[0].status, 'not-found');
   });
 
+  it('WR-06: a parser whose agentId disagrees with source.agentId fails closed (parser-mismatch, exit 2), never runs the wrong grammar', () => {
+    const envelope = buildEnvelope({}, {
+      discoverAll: () => [source({ status: 'found' })], // agentId 'claude-code'
+      parsers: {
+        // Wrong module wired under the claude-code key — its own
+        // identity says 'windsurf'. Must never be invoked.
+        'claude-code': {
+          agentId: 'windsurf',
+          parse: () => { throw new Error('wrong parser must never run'); },
+        },
+      },
+      now: FIXED_NOW,
+    });
+    assert.strictEqual(envelope.exitCode, EXIT.INCOMPLETE);
+    assert.strictEqual(envelope.sources[0].status, 'parser-mismatch');
+    assert.deepEqual(envelope.servers, []);
+  });
+
   it('a parser throwing is caught and treated as incomplete (never throws, never reports clean)', () => {
     const envelope = buildEnvelope({}, {
       discoverAll: () => [source({ status: 'found' })],
-      parsers: { 'claude-code': { parse: () => { throw new Error('boom'); } } },
+      parsers: { 'claude-code': { agentId: 'claude-code', parse: () => { throw new Error('boom'); } } },
       now: FIXED_NOW,
     });
     assert.strictEqual(envelope.exitCode, EXIT.INCOMPLETE);
