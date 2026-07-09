@@ -80,6 +80,34 @@ describe('insecure-endpoint detector (MCPD-06)', () => {
     });
   });
 
+  describe('CR-01 regression: raw server.url secrets never leak into finding messages', () => {
+    // Credential-shaped URL: secrets in BOTH userinfo and the query string.
+    const USERINFO_PASSWORD = 'hunter2userinfoSECRET';
+    const QUERY_SECRET = 'qsSECRETvalue12345';
+    const LEAKY_URL = `http://alice:${USERINFO_PASSWORD}@0.0.0.0:8443/sse?api_key=${QUERY_SECRET}#frag`;
+
+    it('no finding (message or any field) contains the userinfo or query-string secret', () => {
+      const servers = [makeServer({ url: LEAKY_URL })];
+      const findings = run(servers, {});
+      assert.ok(findings.length > 0, 'expected findings for an insecure URL');
+      for (const f of findings) {
+        assert.ok(!f.message.includes(USERINFO_PASSWORD), `userinfo secret leaked: ${f.message}`);
+        assert.ok(!f.message.includes(QUERY_SECRET), `query secret leaked: ${f.message}`);
+        assert.ok(!JSON.stringify(f).includes(USERINFO_PASSWORD));
+        assert.ok(!JSON.stringify(f).includes(QUERY_SECRET));
+      }
+    });
+
+    it('messages still carry the sanitized protocol + host + path label', () => {
+      const servers = [makeServer({ url: LEAKY_URL })];
+      const findings = run(servers, {});
+      assert.ok(findings.length > 0);
+      for (const f of findings) {
+        assert.ok(f.message.includes('http://0.0.0.0:8443/sse'), `sanitized label missing: ${f.message}`);
+      }
+    });
+  });
+
   describe('hostile / edge-case handling', () => {
     it('empty servers array returns [] and does not throw', () => {
       assert.deepStrictEqual(run([], {}), []);
