@@ -2,8 +2,30 @@
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
 
 const { loadDetectors, runAll } = require('../../../lib/mcp/detectors/index.js');
+
+const DETECTORS_DIR = path.join(__dirname, '..', '..', '..', 'lib', 'mcp', 'detectors');
+
+/**
+ * Plants a throwaway detector module in the live detectors directory,
+ * runs fn(), and ALWAYS removes the module (file + require cache) again.
+ * The planted module exports a shape the fixed registry must reject, so
+ * even a concurrently running test process that momentarily sees the
+ * file loads an identical (excluded) detector set.
+ */
+function withPlantedModule(filename, source, fn) {
+  const modPath = path.join(DETECTORS_DIR, filename);
+  fs.writeFileSync(modPath, source);
+  try {
+    fn();
+  } finally {
+    fs.rmSync(modPath, { force: true });
+    delete require.cache[modPath];
+  }
+}
 
 describe('detector registry (lib/mcp/detectors/index.js)', () => {
   it('loadDetectors() returns an Array', () => {
@@ -35,6 +57,33 @@ describe('detector registry (lib/mcp/detectors/index.js)', () => {
     assert.deepStrictEqual(first, second);
     const sorted = [...first].sort((a, b) => a.localeCompare(b));
     assert.deepStrictEqual(first, sorted);
+  });
+
+  describe('WR-01 regression: a detector with a non-string id never crashes the scan', () => {
+    it('a module exporting { id: 5, run } is excluded and loadDetectors()/runAll() do not throw', () => {
+      withPlantedModule(
+        'zz-wr01-numeric-id-temp-fixture.js',
+        "'use strict';\nmodule.exports = { id: 5, run() { return []; } };\n",
+        () => {
+          let detectors;
+          assert.doesNotThrow(() => { detectors = loadDetectors(); });
+          assert.ok(detectors.every(d => typeof d.id === 'string'));
+          assert.ok(!detectors.some(d => d.id === 5));
+          assert.doesNotThrow(() => runAll([], {}));
+        },
+      );
+    });
+
+    it('a module exporting an empty-string id is excluded', () => {
+      withPlantedModule(
+        'zz-wr01-empty-id-temp-fixture.js',
+        "'use strict';\nmodule.exports = { id: '', run() { return []; } };\n",
+        () => {
+          const detectors = loadDetectors();
+          assert.ok(detectors.every(d => d.id !== ''));
+        },
+      );
+    });
   });
 
   describe('runAll(servers, context)', () => {
