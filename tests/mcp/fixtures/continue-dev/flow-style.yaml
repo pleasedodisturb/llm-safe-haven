@@ -1,0 +1,3 @@
+name: my-assistant
+
+mcpServers: [{name: local-server, command: node, args: [server.js]}]
