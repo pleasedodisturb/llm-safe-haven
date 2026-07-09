@@ -79,13 +79,45 @@ describe('unpinned-execution detector (MCPD-01)', () => {
       });
     }
 
-    const pinnedSpecs = ['pkg@1.2.3', '@scope/pkg@2.0.0'];
+    const pinnedSpecs = ['pkg@1.2.3', '@scope/pkg@2.0.0', 'pkg@v1.2.3', 'pkg@1.2.3-beta.1'];
     for (const spec of pinnedSpecs) {
       it(`does NOT flag npx ${spec} (properly pinned)`, () => {
         const servers = [makeServer({ command: 'npx', args: [spec] })];
         assert.deepStrictEqual(run(servers, {}), []);
       });
     }
+
+    describe('WR-02 regression: wildcards and floating ranges are UNPINNED', () => {
+      const floatingSpecs = [
+        'pkg@*', 'pkg@x', 'pkg@1.x', 'pkg@1.2.x',
+        'pkg@^1.2.3', 'pkg@~1.0', 'pkg@>=1.0', 'pkg@<2', 'pkg@1', 'pkg@1.2',
+        '@scope/pkg@*', '@scope/pkg@^2.0.0',
+      ];
+      for (const spec of floatingSpecs) {
+        it(`flags npx ${spec} as unpinned`, () => {
+          const servers = [makeServer({ command: 'npx', args: [spec] })];
+          const findings = run(servers, {});
+          assert.ok(findings.some(f => f.id === 'unpinned-execution/npx-no-version'), `expected finding for ${spec}`);
+        });
+      }
+
+      it('flags uvx --from pkg>=0.1 as unpinned (range operator)', () => {
+        const servers = [makeServer({ command: 'uvx', args: ['--from', 'pkg>=0.1', 'pkg'] })];
+        const findings = run(servers, {});
+        assert.ok(findings.some(f => f.id === 'unpinned-execution/uvx-no-version'));
+      });
+
+      it('flags uvx --from pkg~=1.4 as unpinned (compatible-release range)', () => {
+        const servers = [makeServer({ command: 'uvx', args: ['--from', 'pkg~=1.4', 'pkg'] })];
+        const findings = run(servers, {});
+        assert.ok(findings.some(f => f.id === 'unpinned-execution/uvx-no-version'));
+      });
+
+      it('does NOT flag uvx --from pkg==2.0.0 (exact pin)', () => {
+        const servers = [makeServer({ command: 'uvx', args: ['--from', 'pkg==2.0.0', 'pkg'] })];
+        assert.deepStrictEqual(run(servers, {}), []);
+      });
+    });
   });
 
   describe('D-07 boundary: no transport findings from this detector', () => {
