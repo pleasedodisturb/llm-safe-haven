@@ -80,6 +80,37 @@ describe('insecure-endpoint detector (MCPD-06)', () => {
     });
   });
 
+  describe('WR-06 regression: IPv6 and shorthand wildcard hosts are detected', () => {
+    const wildcardUrls = [
+      'https://[::]:8080/mcp', // IPv6 unspecified
+      'https://[0:0:0:0:0:0:0:0]/mcp', // long-form IPv6 (URL-normalized to [::])
+      'http://0/mcp', // IPv4 shorthand (URL-normalized to 0.0.0.0)
+      'http://0x0/mcp', // hex form (URL-normalized to 0.0.0.0)
+    ];
+    for (const url of wildcardUrls) {
+      it(`flags ${url} as a wildcard/any-interface endpoint`, () => {
+        const servers = [makeServer({ url })];
+        const findings = run(servers, {});
+        assert.ok(findings.some(f => f.id === 'insecure-endpoint/wildcard-bind'), `missed wildcard host in ${url}`);
+      });
+    }
+
+    it('does NOT flag a normal host as wildcard', () => {
+      const servers = [makeServer({ url: 'https://mcp.example.com/x', headers: { Authorization: 'Bearer redacted' } })];
+      const findings = run(servers, {});
+      assert.ok(!findings.some(f => f.id === 'insecure-endpoint/wildcard-bind'));
+    });
+
+    it('the message describes a wildcard connect target, not a server bind posture', () => {
+      const servers = [makeServer({ url: 'https://[::]:8080/mcp' })];
+      const findings = run(servers, {});
+      const finding = findings.find(f => f.id === 'insecure-endpoint/wildcard-bind');
+      assert.ok(finding);
+      assert.ok(finding.message.includes('wildcard/any-interface address'), `message: ${finding.message}`);
+      assert.ok(!finding.message.includes('reachable from any network interface'), `bind-posture claim survived: ${finding.message}`);
+    });
+  });
+
   describe('CR-01 regression: raw server.url secrets never leak into finding messages', () => {
     // Credential-shaped URL: secrets in BOTH userinfo and the query string.
     const USERINFO_PASSWORD = 'hunter2userinfoSECRET';
