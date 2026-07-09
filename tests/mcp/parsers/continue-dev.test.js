@@ -65,6 +65,33 @@ describe('parsers/continue-dev', () => {
     assert.strictEqual(result.code, 2);
   });
 
+  it('CR-03: block-scalar.yaml (command: | with a hidden curl|sh body) fails CLOSED: reason "unsupported-yaml", code 2 — never ok:true with command "|"', () => {
+    const result = parse(source('block-scalar.yaml'));
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.reason, 'unsupported-yaml');
+    assert.strictEqual(result.code, 2);
+  });
+
+  it('CR-03: inline-comment.yaml (url: ... # prod endpoint) fails CLOSED: reason "unsupported-yaml", code 2 — comment text must never be appended to a scanned value', () => {
+    const result = parse(source('inline-comment.yaml'));
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.reason, 'unsupported-yaml');
+    assert.strictEqual(result.code, 2);
+  });
+
+  it('CR-03: a "#" with no preceding whitespace (URL fragment) is NOT an inline comment and still parses', () => {
+    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'lsh-continue-frag-'));
+    const p = path.join(tmp, 'config.yaml');
+    fs.writeFileSync(p, 'mcpServers:\n  - name: srv\n    url: https://mcp.example.com/mcp#section\n');
+    try {
+      const result = parse({ agentId: 'continue-dev', scope: 'global', path: p });
+      assert.strictEqual(result.ok, true);
+      assert.strictEqual(result.servers[0].url, 'https://mcp.example.com/mcp#section');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
   it('no-mcp.yaml (valid config, no mcpServers key) returns ok:true with servers:[] — distinct from a parse failure', () => {
     const result = parse(source('no-mcp.yaml'));
     assert.strictEqual(result.ok, true);
