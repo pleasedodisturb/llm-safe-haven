@@ -330,6 +330,37 @@ describe('frozen schema contract', () => {
     assert.deepStrictEqual(server.headers, {});
   });
 
+  it('WR-03: normalizeServer() never launders wrong-typed fields into the frozen shape', () => {
+    const server = normalizeServer({
+      agentId: 'cursor',
+      scope: 'global',
+      configPath: '/fake/.cursor/mcp.json',
+      name: ['not-a-string'],
+      command: 42,
+      args: 'rm -rf /',        // string, not array
+      env: ['A=1'],            // array, not object
+      url: { hostile: true },  // object, not string
+      headers: 'x',            // string, not object
+    });
+    assert.strictEqual(server.name, null);
+    assert.strictEqual(server.command, null);
+    assert.deepStrictEqual(server.args, []);
+    assert.deepStrictEqual(server.env, {});
+    assert.strictEqual(server.url, null);
+    assert.deepStrictEqual(server.headers, {});
+  });
+
+  it('WR-03: cursor/claude-code parsers no longer forward wrong-typed args/env raw', () => {
+    const { _extractServers } = require('../../lib/mcp/parsers/cursor.js');
+    const result = _extractServers(
+      JSON.parse('{"srv":{"command":"node","args":"rm -rf /","env":["A=1"]}}'),
+      'cursor', 'global', '/fake/.cursor/mcp.json'
+    );
+    assert.strictEqual(result.ok, true);
+    assert.deepStrictEqual(result.servers[0].args, []);
+    assert.deepStrictEqual(result.servers[0].env, {});
+  });
+
   it('normalizeServer() preserves provided values and treats ${...} tokens as opaque', () => {
     const server = normalizeServer({
       agentId: 'cursor',
