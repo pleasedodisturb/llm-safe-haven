@@ -4,7 +4,7 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
 
-const { sourcesFor } = require('../../lib/mcp/config-sources.js');
+const { sourcesFor, discover, discoverAll } = require('../../lib/mcp/config-sources.js');
 
 const FAKE_HOME = '/fake/home';
 const FAKE_CWD = '/fake/repo';
@@ -143,5 +143,110 @@ describe('sourcesFor', () => {
       const sources = sourcesFor('does-not-exist', { homedir: FAKE_HOME, cwd: FAKE_CWD, platform: 'darwin' });
       assert.deepEqual(sources, []);
     });
+  });
+});
+
+describe('discover', () => {
+  const baseOpts = { homedir: FAKE_HOME, cwd: FAKE_CWD, platform: 'darwin' };
+
+  function fakeGetById(found) {
+    return () => ({ detect: () => ({ found }) });
+  }
+
+  it('returns [] when the agent registry reports the agent as not installed', () => {
+    const result = discover('cursor', {
+      ...baseOpts,
+      getById: fakeGetById(false),
+      existsSync: () => true,
+    });
+    assert.deepEqual(result, []);
+  });
+
+  it('returns [] when getById cannot find the agent module at all', () => {
+    const result = discover('cursor', {
+      ...baseOpts,
+      getById: () => null,
+      existsSync: () => true,
+    });
+    assert.deepEqual(result, []);
+  });
+
+  it('returns [] and swallows a throwing detect() (mirrors detectAll\'s swallow)', () => {
+    const result = discover('cursor', {
+      ...baseOpts,
+      getById: () => ({ detect: () => { throw new Error('boom'); } }),
+      existsSync: () => true,
+    });
+    assert.deepEqual(result, []);
+  });
+
+  it('marks existing paths status "found" and missing paths status "not-found" when installed', () => {
+    const existingPaths = new Set([path.join(FAKE_HOME, '.cursor', 'mcp.json')]);
+    const result = discover('cursor', {
+      ...baseOpts,
+      getById: fakeGetById(true),
+      existsSync: p => existingPaths.has(p),
+    });
+    assert.strictEqual(result.length, 2);
+    const global = result.find(s => s.scope === 'global');
+    const project = result.find(s => s.scope === 'project');
+    assert.strictEqual(global.status, 'found');
+    assert.strictEqual(project.status, 'not-found');
+    // Every descriptor still carries the base sourcesFor shape
+    for (const source of result) {
+      assert.strictEqual(source.agentId, 'cursor');
+      assert.ok(typeof source.scope === 'string');
+      assert.ok(typeof source.path === 'string');
+      assert.ok(typeof source.format === 'string');
+      assert.ok(['found', 'not-found'].includes(source.status));
+    }
+  });
+
+  it('returns [] for an unknown agentId', () => {
+    const result = discover('does-not-exist', {
+      ...baseOpts,
+      getById: fakeGetById(true),
+      existsSync: () => true,
+    });
+    assert.deepEqual(result, []);
+  });
+
+  it('never reads .path off the detect() result (presence-filter only)', () => {
+    const src = require('fs').readFileSync(
+      path.join(__dirname, '..', '..', 'lib', 'mcp', 'config-sources.js'),
+      'utf8'
+    );
+    // A crude but effective guard: detect() result should only ever be
+    // interrogated for `.found`, never `.path` (that field is a CLI
+    // binary/.app/extension string per the anti-pattern in RESEARCH.md).
+    assert.ok(!/detect\(\)\.path/.test(src), 'config-sources.js must not read detect().path');
+  });
+});
+
+describe('discoverAll', () => {
+  it('iterates the 5 known agent ids and aggregates their discovered sources', () => {
+    const result = discoverAll({
+      homedir: FAKE_HOME,
+      cwd: FAKE_CWD,
+      platform: 'darwin',
+      getById: () => ({ detect: () => ({ found: true }) }),
+      existsSync: () => true,
+    });
+    const agentIds = new Set(result.map(s => s.agentId));
+    assert.deepEqual([...agentIds].sort(), ['claude-code', 'cline', 'continue-dev', 'cursor', 'windsurf']);
+    // All returned as 'found' since existsSync always true
+    assert.ok(result.every(s => s.status === 'found'));
+  });
+
+  it('excludes not-installed agents entirely', () => {
+    const result = discoverAll({
+      homedir: FAKE_HOME,
+      cwd: FAKE_CWD,
+      platform: 'darwin',
+      getById: id => (id === 'cursor' ? { detect: () => ({ found: false }) } : { detect: () => ({ found: true }) }),
+      existsSync: () => true,
+    });
+    assert.ok(!result.some(s => s.agentId === 'cursor'));
+    assert.ok(result.some(s => s.agentId === 'windsurf'));
   });
 });
