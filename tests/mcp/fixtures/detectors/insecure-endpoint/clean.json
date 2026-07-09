@@ -1,0 +1,15 @@
+[
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "https-with-auth",
+    "command": null,
+    "args": [],
+    "env": {},
+    "url": "https://mcp.example.com/server",
+    "headers": {
+      "Authorization": "Bearer redacted"
+    }
+  }
+]
