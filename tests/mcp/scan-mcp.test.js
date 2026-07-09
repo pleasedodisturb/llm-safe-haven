@@ -5,6 +5,8 @@ const assert = require('node:assert/strict');
 
 const { buildEnvelope, scanMcp } = require('../../lib/scan-mcp.js');
 const { SCHEMA_VERSION, EXIT } = require('../../lib/mcp/base.js');
+const { parseArgs } = require('../../lib/cli.js');
+const { scan } = require('../../lib/scan.js');
 
 const FIXED_NOW = () => '2026-01-01T00:00:00.000Z';
 
@@ -170,5 +172,20 @@ describe('--json envelope shape (frozen fixture-diff)', () => {
       now: () => '2026-01-01T00:00:00.000Z',
     });
     assert.deepEqual(actual, expected);
+  });
+});
+
+// Task 3: --mcp wiring (parseArgs flag + scan.js dispatch)
+describe('--mcp CLI wiring', () => {
+  it('parseArgs(["scan","--mcp"]) sets flags.mcp true', () => {
+    const args = parseArgs(['scan', '--mcp']);
+    assert.strictEqual(args.command, 'scan');
+    assert.strictEqual(args.flags.mcp, true);
+  });
+
+  it('scan({ mcp:true, quiet:true }, injectedOpts) dispatches to scanMcp and returns an object with a numeric .code', () => {
+    const result = scan({ mcp: true, quiet: true }, { discoverAll: () => [], now: FIXED_NOW });
+    assert.strictEqual(typeof result.code, 'number');
+    assert.strictEqual(result.ran, true);
   });
 });
