@@ -92,6 +92,36 @@ describe('readConfigSafe', () => {
     assert.strictEqual(result.raw, '{"mcpServers":{}}');
   });
 
+  it('WR-05: a symlink swapped in AFTER the lstat check is still refused (O_NOFOLLOW closes the TOCTOU window)', (t) => {
+    if (!fs.constants.O_NOFOLLOW) {
+      t.skip('O_NOFOLLOW not available on this platform');
+      return;
+    }
+    const targetPath = path.join(tmpDir, 'target.json');
+    fs.writeFileSync(targetPath, '{"mcpServers":{}}');
+    const linkPath = path.join(tmpDir, 'race-link.json');
+    fs.symlinkSync(targetPath, linkPath);
+
+    // Simulate the race: lstatSync reports "not a symlink" (as if the
+    // regular file was swapped for a symlink right after the check).
+    // The kernel-level O_NOFOLLOW open must still refuse to follow.
+    const lyingFs = Object.create(fs);
+    lyingFs.lstatSync = () => ({ isSymbolicLink: () => false });
+
+    const result = readConfigSafe(linkPath, { fs: lyingFs });
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.reason, 'symlink');
+    assert.strictEqual(result.code, 2);
+  });
+
+  it('WR-05: guards and read operate on a single fd — the read returns the bytes of the file that was opened', () => {
+    const goodPath = path.join(tmpDir, 'fd-read.json');
+    fs.writeFileSync(goodPath, '{"mcpServers":{"a":{"command":"node"}}}');
+    const result = readConfigSafe(goodPath);
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.raw, '{"mcpServers":{"a":{"command":"node"}}}');
+  });
+
   it('never throws for any hostile input class (symlink, oversized, unreadable)', () => {
     const linkPath = path.join(tmpDir, 'link2.json');
     const targetPath = path.join(tmpDir, 'target2.json');
