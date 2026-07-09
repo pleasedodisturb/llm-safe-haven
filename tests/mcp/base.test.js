@@ -142,6 +142,33 @@ describe('stripJsonc', () => {
   it('produces output parseable by JSON.parse for a full valid JSONC sample', () => {
     assert.doesNotThrow(() => JSON.parse(stripJsonc(blob)));
   });
+
+  it('WR-02: does NOT delete a ", }" or ", ]" sequence inside a string value', () => {
+    const parsed = JSON.parse(stripJsonc('{"note":"end, }"}'));
+    assert.strictEqual(parsed.note, 'end, }');
+    const parsed2 = JSON.parse(stripJsonc('{"args":["a, ]", "b"]}'));
+    assert.deepStrictEqual(parsed2.args, ['a, ]', 'b']);
+  });
+
+  it('WR-02: strips a trailing comma separated from the closer by a // line comment', () => {
+    const parsed = JSON.parse(stripJsonc('{"a": 1, // trailing\n}'));
+    assert.deepStrictEqual(parsed, { a: 1 });
+  });
+
+  it('WR-02: strips a trailing comma separated from the closer by a /* block */ comment', () => {
+    const parsed = JSON.parse(stripJsonc('{"a": [1, 2, /* done */ ]}'));
+    assert.deepStrictEqual(parsed.a, [1, 2]);
+  });
+
+  it('WR-02: a non-trailing comma is never dropped', () => {
+    const parsed = JSON.parse(stripJsonc('{"a": 1, "b": [2, 3]}'));
+    assert.deepStrictEqual(parsed, { a: 1, b: [2, 3] });
+  });
+
+  it('WR-02: a comma pending at EOF is emitted verbatim so JSON.parse reports the true failure', () => {
+    assert.strictEqual(stripJsonc('{"a": 1,'), '{"a": 1,');
+    assert.throws(() => JSON.parse(stripJsonc('{"a": 1,')));
+  });
 });
 
 describe('stripProtoPollution', () => {
