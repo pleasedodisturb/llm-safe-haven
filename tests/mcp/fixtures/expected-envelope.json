@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1",
+  "exitCode": 0,
+  "generatedAt": "2026-01-01T00:00:00.000Z",
+  "offline": true,
+  "sources": [
+    { "agentId": "claude-code", "scope": "user", "path": "/fake/home/.claude.json", "format": "json", "status": "not-found" },
+    { "agentId": "claude-code", "scope": "local", "path": "/fake/home/.claude.json", "format": "json", "status": "not-found" },
+    { "agentId": "claude-code", "scope": "project", "path": "/fake/repo/.mcp.json", "format": "json", "status": "not-found" }
+  ],
+  "servers": [],
+  "findings": [],
+  "summary": { "bySeverity": {}, "byDetector": {} }
+}
