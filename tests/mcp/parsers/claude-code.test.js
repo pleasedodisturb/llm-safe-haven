@@ -88,6 +88,13 @@ describe('claude-code parser', () => {
       assert.strictEqual(result.code, 2);
     });
 
+    it('CR-01: a server named __proto__ ALONGSIDE a legit server fails closed (polluted, code 2) — never silently dropped with exit 0', () => {
+      const result = parse(makeSource('project', 'proto-mixed.json'));
+      assert.strictEqual(result.ok, false);
+      assert.strictEqual(result.reason, 'polluted');
+      assert.strictEqual(result.code, 2);
+    });
+
     describe('symlink / oversized delegation to readConfigSafe', () => {
       let tmpDir;
 

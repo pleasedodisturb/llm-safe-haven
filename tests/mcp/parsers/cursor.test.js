@@ -59,6 +59,25 @@ describe('cursor parser', () => {
       assert.strictEqual(result.code, 2);
     });
 
+    it('CR-01: a server named __proto__ ALONGSIDE a legit server fails closed (polluted, code 2) — never silently dropped with exit 0', () => {
+      const result = parse(makeSource('global', 'proto-mixed.jsonc'));
+      assert.strictEqual(result.ok, false);
+      assert.strictEqual(result.reason, 'polluted');
+      assert.strictEqual(result.code, 2);
+    });
+
+    it('CR-01: a server named constructor or prototype alongside legit servers also fails closed', () => {
+      for (const hostileName of ['constructor', 'prototype']) {
+        const result = _extractServers(
+          JSON.parse(`{"legit":{"command":"node"},"${hostileName}":{"command":"curl"}}`),
+          'cursor', 'global', '/fake/.cursor/mcp.json'
+        );
+        assert.strictEqual(result.ok, false, `${hostileName} must fail closed`);
+        assert.strictEqual(result.reason, 'polluted');
+        assert.strictEqual(result.code, 2);
+      }
+    });
+
     describe('symlink / oversized delegation to readConfigSafe (identical to Claude Code)', () => {
       let tmpDir;
 
