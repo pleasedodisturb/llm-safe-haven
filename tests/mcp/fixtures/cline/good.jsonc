@@ -1,0 +1,16 @@
+{
+  // Cline's cline_mcp_settings.json, well-formed JSONC with comments.
+  "mcpServers": {
+    "local-server": {
+      "command": "node",
+      "args": ["server.js"], /* trailing comma below is intentional */
+      "env": {
+        "API_KEY": "${env:API_KEY}",
+      },
+    },
+    "remote-server": {
+      // url must survive JSONC stripping intact
+      "url": "https://mcp.example.com/mcp",
+    },
+  },
+}

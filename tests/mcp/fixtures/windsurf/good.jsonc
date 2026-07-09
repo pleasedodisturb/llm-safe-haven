@@ -1,0 +1,16 @@
+{
+  // Windsurf global MCP config, well-formed JSONC with comments.
+  "mcpServers": {
+    "local-server": {
+      "command": "node",
+      "args": ["server.js", "--flag"], /* trailing comma below is intentional */
+      "env": {
+        "API_KEY": "${env:API_KEY}",
+      },
+    },
+    "remote-server": {
+      // serverUrl must survive JSONC stripping and map into `url`
+      "serverUrl": "https://mcp.example.com/mcp",
+    },
+  },
+}
