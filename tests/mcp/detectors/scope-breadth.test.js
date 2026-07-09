@@ -66,6 +66,56 @@ describe('scope-breadth detector (MCPD-07)', () => {
     for (const f of findings) assert.strictEqual(f.detector, 'scope-breadth');
   });
 
+  describe('D-12 dogfood regression: identifier tokens only, never args text', () => {
+    it('a /bin/sh -c credential-injection wrapper with a shell `exec` never fires', () => {
+      const servers = [makeServer({
+        name: 'vendor-search',
+        command: '/bin/sh',
+        args: ['-c', 'MY_KEY="$(rbw get thing --field key)" exec npx -y @vendor/search-server'],
+      })];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
+    it('shell syntax inside args (e.g. "exec", "shell") never triggers a match on a non-broad server', () => {
+      const servers = [makeServer({
+        name: 'kagi',
+        command: '/bin/sh',
+        args: ['-c', 'KAGI_API_KEY="$(rbw get kagi.com --field ApiKey)" exec uvx kagimcp'],
+      })];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
+    it('an unscoped server-filesystem npx invocation still fires (positive case stays green)', () => {
+      const servers = [makeServer({
+        name: 'filesystem',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-filesystem'],
+      })];
+      const findings = run(servers, {});
+      assert.ok(findings.some(f => f.id === 'scope-breadth/unscoped-broad-capability'));
+    });
+
+    it('an unscoped desktop-commander server (matched via command basename) still fires', () => {
+      const servers = [makeServer({
+        name: 'commander',
+        command: '/usr/local/bin/desktop-commander',
+        args: [],
+      })];
+      const findings = run(servers, {});
+      assert.ok(findings.some(f => f.id === 'scope-breadth/unscoped-broad-capability'));
+    });
+
+    it('a broad-capability uvx --from package identifier still fires', () => {
+      const servers = [makeServer({
+        name: 'shell-runner',
+        command: 'uvx',
+        args: ['--from', 'mcp-shell', 'mcp-shell'],
+      })];
+      const findings = run(servers, {});
+      assert.ok(findings.some(f => f.id === 'scope-breadth/unscoped-broad-capability'));
+    });
+  });
+
   describe('hostile / edge-case handling', () => {
     it('empty servers array returns [] and does not throw', () => {
       assert.deepStrictEqual(run([], {}), []);
