@@ -150,3 +150,25 @@ describe('scanMcp', () => {
     assert.strictEqual(result.code, EXIT.INCOMPLETE);
   });
 });
+
+// Schema-freeze gate (Task 2): a checked-in expected-envelope.json fixture
+// this test diffs the built envelope against, via assert.deepEqual — NOT
+// node:test experimental snapshot (t.assert.snapshot needs Node >=22.3,
+// above this project's >=18 floor). A later phase renaming `findings` to
+// `results`, or adding/removing any top-level key, fails HERE.
+describe('--json envelope shape (frozen fixture-diff)', () => {
+  const DETERMINISTIC_SOURCES = [
+    { agentId: 'claude-code', scope: 'user', path: '/fake/home/.claude.json', format: 'json', status: 'not-found' },
+    { agentId: 'claude-code', scope: 'local', path: '/fake/home/.claude.json', format: 'json', status: 'not-found' },
+    { agentId: 'claude-code', scope: 'project', path: '/fake/repo/.mcp.json', format: 'json', status: 'not-found' },
+  ];
+
+  it('matches the checked-in tests/mcp/fixtures/expected-envelope.json exactly', () => {
+    const expected = require('./fixtures/expected-envelope.json');
+    const actual = buildEnvelope({ json: true }, {
+      discoverAll: () => DETERMINISTIC_SOURCES,
+      now: () => '2026-01-01T00:00:00.000Z',
+    });
+    assert.deepEqual(actual, expected);
+  });
+});
