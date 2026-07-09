@@ -1,0 +1,18 @@
+[
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "creds-server",
+    "command": null,
+    "args": [],
+    "env": {
+      "AWS_ACCESS_KEY_ID": "AKIAFAKE1234567890AB",
+      "GITHUB_TOKEN": "myghtoken1234567890",
+      "CACHE_DIR": "aA1bB2cC3dD4eE5fF6gG7hH8",
+      "ALL_ENV": "*"
+    },
+    "url": null,
+    "headers": {}
+  }
+]

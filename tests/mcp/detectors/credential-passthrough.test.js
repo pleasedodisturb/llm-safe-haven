@@ -1,0 +1,149 @@
+'use strict';
+
+const { describe, it } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
+
+const { id, requirement, run } = require('../../../lib/mcp/detectors/credential-passthrough.js');
+
+const FIXTURES_DIR = path.join(__dirname, '..', 'fixtures', 'detectors', 'credential-passthrough');
+
+function loadFixture(name) {
+  return JSON.parse(fs.readFileSync(path.join(FIXTURES_DIR, `${name}.json`), 'utf8'));
+}
+
+function makeServer(overrides = {}) {
+  return {
+    agentId: 'claude-code',
+    scope: 'user',
+    configPath: '/fake/.claude.json',
+    name: 'test-server',
+    command: null,
+    args: [],
+    env: {},
+    url: null,
+    headers: {},
+    ...overrides,
+  };
+}
+
+// The raw AWS-key-shaped test string from bad.json, kept here ONLY as a
+// substring to assert against — never printed, never logged.
+const BAD_FIXTURE_SECRET_SUBSTRING = 'AKIAFAKE1234567890AB';
+
+describe('credential-passthrough detector (MCPD-04)', () => {
+  it('exports id "credential-passthrough" and requirement "MCPD-04"', () => {
+    assert.strictEqual(id, 'credential-passthrough');
+    assert.strictEqual(requirement, 'MCPD-04');
+  });
+
+  it('flags an inlined secret matching a known SECRET_PATTERNS entry (known-bad fixture)', () => {
+    const servers = loadFixture('bad');
+    const findings = run(servers, {});
+    assert.ok(findings.some(f => f.id === 'credential-passthrough/inlined-secret'));
+    const finding = findings.find(f => f.id === 'credential-passthrough/inlined-secret');
+    assert.strictEqual(finding.severity, 'critical');
+  });
+
+  it('flags a literal under a sensitive-sounding key name (known-bad fixture)', () => {
+    const servers = loadFixture('bad');
+    const findings = run(servers, {});
+    assert.ok(findings.some(f => f.id === 'credential-passthrough/sensitive-name-literal'));
+    const finding = findings.find(f => f.id === 'credential-passthrough/sensitive-name-literal');
+    assert.strictEqual(finding.severity, 'high');
+  });
+
+  it('flags a high-entropy literal under a non-sensitive key name (known-bad fixture)', () => {
+    const servers = loadFixture('bad');
+    const findings = run(servers, {});
+    assert.ok(findings.some(f => f.id === 'credential-passthrough/high-entropy-literal'));
+    const finding = findings.find(f => f.id === 'credential-passthrough/high-entropy-literal');
+    assert.strictEqual(finding.severity, 'high');
+  });
+
+  it('flags a wildcard/whole-environment passthrough token (known-bad fixture)', () => {
+    const servers = loadFixture('bad');
+    const findings = run(servers, {});
+    assert.ok(findings.some(f => f.id === 'credential-passthrough/broad-inheritance'));
+    const finding = findings.find(f => f.id === 'credential-passthrough/broad-inheritance');
+    assert.strictEqual(finding.severity, 'low');
+  });
+
+  it('produces zero findings on a clean fixture (named interpolation + short non-secret literal)', () => {
+    const servers = loadFixture('clean');
+    assert.deepStrictEqual(run(servers, {}), []);
+  });
+
+  it('every emitted finding carries confidence "verified"', () => {
+    const findings = run(loadFixture('bad'), {});
+    assert.ok(findings.length > 0);
+    for (const f of findings) assert.strictEqual(f.confidence, 'verified');
+  });
+
+  it('every emitted finding carries detector "credential-passthrough" (D-16)', () => {
+    const findings = run(loadFixture('bad'), {});
+    assert.ok(findings.length > 0);
+    for (const f of findings) assert.strictEqual(f.detector, 'credential-passthrough');
+  });
+
+  it('D-15 regression: no finding message includes the raw secret substring from bad.json', () => {
+    const findings = run(loadFixture('bad'), {});
+    assert.ok(findings.length > 0);
+    for (const f of findings) {
+      assert.ok(!f.message.includes(BAD_FIXTURE_SECRET_SUBSTRING));
+      assert.ok(!JSON.stringify(f).includes(BAD_FIXTURE_SECRET_SUBSTRING));
+    }
+  });
+
+  describe('entropy threshold boundary (D-05 pinned thresholds)', () => {
+    it('a 19-char mixed-case+digit value is NOT flagged as high-entropy', () => {
+      const nineteen = 'Ab3'.repeat(7).slice(0, 19);
+      assert.strictEqual(nineteen.length, 19);
+      const servers = [makeServer({ env: { NON_SENSITIVE: nineteen } })];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
+    it('a 20-char mixed-case+digit value IS flagged as high-entropy', () => {
+      const twenty = 'Ab3'.repeat(7).slice(0, 20);
+      assert.strictEqual(twenty.length, 20);
+      const servers = [makeServer({ env: { NON_SENSITIVE: twenty } })];
+      const findings = run(servers, {});
+      assert.ok(findings.some(f => f.id === 'credential-passthrough/high-entropy-literal'));
+    });
+  });
+
+  describe('D-14: named interpolation is the clean pattern', () => {
+    it('${env:NAME} yields zero findings', () => {
+      const servers = [makeServer({ env: { API_KEY: '${env:API_KEY}' } })];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
+    it('${input:NAME} yields zero findings', () => {
+      const servers = [makeServer({ env: { TOKEN: '${input:token}' } })];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+  });
+
+  describe('hostile / edge-case handling', () => {
+    it('empty servers array returns [] and does not throw', () => {
+      assert.deepStrictEqual(run([], {}), []);
+    });
+
+    it('a server with an empty env object produces no findings, no throw', () => {
+      const servers = [makeServer({ env: {} })];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
+    it('a non-string env value is skipped without throwing', () => {
+      const servers = [makeServer({ env: { WEIRD: 123 } })];
+      assert.doesNotThrow(() => run(servers, {}));
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
+    it('does not construct RegExp dynamically from server data', () => {
+      const src = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'lib', 'mcp', 'detectors', 'credential-passthrough.js'), 'utf8');
+      assert.strictEqual((src.match(/new RegExp/g) || []).length, 0);
+    });
+  });
+});

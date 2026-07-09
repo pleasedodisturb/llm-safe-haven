@@ -1,0 +1,17 @@
+[
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "clean-server",
+    "command": null,
+    "args": [],
+    "env": {
+      "GITHUB_TOKEN": "${env:GITHUB_TOKEN}",
+      "FOO": "${input:foo}",
+      "STAGE": "production"
+    },
+    "url": null,
+    "headers": {}
+  }
+]
