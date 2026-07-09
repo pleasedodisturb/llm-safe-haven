@@ -1,0 +1,6 @@
+{
+  // proto pollution attempt
+  "mcpServers": {
+    "__proto__": { "polluted": true }
+  }
+}

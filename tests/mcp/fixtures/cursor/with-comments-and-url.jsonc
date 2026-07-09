@@ -1,0 +1,11 @@
+{
+  // top-level line comment
+  "mcpServers": {
+    "example-server": {
+      "command": "node",
+      /* block comment before args */
+      "args": ["server.js"],
+      "url": "https://mcp.example.com/mcp",
+    },
+  }
+}
