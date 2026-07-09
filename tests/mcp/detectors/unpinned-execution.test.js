@@ -120,6 +120,41 @@ describe('unpinned-execution detector (MCPD-01)', () => {
     });
   });
 
+  describe('WR-03 regression: -p/--package value is the spec to version-check', () => {
+    it('does NOT flag npx -p pkg@1.0.0 serve (pinned via -p, positional is just a binary name)', () => {
+      const servers = [makeServer({ command: 'npx', args: ['-p', 'pkg@1.0.0', 'serve'] })];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
+    it('does NOT flag npx --package pkg@1.0.0 serve', () => {
+      const servers = [makeServer({ command: 'npx', args: ['--package', 'pkg@1.0.0', 'serve'] })];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
+    it('does NOT flag npx --package=pkg@1.0.0 serve', () => {
+      const servers = [makeServer({ command: 'npx', args: ['--package=pkg@1.0.0', 'serve'] })];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
+    it('flags npx -p pkg@latest serve (unpinned -p value)', () => {
+      const servers = [makeServer({ command: 'npx', args: ['-p', 'pkg@latest', 'serve'] })];
+      const findings = run(servers, {});
+      assert.ok(findings.some(f => f.id === 'unpinned-execution/npx-no-version'));
+    });
+
+    it('flags npx -p pkg serve (bare-name -p value)', () => {
+      const servers = [makeServer({ command: 'npx', args: ['-p', 'pkg', 'serve'] })];
+      const findings = run(servers, {});
+      assert.ok(findings.some(f => f.id === 'unpinned-execution/npx-no-version'));
+    });
+
+    it('a dangling trailing -p with no value produces no finding and does not throw', () => {
+      const servers = [makeServer({ command: 'npx', args: ['-p'] })];
+      assert.doesNotThrow(() => run(servers, {}));
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+  });
+
   describe('D-07 boundary: no transport findings from this detector', () => {
     it('a plain http:// remote URL only yields the version-binding rule, never a transport rule', () => {
       const servers = [makeServer({ url: 'http://mcp.example.com/server' })];
