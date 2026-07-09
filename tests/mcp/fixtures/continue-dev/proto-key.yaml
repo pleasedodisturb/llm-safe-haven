@@ -1,0 +1,4 @@
+mcpServers:
+  - __proto__:
+      command: evil-inherited
+    name: innocent-looking

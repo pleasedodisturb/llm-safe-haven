@@ -419,4 +419,29 @@ describe('frozen schema contract', () => {
     assert.strictEqual(server.url, 'https://mcp.example.com');
     assert.strictEqual(server.headers.Authorization, 'Bearer ${TOKEN}');
   });
+
+  it('RV-1: normalizeServer() strips prototype-pollution own-keys from env and headers', () => {
+    // JSON.parse creates __proto__ as an own data property — the normalized
+    // shape must guarantee it never reaches a detector (an unsafe
+    // Object.assign(target, server.env) downstream would invoke the setter).
+    const hostile = JSON.parse(
+      '{"env":{"__proto__":{"polluted":1},"constructor":"x","GOOD":"1"},' +
+      '"headers":{"__proto__":{"polluted":1},"Auth":"y"}}'
+    );
+    const server = normalizeServer({
+      agentId: 'cursor',
+      scope: 'global',
+      configPath: '/fake/.cursor/mcp.json',
+      name: 'srv',
+      command: 'node',
+      env: hostile.env,
+      headers: hostile.headers,
+    });
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(server.env, '__proto__'), false);
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(server.env, 'constructor'), false);
+    assert.strictEqual(server.env.GOOD, '1');
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(server.headers, '__proto__'), false);
+    assert.strictEqual(server.headers.Auth, 'y');
+    assert.strictEqual(({}).polluted, undefined);
+  });
 });

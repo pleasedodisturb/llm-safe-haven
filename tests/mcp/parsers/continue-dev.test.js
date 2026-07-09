@@ -104,4 +104,15 @@ describe('parsers/continue-dev', () => {
     assert.strictEqual(result.reason, 'unreadable');
     assert.strictEqual(result.code, 2);
   });
+
+  it('RV-2: a prototype-pollution mapping key (__proto__/constructor/prototype) fails closed as polluted', () => {
+    // obj['__proto__'] = <object> in the line parsers would set the item's
+    // PROTOTYPE (never an own key), letting command/env be INHERITED from
+    // attacker-controlled YAML past stripProtoPollution — so the reader
+    // must reject the construct outright, same policy as the JSON parsers.
+    const result = parse(source('proto-key.yaml'));
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.reason, 'polluted');
+    assert.strictEqual(result.code, 2);
+  });
 });
