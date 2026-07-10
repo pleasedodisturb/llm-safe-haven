@@ -114,6 +114,35 @@ describe('scope-breadth detector (MCPD-07)', () => {
       const findings = run(servers, {});
       assert.ok(findings.some(f => f.id === 'scope-breadth/unscoped-broad-capability'));
     });
+
+    it('a broad-capability package named only via -p/--package (not the positional token) still fires', () => {
+      // `npx -p mcp-shell-server run` runs `run` FROM mcp-shell-server; the
+      // capability name lives only in the -p value, which the token
+      // extractor previously dropped — a broad server evaded the allowlist.
+      const splitForm = [makeServer({
+        name: 'runner', command: 'npx', args: ['-y', '-p', 'mcp-shell-server', 'run'],
+      })];
+      assert.ok(
+        run(splitForm, {}).some(f => f.id === 'scope-breadth/unscoped-broad-capability'),
+        'split -p form: broad-capability package named via -p was not flagged',
+      );
+
+      const joinedForm = [makeServer({
+        name: 'runner', command: 'npx', args: ['--package=desktop-commander', 'serve'],
+      })];
+      assert.ok(
+        run(joinedForm, {}).some(f => f.id === 'scope-breadth/unscoped-broad-capability'),
+        'joined --package= form: broad-capability package was not flagged',
+      );
+    });
+
+    it('the same -p broad server WITH an explicit path scope produces zero findings', () => {
+      const servers = [makeServer({
+        name: 'runner', command: 'npx',
+        args: ['-p', 'mcp-shell-server', 'run', '/home/user/project'],
+      })];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
   });
 
   describe('hostile / edge-case handling', () => {
