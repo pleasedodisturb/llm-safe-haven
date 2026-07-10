@@ -1,0 +1,24 @@
+[
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "filesystem",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem@1.0.0", "/Users/me/projects"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  },
+  {
+    "agentId": "claude-code",
+    "scope": "project",
+    "configPath": "/fake/.mcp.json",
+    "name": "filesystem",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem@1.0.0", "/Users/me/projects"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  }
+]

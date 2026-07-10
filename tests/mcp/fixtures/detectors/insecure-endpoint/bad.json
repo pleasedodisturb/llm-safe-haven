@@ -1,0 +1,24 @@
+[
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "http-no-auth",
+    "command": null,
+    "args": [],
+    "env": {},
+    "url": "http://mcp.example.com/server",
+    "headers": {}
+  },
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "wildcard-bind-no-auth",
+    "command": null,
+    "args": [],
+    "env": {},
+    "url": "https://0.0.0.0:8080/server",
+    "headers": {}
+  }
+]

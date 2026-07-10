@@ -1,0 +1,24 @@
+[
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "filesystem",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  },
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "my-shell",
+    "command": "npx",
+    "args": ["-y", "mcp-shell"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  }
+]
