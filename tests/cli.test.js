@@ -67,4 +67,21 @@ describe('parseArgs', () => {
     assert.strictEqual(result.flags.json, true);
     assert.strictEqual(result.flags.agent, 'cursor');
   });
+
+  it('parses --online flag', () => {
+    const result = parseArgs(['--online']);
+    assert.strictEqual(result.flags.online, true);
+  });
+
+  it('defaults --online to falsy when absent', () => {
+    const result = parseArgs([]);
+    assert.ok(!result.flags.online);
+  });
+
+  it('combines scan --mcp --online', () => {
+    const result = parseArgs(['scan', '--mcp', '--online']);
+    assert.strictEqual(result.command, 'scan');
+    assert.strictEqual(result.flags.mcp, true);
+    assert.strictEqual(result.flags.online, true);
+  });
 });
