@@ -169,6 +169,52 @@ describe('scanMcp', () => {
     });
     assert.strictEqual(result.code, EXIT.INCOMPLETE);
   });
+
+  describe('WR-01: --online is never a SILENT no-op while detector wiring is pending', () => {
+    function captureStderr(fn) {
+      const original = console.error;
+      const lines = [];
+      console.error = (msg) => { lines.push(String(msg)); };
+      try {
+        fn();
+      } finally {
+        console.error = original;
+      }
+      return lines;
+    }
+
+    it('flags.online prints a stderr notice that the scan ran offline', () => {
+      const lines = captureStderr(() => {
+        scanMcp({ quiet: true, online: true }, { discoverAll: () => [], now: FIXED_NOW });
+      });
+      assert.ok(lines.some(l => l.includes('--online') && l.includes('offline')),
+        `expected an honest --online notice on stderr, got: ${lines}`);
+    });
+
+    it('the notice goes to stderr only — --json stdout stays pure JSON', () => {
+      const originalLog = console.log;
+      let printed = '';
+      console.log = (msg) => { printed = msg; };
+      let stderrLines;
+      try {
+        stderrLines = captureStderr(() => {
+          scanMcp({ json: true, online: true }, { discoverAll: () => [], now: FIXED_NOW });
+        });
+      } finally {
+        console.log = originalLog;
+      }
+      assert.ok(stderrLines.length > 0, 'expected the notice on stderr');
+      const parsed = JSON.parse(printed); // throws if the notice leaked into stdout
+      assert.strictEqual(parsed.offline, true, 'the envelope must stay honest: no network call was made');
+    });
+
+    it('no notice without the flag', () => {
+      const lines = captureStderr(() => {
+        scanMcp({ quiet: true }, { discoverAll: () => [], now: FIXED_NOW });
+      });
+      assert.deepStrictEqual(lines, []);
+    });
+  });
 });
 
 // Schema-freeze gate (Task 2): a checked-in expected-envelope.json fixture
