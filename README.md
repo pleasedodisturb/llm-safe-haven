@@ -84,6 +84,30 @@ We hit the same problems, filed issues, built solutions, and documented everythi
 Key issues from our investigation:
 - [anthropics/claude-code#52471](https://github.com/anthropics/claude-code/issues/52471) -- Sandbox blocks credential managers
 
+## Project Status
+
+Early but active. `llm-safe-haven` is pre-1.0, published on npm, and under regular
+development — adoption is still small and growing. The strength today is depth over
+reach: a [threat model](docs/threat-model.md) tracking 30+ real-world incidents against
+the AI-agent toolchain, hardening guides for seven agents, and a supply-chain scanner
+built against actual attack waves. If you use it, feedback and issues are genuinely
+valued and shape the roadmap.
+
+## Security
+
+`llm-safe-haven` is itself a security tool, so its own supply-chain integrity is treated
+as safety-critical. Found a vulnerability? Please report it privately — see
+[SECURITY.md](SECURITY.md) for the coordinated-disclosure process (do **not** open a
+public issue for security problems).
+
+## Governance
+
+Maintained by [@pleasedodisturb](https://github.com/pleasedodisturb) as the sole
+maintainer and final decision-maker on scope, releases, and security response. Decisions
+are made in the open via GitHub issues and pull requests; contributions are welcome (see
+below) and reviewed by the maintainer. As the project grows, governance and additional
+maintainers will be formalized here.
+
 ## Contributing
 
 Add a new agent module: create `lib/agents/your-agent.js` implementing the standard
