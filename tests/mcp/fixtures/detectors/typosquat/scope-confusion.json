@@ -1,0 +1,35 @@
+[
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "npx-scope-removal",
+    "command": "npx",
+    "args": ["server-filesystem"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  },
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "npx-foreign-scope",
+    "command": "npx",
+    "args": ["@evil/server-filesystem"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  },
+  {
+    "agentId": "claude-code",
+    "scope": "project",
+    "configPath": "/fake/project/.mcp.json",
+    "name": "npx-foreign-scope-fullspec-half",
+    "command": "npx",
+    "args": ["@evil/context7-mcp"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  }
+]

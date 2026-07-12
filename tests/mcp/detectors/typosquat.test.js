@@ -102,6 +102,62 @@ describe('typosquat detector (MCPD-03)', () => {
     });
   });
 
+  describe('WR-04: scope-confusion — exact known scoped name under a missing/foreign scope', () => {
+    it('flags an unscoped publication of a known scoped name half (npx server-filesystem)', () => {
+      const findings = run(loadFixture('scope-confusion'), {});
+      const f = findings.find(x => x.serverName === 'npx-scope-removal');
+      assert.ok(f, 'expected a finding for the scope-removal squat');
+      assert.strictEqual(f.id, 'typosquat/scope-confusion');
+      assert.strictEqual(f.severity, 'high');
+      assert.strictEqual(f.confidence, 'verified');
+      assert.ok(f.message.includes('WITHOUT its scope'), `expected scope-removal wording: ${f.message}`);
+    });
+
+    it('flags a known scoped name half under a foreign scope (npx @evil/server-filesystem)', () => {
+      const findings = run(loadFixture('scope-confusion'), {});
+      const f = findings.find(x => x.serverName === 'npx-foreign-scope');
+      assert.ok(f, 'expected a finding for the foreign-scope squat');
+      assert.strictEqual(f.id, 'typosquat/scope-confusion');
+      assert.ok(f.message.includes('@evil'), `expected the foreign scope named: ${f.message}`);
+    });
+
+    it('flags a full-spec entry\'s name half under a foreign scope (npx @evil/context7-mcp)', () => {
+      const findings = run(loadFixture('scope-confusion'), {});
+      const f = findings.find(x => x.serverName === 'npx-foreign-scope-fullspec-half');
+      assert.ok(f, 'expected a finding for the full-spec name-half squat');
+      assert.strictEqual(f.id, 'typosquat/scope-confusion');
+    });
+
+    it('produces exactly 3 findings on the scope-confusion fixture, all typosquat/scope-confusion', () => {
+      const findings = run(loadFixture('scope-confusion'), {});
+      assert.strictEqual(findings.length, 3);
+      assert.ok(findings.every(f => f.id === 'typosquat/scope-confusion'));
+    });
+
+    it('legitimate exact full-spec and knownScope+bare matches still short-circuit clean', () => {
+      const servers = [
+        makeServer({ command: 'npx', args: ['@modelcontextprotocol/server-filesystem'] }),
+        makeServer({ command: 'npx', args: ['@upstash/context7-mcp'] }),
+      ];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
+    it('a genuinely-unscoped known name (firecrawl-mcp) is still exact-known when unscoped — no finding', () => {
+      const servers = [makeServer({ command: 'npx', args: ['firecrawl-mcp'] })];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
+    it('FP guard: a name half under 4 chars never fires scope-confusion (@evil/mcp vs the "mcp" half of @playwright/mcp)', () => {
+      const servers = [makeServer({ command: 'npx', args: ['@evil/mcp'] })];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
+    it('a knownScopes scope carrying another entry\'s name half stays clean (publishing under it requires owning the scope)', () => {
+      const servers = [makeServer({ command: 'npx', args: ['@stripe/server-filesystem'] })];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+  });
+
   describe('D-02/D-03 algorithm edge cases (isolated synthetic allowlist)', () => {
     let tmpDir;
     let manifestPath;

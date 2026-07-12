@@ -1,6 +1,18 @@
 {
   "manifestVersion": 1,
   "updated": "2026-07-12",
+  "scopedOnly": [
+    "server-filesystem",
+    "server-everything",
+    "server-memory",
+    "server-sequential-thinking",
+    "server-github",
+    "server-postgres",
+    "server-brave-search",
+    "server-slack",
+    "server-google-maps",
+    "server-puppeteer"
+  ],
   "knownScopes": [
     "@modelcontextprotocol",
     "@executeautomation",
