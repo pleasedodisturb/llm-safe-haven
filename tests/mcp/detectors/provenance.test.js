@@ -142,6 +142,83 @@ describe('provenance detector (MCPD-02)', () => {
       });
       assert.ok(findings.some((f) => f.id === 'provenance/fetch-failed'));
     });
+
+    it('WR-03: an oversized Content-Length header is rejected BEFORE any body read (text()/body never touched)', async () => {
+      const servers = loadFixture('bad');
+      let bodyTouched = false;
+      const fetchImpl = async () => ({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => (name === 'content-length' ? String(50 * 1024 * 1024) : null) },
+        get body() { bodyTouched = true; return null; },
+        text: async () => { bodyTouched = true; return '{}'; },
+      });
+      let findings;
+      await assert.doesNotReject(async () => {
+        findings = await run(servers, { online: true, fetchImpl });
+      });
+      assert.ok(findings.some((f) => f.id === 'provenance/fetch-failed'));
+      assert.strictEqual(bodyTouched, false, 'the body must never be read when Content-Length exceeds the cap');
+    });
+
+    it('WR-03: a chunked streaming body with no Content-Length is aborted mid-stream once the cap is crossed', async () => {
+      const servers = loadFixture('bad');
+      // 2MB chunks, endless supply — without the mid-stream cap this
+      // read would buffer forever. The cap (5MB) must cancel the reader
+      // after at most 3 chunks.
+      const chunk = new Uint8Array(2 * 1024 * 1024);
+      let reads = 0;
+      let cancelled = false;
+      const fetchImpl = async () => ({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        body: {
+          getReader: () => ({
+            read: async () => {
+              reads++;
+              return { done: false, value: chunk };
+            },
+            cancel: async () => { cancelled = true; },
+          }),
+        },
+        text: async () => { throw new Error('text() must not be used when a streaming body exists'); },
+      });
+      let findings;
+      await assert.doesNotReject(async () => {
+        findings = await run(servers, { online: true, fetchImpl });
+      });
+      assert.ok(findings.some((f) => f.id === 'provenance/fetch-failed'));
+      assert.ok(cancelled, 'the stream must be cancelled once the cap is crossed');
+      assert.ok(reads <= 4, `read loop must stop at the cap, saw ${reads} reads`);
+    });
+
+    it('WR-03: a small streaming body is read fully and parsed normally', async () => {
+      const servers = loadFixture('bad');
+      const payload = Buffer.from(JSON.stringify({ dist: { attestations: { url: 'https://example.com' } } }));
+      const fetchImpl = async () => {
+        let delivered = false;
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: (name) => (name === 'content-length' ? String(payload.length) : null) },
+          body: {
+            getReader: () => ({
+              read: async () => {
+                if (delivered) return { done: true, value: undefined };
+                delivered = true;
+                return { done: false, value: new Uint8Array(payload) };
+              },
+              cancel: async () => {},
+            }),
+          },
+        };
+      };
+      const findings = await run(servers, { online: true, fetchImpl });
+      // attestations present -> clean for npx servers; nothing degraded.
+      assert.ok(!findings.some((f) => f.id === 'provenance/fetch-failed'));
+      assert.ok(!findings.some((f) => f.id === 'provenance/no-attestation'));
+    });
   });
 
   describe('D-08: npm-only gating', () => {
