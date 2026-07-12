@@ -62,6 +62,15 @@ describe('typosquat detector (MCPD-03)', () => {
         f.id === 'typosquat/near-known-name' && f.serverName === 'npx-scope-squat-memory'));
     });
 
+    it('IN-03: a scope-class hit is phrased as "known scope", never "known package"', () => {
+      const findings = run(loadFixture('bad'), {});
+      const f = findings.find(x => x.serverName === 'npx-scope-squat-memory');
+      assert.ok(f);
+      assert.ok(f.message.includes('known scope "@modelcontextprotocol"'), `expected scope phrasing: ${f.message}`);
+      assert.ok(f.message.includes('scope "@modelcontextprotocoI"'), `expected the compared scope segment named: ${f.message}`);
+      assert.ok(!f.message.includes('known package "@modelcontextprotocol"'), `a scope must not be called a package: ${f.message}`);
+    });
+
     it('flags the typosquat when the server NAME is benign but the args carry it (Pitfall 2 — compares derived pkgName, not server.name)', () => {
       const findings = run(loadFixture('bad'), {});
       assert.ok(findings.some(f =>
