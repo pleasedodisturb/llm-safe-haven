@@ -1,0 +1,13 @@
+[
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "npx-combosquat-filesystem",
+    "command": "npx",
+    "args": ["@modelcontextprotocol/easy-server-filesystem"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  }
+]
