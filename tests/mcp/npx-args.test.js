@@ -5,18 +5,71 @@ const assert = require('node:assert/strict');
 
 const {
   commandBasename,
+  extractSpec,
   packageNameFromSpec,
+  versionFromSpec,
   derivePackageName,
   isSafePackageName,
 } = require('../../lib/mcp/npx-args.js');
 
 describe('npx-args shared helpers (Phase 6, D-15)', () => {
-  it('exports exactly the four documented helpers', () => {
+  it('exports exactly the six documented helpers', () => {
     const mod = require('../../lib/mcp/npx-args.js');
     assert.deepStrictEqual(
       Object.keys(mod).sort(),
-      ['commandBasename', 'derivePackageName', 'isSafePackageName', 'packageNameFromSpec']
+      ['commandBasename', 'derivePackageName', 'extractSpec', 'isSafePackageName', 'packageNameFromSpec', 'versionFromSpec']
     );
+  });
+
+  describe('extractSpec (WR-06: the single shared flag-scan loop)', () => {
+    it('returns the first positional token raw, version suffix intact', () => {
+      assert.strictEqual(extractSpec(['@scope/pkg@1.2.3']), '@scope/pkg@1.2.3');
+    });
+
+    it('returns the -p value, not the trailing command token', () => {
+      assert.strictEqual(extractSpec(['-p', 'pkg@1.0.0', 'serve']), 'pkg@1.0.0');
+    });
+
+    it('returns the --package value and handles the joined --package=<spec> form', () => {
+      assert.strictEqual(extractSpec(['--package', 'pkg@1.0.0', 'serve']), 'pkg@1.0.0');
+      assert.strictEqual(extractSpec(['--package=pkg@1.0.0', 'serve']), 'pkg@1.0.0');
+    });
+
+    it('skips leading flag tokens before the positional spec', () => {
+      assert.strictEqual(extractSpec(['--yes', 'pkg']), 'pkg');
+    });
+
+    it('WR-06 divergence case: a NON-STRING -p value refuses (null) — never falls back to the trailing command token', () => {
+      // Pre-consolidation, the three local copies disagreed here:
+      // unpinned-execution's returned 'cmd' (the wrong token) while
+      // derivePackageName returned null. The shared semantics refuse.
+      assert.strictEqual(extractSpec(['-p', 123, 'cmd']), null);
+    });
+
+    it('returns null for a dangling trailing -p, empty args, and non-array args', () => {
+      assert.strictEqual(extractSpec(['-p']), null);
+      assert.strictEqual(extractSpec([]), null);
+      assert.strictEqual(extractSpec(undefined), null);
+    });
+  });
+
+  describe('versionFromSpec', () => {
+    it('extracts an exact version from unscoped and scoped specs', () => {
+      assert.strictEqual(versionFromSpec('pkg@1.2.3'), '1.2.3');
+      assert.strictEqual(versionFromSpec('@scope/pkg@1.2.3'), '1.2.3');
+    });
+
+    it('extracts range and dist-tag suffixes raw (classification is the caller\'s job)', () => {
+      assert.strictEqual(versionFromSpec('pkg@^1.0.0'), '^1.0.0');
+      assert.strictEqual(versionFromSpec('@scope/pkg@next'), 'next');
+    });
+
+    it('returns null for a bare name (no suffix), a malformed spec, or a non-string', () => {
+      assert.strictEqual(versionFromSpec('pkg'), null);
+      assert.strictEqual(versionFromSpec('@scope/pkg'), null);
+      assert.strictEqual(versionFromSpec('../../evil'), null);
+      assert.strictEqual(versionFromSpec(null), null);
+    });
   });
 
   describe('commandBasename', () => {

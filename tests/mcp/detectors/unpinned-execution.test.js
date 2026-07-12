@@ -153,6 +153,16 @@ describe('unpinned-execution detector (MCPD-01)', () => {
       assert.doesNotThrow(() => run(servers, {}));
       assert.deepStrictEqual(run(servers, {}), []);
     });
+
+    it('WR-06 unified semantics: a -p with a NON-STRING value refuses to derive a spec (no finding, never falls back to the trailing token)', () => {
+      // Pre-consolidation this detector's local copy skipped the pair and
+      // version-checked 'cmd' (a binary name, not the installed package);
+      // the shared extractSpec() refuses instead — consistent with
+      // derivePackageName()'s behavior in every other detector.
+      const servers = [makeServer({ command: 'npx', args: ['-p', 123, 'cmd'] })];
+      assert.doesNotThrow(() => run(servers, {}));
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
   });
 
   describe('D-07 boundary: no transport findings from this detector', () => {
