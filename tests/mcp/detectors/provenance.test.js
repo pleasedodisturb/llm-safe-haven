@@ -184,6 +184,14 @@ describe('provenance detector (MCPD-02)', () => {
       await run(servers, { online: true, fetchImpl });
       assert.ok(requestedUrl, 'expected fetchImpl to be called');
       assert.ok(requestedUrl.endsWith('/1.2.3'), `expected pinned version in URL: ${requestedUrl}`);
+      // IN-02: the scoped package name must be a single encoded path
+      // segment (@scope/name -> %40scope%2Fname) — the registry URL
+      // shape verified live; a change that stops encoding the '/'
+      // would silently alter the path structure.
+      assert.ok(
+        requestedUrl.includes(encodeURIComponent('@modelcontextprotocol/server-filesystem')),
+        `expected encoded scoped name segment in URL: ${requestedUrl}`
+      );
     });
 
     it('an unpinned spec fetches "latest" and the message notes the caveat', async () => {
@@ -211,6 +219,74 @@ describe('provenance detector (MCPD-02)', () => {
       const f = findings.find((x) => x.id === 'provenance/no-attestation');
       assert.ok(f);
       assert.ok(f.message.toLowerCase().includes('latest'), `expected latest caveat in: ${f.message}`);
+    });
+
+    // WR-02 regression: ranges resolve against 'latest' with the caveat;
+    // dist-tags are fetched directly but still carry the floating-ref
+    // caveat; a v-prefixed exact semver is normalized (the registry
+    // rejects v-prefixed versions).
+    function npxServer(spec) {
+      return [{
+        agentId: 'claude-code',
+        scope: 'user',
+        configPath: '/fake',
+        name: 'wr02',
+        command: 'npx',
+        args: [spec],
+        env: {},
+        url: null,
+        headers: {},
+      }];
+    }
+
+    function capturingFetch(holder) {
+      return async (url) => {
+        holder.url = url;
+        return { ok: true, status: 200, text: async () => JSON.stringify({ dist: {} }) };
+      };
+    }
+
+    it('WR-02: a caret range (pkg@^1.0.0) fetches "latest" and the caveat renders', async () => {
+      const holder = {};
+      const findings = await run(npxServer('pkg@^1.0.0'), { online: true, fetchImpl: capturingFetch(holder) });
+      assert.ok(holder.url.endsWith('/latest'), `expected latest fetch for a caret range: ${holder.url}`);
+      const f = findings.find((x) => x.id === 'provenance/no-attestation');
+      assert.ok(f);
+      assert.ok(f.message.includes('latest'), `expected floating-ref caveat in: ${f.message}`);
+    });
+
+    it('WR-02: a tilde range (pkg@~2.3.4) fetches "latest", never the raw range', async () => {
+      const holder = {};
+      await run(npxServer('pkg@~2.3.4'), { online: true, fetchImpl: capturingFetch(holder) });
+      assert.ok(holder.url.endsWith('/latest'), `expected latest fetch for a tilde range: ${holder.url}`);
+      assert.ok(!holder.url.includes('~'), `raw range must never reach the URL: ${holder.url}`);
+    });
+
+    it('WR-02: an x-range (pkg@1.x) and an operator range (pkg@>=2.0.0) both fetch "latest"', async () => {
+      const holder = {};
+      await run(npxServer('pkg@1.x'), { online: true, fetchImpl: capturingFetch(holder) });
+      assert.ok(holder.url.endsWith('/latest'), `expected latest for x-range: ${holder.url}`);
+      await run(npxServer('pkg@>=2.0.0'), { online: true, fetchImpl: capturingFetch(holder) });
+      assert.ok(holder.url.endsWith('/latest'), `expected latest for operator range: ${holder.url}`);
+    });
+
+    it('WR-02: a dist-tag (@scope/pkg@next) is fetched directly AND still carries the floating-ref caveat', async () => {
+      const holder = {};
+      const findings = await run(npxServer('@scope/pkg@next'), { online: true, fetchImpl: capturingFetch(holder) });
+      assert.ok(holder.url.endsWith('/next'), `expected direct dist-tag fetch: ${holder.url}`);
+      const f = findings.find((x) => x.id === 'provenance/no-attestation');
+      assert.ok(f, 'expected a no-attestation finding');
+      assert.ok(f.message.includes('"next"'), `expected the dist-tag caveat in: ${f.message}`);
+      assert.ok(f.message.includes('floating'), `expected floating-ref wording in: ${f.message}`);
+    });
+
+    it('WR-02: a v-prefixed exact semver (pkg@v1.2.3) is normalized to /1.2.3 and pinned (no caveat)', async () => {
+      const holder = {};
+      const findings = await run(npxServer('pkg@v1.2.3'), { online: true, fetchImpl: capturingFetch(holder) });
+      assert.ok(holder.url.endsWith('/1.2.3'), `expected normalized version in URL: ${holder.url}`);
+      const f = findings.find((x) => x.id === 'provenance/no-attestation');
+      assert.ok(f);
+      assert.ok(!f.message.includes('floating'), `pinned spec must not carry the caveat: ${f.message}`);
     });
 
     it('never re-reports unpinnedness itself (that is MCPD-01 territory)', async () => {
