@@ -70,6 +70,14 @@ describe('typosquat detector (MCPD-03)', () => {
       assert.ok(f, 'expected the --from spec, not the benign command token, to be compared');
     });
 
+    it('F3: flags an UNSCOPED typo of a full-spec entry\'s name half (kontext7-mcp), naming the full spec', () => {
+      const servers = [makeServer({ command: 'npx', args: ['kontext7-mcp'] })];
+      const findings = run(servers, {});
+      const f = findings.find(x => x.id === 'typosquat/near-known-name');
+      assert.ok(f, 'expected a near-known-name finding for the unscoped name-half typo');
+      assert.ok(f.message.includes('@upstash/context7-mcp'), `message should name the full spec: ${f.message}`);
+    });
+
     it('flags @upstash/kontext7-mcp as a SEPARATE finding against the full-spec-stored @upstash/context7-mcp (comparison class 3)', () => {
       const findings = run(loadFixture('bad'), {});
       const hit = findings.find(f =>
@@ -262,6 +270,31 @@ describe('typosquat detector (MCPD-03)', () => {
       } finally {
         fs.rmSync(tmpDir, { recursive: true, force: true });
       }
+    });
+
+    it('F3 lockstep check: a scopedOnly[] entry missing from servers[] fails closed as allowlist-unavailable', () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-typosquat-drift-'));
+      const manifestPath = path.join(tmpDir, 'drifted.json');
+      fs.writeFileSync(manifestPath, JSON.stringify({
+        manifestVersion: 1,
+        knownScopes: ['@acme'],
+        scopedOnly: ['server-ghost'], // NOT present in servers[] — drifted
+        servers: ['server-real'],
+      }));
+      try {
+        const findings = run(loadFixture('bad'), { manifestPath });
+        assert.strictEqual(findings.length, 1);
+        assert.strictEqual(findings[0].id, 'typosquat/allowlist-unavailable');
+        assert.strictEqual(findings[0].severity, 'info');
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it('F3 sanity: the BUNDLED manifest passes the lockstep check (no context override)', () => {
+      // If manifests/mcp-known-servers.json ever drifts, this fails loudly.
+      const servers = [makeServer({ command: 'npx', args: ['firecrawl-mcp'] })];
+      assert.deepStrictEqual(run(servers, {}), []);
     });
   });
 
