@@ -48,6 +48,14 @@ describe('typosquat detector (MCPD-03)', () => {
         f.id === 'typosquat/near-known-name' && f.serverName === 'uvx-typo-fetch'));
     });
 
+    it('F2: flags a PINNED uvx typosquat (mcp-server-fetc==1.0.0) — the == suffix is split off before comparison', () => {
+      const servers = [makeServer({ command: 'uvx', args: ['mcp-server-fetc==1.0.0'] })];
+      const findings = run(servers, {});
+      const f = findings.find(x => x.id === 'typosquat/near-known-name');
+      assert.ok(f, 'expected a near-known-name finding for the ==-pinned typosquat');
+      assert.ok(f.message.includes('mcp-server-fetch'), `expected the known name in: ${f.message}`);
+    });
+
     it('flags @upstash/kontext7-mcp as a SEPARATE finding against the full-spec-stored @upstash/context7-mcp (comparison class 3)', () => {
       const findings = run(loadFixture('bad'), {});
       const hit = findings.find(f =>

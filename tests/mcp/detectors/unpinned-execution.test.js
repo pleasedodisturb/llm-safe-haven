@@ -117,6 +117,25 @@ describe('unpinned-execution detector (MCPD-01)', () => {
         const servers = [makeServer({ command: 'uvx', args: ['--from', 'pkg==2.0.0', 'pkg'] })];
         assert.deepStrictEqual(run(servers, {}), []);
       });
+
+      it('F2: flags uvx --from pkg==1.* as unpinned (PEP 440 prefix match floats, despite the == operator)', () => {
+        const servers = [makeServer({ command: 'uvx', args: ['--from', 'pkg==1.*', 'pkg'] })];
+        const findings = run(servers, {});
+        assert.ok(findings.some(f => f.id === 'unpinned-execution/uvx-no-version'));
+      });
+    });
+
+    describe('F2 regression: PyPI == pins on the POSITIONAL uvx spec', () => {
+      it('does NOT flag uvx mcp-server-fetch==1.0.0 (exact == pin was previously parsed as part of the name)', () => {
+        const servers = [makeServer({ command: 'uvx', args: ['mcp-server-fetch==1.0.0'] })];
+        assert.deepStrictEqual(run(servers, {}), []);
+      });
+
+      it('flags uvx pkg>=0.1 as unpinned (positional range operator)', () => {
+        const servers = [makeServer({ command: 'uvx', args: ['pkg>=0.1'] })];
+        const findings = run(servers, {});
+        assert.ok(findings.some(f => f.id === 'unpinned-execution/uvx-no-version'));
+      });
     });
   });
 

@@ -8,16 +8,18 @@ const {
   extractSpec,
   packageNameFromSpec,
   versionFromSpec,
+  classifySpecSuffix,
+  EXACT_SEMVER_RE,
   derivePackageName,
   isSafePackageName,
 } = require('../../lib/mcp/npx-args.js');
 
 describe('npx-args shared helpers (Phase 6, D-15)', () => {
-  it('exports exactly the six documented helpers', () => {
+  it('exports exactly the eight documented helpers', () => {
     const mod = require('../../lib/mcp/npx-args.js');
     assert.deepStrictEqual(
       Object.keys(mod).sort(),
-      ['commandBasename', 'derivePackageName', 'extractSpec', 'isSafePackageName', 'packageNameFromSpec', 'versionFromSpec']
+      ['EXACT_SEMVER_RE', 'classifySpecSuffix', 'commandBasename', 'derivePackageName', 'extractSpec', 'isSafePackageName', 'packageNameFromSpec', 'versionFromSpec']
     );
   });
 
@@ -70,6 +72,51 @@ describe('npx-args shared helpers (Phase 6, D-15)', () => {
       assert.strictEqual(versionFromSpec('../../evil'), null);
       assert.strictEqual(versionFromSpec(null), null);
     });
+
+    it('F2: extracts PyPI/PEP 508 operator suffixes WITH the operator', () => {
+      assert.strictEqual(versionFromSpec('pkg==1.0.0'), '==1.0.0');
+      assert.strictEqual(versionFromSpec('pkg>=0.1'), '>=0.1');
+      assert.strictEqual(versionFromSpec('pkg~=1.4'), '~=1.4');
+      assert.strictEqual(versionFromSpec('pkg!=2.0'), '!=2.0');
+      assert.strictEqual(versionFromSpec('pkg<=3'), '<=3');
+    });
+  });
+
+  describe('classifySpecSuffix (F8: the single shared pin classification)', () => {
+    it('classifies exact npm semvers as "exact"', () => {
+      assert.strictEqual(classifySpecSuffix('1.2.3'), 'exact');
+      assert.strictEqual(classifySpecSuffix('v1.2.3'), 'exact');
+      assert.strictEqual(classifySpecSuffix('1.2.3-beta.1'), 'exact');
+      assert.strictEqual(classifySpecSuffix('1.2.3+build.5'), 'exact');
+    });
+
+    it('F2: classifies an exact PyPI == pin as "exact", but a ==-prefix wildcard as "range"', () => {
+      assert.strictEqual(classifySpecSuffix('==1.0.0'), 'exact');
+      assert.strictEqual(classifySpecSuffix('==1.0.0rc1'), 'exact');
+      assert.strictEqual(classifySpecSuffix('==1.*'), 'range');
+    });
+
+    it('classifies ranges, wildcards, and partial versions as "range"', () => {
+      for (const s of ['^1.0.0', '~2.3.4', '>=0.1', '~=1.4', '!=2.0', '<3', '1', '1.2', '1.x', '*']) {
+        assert.strictEqual(classifySpecSuffix(s), 'range', `expected range for ${s}`);
+      }
+    });
+
+    it('classifies dist-tags as "tag"', () => {
+      assert.strictEqual(classifySpecSuffix('latest'), 'tag');
+      assert.strictEqual(classifySpecSuffix('next'), 'tag');
+      assert.strictEqual(classifySpecSuffix('canary'), 'tag');
+    });
+
+    it('returns null for a missing suffix (bare name) or non-string', () => {
+      assert.strictEqual(classifySpecSuffix(null), null);
+      assert.strictEqual(classifySpecSuffix(''), null);
+      assert.strictEqual(classifySpecSuffix(undefined), null);
+    });
+
+    it('EXACT_SEMVER_RE capture group normalizes the v prefix away', () => {
+      assert.strictEqual(EXACT_SEMVER_RE.exec('v1.2.3')[1], '1.2.3');
+    });
   });
 
   describe('commandBasename', () => {
@@ -107,6 +154,13 @@ describe('npx-args shared helpers (Phase 6, D-15)', () => {
 
     it('strips a trailing @version from an unscoped spec', () => {
       assert.strictEqual(packageNameFromSpec('pkg@1.2.3'), 'pkg');
+    });
+
+    it('F2: strips PyPI/PEP 508 operator suffixes (== >= ~= !=) from a uvx-style spec', () => {
+      assert.strictEqual(packageNameFromSpec('mcp-server-fetch==1.0.0'), 'mcp-server-fetch');
+      assert.strictEqual(packageNameFromSpec('pkg>=0.1'), 'pkg');
+      assert.strictEqual(packageNameFromSpec('pkg~=1.4'), 'pkg');
+      assert.strictEqual(packageNameFromSpec('pkg!=2.0'), 'pkg');
     });
 
     it('returns null for a path-traversal spec (CR-02)', () => {
