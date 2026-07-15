@@ -21,14 +21,13 @@ function throwingFetch() {
   throw new Error('fetchImpl must never be called when offline (MCPO-04/D-11)');
 }
 
-// Injected fetchImpl factory matching the registry version-doc response
-// shape (06-RESEARCH.md Pattern 2): { ok, status, text() }.
-function fetchReturning({ ok = true, status = 200, body = null } = {}) {
-  return async () => ({
-    ok,
-    status,
-    text: async () => JSON.stringify(body),
-  });
+// Injected fetchImpl factory returning a REAL Response (Node 18 global)
+// so the body is a genuine ReadableStream, exactly like real fetch —
+// F7 removed the text()-only fallback (it buffered the whole body
+// before a UTF-16-unit size check), so every double must stream.
+// Response derives .ok from the status code, like fetch does.
+function fetchReturning({ status = 200, body = null } = {}) {
+  return async () => new Response(JSON.stringify(body), { status });
 }
 
 describe('provenance detector (MCPD-02)', () => {
@@ -125,7 +124,7 @@ describe('provenance detector (MCPD-02)', () => {
 
     it('a 404-shaped response produces provenance/fetch-failed, NOT no-attestation (Pitfall 5)', async () => {
       const servers = loadFixture('bad');
-      const fetchImpl = fetchReturning({ ok: false, status: 404, body: 'Not Found' });
+      const fetchImpl = fetchReturning({ status: 404, body: 'Not Found' });
       const findings = await run(servers, { online: true, fetchImpl });
       const provenanceFindings = findings.filter((f) => f.id.startsWith('provenance/'));
       assert.ok(provenanceFindings.some((f) => f.id === 'provenance/fetch-failed'));
@@ -193,6 +192,38 @@ describe('provenance detector (MCPD-02)', () => {
       assert.ok(reads <= 4, `read loop must stop at the cap, saw ${reads} reads`);
     });
 
+    it('F7: a response WITHOUT a streaming body degrades to fetch-failed — the text() fallback (unbounded buffering + UTF-16-unit size check) is gone', async () => {
+      const servers = loadFixture('bad');
+      let textCalled = false;
+      const fetchImpl = async () => ({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        body: null,
+        text: async () => { textCalled = true; return '{}'; },
+      });
+      let findings;
+      await assert.doesNotReject(async () => {
+        findings = await run(servers, { online: true, fetchImpl });
+      });
+      assert.ok(findings.some((f) => f.id === 'provenance/fetch-failed'));
+      assert.strictEqual(textCalled, false, 'text() must never be called — there is no fallback read');
+    });
+
+    it('F7: the size cap counts BYTES, not UTF-16 code units — 2M euro-sign chars (6MB UTF-8) exceed the 5MB cap', async () => {
+      const servers = loadFixture('bad');
+      // 2 * 1024 * 1024 code units — under the cap if (mis)counted in
+      // UTF-16 units, but 3 bytes each in UTF-8 = 6MB > 5MB.
+      const multiByte = '€'.repeat(2 * 1024 * 1024);
+      const fetchImpl = async () => new Response(multiByte, { status: 200 });
+      let findings;
+      await assert.doesNotReject(async () => {
+        findings = await run(servers, { online: true, fetchImpl });
+      });
+      assert.ok(findings.some((f) => f.id === 'provenance/fetch-failed'),
+        'a 6MB-in-bytes body must be rejected even though it is only 2M UTF-16 units');
+    });
+
     it('WR-03: a small streaming body is read fully and parsed normally', async () => {
       const servers = loadFixture('bad');
       const payload = Buffer.from(JSON.stringify({ dist: { attestations: { url: 'https://example.com' } } }));
@@ -256,7 +287,7 @@ describe('provenance detector (MCPD-02)', () => {
       let requestedUrl = null;
       const fetchImpl = async (url) => {
         requestedUrl = url;
-        return { ok: true, status: 200, text: async () => JSON.stringify({ dist: {} }) };
+        return new Response(JSON.stringify({ dist: {} }), { status: 200 });
       };
       await run(servers, { online: true, fetchImpl });
       assert.ok(requestedUrl, 'expected fetchImpl to be called');
@@ -288,7 +319,7 @@ describe('provenance detector (MCPD-02)', () => {
       let requestedUrl = null;
       const fetchImpl = async (url) => {
         requestedUrl = url;
-        return { ok: true, status: 200, text: async () => JSON.stringify({ dist: {} }) };
+        return new Response(JSON.stringify({ dist: {} }), { status: 200 });
       };
       const findings = await run(servers, { online: true, fetchImpl });
       assert.ok(requestedUrl, 'expected fetchImpl to be called');
@@ -319,7 +350,7 @@ describe('provenance detector (MCPD-02)', () => {
     function capturingFetch(holder) {
       return async (url) => {
         holder.url = url;
-        return { ok: true, status: 200, text: async () => JSON.stringify({ dist: {} }) };
+        return new Response(JSON.stringify({ dist: {} }), { status: 200 });
       };
     }
 
