@@ -67,4 +67,80 @@ describe('parseArgs', () => {
     assert.strictEqual(result.flags.json, true);
     assert.strictEqual(result.flags.agent, 'cursor');
   });
+
+  it('parses --online flag', () => {
+    const result = parseArgs(['--online']);
+    assert.strictEqual(result.flags.online, true);
+  });
+
+  it('defaults --online to falsy when absent', () => {
+    const result = parseArgs([]);
+    assert.ok(!result.flags.online);
+  });
+
+  it('combines scan --mcp --online', () => {
+    const result = parseArgs(['scan', '--mcp', '--online']);
+    assert.strictEqual(result.command, 'scan');
+    assert.strictEqual(result.flags.mcp, true);
+    assert.strictEqual(result.flags.online, true);
+  });
+
+  describe('WR-05: unknown flags are never silently ignored', () => {
+    function captureStderr(fn) {
+      const original = console.error;
+      const lines = [];
+      console.error = (msg) => { lines.push(String(msg)); };
+      try {
+        return { result: fn(), lines };
+      } finally {
+        console.error = original;
+      }
+    }
+
+    it('a typo\'d --onlien produces a stderr warning and is recorded in unknownFlags', () => {
+      const { result, lines } = captureStderr(() => parseArgs(['scan', '--mcp', '--onlien']));
+      assert.deepStrictEqual(result.unknownFlags, ['--onlien']);
+      assert.ok(!result.flags.online, 'the typo must not set the real flag');
+      assert.ok(lines.some(l => l.includes('--onlien')), `expected a warning naming the typo, got: ${lines}`);
+    });
+
+    it('a typo\'d --supply-chian produces a stderr warning and is recorded in unknownFlags', () => {
+      const { result, lines } = captureStderr(() => parseArgs(['scan', '--supply-chian']));
+      assert.deepStrictEqual(result.unknownFlags, ['--supply-chian']);
+      assert.ok(!result.flags.supplyChain);
+      assert.ok(lines.some(l => l.includes('--supply-chian')));
+    });
+
+    it('known flags never warn and unknownFlags stays empty', () => {
+      const { result, lines } = captureStderr(() => parseArgs(['scan', '--mcp', '--online', '--json']));
+      assert.deepStrictEqual(result.unknownFlags, []);
+      assert.deepStrictEqual(lines, []);
+    });
+  });
+
+  describe('IN-04: --agent value parsing', () => {
+    function captureStderr(fn) {
+      const original = console.error;
+      const lines = [];
+      console.error = (msg) => { lines.push(String(msg)); };
+      try {
+        return { result: fn(), lines };
+      } finally {
+        console.error = original;
+      }
+    }
+
+    it('--agent --json warns, leaves agent unset, and still parses --json', () => {
+      const { result, lines } = captureStderr(() => parseArgs(['--agent', '--json']));
+      assert.strictEqual(result.flags.agent, undefined);
+      assert.strictEqual(result.flags.json, true, 'the following flag must not be consumed as the --agent value');
+      assert.ok(lines.some(l => l.includes('--agent requires a value')));
+    });
+
+    it('a trailing valueless --agent warns instead of being silently dropped', () => {
+      const { result, lines } = captureStderr(() => parseArgs(['audit', '--agent']));
+      assert.strictEqual(result.flags.agent, undefined);
+      assert.ok(lines.some(l => l.includes('--agent requires a value')));
+    });
+  });
 });

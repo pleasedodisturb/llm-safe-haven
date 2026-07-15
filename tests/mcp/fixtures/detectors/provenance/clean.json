@@ -1,0 +1,13 @@
+[
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "npm-attested-server",
+    "command": "npx",
+    "args": ["@modelcontextprotocol/server-filesystem@1.2.3"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  }
+]

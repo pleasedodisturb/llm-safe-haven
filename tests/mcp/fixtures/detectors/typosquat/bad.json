@@ -1,0 +1,57 @@
+[
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "npx-typo-filesystem",
+    "command": "npx",
+    "args": ["@modelcontextprotocol/server-filesytem"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  },
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "uvx-typo-fetch",
+    "command": "uvx",
+    "args": ["mcp-server-fetc"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  },
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "npx-typo-kontext7",
+    "command": "npx",
+    "args": ["@upstash/kontext7-mcp"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  },
+  {
+    "agentId": "claude-code",
+    "scope": "project",
+    "configPath": "/fake/project/.mcp.json",
+    "name": "npx-scope-squat-memory",
+    "command": "npx",
+    "args": ["@modelcontextprotocoI/server-memory"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  },
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "totally-safe-server",
+    "command": "npx",
+    "args": ["@modelcontextprotocol/server-filesytem"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  }
+]

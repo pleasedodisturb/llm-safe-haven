@@ -1,0 +1,35 @@
+[
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "npx-exact-filesystem",
+    "command": "npx",
+    "args": ["@modelcontextprotocol/server-filesystem"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  },
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "npx-exact-context7",
+    "command": "npx",
+    "args": ["@upstash/context7-mcp"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  },
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "remote-url-only",
+    "command": null,
+    "args": [],
+    "env": {},
+    "url": "https://mcp.example.com/definitely-not-a-typosquat",
+    "headers": {}
+  }
+]

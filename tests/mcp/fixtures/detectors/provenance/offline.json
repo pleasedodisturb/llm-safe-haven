@@ -1,0 +1,24 @@
+[
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "offline-server-unpinned",
+    "command": "npx",
+    "args": ["@modelcontextprotocol/server-filesystem"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  },
+  {
+    "agentId": "claude-code",
+    "scope": "user",
+    "configPath": "/fake/.claude.json",
+    "name": "offline-server-pinned",
+    "command": "npx",
+    "args": ["some-other-package@2.0.0"],
+    "env": {},
+    "url": null,
+    "headers": {}
+  }
+]

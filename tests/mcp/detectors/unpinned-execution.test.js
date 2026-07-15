@@ -117,6 +117,25 @@ describe('unpinned-execution detector (MCPD-01)', () => {
         const servers = [makeServer({ command: 'uvx', args: ['--from', 'pkg==2.0.0', 'pkg'] })];
         assert.deepStrictEqual(run(servers, {}), []);
       });
+
+      it('F2: flags uvx --from pkg==1.* as unpinned (PEP 440 prefix match floats, despite the == operator)', () => {
+        const servers = [makeServer({ command: 'uvx', args: ['--from', 'pkg==1.*', 'pkg'] })];
+        const findings = run(servers, {});
+        assert.ok(findings.some(f => f.id === 'unpinned-execution/uvx-no-version'));
+      });
+    });
+
+    describe('F2 regression: PyPI == pins on the POSITIONAL uvx spec', () => {
+      it('does NOT flag uvx mcp-server-fetch==1.0.0 (exact == pin was previously parsed as part of the name)', () => {
+        const servers = [makeServer({ command: 'uvx', args: ['mcp-server-fetch==1.0.0'] })];
+        assert.deepStrictEqual(run(servers, {}), []);
+      });
+
+      it('flags uvx pkg>=0.1 as unpinned (positional range operator)', () => {
+        const servers = [makeServer({ command: 'uvx', args: ['pkg>=0.1'] })];
+        const findings = run(servers, {});
+        assert.ok(findings.some(f => f.id === 'unpinned-execution/uvx-no-version'));
+      });
     });
   });
 
@@ -150,6 +169,45 @@ describe('unpinned-execution detector (MCPD-01)', () => {
 
     it('a dangling trailing -p with no value produces no finding and does not throw', () => {
       const servers = [makeServer({ command: 'npx', args: ['-p'] })];
+      assert.doesNotThrow(() => run(servers, {}));
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
+    it('WR-06 unified semantics: a -p with a NON-STRING value refuses to derive a spec (no finding, never falls back to the trailing token)', () => {
+      // Pre-consolidation this detector's local copy skipped the pair and
+      // version-checked 'cmd' (a binary name, not the installed package);
+      // the shared extractSpec() refuses instead — consistent with
+      // derivePackageName()'s behavior in every other detector.
+      const servers = [makeServer({ command: 'npx', args: ['-p', 123, 'cmd'] })];
+      assert.doesNotThrow(() => run(servers, {}));
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
+    it('F5: -p followed by a flag-shaped token refuses (no unpinned FP against the flag, no fallback to the positional)', () => {
+      const servers = [makeServer({ command: 'npx', args: ['-p', '--yes', 'cowsay@1.0.0'] })];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+  });
+
+  describe('F1 regression: known value-taking flags never masquerade as the spec', () => {
+    it('does NOT flag npx --loglevel warn pkg@1.2.3 (flag value skipped, pinned positional found)', () => {
+      const servers = [makeServer({ command: 'npx', args: ['--loglevel', 'warn', 'pkg@1.2.3'] })];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
+    it('flags uvx --python 3.12 bare-pkg as unpinned (the Python version is not the spec)', () => {
+      const servers = [makeServer({ command: 'uvx', args: ['--python', '3.12', 'bare-pkg'] })];
+      const findings = run(servers, {});
+      assert.ok(findings.some(f => f.id === 'unpinned-execution/uvx-no-version'));
+    });
+
+    it('does NOT flag uvx --python 3.12 pkg==2.0.0 (pinned positional after a skipped flag value)', () => {
+      const servers = [makeServer({ command: 'uvx', args: ['--python', '3.12', 'pkg==2.0.0'] })];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
+    it('a uvx --from with a non-string value refuses to derive (no finding, no throw) — F5 unified refusal semantics', () => {
+      const servers = [makeServer({ command: 'uvx', args: ['--from', 123, 'cmd'] })];
       assert.doesNotThrow(() => run(servers, {}));
       assert.deepStrictEqual(run(servers, {}), []);
     });
