@@ -122,6 +122,31 @@ describe('provenance detector (MCPD-02)', () => {
       assert.strictEqual(f.confidence, 'unverified');
     });
 
+    it('passes redirect:error so a registry 3xx is never followed (SSRF hardening)', async () => {
+      const servers = loadFixture('bad');
+      let seenOpts;
+      // fetch() with redirect:'error' rejects on a redirect; simulate that
+      // by throwing when the option is present, and record the option so we
+      // also assert it is actually passed (not silently dropped).
+      const fetchImpl = async (_url, opts) => {
+        seenOpts = opts;
+        throw new TypeError('unexpected redirect');
+      };
+      let findings;
+      await assert.doesNotReject(async () => {
+        findings = await run(servers, { online: true, fetchImpl });
+      });
+      assert.strictEqual(seenOpts.redirect, 'error', 'fetch must be called with redirect:error');
+      assert.ok(
+        findings.some((f) => f.id === 'provenance/fetch-failed'),
+        'a redirected (non-followed) lookup must degrade to fetch-failed',
+      );
+      assert.ok(
+        !findings.some((f) => f.id === 'provenance/no-attestation'),
+        'a redirect must never be misreported as no-attestation',
+      );
+    });
+
     it('a 404-shaped response produces provenance/fetch-failed, NOT no-attestation (Pitfall 5)', async () => {
       const servers = loadFixture('bad');
       const fetchImpl = fetchReturning({ status: 404, body: 'Not Found' });
