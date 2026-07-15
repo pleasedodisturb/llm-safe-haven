@@ -56,6 +56,20 @@ describe('typosquat detector (MCPD-03)', () => {
       assert.ok(f.message.includes('mcp-server-fetch'), `expected the known name in: ${f.message}`);
     });
 
+    it('F1: flags a uvx typosquat behind --python 3.12 (the flag value is never mistaken for the spec)', () => {
+      const servers = [makeServer({ command: 'uvx', args: ['--python', '3.12', 'mcp-server-fetc'] })];
+      const findings = run(servers, {});
+      assert.ok(findings.some(f => f.id === 'typosquat/near-known-name'),
+        'expected the positional after --python <value> to be compared');
+    });
+
+    it('F1: flags a uvx typosquat selected via --from (the --from value is the installed package)', () => {
+      const servers = [makeServer({ command: 'uvx', args: ['--from', 'mcp-server-fetc==1.0.0', 'mcp-server-fetch'] })];
+      const findings = run(servers, {});
+      const f = findings.find(x => x.id === 'typosquat/near-known-name');
+      assert.ok(f, 'expected the --from spec, not the benign command token, to be compared');
+    });
+
     it('flags @upstash/kontext7-mcp as a SEPARATE finding against the full-spec-stored @upstash/context7-mcp (comparison class 3)', () => {
       const findings = run(loadFixture('bad'), {});
       const hit = findings.find(f =>

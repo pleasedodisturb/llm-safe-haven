@@ -53,6 +53,64 @@ describe('npx-args shared helpers (Phase 6, D-15)', () => {
       assert.strictEqual(extractSpec([]), null);
       assert.strictEqual(extractSpec(undefined), null);
     });
+
+    describe('F1: per-runner value-taking flag grammar', () => {
+      it('npx: skips a known value-taking flag WITH its value (--loglevel warn)', () => {
+        assert.strictEqual(extractSpec(['--loglevel', 'warn', 'pkg@1.2.3'], 'npx'), 'pkg@1.2.3');
+      });
+
+      it('npx: skips -c/--call and --node-arg values', () => {
+        assert.strictEqual(extractSpec(['-c', 'echo hi', 'pkg'], 'npx'), 'pkg');
+        assert.strictEqual(extractSpec(['--node-arg', '--max-old-space-size=512', 'pkg'], 'npx'), 'pkg');
+        assert.strictEqual(extractSpec(['--registry', 'https://registry.example.com', 'pkg'], 'npx'), 'pkg');
+      });
+
+      it('uvx: -p is --python, NOT --package — its value is skipped, the positional is the spec', () => {
+        assert.strictEqual(extractSpec(['-p', '3.12', 'real-pkg'], 'uvx'), 'real-pkg');
+        assert.strictEqual(extractSpec(['--python', '3.12', 'real-pkg'], 'uvx'), 'real-pkg');
+      });
+
+      it('uvx: --from value IS the spec (split and joined forms), not the trailing command token', () => {
+        assert.strictEqual(extractSpec(['--from', 'pkg==1.0.0', 'cmd'], 'uvx'), 'pkg==1.0.0');
+        assert.strictEqual(extractSpec(['--from=pkg==1.0.0', 'cmd'], 'uvx'), 'pkg==1.0.0');
+      });
+
+      it('uvx: skips --with/--index-url/--constraint values before the positional spec', () => {
+        assert.strictEqual(extractSpec(['--with', 'extra-pkg', 'real-pkg'], 'uvx'), 'real-pkg');
+        assert.strictEqual(extractSpec(['--index-url', 'https://pypi.example.com', 'real-pkg'], 'uvx'), 'real-pkg');
+        assert.strictEqual(extractSpec(['--constraint', 'constraints.txt', 'real-pkg'], 'uvx'), 'real-pkg');
+      });
+
+      it('an omitted/unknown runner uses the npx grammar (historical default)', () => {
+        assert.strictEqual(extractSpec(['--loglevel', 'warn', 'pkg']), 'pkg');
+        assert.strictEqual(extractSpec(['-p', 'pkg@1.0.0', 'serve'], 'node'), 'pkg@1.0.0');
+      });
+
+      it('documented limitation: an UNKNOWN value-taking flag still leaks its value as the positional', () => {
+        // Arity of unknown flags is unknowable — this locks the
+        // deliberate conservative fallback so a change to it is loud.
+        assert.strictEqual(extractSpec(['--some-future-flag', 'value', 'pkg'], 'npx'), 'value');
+      });
+    });
+
+    describe('F5: a flag-shaped spec-flag value refuses (null)', () => {
+      it('npx -p followed by another flag never treats the flag as the spec', () => {
+        assert.strictEqual(extractSpec(['-p', '--yes', 'cowsay@1.0.0'], 'npx'), null);
+        assert.strictEqual(extractSpec(['--package', '--yes', 'cowsay@1.0.0'], 'npx'), null);
+      });
+
+      it('joined forms refuse flag-shaped and empty values too', () => {
+        assert.strictEqual(extractSpec(['--package=-evil', 'cmd'], 'npx'), null);
+        assert.strictEqual(extractSpec(['--package=', 'cmd'], 'npx'), null);
+        assert.strictEqual(extractSpec(['--from=-evil', 'cmd'], 'uvx'), null);
+      });
+
+      it('uvx --from with a missing, non-string, or flag-shaped value refuses', () => {
+        assert.strictEqual(extractSpec(['--from'], 'uvx'), null);
+        assert.strictEqual(extractSpec(['--from', 123, 'cmd'], 'uvx'), null);
+        assert.strictEqual(extractSpec(['--from', '--offline', 'cmd'], 'uvx'), null);
+      });
+    });
   });
 
   describe('versionFromSpec', () => {
@@ -209,6 +267,11 @@ describe('npx-args shared helpers (Phase 6, D-15)', () => {
 
     it('returns null for a dangling trailing -p with no value', () => {
       assert.strictEqual(derivePackageName(['-p']), null);
+    });
+
+    it('F1: uvx runner derives from --from, and skips the --python value', () => {
+      assert.strictEqual(derivePackageName(['--from', 'mcp-server-fetch==1.0.0', 'mcp-server-fetch'], 'uvx'), 'mcp-server-fetch');
+      assert.strictEqual(derivePackageName(['--python', '3.12', 'mcp-server-fetc'], 'uvx'), 'mcp-server-fetc');
     });
   });
 
