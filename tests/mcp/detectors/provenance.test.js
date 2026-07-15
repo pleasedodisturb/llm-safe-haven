@@ -417,6 +417,99 @@ describe('provenance detector (MCPD-02)', () => {
     });
   });
 
+  describe('F6: lookup dedupe + bounded concurrency', () => {
+    function npxNamed(name, spec) {
+      return {
+        agentId: 'claude-code',
+        scope: 'user',
+        configPath: '/fake',
+        name,
+        command: 'npx',
+        args: [spec],
+        env: {},
+        url: null,
+        headers: {},
+      };
+    }
+
+    function deferred() {
+      let resolve;
+      const promise = new Promise((r) => { resolve = r; });
+      return { promise, resolve };
+    }
+
+    const tick = () => new Promise((r) => setImmediate(r));
+
+    it('identical pkg@ref lookups across servers share ONE request — fetchImpl called once, both findings emitted', async () => {
+      let calls = 0;
+      const fetchImpl = async () => {
+        calls++;
+        return new Response(JSON.stringify({ dist: {} }), { status: 200 });
+      };
+      const servers = [npxNamed('one', 'pkg@1.0.0'), npxNamed('two', 'pkg@1.0.0')];
+      const findings = await run(servers, { online: true, fetchImpl });
+      assert.strictEqual(calls, 1, 'the second identical lookup must reuse the in-flight promise');
+      assert.strictEqual(findings.filter((f) => f.id === 'provenance/no-attestation').length, 2,
+        'dedupe must not swallow the second server\'s finding');
+    });
+
+    it('distinct refs of the same package are NOT deduped', async () => {
+      let calls = 0;
+      const fetchImpl = async () => {
+        calls++;
+        return new Response(JSON.stringify({ dist: {} }), { status: 200 });
+      };
+      const servers = [npxNamed('one', 'pkg@1.0.0'), npxNamed('two', 'pkg@2.0.0')];
+      await run(servers, { online: true, fetchImpl });
+      assert.strictEqual(calls, 2);
+    });
+
+    it('at most 4 lookups are in flight; a 5th starts only after one completes (no real sleeps)', async () => {
+      const gates = [];
+      let started = 0;
+      const fetchImpl = async () => {
+        started++;
+        const gate = deferred();
+        gates.push(gate);
+        await gate.promise;
+        return new Response(JSON.stringify({ dist: { attestations: { url: 'https://example.com' } } }), { status: 200 });
+      };
+      const servers = Array.from({ length: 8 }, (_, i) => npxNamed(`s${i}`, `pkg-${i}@1.0.0`));
+      const done = run(servers, { online: true, fetchImpl });
+      await tick();
+      assert.strictEqual(started, 4, `exactly the concurrency cap must start immediately, saw ${started}`);
+
+      gates[0].resolve();
+      for (let t = 0; t < 20 && started < 5; t++) await tick();
+      assert.strictEqual(started, 5, 'a completed slot must admit exactly one more lookup');
+
+      // Drain: keep resolving every open gate until all 8 have run.
+      for (let t = 0; t < 100 && started < 8; t++) {
+        for (const g of gates) g.resolve();
+        await tick();
+      }
+      for (const g of gates) g.resolve();
+      const findings = await done;
+      assert.strictEqual(started, 8, 'every distinct lookup must eventually run');
+      assert.deepStrictEqual(findings, [], 'attestations present -> clean');
+    });
+
+    it('findings order follows server index even when a later fetch resolves first', async () => {
+      const slowGate = deferred();
+      const fetchImpl = async (url) => {
+        if (url.includes('slow-pkg')) await slowGate.promise;
+        return new Response(JSON.stringify({ dist: {} }), { status: 200 });
+      };
+      const servers = [npxNamed('first', 'slow-pkg@1.0.0'), npxNamed('second', 'fast-pkg@1.0.0')];
+      const done = run(servers, { online: true, fetchImpl });
+      await tick();
+      slowGate.resolve();
+      const findings = await done;
+      assert.deepStrictEqual(findings.map((f) => f.serverName), ['first', 'second'],
+        'deterministic order by server index, not by response arrival');
+    });
+  });
+
   describe('hostile / edge-case handling', () => {
     it('empty servers array resolves to [] and does not throw', async () => {
       let findings;
