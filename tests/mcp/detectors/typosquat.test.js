@@ -317,5 +317,40 @@ describe('typosquat detector (MCPD-03)', () => {
       const src = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'lib', 'mcp', 'detectors', 'typosquat.js'), 'utf8');
       assert.strictEqual((src.match(/new RegExp/g) || []).length, 0);
     });
+
+    describe('F4: edit-distance DoS guards', () => {
+      it('a 500k-char package arg completes run() in under 50ms (never reaches the DP matrix)', () => {
+        const servers = [makeServer({ command: 'npx', args: ['a'.repeat(500 * 1024) ] })];
+        const started = process.hrtime.bigint();
+        const findings = run(servers, {});
+        const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+        assert.deepStrictEqual(findings, []);
+        assert.ok(elapsedMs < 50, `expected <50ms, took ${elapsedMs.toFixed(1)}ms`);
+      });
+
+      it('a name just over npm\'s 214-char maximum is skipped without comparison (no finding, fast)', () => {
+        const servers = [makeServer({ command: 'npx', args: ['b'.repeat(215)] })];
+        const started = process.hrtime.bigint();
+        const findings = run(servers, {});
+        const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+        assert.deepStrictEqual(findings, []);
+        assert.ok(elapsedMs < 50, `expected <50ms, took ${elapsedMs.toFixed(1)}ms`);
+      });
+
+      it('the length-difference prune never skips a genuine within-threshold match (distance still computed correctly)', () => {
+        // dist 1 pairs with length diff 0 and 1, and a transposition —
+        // the guards must not change any distance result.
+        const servers = [
+          makeServer({ name: 'sub', command: 'npx', args: ['@modelcontextprotocol/server-filesytem'] }),
+          makeServer({ name: 'del', command: 'npx', args: ['mcp-server-fetc'] }),
+          makeServer({ name: 'swap', command: 'npx', args: ['mcp-server-fecth'] }),
+        ];
+        const findings = run(servers, {});
+        for (const name of ['sub', 'del', 'swap']) {
+          assert.ok(findings.some(f => f.serverName === name && f.id === 'typosquat/near-known-name'),
+            `expected near-known-name for ${name}`);
+        }
+      });
+    });
   });
 });
