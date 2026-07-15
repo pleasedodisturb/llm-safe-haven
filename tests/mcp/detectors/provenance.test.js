@@ -448,6 +448,17 @@ describe('provenance detector (MCPD-02)', () => {
       assert.strictEqual((src.match(/new RegExp/g) || []).length, 0);
     });
 
+    it('F9: the response size cap aliases base.js MAX_CONFIG_SIZE — never a drift-prone twin literal', () => {
+      const src = fs.readFileSync(
+        path.join(__dirname, '..', '..', '..', 'lib', 'mcp', 'detectors', 'provenance.js'),
+        'utf8'
+      );
+      assert.ok(src.includes('const MAX_RESPONSE_SIZE = MAX_CONFIG_SIZE'),
+        'MAX_RESPONSE_SIZE must alias the imported MAX_CONFIG_SIZE');
+      assert.ok(!/MAX_RESPONSE_SIZE\s*=\s*\d/.test(src),
+        'MAX_RESPONSE_SIZE must not be a numeric literal');
+    });
+
     it('the registry host is a hardcoded literal, never built from server.url', () => {
       const src = fs.readFileSync(
         path.join(__dirname, '..', '..', '..', 'lib', 'mcp', 'detectors', 'provenance.js'),
