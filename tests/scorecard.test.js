@@ -73,3 +73,158 @@ describe('scorecard', () => {
     delete require.cache[modPath];
   });
 });
+
+describe('printMcpScan', () => {
+  const { Finding, SEVERITY, CONFIDENCE } = require('../lib/mcp/base.js');
+  const { printMcpScan } = require('../lib/scorecard.js');
+
+  let originalLog;
+  let logged;
+
+  beforeEach(() => {
+    originalLog = console.log;
+    logged = [];
+    console.log = (...args) => logged.push(args.join(' '));
+  });
+
+  afterEach(() => {
+    console.log = originalLog;
+  });
+
+  function finding(overrides = {}) {
+    return Finding({
+      id: 'detector/rule-id',
+      detector: 'detector',
+      severity: SEVERITY.INFO,
+      confidence: CONFIDENCE.VERIFIED,
+      agentId: 'claude-code',
+      scope: 'user',
+      serverName: 'some-server',
+      message: 'a finding message',
+      ...overrides,
+    });
+  }
+
+  it('zero servers/zero findings prints the existing friendly PASS line (stub behavior preserved)', () => {
+    printMcpScan({ sources: [], servers: [], findings: [], summary: { bySeverity: {}, byDetector: {} } });
+    assert.ok(logged.some((l) => l.includes('No MCP findings')));
+  });
+
+  it('handles a null/undefined envelope defensively without throwing', () => {
+    assert.doesNotThrow(() => printMcpScan(undefined));
+    assert.doesNotThrow(() => printMcpScan(null));
+  });
+
+  it('groups findings per server: agent > server-name (scope) header, sorted critical->high->medium->low->info', () => {
+    const critical = finding({ id: 'd/critical', severity: SEVERITY.CRITICAL, message: 'critical msg' });
+    const high = finding({ id: 'd/high', severity: SEVERITY.HIGH, message: 'high msg' });
+    const medium = finding({ id: 'd/medium', severity: SEVERITY.MEDIUM, message: 'medium msg' });
+    const low = finding({ id: 'd/low', severity: SEVERITY.LOW, message: 'low msg' });
+    const info = finding({ id: 'd/info', severity: SEVERITY.INFO, message: 'info msg' });
+
+    // Findings intentionally listed out of severity order to prove the
+    // renderer sorts them, not just preserves input order.
+    printMcpScan({
+      sources: [],
+      servers: [],
+      findings: [info, low, medium, high, critical],
+    });
+
+    const headerIndex = logged.findIndex((l) => l.includes('claude-code') && l.includes('some-server') && l.includes('(user)'));
+    assert.ok(headerIndex !== -1, 'expected an agent > server-name (scope) group header');
+
+    const criticalIndex = logged.findIndex((l) => l.includes('critical msg'));
+    const highIndex = logged.findIndex((l) => l.includes('high msg'));
+    const mediumIndex = logged.findIndex((l) => l.includes('medium msg'));
+    const lowIndex = logged.findIndex((l) => l.includes('low msg'));
+    const infoIndex = logged.findIndex((l) => l.includes('info msg'));
+
+    assert.ok(criticalIndex < highIndex, 'critical should render before high');
+    assert.ok(highIndex < mediumIndex, 'high should render before medium');
+    assert.ok(mediumIndex < lowIndex, 'medium should render before low');
+    assert.ok(lowIndex < infoIndex, 'low should render before info');
+  });
+
+  it('agentId: null findings render in a final General group', () => {
+    const attributed = finding({ id: 'd/attributed', severity: SEVERITY.HIGH, message: 'attributed msg' });
+    const unattributed = Finding({
+      id: 'typosquat/allowlist-unavailable',
+      detector: 'typosquat',
+      severity: SEVERITY.INFO,
+      confidence: CONFIDENCE.UNVERIFIED,
+      agentId: null,
+      scope: null,
+      serverName: null,
+      message: 'allowlist unavailable',
+    });
+
+    printMcpScan({ sources: [], servers: [], findings: [attributed, unattributed] });
+
+    const generalIndex = logged.findIndex((l) => l.includes('General'));
+    assert.ok(generalIndex !== -1, 'expected a General group header');
+
+    const unattributedIndex = logged.findIndex((l) => l.includes('allowlist unavailable'));
+    assert.ok(unattributedIndex > generalIndex, 'unattributed finding should render under the General header');
+  });
+
+  it('unverified findings render in a distinct dim style, never red/yellow (D-06)', () => {
+    // Force color on so red/yellow escape codes would appear if the
+    // renderer used them for an unverified finding.
+    const originalNoColor = process.env.NO_COLOR;
+    const originalTTY = process.stdout.isTTY;
+    delete process.env.NO_COLOR;
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
+
+    const modPath = require.resolve('../lib/scorecard.js');
+    delete require.cache[modPath];
+    const scorecard = require('../lib/scorecard.js');
+
+    try {
+      const unverified = Finding({
+        id: 'd/unverified-rule',
+        detector: 'd',
+        severity: SEVERITY.CRITICAL,
+        confidence: CONFIDENCE.UNVERIFIED,
+        agentId: 'claude-code',
+        scope: 'user',
+        serverName: 'some-server',
+        message: 'unverified critical msg',
+      });
+
+      scorecard.printMcpScan({ sources: [], servers: [], findings: [unverified] });
+
+      const unverifiedLine = logged.find((l) => l.includes('unverified critical msg'));
+      assert.ok(unverifiedLine, 'expected the unverified finding line to be rendered');
+      assert.ok(!unverifiedLine.includes(scorecard.C.red), 'unverified line must not contain the red ANSI code');
+      assert.ok(!unverifiedLine.includes(scorecard.C.yellow), 'unverified line must not contain the yellow ANSI code');
+
+      const separatorLine = logged.find((l) => l.includes('unverified') && l.includes('--online'));
+      assert.ok(separatorLine, 'expected a dim "unverified -- run with --online to verify" sub-line');
+    } finally {
+      if (originalNoColor === undefined) delete process.env.NO_COLOR;
+      else process.env.NO_COLOR = originalNoColor;
+      Object.defineProperty(process.stdout, 'isTTY', { value: originalTTY, configurable: true });
+      delete require.cache[modPath];
+    }
+  });
+
+  it('non-parsed/not-found source statuses are listed so an exit-2 scan explains itself (D-07)', () => {
+    printMcpScan({
+      sources: [
+        { agentId: 'claude-code', scope: 'user', path: '/some/path', format: 'json', status: 'parsed' },
+        { agentId: 'cursor', scope: 'project', path: '/other/path', format: 'json', status: 'parse-error' },
+        { agentId: 'windsurf', scope: 'user', path: '/missing/path', format: 'json', status: 'not-found' },
+      ],
+      servers: [],
+      findings: [],
+    });
+
+    const errorSourceLine = logged.find((l) => l.includes('cursor') && l.includes('parse-error'));
+    assert.ok(errorSourceLine, 'expected the parse-error source to be listed with its status');
+
+    assert.ok(
+      !logged.some((l) => l.includes('windsurf') && l.includes('not-found')),
+      'a not-found source should not be listed (it is not an exit-2-explaining failure)'
+    );
+  });
+});
