@@ -208,6 +208,70 @@ describe('printMcpScan', () => {
     }
   });
 
+  describe('summary header mirrors D-14/D-08 exit-code semantics', () => {
+    it('red FAIL header counts ONLY verified findings; unverified get a separate dim notice line (mixed)', () => {
+      const verified1 = finding({ id: 'd/v1', severity: SEVERITY.HIGH, message: 'verified one' });
+      const verified2 = finding({ id: 'd/v2', severity: SEVERITY.LOW, message: 'verified two' });
+      const unverified = finding({ id: 'd/u1', confidence: CONFIDENCE.UNVERIFIED, message: 'unverified one' });
+
+      printMcpScan({ sources: [], servers: [], findings: [verified1, unverified, verified2] });
+
+      assert.ok(
+        logged.some((l) => l.includes('2 finding(s)')),
+        'the red header must count the 2 verified findings, not all 3'
+      );
+      assert.ok(
+        !logged.some((l) => l.includes('3 finding(s)')),
+        'the header must never count unverified findings into the FAIL total'
+      );
+      assert.ok(
+        logged.some((l) => l.includes('1 unverified notice(s)') && l.includes('--online')),
+        'expected a separate dim notice line for the unverified finding'
+      );
+    });
+
+    it('unverified-only envelope prints NO red FAIL header — only the dim notice (consistent with exit 0)', () => {
+      // Force color on so the red ANSI code would be detectable if the
+      // renderer emitted a FAIL header for an unverified-only scan.
+      const originalNoColor = process.env.NO_COLOR;
+      const originalTTY = process.stdout.isTTY;
+      delete process.env.NO_COLOR;
+      Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
+
+      const modPath = require.resolve('../lib/scorecard.js');
+      delete require.cache[modPath];
+      const scorecard = require('../lib/scorecard.js');
+
+      try {
+        const u1 = finding({ id: 'd/u1', confidence: CONFIDENCE.UNVERIFIED, severity: SEVERITY.HIGH, message: 'unverified a' });
+        const u2 = finding({ id: 'd/u2', confidence: CONFIDENCE.UNVERIFIED, severity: SEVERITY.LOW, message: 'unverified b' });
+
+        scorecard.printMcpScan({ sources: [], servers: [], findings: [u1, u2] });
+
+        assert.ok(
+          !logged.some((l) => l.includes('finding(s)')),
+          'an unverified-only scan (exit 0) must not render the red "N finding(s)" FAIL header'
+        );
+        const noticeLine = logged.find((l) => l.includes('2 unverified notice(s)'));
+        assert.ok(noticeLine, 'expected the dim "2 unverified notice(s)" header line');
+        assert.ok(!noticeLine.includes(scorecard.C.red), 'the notice line must not contain the red ANSI code');
+        assert.ok(!noticeLine.includes(scorecard.C.yellow), 'the notice line must not contain the yellow ANSI code');
+      } finally {
+        if (originalNoColor === undefined) delete process.env.NO_COLOR;
+        else process.env.NO_COLOR = originalNoColor;
+        Object.defineProperty(process.stdout, 'isTTY', { value: originalTTY, configurable: true });
+        delete require.cache[modPath];
+      }
+    });
+
+    it('zero findings keeps the existing PASS line', () => {
+      printMcpScan({ sources: [], servers: [], findings: [] });
+      assert.ok(logged.some((l) => l.includes('No MCP findings')));
+      assert.ok(!logged.some((l) => l.includes('finding(s)')));
+      assert.ok(!logged.some((l) => l.includes('unverified notice')));
+    });
+  });
+
   describe('CR-01: terminal escape injection via config-derived strings', () => {
     // A hostile MCP config controls server.name, which flows raw into
     // finding.serverName (group header) and finding.message (detector
