@@ -3,7 +3,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildEnvelope, scanMcp } = require('../../lib/scan-mcp.js');
+const { buildEnvelope, scanMcp, findingsExitCode } = require('../../lib/scan-mcp.js');
 const { SCHEMA_VERSION, EXIT } = require('../../lib/mcp/base.js');
 const { parseArgs } = require('../../lib/cli.js');
 const { scan } = require('../../lib/scan.js');
@@ -173,6 +173,30 @@ describe('buildEnvelope', () => {
     });
     assert.strictEqual(envelope.exitCode, EXIT.FINDINGS);
     assert.ok(envelope.findings.some(f => f.confidence === 'verified'));
+  });
+});
+
+// The extracted D-08/D-14 exit-code rule (Phase 8 SCOR-03 consumes this
+// helper directly for scorecard gating) — three branches.
+describe('findingsExitCode (D-08/D-14 rule helper)', () => {
+  it('a prior EXIT.INCOMPLETE always wins, even with verified findings present', () => {
+    assert.strictEqual(
+      findingsExitCode([{ confidence: 'verified' }], EXIT.INCOMPLETE),
+      EXIT.INCOMPLETE,
+      'an unfinished scan must never be downgraded, whatever the findings say'
+    );
+  });
+
+  it('a verified finding upgrades CLEAN to FINDINGS', () => {
+    assert.strictEqual(
+      findingsExitCode([{ confidence: 'unverified' }, { confidence: 'verified' }], EXIT.CLEAN),
+      EXIT.FINDINGS
+    );
+  });
+
+  it('unverified-only (or zero) findings stay CLEAN', () => {
+    assert.strictEqual(findingsExitCode([{ confidence: 'unverified' }], EXIT.CLEAN), EXIT.CLEAN);
+    assert.strictEqual(findingsExitCode([], EXIT.CLEAN), EXIT.CLEAN);
   });
 });
 
