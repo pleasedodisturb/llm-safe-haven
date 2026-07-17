@@ -356,28 +356,67 @@ describe('parseArgs', () => {
       // ceiling caps the level at <=2) — it must never let the throw
       // escape into an uncaught rejection that would fail closed to the
       // CLI's OWN .catch (exit code 2) instead of audit's contained 0/1.
-      // Stub lib/scan-mcp.js in the require cache (same technique as the
-      // IN-01 scan-case regression test) so buildEnvelope rejects.
+      //
+      // WR-01 (review fix): the previous version of this test was VACUOUS.
+      // lib/audit.js captures buildEnvelope in a top-level destructured
+      // require, and audit.js was already in the require cache (loaded by
+      // the propagation tests above) — replacing scan-mcp.js's cache entry
+      // afterwards never reached audit.js's already-bound reference, so
+      // the real buildEnvelope ran against the real machine and the stub
+      // never executed. Fix: (1) evict lib/audit.js from the cache BEFORE
+      // stubbing, so cli.js's lazy require('./audit.js') at run() time
+      // loads audit.js fresh and binds the stub; (2) track stubCalled and
+      // assert it, so a silent no-run can never pass; (3) pre-set an
+      // out-of-range sentinel (42, outside {0,1,2}) so the assertion fails
+      // loudly if the promise chain never runs; (4) stub detectAll with a
+      // found agent, because on an agent-less machine (CI) the human path
+      // early-returns BEFORE ever calling buildEnvelope — the containment
+      // under test would otherwise silently not be exercised.
       const Module = require('module');
+      function installStub(resolvedPath, exports) {
+        const stub = new Module(resolvedPath);
+        stub.filename = resolvedPath;
+        stub.loaded = true;
+        stub.exports = exports;
+        require.cache[resolvedPath] = stub;
+      }
+
       const scanMcpPath = require.resolve('../lib/scan-mcp.js');
-      const originalCacheEntry = require.cache[scanMcpPath];
-      const stub = new Module(scanMcpPath);
-      stub.filename = scanMcpPath;
-      stub.loaded = true;
-      stub.exports = {
-        buildEnvelope: () => Promise.reject(new Error('hostile config engineered to crash discovery')),
+      const agentsPath = require.resolve('../lib/agents/index.js');
+      const auditPath = require.resolve('../lib/audit.js');
+      const originalScanMcpEntry = require.cache[scanMcpPath];
+      const originalAgentsEntry = require.cache[agentsPath];
+      const originalAuditEntry = require.cache[auditPath];
+
+      // Force audit.js to rebind the stubbed scan-mcp/agents on its next load.
+      delete require.cache[auditPath];
+
+      let stubCalled = false;
+      installStub(scanMcpPath, {
+        buildEnvelope: () => {
+          stubCalled = true;
+          return Promise.reject(new Error('hostile config engineered to crash discovery'));
+        },
         scanMcp: () => Promise.reject(new Error('unused by audit — present for shape parity')),
         findingsExitCode: () => 0,
-      };
-      require.cache[scanMcpPath] = stub;
+      });
+      installStub(agentsPath, {
+        detectAll: () => [{
+          id: 'fake-agent', name: 'Fake Agent', tier: 1,
+          detected: { found: true, version: '1.0.0' },
+          audit: () => ({ checks: [], level: 3 }),
+        }],
+        getByIds: () => [],
+      });
 
       const originalExitCode = process.exitCode;
       const originalLog = console.log;
       console.log = () => {};
       try {
-        process.exitCode = 0;
+        process.exitCode = 42; // sentinel outside {0,1,2} — a non-run fails loudly
         run(['audit']);
         await new Promise(setImmediate);
+        assert.strictEqual(stubCalled, true, 'the rejecting buildEnvelope stub must actually execute — otherwise this test proves nothing (WR-01)');
         assert.ok(
           [0, 1].includes(process.exitCode),
           `a contained buildEnvelope throw must still produce audit's own 0/1 exit code (D-03 containment fired), got ${process.exitCode}`
@@ -385,8 +424,14 @@ describe('parseArgs', () => {
       } finally {
         console.log = originalLog;
         process.exitCode = originalExitCode;
-        if (originalCacheEntry === undefined) delete require.cache[scanMcpPath];
-        else require.cache[scanMcpPath] = originalCacheEntry;
+        if (originalScanMcpEntry === undefined) delete require.cache[scanMcpPath];
+        else require.cache[scanMcpPath] = originalScanMcpEntry;
+        if (originalAgentsEntry === undefined) delete require.cache[agentsPath];
+        else require.cache[agentsPath] = originalAgentsEntry;
+        // The freshly-loaded audit.js is bound to the stubs — it must not
+        // leak into later tests. Restore the pre-test entry (or evict).
+        if (originalAuditEntry === undefined) delete require.cache[auditPath];
+        else require.cache[auditPath] = originalAuditEntry;
       }
     });
   });
