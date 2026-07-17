@@ -208,6 +208,70 @@ describe('printMcpScan', () => {
     }
   });
 
+  describe('CR-01: terminal escape injection via config-derived strings', () => {
+    // A hostile MCP config controls server.name, which flows raw into
+    // finding.serverName (group header) and finding.message (detector
+    // messages interpolate `Server "${server.name}"`). ANSI/OSC escapes in
+    // it could erase or spoof report lines on the operator's terminal
+    // (CWE-150). The renderer must strip every C0/C1 control char and DEL.
+    const HOSTILE_NAME = 'evil\x1b[2K\x1b[1A\x1b[2Khidden';
+
+    it('strips ANSI escape sequences from the server name in the group header', () => {
+      const hostile = finding({
+        serverName: HOSTILE_NAME,
+        message: 'plain msg',
+      });
+
+      printMcpScan({ sources: [], servers: [], findings: [hostile] });
+
+      const headerLine = logged.find((l) => l.includes('evil'));
+      assert.ok(headerLine, 'expected the group header naming the hostile server');
+      assert.ok(!headerLine.includes('\x1b[2K'), 'erase-line escape must not reach the terminal');
+      assert.ok(!headerLine.includes('\x1b[1A'), 'cursor-up escape must not reach the terminal');
+      assert.ok(headerLine.includes('�'), 'stripped control chars are replaced with U+FFFD so the operator sees tampering');
+      assert.ok(headerLine.includes('hidden'), 'the non-control text around the escapes is preserved');
+    });
+
+    it('strips control characters from finding.message (detector messages embed the raw server name)', () => {
+      const hostile = finding({
+        serverName: 'srv',
+        message: `Server "${HOSTILE_NAME}" uses an unpinned spec\x07`,
+      });
+
+      printMcpScan({ sources: [], servers: [], findings: [hostile] });
+
+      const msgLine = logged.find((l) => l.includes('unpinned spec'));
+      assert.ok(msgLine, 'expected the finding message line to be rendered');
+      assert.ok(!msgLine.includes('\x1b'), 'no raw ESC byte may survive in the message line');
+      assert.ok(!msgLine.includes('\x07'), 'no BEL byte may survive in the message line');
+      assert.ok(msgLine.includes('�'), 'stripped control chars are replaced with U+FFFD');
+    });
+
+    it('strips control characters on the unverified (dim) finding line too', () => {
+      const hostile = finding({
+        confidence: CONFIDENCE.UNVERIFIED,
+        serverName: 'srv',
+        message: `Server "${HOSTILE_NAME}" unverified`,
+      });
+
+      printMcpScan({ sources: [], servers: [], findings: [hostile] });
+
+      const msgLine = logged.find((l) => l.includes('unverified') && l.includes('evil'));
+      assert.ok(msgLine, 'expected the unverified finding line to be rendered');
+      assert.ok(!msgLine.includes('\x1b[2K'), 'erase-line escape must not reach the terminal on the unverified path');
+    });
+
+    it('sanitizeForTerminal strips all C0, DEL, and C1 control chars and stringifies null/undefined safely', () => {
+      const { sanitizeForTerminal } = require('../lib/scorecard.js');
+      assert.strictEqual(sanitizeForTerminal('a\x00b\x1fc\x7fd\x9fe'), 'a�b�c�d�e');
+      assert.strictEqual(sanitizeForTerminal('clean-name'), 'clean-name');
+      assert.strictEqual(sanitizeForTerminal(null), '');
+      assert.strictEqual(sanitizeForTerminal(undefined), '');
+      // OSC-based escapes (ESC ] ... BEL) lose both ESC and BEL.
+      assert.strictEqual(sanitizeForTerminal('\x1b]0;spoof\x07'), '�]0;spoof�');
+    });
+  });
+
   it('non-parsed/not-found source statuses are listed so an exit-2 scan explains itself (D-07)', () => {
     printMcpScan({
       sources: [
