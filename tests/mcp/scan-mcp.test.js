@@ -298,6 +298,159 @@ describe('--json envelope shape, findings populated (frozen fixture-diff)', () =
   });
 });
 
+// Phase 7 Plan 03, Task 2: end-to-end exit-code suite (D-12) exercising
+// the FULLY COMPOSED pipeline via scanMcp() — real detector registry,
+// real config-sources/parsers shape (via injected discoverAll/parsers),
+// only fetchImpl (network) is faked. Detector/parser unit tests already
+// exist from Phases 4-6 (verified via the test-contract meta-test); this
+// suite verifies the WIRING, not detector correctness.
+describe('scanMcp e2e (D-12)', () => {
+  const ONE_SOURCE = () => [source({ status: 'found' })];
+
+  it('CLEAN — a well-formed server with no detector-triggering content yields 0 findings and exitCode 0', async () => {
+    // Remote HTTPS endpoint, version-bound path (unpinned-execution),
+    // Authorization header present (insecure-endpoint), a name that does
+    // not match any scope-breadth capability identifier.
+    const cleanServer = {
+      agentId: 'claude-code',
+      scope: 'user',
+      configPath: '/fake/home/.claude.json',
+      name: 'https-with-auth',
+      command: null,
+      args: [],
+      env: {},
+      url: 'https://mcp.example.com/v2.0/server',
+      headers: { Authorization: 'Bearer redacted' },
+    };
+    const result = await scanMcp({ quiet: true }, {
+      discoverAll: ONE_SOURCE,
+      parsers: { 'claude-code': okParser([cleanServer]) },
+      now: FIXED_NOW,
+    });
+    assert.strictEqual(result.code, EXIT.CLEAN);
+    assert.strictEqual(result.findingsCount, 0);
+  });
+
+  it('FINDINGS — an --online injected fetchImpl yielding a confidence:verified provenance finding produces exitCode 1', async () => {
+    const npxServer = {
+      agentId: 'claude-code',
+      scope: 'user',
+      configPath: '/fake/home/.claude.json',
+      name: 'npm-no-attestation',
+      command: 'npx',
+      args: ['some-generic-pkg@1.2.3'],
+      env: {},
+      url: null,
+      headers: {},
+    };
+    // Registry response WITHOUT dist.attestations -> provenance/no-
+    // attestation, confidence:verified (shaped per provenance.test.js's
+    // fetchReturning() helper).
+    const fetchImpl = async () => new Response(JSON.stringify({ dist: {} }), { status: 200 });
+
+    const result = await scanMcp({ online: true, quiet: true }, {
+      discoverAll: ONE_SOURCE,
+      parsers: { 'claude-code': okParser([npxServer]) },
+      now: FIXED_NOW,
+      fetchImpl,
+    });
+    assert.strictEqual(result.code, EXIT.FINDINGS);
+    assert.ok(result.findingsCount > 0);
+  });
+
+  it('INCOMPLETE — a malformed source yields exitCode 2 while findings from good sources are retained', async () => {
+    const goodSources = [
+      source({ agentId: 'claude-code', scope: 'user', status: 'found' }),
+      source({ agentId: 'cursor', scope: 'global', status: 'found', path: '/fake/home/.cursor/mcp.json' }),
+    ];
+    const npxServer = {
+      agentId: 'claude-code',
+      scope: 'user',
+      configPath: '/fake/home/.claude.json',
+      name: 'unpinned-server',
+      command: 'npx',
+      args: ['some-unpinned-package'],
+      env: {},
+      url: null,
+      headers: {},
+    };
+    const result = await scanMcp({ quiet: true }, {
+      discoverAll: () => goodSources,
+      parsers: {
+        'claude-code': okParser([npxServer]),
+        cursor: failParser('malformed', 'cursor'),
+      },
+      now: FIXED_NOW,
+    });
+    assert.strictEqual(result.code, EXIT.INCOMPLETE);
+    // The good source's server still went through the detector pass —
+    // findings from it are retained, not dropped by the malformed source.
+    assert.ok(result.findingsCount > 0);
+  });
+
+  it('UNVERIFIED-ONLY -> CLEAN (D-14 regression) — an offline server with only unverified findings still exits 0', async () => {
+    const pinnedNpxServer = {
+      agentId: 'claude-code',
+      scope: 'user',
+      configPath: '/fake/home/.claude.json',
+      name: 'npx-pinned',
+      command: 'npx',
+      args: ['some-mcp-server@1.2.3'],
+      env: {},
+      url: null,
+      headers: {},
+    };
+    // Offline (no --online): provenance emits ONLY
+    // provenance/unverified-offline (confidence:unverified) for this
+    // pinned, non-capability-matching npx server.
+    const result = await scanMcp({ quiet: true }, {
+      discoverAll: ONE_SOURCE,
+      parsers: { 'claude-code': okParser([pinnedNpxServer]) },
+      now: FIXED_NOW,
+    });
+    assert.ok(result.findingsCount > 0, 'expected at least one (unverified) finding');
+    assert.strictEqual(result.code, EXIT.CLEAN);
+  });
+});
+
+// Phase 7 Plan 03, Task 2: performance-budget test (D-10, MCPO-05).
+// Offline path only (no --online, fetch never invoked) — matches the
+// roadmap criterion "full discovery plus all 8 detectors" under 5s.
+describe('perf budget (MCPO-05, D-10)', () => {
+  const AGENTS = ['claude-code', 'cursor', 'windsurf', 'cline', 'continue-dev'];
+
+  // ~15 servers across ~5 agents (3 each) — a realistic config size per
+  // 07-CONTEXT.md D-10, normalizeServer-shaped.
+  const REALISTIC_15_SERVER_FIXTURE = [];
+  for (const agentId of AGENTS) {
+    for (let i = 0; i < 3; i++) {
+      REALISTIC_15_SERVER_FIXTURE.push({
+        agentId,
+        scope: 'user',
+        configPath: `/fake/home/${agentId}/config`,
+        name: `server-${agentId}-${i}`,
+        command: 'npx',
+        args: [`@fake-scope/server-${agentId}-${i}@1.0.${i}`],
+        env: { API_KEY: '${env:API_KEY}' },
+        url: null,
+        headers: {},
+      });
+    }
+  }
+
+  it('full offline scanMcp() completes in under 5s against a 15-server/5-agent fixture', async () => {
+    const started = process.hrtime.bigint();
+    const envelope = await buildEnvelope({}, {
+      discoverAll: () => [source({ status: 'found' })],
+      parsers: { 'claude-code': okParser(REALISTIC_15_SERVER_FIXTURE) },
+      now: FIXED_NOW,
+    });
+    const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+    assert.ok(elapsedMs < 5000, `expected <5000ms, got ${elapsedMs}ms`);
+    assert.ok(envelope.findings.length > 0, 'sanity: the fixture should produce findings (npx servers offline)');
+  });
+});
+
 // Task 3: --mcp wiring (parseArgs flag + scan.js dispatch)
 describe('--mcp CLI wiring', () => {
   it('parseArgs(["scan","--mcp"]) sets flags.mcp true', () => {
