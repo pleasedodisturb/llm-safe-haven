@@ -245,6 +245,39 @@ describe('parseArgs', () => {
     });
   });
 
+  describe('synchronous scan results assign process.exitCode synchronously (main-parity)', () => {
+    it('a sync scan() result (supply-chain/env path shape) sets process.exitCode BEFORE run() returns, and run() returns a promise', () => {
+      // Pre-Phase-7, the sync paths (env-scan, --supply-chain) assigned
+      // the exit code synchronously. A blanket Promise.resolve().then()
+      // wrapper deferred that by a microtask tick — a behavior change for
+      // programmatic callers of the exported run() that read
+      // process.exitCode right after it returns. Stub lib/scan.js in the
+      // require cache (same technique as the IN-01 test) with a scan()
+      // returning a plain sync object and assert NO await is needed.
+      const Module = require('module');
+      const scanPath = require.resolve('../lib/scan.js');
+      const originalCacheEntry = require.cache[scanPath];
+      const stub = new Module(scanPath);
+      stub.filename = scanPath;
+      stub.loaded = true;
+      stub.exports = { scan: () => ({ ran: true, code: 1 }) };
+      require.cache[scanPath] = stub;
+
+      const originalExitCode = process.exitCode;
+      try {
+        process.exitCode = 0;
+        const returned = run(['scan', '--supply-chain']);
+        // No await, no setImmediate — the assignment must already be done.
+        assert.strictEqual(process.exitCode, 1, 'a synchronous scan result must set process.exitCode synchronously');
+        assert.ok(returned && typeof returned.then === 'function', 'run() must return a promise embedders/tests can await');
+      } finally {
+        process.exitCode = originalExitCode;
+        if (originalCacheEntry === undefined) delete require.cache[scanPath];
+        else require.cache[scanPath] = originalCacheEntry;
+      }
+    });
+  });
+
   describe('IN-04: --agent value parsing', () => {
     function captureStderr(fn) {
       const original = console.error;
