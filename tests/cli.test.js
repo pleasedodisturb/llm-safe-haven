@@ -85,6 +85,12 @@ describe('parseArgs', () => {
     assert.strictEqual(result.flags.online, true);
   });
 
+  it('parses --quiet flag (and never records it as unknown)', () => {
+    const result = parseArgs(['scan', '--mcp', '--quiet']);
+    assert.strictEqual(result.flags.quiet, true);
+    assert.deepStrictEqual(result.unknownFlags, [], '--quiet is a known flag — it must not trip the WR-01 fail-closed guard');
+  });
+
   describe('WR-05: unknown flags are never silently ignored', () => {
     function captureStderr(fn) {
       const original = console.error;
@@ -173,7 +179,10 @@ describe('parseArgs', () => {
       // injected-fixture e2e suite (Task 2).
       const originalExitCode = process.exitCode;
       const originalLog = console.log;
+      const originalError = console.error;
+      const stderrLines = [];
       console.log = () => {}; // suppress the real --json envelope output
+      console.error = (msg) => { stderrLines.push(String(msg)); };
       try {
         run(['scan', '--mcp', '--json', '--quiet']);
         // Let lib/cli.js's Promise.resolve(result).then(...) chain run —
@@ -183,9 +192,23 @@ describe('parseArgs', () => {
         // enough. setImmediate() only fires after ALL pending microtasks
         // (including ones enqueued while draining the queue) are drained.
         await new Promise(setImmediate);
-        assert.strictEqual(typeof process.exitCode, 'number');
+        // The scan must actually RUN — a previously self-defeating
+        // version of this test passed '--quiet' while parseArgs did not
+        // recognize it, so the WR-01 guard refused the scan with exit 2
+        // and `typeof === 'number'` was trivially satisfied by the
+        // refusal. Assert the refusal path was NOT taken and the exit
+        // code is one of the scan contract values (0/1/2).
+        assert.ok(
+          !stderrLines.some(l => l.includes('Refusing to run scan')),
+          `the scan must not be refused — every flag is known; stderr: ${stderrLines}`
+        );
+        assert.ok(
+          [0, 1, 2].includes(process.exitCode),
+          `exit code must be a scan contract value (0=clean/1=findings/2=incomplete), got ${process.exitCode}`
+        );
       } finally {
         console.log = originalLog;
+        console.error = originalError;
         process.exitCode = originalExitCode; // never pollute the real test-runner exit code
       }
     });
