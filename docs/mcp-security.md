@@ -112,8 +112,9 @@ starts an MCP server process and never inspects a live `tools/list` response. Co
   doesn't exist.
 
 If you need live introspection or semantic classification of a server's actual tool
-descriptions, `scan --mcp` is not that tool (yet) — see the roadmap note in
-[PROJECT.md](../.planning/PROJECT.md) if you're tracking it.
+descriptions, `scan --mcp` is not that tool (yet) — live introspection is on the
+roadmap. If you're tracking it, watch the
+[project issues](https://github.com/pleasedodisturb/llm-safe-haven/issues).
 
 ## 6. Scorecard gating
 
