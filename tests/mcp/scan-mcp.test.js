@@ -206,6 +206,26 @@ describe('scanMcp', () => {
     assert.strictEqual(result.code, EXIT.INCOMPLETE);
   });
 
+  // Default (no --online) path: scanMcp must write NOTHING to stderr —
+  // the offline scan has no notices, warnings, or degradation messages
+  // to emit. Guards against a future change quietly adding stderr chatter
+  // to the default path (the --json contract routes any notice to stderr,
+  // so stderr silence is the observable "no notices" invariant).
+  it('default (no --online) scanMcp writes zero stderr', async () => {
+    const originalError = console.error;
+    const originalLog = console.log;
+    const lines = [];
+    console.error = (msg) => { lines.push(String(msg)); };
+    console.log = () => {}; // swallow the --json envelope on stdout
+    try {
+      await scanMcp({ quiet: true, json: true }, { discoverAll: () => [], now: FIXED_NOW });
+    } finally {
+      console.error = originalError;
+      console.log = originalLog;
+    }
+    assert.deepStrictEqual(lines, [], 'the default offline scan must emit nothing on stderr');
+  });
+
   // D-03: --online is live — the stale stderr placeholder notice
   // ("live registry check activates in the next release") is gone.
   // A scan with --online now runs the real (test-injected) fetchImpl
