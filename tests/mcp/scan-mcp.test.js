@@ -277,6 +277,30 @@ describe('scanMcp', () => {
       assert.strictEqual(parsed.offline, true);
     });
 
+    it('error envelope key set === success envelope key set + "error" (derived, never re-listed — guards silent divergence)', async () => {
+      // Derive the expected error-envelope keys FROM the success envelope
+      // rather than re-listing literals: if a future change adds a key to
+      // one path but not the other (the exact divergence the shared
+      // makeEnvelope() factory exists to prevent), this fails.
+      const successEnvelope = await buildEnvelope({}, { discoverAll: () => [], now: FIXED_NOW });
+
+      const originalLog = console.log;
+      const printed = [];
+      console.log = (msg) => { printed.push(msg); };
+      try {
+        await scanMcp({ json: true }, { discoverAll: THROWING_DISCOVER, now: FIXED_NOW });
+      } finally {
+        console.log = originalLog;
+      }
+      const errorEnvelope = JSON.parse(printed[0]);
+
+      assert.deepEqual(
+        Object.keys(errorEnvelope).sort(),
+        [...Object.keys(successEnvelope), 'error'].sort(),
+        'the error envelope must be exactly the success envelope key set plus the additive "error" key'
+      );
+    });
+
     it('without --json, a build error still prints nothing to stdout and returns code 2', async () => {
       const originalLog = console.log;
       const printed = [];
