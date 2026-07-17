@@ -571,6 +571,29 @@ describe('computeSecurityLevel', () => {
   it('confidence enum sanity: CONFIDENCE.VERIFIED/UNVERIFIED are distinct strings (guards the mcp.verifiedCount contract)', () => {
     assert.notEqual(CONFIDENCE.VERIFIED, CONFIDENCE.UNVERIFIED);
   });
+
+  describe('WR-02: fail closed when mcp input is absent or shapeless', () => {
+    it('omitted mcp: base 4, env 0 -> level 2 with an mcp-incomplete cap (never an uncapped 4)', () => {
+      const result = computeSecurityLevel({ agentLevels: [4], envFileCount: 0 });
+      assert.equal(result.level, 2, 'unknown MCP state must never be scored as scanned-and-clean');
+      assert.equal(result.caps.length, 1);
+      assert.equal(result.caps[0].id, 'mcp-incomplete');
+      assertCapShape(result.caps[0]);
+    });
+
+    it('shapeless mcp ({} — no boolean ran): base 3 -> level 2 with an mcp-incomplete cap', () => {
+      const result = computeSecurityLevel({ agentLevels: [3], envFileCount: 0, mcp: {} });
+      assert.equal(result.level, 2);
+      assert.equal(result.caps.length, 1);
+      assert.equal(result.caps[0].id, 'mcp-incomplete');
+    });
+
+    it('no-args call fails closed too (base 0 -> level 0, no cap fires below the ceiling)', () => {
+      const result = computeSecurityLevel();
+      assert.equal(result.level, 0);
+      assert.equal(result.caps.length, 0);
+    });
+  });
 });
 
 describe('computeSecurityLevel + printLevel/printMcpAuditSection render smoke', () => {
