@@ -118,6 +118,51 @@ describe('parseArgs', () => {
     });
   });
 
+  describe('WR-01: scan fails closed (exit 2) on unknown flags', () => {
+    function captureStderr(fn) {
+      const original = console.error;
+      const lines = [];
+      console.error = (msg) => { lines.push(String(msg)); };
+      try {
+        return { result: fn(), lines };
+      } finally {
+        console.error = original;
+      }
+    }
+
+    it('run(["scan","--mpc"]) (typo\'d --mcp) refuses with exit code 2 instead of silently running the env scan', async () => {
+      const originalExitCode = process.exitCode;
+      const originalLog = console.log;
+      const loggedStdout = [];
+      console.log = (...a) => loggedStdout.push(a.join(' '));
+      try {
+        const { lines } = captureStderr(() => run(['scan', '--mpc']));
+        await new Promise(setImmediate);
+        assert.strictEqual(process.exitCode, 2, 'a typo\'d security flag must never masquerade as a clean scan');
+        assert.ok(lines.some(l => l.includes('Refusing to run scan') && l.includes('--mpc')), `expected a refusal naming the typo on stderr, got: ${lines}`);
+        assert.deepStrictEqual(loggedStdout, [], 'no scan output — the scan must not have run at all');
+      } finally {
+        console.log = originalLog;
+        process.exitCode = originalExitCode;
+      }
+    });
+
+    it('run(["scan","--mcp","--onlien"]) (typo\'d --online) refuses with exit code 2 instead of running the wrong scan', async () => {
+      const originalExitCode = process.exitCode;
+      const originalLog = console.log;
+      console.log = () => {};
+      try {
+        const { lines } = captureStderr(() => run(['scan', '--mcp', '--onlien']));
+        await new Promise(setImmediate);
+        assert.strictEqual(process.exitCode, 2);
+        assert.ok(lines.some(l => l.includes('Refusing to run scan') && l.includes('--onlien')));
+      } finally {
+        console.log = originalLog;
+        process.exitCode = originalExitCode;
+      }
+    });
+  });
+
   describe('run() scan --mcp exit-code propagation (D-01)', () => {
     it('sets process.exitCode from the async scanMcp() result before the process would naturally exit', async () => {
       // This invokes real discovery/parsing/detectors against the actual
