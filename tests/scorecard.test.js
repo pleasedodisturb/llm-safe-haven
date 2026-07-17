@@ -383,8 +383,10 @@ describe('printMcpScan', () => {
         ],
         servers: [],
         findings: [
-          finding({ id: 'd/one', severity: SEVERITY.CRITICAL, serverName: `srv${HOSTILE}`, message: `msg${HOSTILE}`, scope: `user${HOSTILE}` }),
-          finding({ id: 'd/two', confidence: CONFIDENCE.UNVERIFIED, serverName: `srv${HOSTILE}`, message: `unv${HOSTILE}`, scope: `user${HOSTILE}` }),
+          // IN-01: finding.id is poisoned too — a future detector that
+          // interpolates config data into an id must not regress silently.
+          finding({ id: `d/one${HOSTILE}`, severity: SEVERITY.CRITICAL, serverName: `srv${HOSTILE}`, message: `msg${HOSTILE}`, scope: `user${HOSTILE}` }),
+          finding({ id: `d/two${HOSTILE}`, confidence: CONFIDENCE.UNVERIFIED, serverName: `srv${HOSTILE}`, message: `unv${HOSTILE}`, scope: `user${HOSTILE}` }),
           Finding({
             id: 'd/general', detector: 'd', severity: SEVERITY.HIGH, confidence: CONFIDENCE.VERIFIED,
             agentId: null, scope: null, serverName: null, message: `general${HOSTILE}`,
@@ -620,6 +622,16 @@ describe('computeSecurityLevel + printLevel/printMcpAuditSection render smoke', 
   it('printLevel(level) with no caps emits zero "capped at" lines (backward compatible)', () => {
     printLevel(3);
     assert.ok(!logged.some((l) => /capped at/.test(l)));
+  });
+
+  it('IN-01: a hostile cap.reason is sanitized at the print site (no control chars reach the terminal)', () => {
+    printLevel(2, [{ id: 'mcp-findings', cappedFrom: 3, cappedTo: 2, reason: 'evil\x1b[2K\x07reason‮spoof' }]);
+    const capLine = logged.find((l) => /capped at/.test(l));
+    assert.ok(capLine, 'expected the cap line to render');
+    assert.ok(!capLine.includes('\x1b[2K'), 'erase-line escape must not reach the terminal');
+    assert.ok(!capLine.includes('\x07'), 'BEL must not reach the terminal');
+    assert.ok(!capLine.includes('‮'), 'RLO must not reach the terminal');
+    assert.ok(capLine.includes('�'), 'stripped chars are replaced with U+FFFD so tampering is visible');
   });
 
   it('printMcpAuditSection with an unverified-only envelope never renders a red FAIL "finding(s)" line', () => {
