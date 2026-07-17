@@ -303,4 +303,91 @@ describe('parseArgs', () => {
       assert.ok(lines.some(l => l.includes('--agent requires a value')));
     });
   });
+
+  describe('run() audit exit-code propagation', () => {
+    it('sets process.exitCode from the async audit() result (human path)', async () => {
+      // Phase 8: audit() is async (D-04/D-05) and returns { code } instead
+      // of calling process.exit(). This invokes real agent detection/env
+      // scan/MCP scan against the actual machine (no injected opts channel
+      // reaches run() at the CLI boundary) — only a numeric exit code is
+      // asserted here.
+      const originalExitCode = process.exitCode;
+      const originalLog = console.log;
+      console.log = () => {}; // suppress the real human-readable report
+      try {
+        run(['audit']);
+        // buildEnvelope()'s awaited detector loop (runAll()) chains several
+        // microtask ticks even when every detector resolves synchronously —
+        // a single `await Promise.resolve()` under-drains it (same gotcha
+        // as the scan --mcp propagation test above).
+        await new Promise(setImmediate);
+        assert.ok(
+          [0, 1].includes(process.exitCode),
+          `audit exit code must be 0 or 1 (never audit's own 2 — that's the CLI-level fail-closed value), got ${process.exitCode}`
+        );
+      } finally {
+        console.log = originalLog;
+        process.exitCode = originalExitCode; // never pollute the real test-runner exit code
+      }
+    });
+
+    it('sets process.exitCode from the async audit() result (--json path)', async () => {
+      const originalExitCode = process.exitCode;
+      const originalLog = console.log;
+      console.log = () => {}; // suppress the real --json envelope output
+      try {
+        run(['audit', '--json']);
+        await new Promise(setImmediate);
+        assert.ok(
+          [0, 1].includes(process.exitCode),
+          `audit --json exit code must be 0 or 1, got ${process.exitCode}`
+        );
+      } finally {
+        console.log = originalLog;
+        process.exitCode = originalExitCode;
+      }
+    });
+  });
+
+  describe('D-03: a buildEnvelope() throw is contained, never crashes audit', () => {
+    it('run(["audit"]) with a rejecting buildEnvelope() still produces a contained exit code (0 or 1), never crashes', async () => {
+      // audit() wraps its buildEnvelope() call in try/catch and treats a
+      // throw as an incomplete MCP scan (computeSecurityLevel's incomplete
+      // ceiling caps the level at <=2) — it must never let the throw
+      // escape into an uncaught rejection that would fail closed to the
+      // CLI's OWN .catch (exit code 2) instead of audit's contained 0/1.
+      // Stub lib/scan-mcp.js in the require cache (same technique as the
+      // IN-01 scan-case regression test) so buildEnvelope rejects.
+      const Module = require('module');
+      const scanMcpPath = require.resolve('../lib/scan-mcp.js');
+      const originalCacheEntry = require.cache[scanMcpPath];
+      const stub = new Module(scanMcpPath);
+      stub.filename = scanMcpPath;
+      stub.loaded = true;
+      stub.exports = {
+        buildEnvelope: () => Promise.reject(new Error('hostile config engineered to crash discovery')),
+        scanMcp: () => Promise.reject(new Error('unused by audit — present for shape parity')),
+        findingsExitCode: () => 0,
+      };
+      require.cache[scanMcpPath] = stub;
+
+      const originalExitCode = process.exitCode;
+      const originalLog = console.log;
+      console.log = () => {};
+      try {
+        process.exitCode = 0;
+        run(['audit']);
+        await new Promise(setImmediate);
+        assert.ok(
+          [0, 1].includes(process.exitCode),
+          `a contained buildEnvelope throw must still produce audit's own 0/1 exit code (D-03 containment fired), got ${process.exitCode}`
+        );
+      } finally {
+        console.log = originalLog;
+        process.exitCode = originalExitCode;
+        if (originalCacheEntry === undefined) delete require.cache[scanMcpPath];
+        else require.cache[scanMcpPath] = originalCacheEntry;
+      }
+    });
+  });
 });
