@@ -48,6 +48,9 @@ npx llm-safe-haven audit          # Check security posture
 npx llm-safe-haven audit --json   # Machine-readable for CI
 npx llm-safe-haven scan           # Find exposed .env files
 npx llm-safe-haven scan --supply-chain  # Scan for Miasma/Shai-Hulud IOCs (macOS/Linux)
+npx llm-safe-haven scan --mcp     # Scan MCP server configs (5 agents)
+npx llm-safe-haven scan --mcp --json    # Scan MCP server configs (JSON output)
+npx llm-safe-haven scan --mcp --online  # Opt in to registry provenance checks
 npx llm-safe-haven update         # Update hooks to latest
 npx llm-safe-haven --dry-run      # Preview without changing anything
 ```
@@ -59,13 +62,14 @@ npx llm-safe-haven --dry-run      # Preview without changing anything
 | 0 | Exposed | No hardening |
 | 1 | Basic | Hooks installed |
 | 2 | Guarded | + Audit logging + no .env files |
-| 3 | Hardened | + Credential proxy + deny rules |
+| 3 | Hardened | + Credential proxy + deny rules + clean MCP scan |
 | 4 | Fortified | + Container isolation + network restrictions |
 
 ## Go Deeper
 
 - [Threat Model](docs/threat-model.md) -- OWASP Agentic Top 10 for solo devs (30+ real incidents)
 - [Supply Chain Defense](docs/supply-chain-defense.md) -- npm worm case studies + the `scan --supply-chain` IOC scanners
+- [MCP Security](docs/mcp-security.md) -- 8 detectors for MCP server configs, offline-first, honest fidelity limits
 - [Claude Code Hardening](docs/hardening/claude-code.md) -- Full guide with hooks, sandbox, permissions
 - [Cursor Hardening](docs/hardening/cursor.md) -- 7 CVEs documented, hardening steps
 - [Windsurf Hardening](docs/hardening/windsurf.md) -- Honest assessment of limitations
