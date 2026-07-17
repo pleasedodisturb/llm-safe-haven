@@ -3,7 +3,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { parseArgs } = require('../lib/cli.js');
+const { parseArgs, run } = require('../lib/cli.js');
 
 describe('parseArgs', () => {
   it('parses --help flag', () => {
@@ -115,6 +115,34 @@ describe('parseArgs', () => {
       const { result, lines } = captureStderr(() => parseArgs(['scan', '--mcp', '--online', '--json']));
       assert.deepStrictEqual(result.unknownFlags, []);
       assert.deepStrictEqual(lines, []);
+    });
+  });
+
+  describe('run() scan --mcp exit-code propagation (D-01)', () => {
+    it('sets process.exitCode from the async scanMcp() result before the process would naturally exit', async () => {
+      // This invokes real discovery/parsing/detectors against the actual
+      // machine (no injected opts channel reaches run() at the CLI
+      // boundary) — --json/--quiet keep stdout to a single JSON blob and
+      // suppress the human report. Only a numeric exit code is asserted
+      // here; the exact-value (0/1/2) assertions live in scan-mcp.test.js's
+      // injected-fixture e2e suite (Task 2).
+      const originalExitCode = process.exitCode;
+      const originalLog = console.log;
+      console.log = () => {}; // suppress the real --json envelope output
+      try {
+        run(['scan', '--mcp', '--json', '--quiet']);
+        // Let lib/cli.js's Promise.resolve(result).then(...) chain run —
+        // buildEnvelope()'s awaited detector loop (runAll()) chains
+        // several microtask ticks even when every detector resolves
+        // synchronously, so a single `await Promise.resolve()` is not
+        // enough. setImmediate() only fires after ALL pending microtasks
+        // (including ones enqueued while draining the queue) are drained.
+        await new Promise(setImmediate);
+        assert.strictEqual(typeof process.exitCode, 'number');
+      } finally {
+        console.log = originalLog;
+        process.exitCode = originalExitCode; // never pollute the real test-runner exit code
+      }
     });
   });
 
