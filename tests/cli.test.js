@@ -3,7 +3,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { parseArgs } = require('../lib/cli.js');
+const { parseArgs, run } = require('../lib/cli.js');
 
 describe('parseArgs', () => {
   it('parses --help flag', () => {
@@ -85,6 +85,12 @@ describe('parseArgs', () => {
     assert.strictEqual(result.flags.online, true);
   });
 
+  it('parses --quiet flag (and never records it as unknown)', () => {
+    const result = parseArgs(['scan', '--mcp', '--quiet']);
+    assert.strictEqual(result.flags.quiet, true);
+    assert.deepStrictEqual(result.unknownFlags, [], '--quiet is a known flag — it must not trip the WR-01 fail-closed guard');
+  });
+
   describe('WR-05: unknown flags are never silently ignored', () => {
     function captureStderr(fn) {
       const original = console.error;
@@ -115,6 +121,160 @@ describe('parseArgs', () => {
       const { result, lines } = captureStderr(() => parseArgs(['scan', '--mcp', '--online', '--json']));
       assert.deepStrictEqual(result.unknownFlags, []);
       assert.deepStrictEqual(lines, []);
+    });
+  });
+
+  describe('WR-01: scan fails closed (exit 2) on unknown flags', () => {
+    function captureStderr(fn) {
+      const original = console.error;
+      const lines = [];
+      console.error = (msg) => { lines.push(String(msg)); };
+      try {
+        return { result: fn(), lines };
+      } finally {
+        console.error = original;
+      }
+    }
+
+    it('run(["scan","--mpc"]) (typo\'d --mcp) refuses with exit code 2 instead of silently running the env scan', async () => {
+      const originalExitCode = process.exitCode;
+      const originalLog = console.log;
+      const loggedStdout = [];
+      console.log = (...a) => loggedStdout.push(a.join(' '));
+      try {
+        const { lines } = captureStderr(() => run(['scan', '--mpc']));
+        await new Promise(setImmediate);
+        assert.strictEqual(process.exitCode, 2, 'a typo\'d security flag must never masquerade as a clean scan');
+        assert.ok(lines.some(l => l.includes('Refusing to run scan') && l.includes('--mpc')), `expected a refusal naming the typo on stderr, got: ${lines}`);
+        assert.deepStrictEqual(loggedStdout, [], 'no scan output — the scan must not have run at all');
+      } finally {
+        console.log = originalLog;
+        process.exitCode = originalExitCode;
+      }
+    });
+
+    it('run(["scan","--mcp","--onlien"]) (typo\'d --online) refuses with exit code 2 instead of running the wrong scan', async () => {
+      const originalExitCode = process.exitCode;
+      const originalLog = console.log;
+      console.log = () => {};
+      try {
+        const { lines } = captureStderr(() => run(['scan', '--mcp', '--onlien']));
+        await new Promise(setImmediate);
+        assert.strictEqual(process.exitCode, 2);
+        assert.ok(lines.some(l => l.includes('Refusing to run scan') && l.includes('--onlien')));
+      } finally {
+        console.log = originalLog;
+        process.exitCode = originalExitCode;
+      }
+    });
+  });
+
+  describe('run() scan --mcp exit-code propagation (D-01)', () => {
+    it('sets process.exitCode from the async scanMcp() result before the process would naturally exit', async () => {
+      // This invokes real discovery/parsing/detectors against the actual
+      // machine (no injected opts channel reaches run() at the CLI
+      // boundary) — --json/--quiet keep stdout to a single JSON blob and
+      // suppress the human report. Only a numeric exit code is asserted
+      // here; the exact-value (0/1/2) assertions live in scan-mcp.test.js's
+      // injected-fixture e2e suite (Task 2).
+      const originalExitCode = process.exitCode;
+      const originalLog = console.log;
+      const originalError = console.error;
+      const stderrLines = [];
+      console.log = () => {}; // suppress the real --json envelope output
+      console.error = (msg) => { stderrLines.push(String(msg)); };
+      try {
+        run(['scan', '--mcp', '--json', '--quiet']);
+        // Let lib/cli.js's Promise.resolve(result).then(...) chain run —
+        // buildEnvelope()'s awaited detector loop (runAll()) chains
+        // several microtask ticks even when every detector resolves
+        // synchronously, so a single `await Promise.resolve()` is not
+        // enough. setImmediate() only fires after ALL pending microtasks
+        // (including ones enqueued while draining the queue) are drained.
+        await new Promise(setImmediate);
+        // The scan must actually RUN — a previously self-defeating
+        // version of this test passed '--quiet' while parseArgs did not
+        // recognize it, so the WR-01 guard refused the scan with exit 2
+        // and `typeof === 'number'` was trivially satisfied by the
+        // refusal. Assert the refusal path was NOT taken and the exit
+        // code is one of the scan contract values (0/1/2).
+        assert.ok(
+          !stderrLines.some(l => l.includes('Refusing to run scan')),
+          `the scan must not be refused — every flag is known; stderr: ${stderrLines}`
+        );
+        assert.ok(
+          [0, 1, 2].includes(process.exitCode),
+          `exit code must be a scan contract value (0=clean/1=findings/2=incomplete), got ${process.exitCode}`
+        );
+      } finally {
+        console.log = originalLog;
+        console.error = originalError;
+        process.exitCode = originalExitCode; // never pollute the real test-runner exit code
+      }
+    });
+  });
+
+  describe('IN-01: a rejecting scan promise fails closed to exit code 2', () => {
+    it('run(["scan"]) with a scan() that rejects sets process.exitCode = 2 (never a silent false-clean 0)', async () => {
+      // scanMcp() is contractually written to never reject, but the
+      // dispatch must not depend on that invariant forever — a future
+      // refactor letting a rejection escape would otherwise leave
+      // exitCode 0 plus an unhandled-rejection warning. Stub lib/scan.js
+      // in the require cache so scan() rejects, and assert the .catch
+      // fails closed.
+      const Module = require('module');
+      const scanPath = require.resolve('../lib/scan.js');
+      const originalCacheEntry = require.cache[scanPath];
+      const stub = new Module(scanPath);
+      stub.filename = scanPath;
+      stub.loaded = true;
+      stub.exports = { scan: () => Promise.reject(new Error('escaped rejection')) };
+      require.cache[scanPath] = stub;
+
+      const originalExitCode = process.exitCode;
+      try {
+        process.exitCode = 0;
+        run(['scan']);
+        await new Promise(setImmediate);
+        assert.strictEqual(process.exitCode, 2, 'an escaped rejection must fail closed to 2, never stay 0');
+      } finally {
+        process.exitCode = originalExitCode;
+        if (originalCacheEntry === undefined) delete require.cache[scanPath];
+        else require.cache[scanPath] = originalCacheEntry;
+      }
+    });
+  });
+
+  describe('synchronous scan results assign process.exitCode synchronously (main-parity)', () => {
+    it('a sync scan() result (supply-chain/env path shape) sets process.exitCode BEFORE run() returns, and run() returns a promise', () => {
+      // Pre-Phase-7, the sync paths (env-scan, --supply-chain) assigned
+      // the exit code synchronously. A blanket Promise.resolve().then()
+      // wrapper deferred that by a microtask tick — a behavior change for
+      // programmatic callers of the exported run() that read
+      // process.exitCode right after it returns. Stub lib/scan.js in the
+      // require cache (same technique as the IN-01 test) with a scan()
+      // returning a plain sync object and assert NO await is needed.
+      const Module = require('module');
+      const scanPath = require.resolve('../lib/scan.js');
+      const originalCacheEntry = require.cache[scanPath];
+      const stub = new Module(scanPath);
+      stub.filename = scanPath;
+      stub.loaded = true;
+      stub.exports = { scan: () => ({ ran: true, code: 1 }) };
+      require.cache[scanPath] = stub;
+
+      const originalExitCode = process.exitCode;
+      try {
+        process.exitCode = 0;
+        const returned = run(['scan', '--supply-chain']);
+        // No await, no setImmediate — the assignment must already be done.
+        assert.strictEqual(process.exitCode, 1, 'a synchronous scan result must set process.exitCode synchronously');
+        assert.ok(returned && typeof returned.then === 'function', 'run() must return a promise embedders/tests can await');
+      } finally {
+        process.exitCode = originalExitCode;
+        if (originalCacheEntry === undefined) delete require.cache[scanPath];
+        else require.cache[scanPath] = originalCacheEntry;
+      }
     });
   });
 

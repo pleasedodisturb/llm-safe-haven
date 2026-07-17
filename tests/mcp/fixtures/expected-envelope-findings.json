@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "1",
+  "exitCode": 0,
+  "generatedAt": "2026-01-01T00:00:00.000Z",
+  "offline": true,
+  "sources": [
+    { "agentId": "claude-code", "scope": "user", "path": "/fake/home/.claude.json", "format": "json", "status": "parsed" }
+  ],
+  "servers": [
+    {
+      "agentId": "claude-code",
+      "scope": "user",
+      "configPath": "/fake/home/.claude.json",
+      "name": "test-fixture-server",
+      "command": "npx",
+      "args": ["test-fixture-package@1.0.0"],
+      "env": {},
+      "url": null,
+      "headers": {}
+    }
+  ],
+  "findings": [
+    {
+      "id": "provenance/unverified-offline",
+      "detector": "provenance",
+      "severity": "info",
+      "confidence": "unverified",
+      "agentId": "claude-code",
+      "scope": "user",
+      "serverName": "test-fixture-server",
+      "message": "Server \"test-fixture-server\"'s package \"test-fixture-package\" provenance not checked (offline) — run with --online to verify."
+    }
+  ],
+  "summary": {
+    "bySeverity": { "info": 1 },
+    "byDetector": { "provenance": 1 }
+  }
+}
