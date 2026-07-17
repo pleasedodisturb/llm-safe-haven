@@ -222,6 +222,56 @@ describe('scanMcp', () => {
     assert.deepStrictEqual(lines, []);
   });
 
+  describe('WR-02: --json build-error path emits a structured error envelope', () => {
+    const THROWING_DISCOVER = () => { throw new Error('boom'); };
+
+    it('emits a valid JSON error envelope to stdout (schemaVersion, exitCode 2, error: build-error, frozen keys)', async () => {
+      const originalLog = console.log;
+      const printed = [];
+      console.log = (msg) => { printed.push(msg); };
+      let result;
+      try {
+        result = await scanMcp({ json: true }, { discoverAll: THROWING_DISCOVER, now: FIXED_NOW });
+      } finally {
+        console.log = originalLog;
+      }
+
+      assert.strictEqual(result.ran, false);
+      assert.strictEqual(result.code, EXIT.INCOMPLETE);
+
+      assert.strictEqual(printed.length, 1, 'exactly one stdout write — pure JSON, nothing else');
+      const parsed = JSON.parse(printed[0]); // must not throw — the pure-JSON contract
+      assert.strictEqual(parsed.schemaVersion, SCHEMA_VERSION);
+      assert.strictEqual(parsed.exitCode, EXIT.INCOMPLETE, 'a build error is INCOMPLETE, never clean');
+      assert.strictEqual(parsed.error, 'build-error', 'the additive error field names the failure');
+      // The frozen envelope key set is preserved (with empty defaults) so
+      // existing consumers keep parsing; `error` is the only addition.
+      assert.deepEqual(Object.keys(parsed).sort(), [
+        'error', 'exitCode', 'findings', 'generatedAt', 'offline', 'schemaVersion', 'servers', 'sources', 'summary',
+      ]);
+      assert.deepEqual(parsed.findings, []);
+      assert.deepEqual(parsed.sources, []);
+      assert.deepEqual(parsed.servers, []);
+      assert.deepEqual(parsed.summary, { bySeverity: {}, byDetector: {} });
+      assert.strictEqual(parsed.generatedAt, '2026-01-01T00:00:00.000Z');
+      assert.strictEqual(parsed.offline, true);
+    });
+
+    it('without --json, a build error still prints nothing to stdout and returns code 2', async () => {
+      const originalLog = console.log;
+      const printed = [];
+      console.log = (msg) => { printed.push(msg); };
+      let result;
+      try {
+        result = await scanMcp({ quiet: true }, { discoverAll: THROWING_DISCOVER, now: FIXED_NOW });
+      } finally {
+        console.log = originalLog;
+      }
+      assert.strictEqual(result.code, EXIT.INCOMPLETE);
+      assert.deepStrictEqual(printed, [], 'the human/quiet build-error path stays silent on stdout');
+    });
+  });
+
   it('--online sets envelope.offline to false even with zero servers', async () => {
     let printed = '';
     const originalLog = console.log;
