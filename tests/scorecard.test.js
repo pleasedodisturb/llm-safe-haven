@@ -360,6 +360,52 @@ describe('printMcpScan', () => {
     });
   });
 
+  describe('hostile-envelope backstop: no control/format char in ANY rendered line', () => {
+    // Generic assertion over the ENTIRE output — the backstop for future
+    // call sites that forget sanitizeForTerminal. Every config-derived
+    // field (serverName, message, scope, source status/agentId) is
+    // poisoned with C0/C1 controls AND a U+202E bidi override, and every
+    // logged line is checked wholesale. The renderer's own ANSI SGR
+    // escapes (the C palette) are stripped first so only injected
+    // controls can trip the assertion.
+    const HOSTILE = 'x\x1b[2K\x07\x9b‮y'; // ESC, BEL, C1 CSI, RLO
+
+    function stripSgr(line) {
+      // Remove the renderer's own SGR sequences (\x1b[...m) — everything
+      // the C palette legitimately emits.
+      return line.replace(/\x1b\[[0-9;]*m/g, '');
+    }
+
+    it('every logged line is free of /[\\x00-\\x1f\\x7f-\\x9f]|\\p{Cf}/u after stripping renderer SGR', () => {
+      const hostileEnvelope = {
+        sources: [
+          { agentId: `agent${HOSTILE}`, scope: `user${HOSTILE}`, path: '/p', format: 'json', status: `parse-error${HOSTILE}` },
+        ],
+        servers: [],
+        findings: [
+          finding({ id: 'd/one', severity: SEVERITY.CRITICAL, serverName: `srv${HOSTILE}`, message: `msg${HOSTILE}`, scope: `user${HOSTILE}` }),
+          finding({ id: 'd/two', confidence: CONFIDENCE.UNVERIFIED, serverName: `srv${HOSTILE}`, message: `unv${HOSTILE}`, scope: `user${HOSTILE}` }),
+          Finding({
+            id: 'd/general', detector: 'd', severity: SEVERITY.HIGH, confidence: CONFIDENCE.VERIFIED,
+            agentId: null, scope: null, serverName: null, message: `general${HOSTILE}`,
+          }),
+        ],
+        summary: { bySeverity: {}, byDetector: {} },
+      };
+
+      printMcpScan(hostileEnvelope);
+
+      assert.ok(logged.length > 0, 'expected rendered output');
+      for (const line of logged) {
+        const visible = stripSgr(line);
+        assert.ok(
+          !/[\x00-\x1f\x7f-\x9f]|\p{Cf}/u.test(visible),
+          `rendered line contains an unsanitized control/format char: ${JSON.stringify(visible)}`
+        );
+      }
+    });
+  });
+
   it('non-parsed/not-found source statuses are listed so an exit-2 scan explains itself (D-07)', () => {
     printMcpScan({
       sources: [
