@@ -191,6 +191,37 @@ describe('parseArgs', () => {
     });
   });
 
+  describe('IN-01: a rejecting scan promise fails closed to exit code 2', () => {
+    it('run(["scan"]) with a scan() that rejects sets process.exitCode = 2 (never a silent false-clean 0)', async () => {
+      // scanMcp() is contractually written to never reject, but the
+      // dispatch must not depend on that invariant forever — a future
+      // refactor letting a rejection escape would otherwise leave
+      // exitCode 0 plus an unhandled-rejection warning. Stub lib/scan.js
+      // in the require cache so scan() rejects, and assert the .catch
+      // fails closed.
+      const Module = require('module');
+      const scanPath = require.resolve('../lib/scan.js');
+      const originalCacheEntry = require.cache[scanPath];
+      const stub = new Module(scanPath);
+      stub.filename = scanPath;
+      stub.loaded = true;
+      stub.exports = { scan: () => Promise.reject(new Error('escaped rejection')) };
+      require.cache[scanPath] = stub;
+
+      const originalExitCode = process.exitCode;
+      try {
+        process.exitCode = 0;
+        run(['scan']);
+        await new Promise(setImmediate);
+        assert.strictEqual(process.exitCode, 2, 'an escaped rejection must fail closed to 2, never stay 0');
+      } finally {
+        process.exitCode = originalExitCode;
+        if (originalCacheEntry === undefined) delete require.cache[scanPath];
+        else require.cache[scanPath] = originalCacheEntry;
+      }
+    });
+  });
+
   describe('IN-04: --agent value parsing', () => {
     function captureStderr(fn) {
       const original = console.error;
