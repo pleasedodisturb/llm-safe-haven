@@ -334,6 +334,30 @@ describe('printMcpScan', () => {
       // OSC-based escapes (ESC ] ... BEL) lose both ESC and BEL.
       assert.strictEqual(sanitizeForTerminal('\x1b]0;spoof\x07'), '�]0;spoof�');
     });
+
+    it('sanitizeForTerminal strips Unicode format/bidi controls (\\p{Cf}) — RLO can visually reorder a report line', () => {
+      const { sanitizeForTerminal } = require('../lib/scorecard.js');
+      // U+202E RIGHT-TO-LEFT OVERRIDE — the classic filename/report spoof.
+      assert.strictEqual(sanitizeForTerminal('safe‮gpj.exe'), 'safe�gpj.exe');
+      assert.ok(!sanitizeForTerminal('a‮b').includes('‮'), 'RLO must never reach output');
+      // Zero-width space, LTR mark, bidi isolate, BOM/ZWNBSP.
+      assert.strictEqual(sanitizeForTerminal('a​b‎c⁦d﻿e'), 'a�b�c�d�e');
+      // Plain non-ASCII text (letters, accents, CJK) passes through untouched.
+      assert.strictEqual(sanitizeForTerminal('café-服务器'), 'café-服务器');
+    });
+
+    it('printMcpScan never lets U+202E from a hostile server name reach the rendered output', () => {
+      const hostile = finding({
+        serverName: 'evil‮name',
+        message: 'msg with ‮ override',
+      });
+      printMcpScan({ sources: [], servers: [], findings: [hostile] });
+      assert.ok(logged.length > 0);
+      assert.ok(
+        logged.every((l) => !l.includes('‮')),
+        'no rendered line may contain the RLO character'
+      );
+    });
   });
 
   it('non-parsed/not-found source statuses are listed so an exit-2 scan explains itself (D-07)', () => {
