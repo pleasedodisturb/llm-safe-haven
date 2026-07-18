@@ -44,11 +44,11 @@ LLM Safe Haven -- Security Scorecard
 
 ```bash
 npx llm-safe-haven               # Install hooks and harden (default)
-npx llm-safe-haven audit          # Check security posture
+npx llm-safe-haven audit          # Check security posture (exits 2 if the MCP scan can't complete)
 npx llm-safe-haven audit --json   # Machine-readable for CI
 npx llm-safe-haven scan           # Find exposed .env files
 npx llm-safe-haven scan --supply-chain  # Scan for Miasma/Shai-Hulud IOCs (macOS/Linux)
-npx llm-safe-haven scan --mcp     # Scan MCP server configs (5 agents)
+npx llm-safe-haven scan --mcp     # Scan MCP server configs (5 agents) -- the CI gate for MCP findings
 npx llm-safe-haven scan --mcp --json    # Scan MCP server configs (JSON output)
 npx llm-safe-haven scan --mcp --online  # Opt in to registry provenance checks
 npx llm-safe-haven update         # Update hooks to latest

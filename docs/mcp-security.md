@@ -118,12 +118,41 @@ roadmap. If you're tracking it, watch the
 
 ## 6. Scorecard gating
 
-A clean `scan --mcp` run is a prerequisite for **Security Level 3 (Hardened)**. The
-gating rules, in priority order:
+A clean `scan --mcp` run is a prerequisite for **Security Level 3 (Hardened)**. MCP
+scan state feeds three commands, each with its own exit-code contract — here are the
+exact semantics, so you gate CI on the right one:
 
-1. **An incomplete MCP scan caps the level at 2** — fail closed. An unfinished scan
-   (parse error, unreadable config) is never treated as clean, because you don't
-   actually know what it would have found.
+**`scan --mcp` — the CI gate for MCP findings.**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Clean — scan completed, no verified findings (unverified-only notices are exit `0`) |
+| `1` | At least one **verified** finding |
+| `2` | Error or incomplete — the scan did not finish |
+
+**`audit` — the CI gate for overall posture.**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Security Level 2+ (and the in-process MCP scan completed) |
+| `1` | Security Level below 2 (scan completed) |
+| `2` | The MCP scan `audit` runs in-process did not complete — a pass/fail verdict built on an unfinished scan would not be trustworthy, so `audit` refuses to emit one |
+
+Verified MCP findings demote the Security Level (rules below) and therefore block
+Level 3+, but they do **not** by themselves fail `audit`'s exit code — a Level 2 setup
+with verified MCP findings still exits `0` from `audit`. If you want CI to fail on MCP
+findings, gate on `scan --mcp` (exit `1`), not on `audit`.
+
+**`install` — informational, never a gate.** The default `npx llm-safe-haven` run
+prints the same scorecard through the same level pipeline, but its exit code carries no
+gating signal. CI gating belongs to `audit` (level + incomplete-scan) and `scan --mcp`
+(findings).
+
+The Security Level rules, in priority order:
+
+1. **An incomplete MCP scan caps the level at 2** — and, as of the table above, fails
+   `audit` with exit `2`. An unfinished scan (parse error, unreadable config) is never
+   treated as clean, because you don't actually know what it would have found.
 2. **A verified MCP finding caps the level at 2** — regardless of severity, a verified
    finding means the scan found something concrete to fix.
 3. **Unverified findings never cap the level.** An offline-degraded "unverified" result
