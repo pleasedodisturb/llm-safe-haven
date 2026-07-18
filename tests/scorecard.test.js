@@ -646,9 +646,23 @@ describe('computeSecurityLevel + printLevel/printMcpAuditSection render smoke', 
       serverName: 'srv',
       message: 'unverified msg',
     });
-    printMcpAuditSection({ exitCode: 0, servers: [{}], findings: [unverified], sources: [] });
+    // F8 signature: the production callers pass getMcpInputs' counts.
+    printMcpAuditSection(
+      { exitCode: 0, servers: [{}], findings: [unverified], sources: [] },
+      { ran: true, exitCode: 0, verifiedCount: 0, unverifiedCount: 1 }
+    );
     assert.ok(!logged.some((l) => /\d+ MCP finding\(s\)/.test(l)), 'unverified-only must not render as a FAIL finding line');
     assert.ok(logged.some((l) => l.includes('unverified notice')));
+  });
+
+  it('F8 fallback: omitting the mcp counts arg re-derives them from the envelope (no throw, same render)', () => {
+    const { Finding, SEVERITY, CONFIDENCE } = require('../lib/mcp/base.js');
+    const verified = Finding({
+      id: 'd/v', detector: 'd', severity: SEVERITY.HIGH, confidence: CONFIDENCE.VERIFIED,
+      agentId: 'claude-code', scope: 'user', serverName: 'srv', message: 'verified msg',
+    });
+    printMcpAuditSection({ exitCode: 1, servers: [{}], findings: [verified], sources: [] });
+    assert.ok(logged.some((l) => /1 MCP finding\(s\)/.test(l)), 'the fallback derivation must still count the verified finding');
   });
 
   it('printMcpAuditSection(null) renders the incomplete state', () => {
@@ -667,7 +681,10 @@ describe('computeSecurityLevel + printLevel/printMcpAuditSection render smoke', 
       agentId: 'claude-code', scope: 'user', serverName: 'srv', message: 'unverified msg',
     });
 
-    printMcpAuditSection({ exitCode: EXIT.INCOMPLETE, servers: [], findings: [verified, unverified], sources: [] });
+    printMcpAuditSection(
+      { exitCode: EXIT.INCOMPLETE, servers: [], findings: [verified, unverified], sources: [] },
+      { ran: true, exitCode: EXIT.INCOMPLETE, verifiedCount: 1, unverifiedCount: 1 }
+    );
 
     assert.ok(logged.some((l) => /could not complete/.test(l)), 'the incomplete WARN line must render');
     assert.ok(logged.some((l) => /1 MCP finding\(s\)/.test(l)), 'the verified-findings count must render too — partial findings are a floor, not maskable');
