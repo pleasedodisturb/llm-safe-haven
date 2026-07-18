@@ -1,16 +1,91 @@
 'use strict';
 
-const { describe, it } = require('node:test');
+const { describe, it, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 
-const claudeCode = require('../../lib/agents/claude-code.js');
+const { installStub } = require('../helpers/module-stub.js');
 
+// Root portability: mode bits do not block uid 0, so permission-denied
+// tests can only pass as non-root (containers/CI sometimes run as root).
+const runningAsRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+
+// WR-04 (Phase 9 review fix): these dry-run/shape describes previously ran
+// against the REAL machine — claude-code.js bakes HOOKS_DIR/SETTINGS_PATH/
+// AUDIT_DIR from os.homedir() at module top level, so audit() iterated the
+// real ~/.claude/hooks and spawned a real `execFileSync('node', ['-c', …])`
+// per installed hook, and detect() probed the real PATH via `which`.
+// Assertions were shape-only so they passed everywhere, but covered
+// branches (and thus the local coverage % feeding the 85% ratchet) differed
+// between a hardened dev machine and CI's bare runner.
+//
+// Same hermeticity treatment as the real-fs describe below: stub
+// os.homedir() into an mkdtemp sandbox and stub child_process (throwing
+// execFileSync — deterministic "not installed" for detect(), and a tripwire
+// should audit() ever try to spawn), honoring the WR-01 stale-binding
+// ordering: stubs land in require.cache BEFORE claude-code.js is evicted
+// and re-required, so its top-level consts rebind against the sandbox.
 describe('claude-code agent', () => {
+  const osPath = require.resolve('os');
+  const childProcessPath = require.resolve('child_process');
+  const claudeCodePath = require.resolve('../../lib/agents/claude-code.js');
+
+  let tmpHome;
+  let claudeCode;
+  let originalOsEntry;
+  let originalChildProcessEntry;
+  let originalClaudeCodeEntry;
+
+  beforeEach(() => {
+    tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-claude-code-dryrun-'));
+
+    originalOsEntry = require.cache[osPath];
+    originalChildProcessEntry = require.cache[childProcessPath];
+    originalClaudeCodeEntry = require.cache[claudeCodePath];
+
+    // Spread the real os module so unrelated os.* calls keep working —
+    // only homedir() is redirected into the sandbox.
+    installStub(osPath, { ...os, homedir: () => tmpHome });
+    // base.js's commandExists/getVersion and audit()'s `node -c` syntax
+    // check all require('child_process') lazily with a bare specifier, so
+    // the stub reaches them with no ordering constraint. Throwing
+    // execFileSync = "CLI not installed" for detect(); audit() never
+    // spawns because the sandbox has no installed hooks.
+    installStub(childProcessPath, {
+      execFileSync: () => { throw new Error('stubbed — unit tests must never spawn a real subprocess'); },
+    });
+
+    // Evict claude-code.js so HOOKS_DIR/SETTINGS_PATH/AUDIT_DIR rebind
+    // against the stubbed os.homedir() on the next require.
+    delete require.cache[claudeCodePath];
+    claudeCode = require('../../lib/agents/claude-code.js');
+  });
+
+  afterEach(() => {
+    if (originalOsEntry === undefined) delete require.cache[osPath];
+    else require.cache[osPath] = originalOsEntry;
+    if (originalChildProcessEntry === undefined) delete require.cache[childProcessPath];
+    else require.cache[childProcessPath] = originalChildProcessEntry;
+
+    // Re-evict claude-code.js so later suites never see a module instance
+    // still bound to this test's tmpHome.
+    delete require.cache[claudeCodePath];
+    if (originalClaudeCodeEntry !== undefined) require.cache[claudeCodePath] = originalClaudeCodeEntry;
+
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  });
+
   describe('detect', () => {
     it('returns an object with a found boolean', () => {
       const result = claudeCode.detect();
       assert.ok(typeof result === 'object' && result !== null, 'detect() should return an object');
       assert.ok(typeof result.found === 'boolean', 'result.found should be a boolean');
+      // Deterministic under the throwing child_process stub: the `which`
+      // probe always fails, so found is false on every machine (previously
+      // this depended on whether `claude` was really on the PATH).
+      assert.strictEqual(result.found, false, 'the stubbed which-probe must report not-installed');
     });
   });
 
@@ -61,5 +136,196 @@ describe('claude-code agent', () => {
           `check "${check.name}" must have a string detail`);
       }
     });
+  });
+});
+
+// Real-fs coverage (extends the dry-run-only suite above, Open Question
+// 1 / D-15): lib/agents/claude-code.js bakes HOOKS_DIR/SETTINGS_PATH/
+// AUDIT_DIR from os.homedir() at module top level, so exercising the real
+// hook-copy / settings-merge / backup-rotation behavior requires
+// redirecting os.homedir() into an fs.mkdtempSync sandbox BEFORE the
+// module is (re-)required — the same WR-01 stale-binding ordering rule
+// tests/audit.test.js documents, applied to the `os` builtin instead of a
+// project module (see tests/helpers/module-stub.js).
+//
+// Every write in this block lands under `tmpHome` (an mkdtemp sandbox),
+// never the real ~/.claude — asserted explicitly below via the sandbox
+// path-prefix checks (T-09-02).
+describe('claude-code agent — real-fs harden/_mergeSettings/_backupFile (extends dry-run coverage)', () => {
+  const osPath = require.resolve('os');
+  const claudeCodePath = require.resolve('../../lib/agents/claude-code.js');
+
+  let tmpHome;
+  let claudeCodeReal;
+  let originalOsEntry;
+  let originalClaudeCodeEntry;
+
+  beforeEach(() => {
+    tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-claude-code-realfs-'));
+
+    originalOsEntry = require.cache[osPath];
+    originalClaudeCodeEntry = require.cache[claudeCodePath];
+
+    // Spread the real os module first so unrelated os.* calls (used
+    // transitively by lib/agents/base.js's macAppExists etc.) keep
+    // working — only homedir() is redirected.
+    installStub(osPath, { ...os, homedir: () => tmpHome });
+
+    // Evict claude-code.js so its top-level HOOKS_DIR/SETTINGS_PATH/
+    // AUDIT_DIR consts rebind against the stubbed os.homedir() on the
+    // next require.
+    delete require.cache[claudeCodePath];
+    claudeCodeReal = require('../../lib/agents/claude-code.js');
+  });
+
+  afterEach(() => {
+    if (originalOsEntry === undefined) delete require.cache[osPath];
+    else require.cache[osPath] = originalOsEntry;
+
+    // Re-evict claude-code.js so later suites (and the dry-run describe
+    // blocks above, if re-run) see the real os module again, not a
+    // module instance still bound to this test's tmpHome.
+    delete require.cache[claudeCodePath];
+    if (originalClaudeCodeEntry !== undefined) require.cache[claudeCodePath] = originalClaudeCodeEntry;
+
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  });
+
+  it('first-run harden(): creates HOOKS_DIR, copies HOOK_FILES, and merges settings.json — all under the sandbox', () => {
+    const result = claudeCodeReal.harden(tmpHome, {});
+    assert.ok(Array.isArray(result.actions));
+
+    const hooksDir = path.join(tmpHome, '.claude', 'hooks');
+    assert.ok(fs.existsSync(hooksDir), 'HOOKS_DIR should exist on disk');
+    assert.ok(hooksDir.startsWith(tmpHome), 'HOOKS_DIR must live under the sandbox path prefix');
+
+    for (const hook of ['bash-firewall.js', 'secret-guard.js', 'config-guard.js', 'audit-logger.js']) {
+      const hookPath = path.join(hooksDir, hook);
+      assert.ok(fs.existsSync(hookPath), `${hook} should be copied to the sandbox`);
+      assert.ok(hookPath.startsWith(tmpHome), 'a written hook must live under the sandbox path prefix');
+      assert.ok(result.actions.some((a) => a.includes(hook) && a.includes('installed')));
+    }
+
+    const settingsPath = path.join(tmpHome, '.claude', 'settings.json');
+    assert.ok(fs.existsSync(settingsPath), 'settings.json should be written on first run');
+    assert.ok(settingsPath.startsWith(tmpHome), 'settings.json must live under the sandbox path prefix');
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    assert.ok(settings.hooks && settings.hooks.PreToolUse && settings.hooks.PreToolUse.length > 0);
+  });
+
+  it('second-run idempotency: hooks report "already installed, skipped"; _mergeSettings reports "hooks already configured" with no rewrite', () => {
+    claudeCodeReal.harden(tmpHome, {});
+    const second = claudeCodeReal.harden(tmpHome, {});
+
+    assert.ok(
+      second.actions.some((a) => a.includes('already installed, skipped')),
+      `expected an "already installed, skipped" action, got: ${second.actions.join(', ')}`
+    );
+    assert.ok(
+      second.actions.some((a) => a.includes('hooks already configured')),
+      `expected a "hooks already configured" action (no rewrite), got: ${second.actions.join(', ')}`
+    );
+  });
+
+  it('corrupt settings.json: _mergeSettings catches the JSON.parse throw, returns a warning, never crashes', () => {
+    fs.mkdirSync(path.join(tmpHome, '.claude'), { recursive: true });
+    fs.writeFileSync(path.join(tmpHome, '.claude', 'settings.json'), '{ this is not valid json');
+
+    let result;
+    assert.doesNotThrow(() => { result = claudeCodeReal._mergeSettings({}); });
+    assert.deepEqual(result.actions, []);
+    assert.ok(
+      result.warnings.some((w) => /not valid JSON/i.test(w)),
+      `expected a not-valid-JSON warning, got: ${result.warnings.join(', ')}`
+    );
+  });
+
+  it('prototype-pollution guard: a __proto__/constructor-bearing settings.json payload never pollutes Object.prototype', () => {
+    const settingsPath = path.join(tmpHome, '.claude', 'settings.json');
+    fs.mkdirSync(path.join(tmpHome, '.claude'), { recursive: true });
+    // MUST be a raw JSON string, not JSON.stringify of an object literal:
+    // a quoted '__proto__' key in a literal SETS the object's prototype, so
+    // JSON.stringify drops it and the written file never contains the key —
+    // making the guard test vacuous. JSON.parse of this raw string, by
+    // contrast, DOES create an own '__proto__' (and 'constructor') property
+    // on the parsed object, which is exactly what the `delete
+    // existing.__proto__` / `delete existing.constructor` guard in
+    // _mergeSettings must strip.
+    fs.writeFileSync(
+      settingsPath,
+      '{"__proto__":{"polluted":true},"constructor":{"prototype":{"polluted":true}},"hooks":{}}'
+    );
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(JSON.parse(fs.readFileSync(settingsPath, 'utf8')), '__proto__'),
+      'fixture self-check: the payload on disk must parse to an object with an OWN __proto__ property'
+    );
+
+    claudeCodeReal._mergeSettings({});
+
+    assert.equal(({}).polluted, undefined, 'Object.prototype must never be polluted by the merge');
+    assert.equal(Object.prototype.polluted, undefined, 'Object.prototype must never be polluted by the merge');
+
+    // The guard's other half: the merged settings written back to disk must
+    // have the poisoned keys stripped, not round-tripped.
+    const raw = fs.readFileSync(settingsPath, 'utf8');
+    assert.ok(!raw.includes('"__proto__"'), 'the merged settings.json must not round-trip a "__proto__" key');
+    assert.ok(
+      !Object.prototype.hasOwnProperty.call(JSON.parse(raw), '__proto__'),
+      'the merged settings.json must not contain an own __proto__ key'
+    );
+    assert.ok(
+      !Object.prototype.hasOwnProperty.call(JSON.parse(raw), 'constructor'),
+      'the merged settings.json must not contain an own constructor key'
+    );
+  });
+
+  it('backup rotation: writing 5 backups leaves only the 3 most recent (MAX_BACKUPS=3)', () => {
+    const claudeDir = path.join(tmpHome, '.claude');
+    fs.mkdirSync(claudeDir, { recursive: true });
+    const settingsPath = path.join(claudeDir, 'settings.json');
+    fs.writeFileSync(settingsPath, '{}');
+
+    // Seed 4 older backups with deterministic, sortable timestamps so the
+    // "3 most recent" assertion never races real Date() millisecond
+    // resolution within a tight synchronous loop.
+    const seeded = [
+      'settings.json.bak.2020-01-01T00-00-00.000Z',
+      'settings.json.bak.2020-01-02T00-00-00.000Z',
+      'settings.json.bak.2020-01-03T00-00-00.000Z',
+      'settings.json.bak.2020-01-04T00-00-00.000Z',
+    ];
+    for (const name of seeded) {
+      fs.writeFileSync(path.join(claudeDir, name), '{}');
+    }
+
+    // A 5th, real-timestamped backup — its ISO date always sorts after
+    // every seeded 2020 date, so it is guaranteed to survive rotation.
+    const backupPath = claudeCodeReal._backupFile(settingsPath);
+    assert.ok(backupPath, '_backupFile should return the new backup path');
+    assert.ok(backupPath.startsWith(tmpHome), 'the backup must live under the sandbox path prefix');
+
+    const remaining = fs.readdirSync(claudeDir)
+      .filter((f) => f.startsWith('settings.json.bak.'))
+      .sort();
+    assert.equal(remaining.length, 3, `expected exactly 3 backups to survive rotation, got: ${remaining.join(', ')}`);
+    assert.deepEqual(remaining, [
+      'settings.json.bak.2020-01-03T00-00-00.000Z',
+      'settings.json.bak.2020-01-04T00-00-00.000Z',
+      path.basename(backupPath),
+    ].sort());
+  });
+
+  it('copy-failure: harden() throws when HOOKS_DIR is read-only', { skip: runningAsRoot }, () => {
+    const hooksDir = path.join(tmpHome, '.claude', 'hooks');
+    fs.mkdirSync(hooksDir, { recursive: true });
+    fs.chmodSync(hooksDir, 0o500);
+
+    try {
+      assert.throws(() => claudeCodeReal.harden(tmpHome, {}), /EACCES|EPERM/);
+    } finally {
+      // Restore write permission before afterEach's rmSync cleanup runs,
+      // or cleanup itself would fail on the read-only directory.
+      fs.chmodSync(hooksDir, 0o700);
+    }
   });
 });

@@ -1,5 +1,17 @@
 name: CI
-on: [push, pull_request]
+# push is scoped to main so PR branches don't trigger duplicate
+# push+pull_request runs (halves PR CI); pull_request stays unscoped so
+# every PR is still fully tested. Pushes to main run everything.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded in-flight runs for the same ref (e.g. force-of-habit
+# rapid pushes to a PR branch) — only the latest commit's run survives.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -14,3 +26,23 @@ jobs:
       - run: node -c hooks/audit-logger.js
       - run: node bin/llm-safe-haven.js --version
       - run: node bin/llm-safe-haven.js --help
+      # Coverage gate: fails the job (exit 1) below an 85% line floor.
+      # bin/** and scripts/** are excluded from the denominator (kept out
+      # of the floor intentionally -- exercised only by the smoke steps
+      # above, not by unit tests) so the ratchet measures shipped
+      # lib/hooks code, not CLI glue.
+      - run: npm run test:coverage
+
+  # Supported-floor check (WR-01): `test:coverage` needs Node >= 22.5
+  # (--test-coverage-lines / --test-coverage-exclude), but the package
+  # claims `engines: >=18`. This leg proves the suite itself still runs
+  # on the documented Node 18 floor -- without it, CI would only ever
+  # execute tests on Node 22 via the coverage variant above.
+  test-node18:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
+        with:
+          node-version: '18'
+      - run: npm test

@@ -38,7 +38,8 @@
   },
   "scripts": {
     "generate-checksums": "node scripts/generate-checksums.js",
-    "test": "node --test test/*.test.js tests/*.test.js tests/agents/*.test.js tests/mcp/*.test.js tests/mcp/parsers/*.test.js tests/mcp/detectors/*.test.js"
+    "test": "node --test test/*.test.js tests/*.test.js tests/agents/*.test.js tests/mcp/*.test.js tests/mcp/parsers/*.test.js tests/mcp/detectors/*.test.js",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=85 --test-coverage-exclude='tests/**' --test-coverage-exclude='test/**' --test-coverage-exclude='bin/**' --test-coverage-exclude='scripts/**' test/*.test.js tests/*.test.js tests/agents/*.test.js tests/mcp/*.test.js tests/mcp/parsers/*.test.js tests/mcp/detectors/*.test.js"
   },
   "engines": {
     "node": ">=18"
