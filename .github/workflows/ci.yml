@@ -1,5 +1,17 @@
 name: CI
-on: [push, pull_request]
+# push is scoped to main so PR branches don't trigger duplicate
+# push+pull_request runs (halves PR CI); pull_request stays unscoped so
+# every PR is still fully tested. Pushes to main run everything.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded in-flight runs for the same ref (e.g. force-of-habit
+# rapid pushes to a PR branch) — only the latest commit's run survives.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
