@@ -11,6 +11,8 @@
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
 
 const pkg = require('../package.json');
 
@@ -43,6 +45,55 @@ describe('package.json test-script glob parity (WR-02)', () => {
     assert.ok(
       testGlobs.includes('tests/*.test.js'),
       `expected the tests/*.test.js glob (which picks up this parity guard) in the test script, got: ${testGlobs.join(', ')}`
+    );
+  });
+
+  it('every on-disk directory containing *.test.js files is matched by a glob in the `test` script (script-vs-disk parity)', () => {
+    // Script-vs-script parity (above) catches the two lists drifting from
+    // each other, but NOT a brand-new tests/<subdir>/ that neither script
+    // picks up — those tests would silently never run anywhere. Walk the
+    // real test trees and assert every directory that holds *.test.js
+    // files is covered by at least one enumerated glob.
+    const root = path.join(__dirname, '..');
+    const MAX_DEPTH = 3;
+
+    function collectTestDirs(relDir, depth, acc) {
+      const absDir = path.join(root, relDir);
+      let entries;
+      try {
+        entries = fs.readdirSync(absDir, { withFileTypes: true });
+      } catch {
+        return acc; // tree absent (e.g. test/ removed) — nothing to cover
+      }
+      if (entries.some((e) => e.isFile() && e.name.endsWith('.test.js'))) {
+        acc.push(relDir);
+      }
+      if (depth < MAX_DEPTH) {
+        for (const e of entries) {
+          // Subdirs WITHOUT *.test.js (fixtures/, helpers/, …) simply never
+          // land in acc — no explicit skip list needed.
+          if (e.isDirectory()) {
+            collectTestDirs(`${relDir}/${e.name}`, depth + 1, acc);
+          }
+        }
+      }
+      return acc;
+    }
+
+    const diskDirs = [
+      ...collectTestDirs('test', 1, []),
+      ...collectTestDirs('tests', 1, []),
+    ].sort();
+    assert.ok(diskDirs.length > 0, 'the walk must discover at least one directory with *.test.js files');
+
+    // A glob token covers a directory when its dirname equals the
+    // discovered dirname (all enumerated globs are <dir>/*.test.js).
+    const globDirs = new Set(globsOf(pkg.scripts.test).map((g) => path.posix.dirname(g)));
+    const uncovered = diskDirs.filter((d) => !globDirs.has(d));
+    assert.deepEqual(
+      uncovered,
+      [],
+      `on-disk test directories not matched by any glob in the \`test\` script — their tests never run in any CI leg: ${uncovered.join(', ')}`
     );
   });
 });
