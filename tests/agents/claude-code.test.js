@@ -237,16 +237,42 @@ describe('claude-code agent — real-fs harden/_mergeSettings/_backupFile (exten
   });
 
   it('prototype-pollution guard: a __proto__/constructor-bearing settings.json payload never pollutes Object.prototype', () => {
+    const settingsPath = path.join(tmpHome, '.claude', 'settings.json');
     fs.mkdirSync(path.join(tmpHome, '.claude'), { recursive: true });
+    // MUST be a raw JSON string, not JSON.stringify of an object literal:
+    // a quoted '__proto__' key in a literal SETS the object's prototype, so
+    // JSON.stringify drops it and the written file never contains the key —
+    // making the guard test vacuous. JSON.parse of this raw string, by
+    // contrast, DOES create an own '__proto__' (and 'constructor') property
+    // on the parsed object, which is exactly what the `delete
+    // existing.__proto__` / `delete existing.constructor` guard in
+    // _mergeSettings must strip.
     fs.writeFileSync(
-      path.join(tmpHome, '.claude', 'settings.json'),
-      JSON.stringify({ '__proto__': { polluted: true }, constructor: { polluted: true }, hooks: {} })
+      settingsPath,
+      '{"__proto__":{"polluted":true},"constructor":{"prototype":{"polluted":true}},"hooks":{}}'
+    );
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(JSON.parse(fs.readFileSync(settingsPath, 'utf8')), '__proto__'),
+      'fixture self-check: the payload on disk must parse to an object with an OWN __proto__ property'
     );
 
     claudeCodeReal._mergeSettings({});
 
     assert.equal(({}).polluted, undefined, 'Object.prototype must never be polluted by the merge');
     assert.equal(Object.prototype.polluted, undefined, 'Object.prototype must never be polluted by the merge');
+
+    // The guard's other half: the merged settings written back to disk must
+    // have the poisoned keys stripped, not round-tripped.
+    const raw = fs.readFileSync(settingsPath, 'utf8');
+    assert.ok(!raw.includes('"__proto__"'), 'the merged settings.json must not round-trip a "__proto__" key');
+    assert.ok(
+      !Object.prototype.hasOwnProperty.call(JSON.parse(raw), '__proto__'),
+      'the merged settings.json must not contain an own __proto__ key'
+    );
+    assert.ok(
+      !Object.prototype.hasOwnProperty.call(JSON.parse(raw), 'constructor'),
+      'the merged settings.json must not contain an own constructor key'
+    );
   });
 
   it('backup rotation: writing 5 backups leaves only the 3 most recent (MAX_BACKUPS=3)', () => {
