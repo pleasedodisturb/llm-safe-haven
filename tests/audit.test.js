@@ -213,6 +213,24 @@ describe('audit --json frozen contract (D-11) and containment', () => {
     }, '--json always computes the full mcp record even with zero agents (unlike the human short-circuit)');
   });
 
+  it('IN-03: zero-agents --json path with an INCOMPLETE MCP scan exits 2, not 1 (fail-closed wins over zero-agents parity)', async () => {
+    // The human path always exits 1 on zero agents (it short-circuits
+    // before any scan). --json exits 1 only when its MCP scan completes;
+    // a rejecting buildEnvelope must yield exit 2 per the locked
+    // security-gate-exit-codes rule — pinning the documented divergence.
+    currentAgents = [];
+    currentBuildEnvelope = () => Promise.reject(new Error('hostile config engineered to crash discovery'));
+
+    const result = await audit({ json: true });
+    const out = parseSingleJsonDocument();
+
+    assert.deepEqual(out.agents, [], 'zero agents still produces an (empty) agents[] key');
+    assert.deepEqual(out.mcp, {
+      ran: false, exitCode: EXIT.INCOMPLETE, findingsCount: 0, verifiedCount: 0, unverifiedCount: 0,
+    });
+    assert.equal(result.code, 2, 'zero agents + incomplete MCP scan must fail closed with exit 2 on the --json path (unlike the human path, which always exits 1)');
+  });
+
   it('verified findings are level-only: base level 2 + verified MCP finding -> still exit 0 (scan --mcp is the findings gate)', async () => {
     currentAgents = [fakeAgent({ audit: () => ({ checks: [], level: 2 }) })];
     currentBuildEnvelope = () => Promise.resolve(envelope({
