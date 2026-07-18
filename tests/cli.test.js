@@ -388,11 +388,21 @@ describe('parseArgs', () => {
       // below). Without this, detectAll() fires real execFileSync probes
       // against every locally-installed agent CLI (Pitfall 1), polluting
       // coverage with machine-dependent rows.
+      //
+      // WR-03 (Phase 9 review fix): audit.js ALSO captures scanForEnvFiles
+      // from lib/scan.js in a top-level destructured require — left real,
+      // each run recursively walks the developer's actual ~/Projects,
+      // ~/Developer, ~/Code, ~/src, ~/repos, ~/workspace to depth 4 (slow,
+      // and real .env files change envFileCount/branches — the exact
+      // coverage-pollution mechanism this phase set out to close). Stub it
+      // alongside the agents stub, same pattern tests/audit.test.js uses.
       const { installStub } = require('./helpers/module-stub.js');
       const agentsPath = require.resolve('../lib/agents/index.js');
       const auditPath = require.resolve('../lib/audit.js');
+      const scanPath = require.resolve('../lib/scan.js');
       const originalAgentsEntry = require.cache[agentsPath];
       const originalAuditEntry = require.cache[auditPath];
+      const originalScanEntry = require.cache[scanPath];
       delete require.cache[auditPath];
       installStub(agentsPath, {
         detectAll: () => [{
@@ -403,6 +413,7 @@ describe('parseArgs', () => {
         getById: () => null,
         getByIds: () => [],
       });
+      installStub(scanPath, { scanForEnvFiles: () => [] });
 
       const originalExitCode = process.exitCode;
       const originalLog = console.log;
@@ -429,15 +440,21 @@ describe('parseArgs', () => {
         else require.cache[agentsPath] = originalAgentsEntry;
         if (originalAuditEntry === undefined) delete require.cache[auditPath];
         else require.cache[auditPath] = originalAuditEntry;
+        if (originalScanEntry === undefined) delete require.cache[scanPath];
+        else require.cache[scanPath] = originalScanEntry;
       }
     });
 
     it('sets process.exitCode from the async audit() result (--json path)', async () => {
+      // WR-03: lib/scan.js stubbed alongside the agents stub — see the
+      // rationale comment in the human-path test above.
       const { installStub } = require('./helpers/module-stub.js');
       const agentsPath = require.resolve('../lib/agents/index.js');
       const auditPath = require.resolve('../lib/audit.js');
+      const scanPath = require.resolve('../lib/scan.js');
       const originalAgentsEntry = require.cache[agentsPath];
       const originalAuditEntry = require.cache[auditPath];
+      const originalScanEntry = require.cache[scanPath];
       delete require.cache[auditPath];
       installStub(agentsPath, {
         detectAll: () => [{
@@ -448,6 +465,7 @@ describe('parseArgs', () => {
         getById: () => null,
         getByIds: () => [],
       });
+      installStub(scanPath, { scanForEnvFiles: () => [] });
 
       const originalExitCode = process.exitCode;
       const originalLog = console.log;
@@ -468,6 +486,8 @@ describe('parseArgs', () => {
         else require.cache[agentsPath] = originalAgentsEntry;
         if (originalAuditEntry === undefined) delete require.cache[auditPath];
         else require.cache[auditPath] = originalAuditEntry;
+        if (originalScanEntry === undefined) delete require.cache[scanPath];
+        else require.cache[scanPath] = originalScanEntry;
       }
     });
   });
@@ -504,9 +524,11 @@ describe('parseArgs', () => {
       const scanMcpPath = require.resolve('../lib/scan-mcp.js');
       const agentsPath = require.resolve('../lib/agents/index.js');
       const auditPath = require.resolve('../lib/audit.js');
+      const scanPath = require.resolve('../lib/scan.js');
       const originalScanMcpEntry = require.cache[scanMcpPath];
       const originalAgentsEntry = require.cache[agentsPath];
       const originalAuditEntry = require.cache[auditPath];
+      const originalScanEntry = require.cache[scanPath];
 
       // Force audit.js to rebind the stubbed scan-mcp/agents on its next load.
       delete require.cache[auditPath];
@@ -528,6 +550,11 @@ describe('parseArgs', () => {
         }],
         getByIds: () => [],
       });
+      // WR-03: the freshly-required audit.js would otherwise bind the REAL
+      // scanForEnvFiles (recursive depth-4 walk of six real home dirs on
+      // its human path, lib/audit.js:145) — stub it like the propagation
+      // tests above.
+      installStub(scanPath, { scanForEnvFiles: () => [] });
 
       const originalExitCode = process.exitCode;
       const originalLog = console.log;
@@ -548,6 +575,8 @@ describe('parseArgs', () => {
         else require.cache[scanMcpPath] = originalScanMcpEntry;
         if (originalAgentsEntry === undefined) delete require.cache[agentsPath];
         else require.cache[agentsPath] = originalAgentsEntry;
+        if (originalScanEntry === undefined) delete require.cache[scanPath];
+        else require.cache[scanPath] = originalScanEntry;
         // The freshly-loaded audit.js is bound to the stubs — it must not
         // leak into later tests. Restore the pre-test entry (or evict).
         if (originalAuditEntry === undefined) delete require.cache[auditPath];
