@@ -177,6 +177,23 @@ describe('parseArgs', () => {
       // suppress the human report. Only a numeric exit code is asserted
       // here; the exact-value (0/1/2) assertions live in scan-mcp.test.js's
       // injected-fixture e2e suite (Task 2).
+      // T-09-05/T-09-06 hermeticity: config-sources.js's discover() resolves
+      // each known agent id through lib/agents/index.js's getById(id).detect()
+      // as an install-presence gate — unstubbed, this fires a real
+      // execFileSync('which', [...]) / CLI-version-check subprocess per
+      // agent (Pitfall 1), polluting coverage with machine-dependent rows
+      // (e.g. /Applications/*.app paths). Stub it out before run() so no
+      // real agent CLI is ever probed; discover() treats a null agentModule
+      // as "not installed" and returns [] for that source.
+      const { installStub } = require('./helpers/module-stub.js');
+      const agentsPath = require.resolve('../lib/agents/index.js');
+      const originalAgentsEntry = require.cache[agentsPath];
+      installStub(agentsPath, {
+        detectAll: () => [],
+        getById: () => null,
+        getByIds: () => [],
+      });
+
       const originalExitCode = process.exitCode;
       const originalLog = console.log;
       const originalError = console.error;
@@ -210,6 +227,8 @@ describe('parseArgs', () => {
         console.log = originalLog;
         console.error = originalError;
         process.exitCode = originalExitCode; // never pollute the real test-runner exit code
+        if (originalAgentsEntry === undefined) delete require.cache[agentsPath];
+        else require.cache[agentsPath] = originalAgentsEntry;
       }
     });
   });
@@ -357,14 +376,42 @@ describe('parseArgs', () => {
   describe('run() audit exit-code propagation', () => {
     it('sets process.exitCode from the async audit() result (human path)', async () => {
       // Phase 8: audit() is async (D-04/D-05) and returns { code } instead
-      // of calling process.exit(). This invokes real agent detection/env
-      // scan/MCP scan against the actual machine (no injected opts channel
-      // reaches run() at the CLI boundary) — only a numeric exit code is
-      // asserted here.
+      // of calling process.exit(). This invokes real agent-detected checks
+      // plus env scan/MCP scan, but the agent-CLI-presence probe itself is
+      // stubbed hermetically below (IN-04/D-04/D-05) — only a numeric exit
+      // code is asserted here.
+      //
+      // Hermeticity (T-09-05/T-09-06): lib/audit.js captures detectAll in a
+      // top-level destructured require, so the stub must land in
+      // require.cache BEFORE audit.js is (re-)required — evict any
+      // already-cached audit.js first (same WR-01 ordering as the D-03 test
+      // below). Without this, detectAll() fires real execFileSync probes
+      // against every locally-installed agent CLI (Pitfall 1), polluting
+      // coverage with machine-dependent rows.
+      const { installStub } = require('./helpers/module-stub.js');
+      const agentsPath = require.resolve('../lib/agents/index.js');
+      const auditPath = require.resolve('../lib/audit.js');
+      const originalAgentsEntry = require.cache[agentsPath];
+      const originalAuditEntry = require.cache[auditPath];
+      delete require.cache[auditPath];
+      installStub(agentsPath, {
+        detectAll: () => [{
+          id: 'fake-agent', name: 'Fake Agent', tier: 1,
+          detected: { found: true, version: '1.0.0' },
+          audit: () => ({ checks: [], level: 3 }),
+        }],
+        getById: () => null,
+        getByIds: () => [],
+      });
+
       const originalExitCode = process.exitCode;
       const originalLog = console.log;
       console.log = () => {}; // suppress the real human-readable report
       try {
+        // IN-04: an out-of-range sentinel (outside {0,1,2}) so a silently
+        // non-executed run fails loudly instead of coincidentally landing
+        // on a contract value.
+        process.exitCode = 42;
         run(['audit']);
         // buildEnvelope()'s awaited detector loop (runAll()) chains several
         // microtask ticks even when every detector resolves synchronously —
@@ -378,14 +425,36 @@ describe('parseArgs', () => {
       } finally {
         console.log = originalLog;
         process.exitCode = originalExitCode; // never pollute the real test-runner exit code
+        if (originalAgentsEntry === undefined) delete require.cache[agentsPath];
+        else require.cache[agentsPath] = originalAgentsEntry;
+        if (originalAuditEntry === undefined) delete require.cache[auditPath];
+        else require.cache[auditPath] = originalAuditEntry;
       }
     });
 
     it('sets process.exitCode from the async audit() result (--json path)', async () => {
+      const { installStub } = require('./helpers/module-stub.js');
+      const agentsPath = require.resolve('../lib/agents/index.js');
+      const auditPath = require.resolve('../lib/audit.js');
+      const originalAgentsEntry = require.cache[agentsPath];
+      const originalAuditEntry = require.cache[auditPath];
+      delete require.cache[auditPath];
+      installStub(agentsPath, {
+        detectAll: () => [{
+          id: 'fake-agent', name: 'Fake Agent', tier: 1,
+          detected: { found: true, version: '1.0.0' },
+          audit: () => ({ checks: [], level: 3 }),
+        }],
+        getById: () => null,
+        getByIds: () => [],
+      });
+
       const originalExitCode = process.exitCode;
       const originalLog = console.log;
       console.log = () => {}; // suppress the real --json envelope output
       try {
+        // IN-04: out-of-range sentinel — see rationale above.
+        process.exitCode = 99;
         run(['audit', '--json']);
         await new Promise(setImmediate);
         assert.ok(
@@ -395,6 +464,10 @@ describe('parseArgs', () => {
       } finally {
         console.log = originalLog;
         process.exitCode = originalExitCode;
+        if (originalAgentsEntry === undefined) delete require.cache[agentsPath];
+        else require.cache[agentsPath] = originalAgentsEntry;
+        if (originalAuditEntry === undefined) delete require.cache[auditPath];
+        else require.cache[auditPath] = originalAuditEntry;
       }
     });
   });
