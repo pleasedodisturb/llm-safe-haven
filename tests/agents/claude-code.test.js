@@ -8,14 +8,80 @@ const os = require('os');
 
 const { installStub } = require('../helpers/module-stub.js');
 
-const claudeCode = require('../../lib/agents/claude-code.js');
-
+// WR-04 (Phase 9 review fix): these dry-run/shape describes previously ran
+// against the REAL machine — claude-code.js bakes HOOKS_DIR/SETTINGS_PATH/
+// AUDIT_DIR from os.homedir() at module top level, so audit() iterated the
+// real ~/.claude/hooks and spawned a real `execFileSync('node', ['-c', …])`
+// per installed hook, and detect() probed the real PATH via `which`.
+// Assertions were shape-only so they passed everywhere, but covered
+// branches (and thus the local coverage % feeding the 85% ratchet) differed
+// between a hardened dev machine and CI's bare runner.
+//
+// Same hermeticity treatment as the real-fs describe below: stub
+// os.homedir() into an mkdtemp sandbox and stub child_process (throwing
+// execFileSync — deterministic "not installed" for detect(), and a tripwire
+// should audit() ever try to spawn), honoring the WR-01 stale-binding
+// ordering: stubs land in require.cache BEFORE claude-code.js is evicted
+// and re-required, so its top-level consts rebind against the sandbox.
 describe('claude-code agent', () => {
+  const osPath = require.resolve('os');
+  const childProcessPath = require.resolve('child_process');
+  const claudeCodePath = require.resolve('../../lib/agents/claude-code.js');
+
+  let tmpHome;
+  let claudeCode;
+  let originalOsEntry;
+  let originalChildProcessEntry;
+  let originalClaudeCodeEntry;
+
+  beforeEach(() => {
+    tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-claude-code-dryrun-'));
+
+    originalOsEntry = require.cache[osPath];
+    originalChildProcessEntry = require.cache[childProcessPath];
+    originalClaudeCodeEntry = require.cache[claudeCodePath];
+
+    // Spread the real os module so unrelated os.* calls keep working —
+    // only homedir() is redirected into the sandbox.
+    installStub(osPath, { ...os, homedir: () => tmpHome });
+    // base.js's commandExists/getVersion and audit()'s `node -c` syntax
+    // check all require('child_process') lazily with a bare specifier, so
+    // the stub reaches them with no ordering constraint. Throwing
+    // execFileSync = "CLI not installed" for detect(); audit() never
+    // spawns because the sandbox has no installed hooks.
+    installStub(childProcessPath, {
+      execFileSync: () => { throw new Error('stubbed — unit tests must never spawn a real subprocess'); },
+    });
+
+    // Evict claude-code.js so HOOKS_DIR/SETTINGS_PATH/AUDIT_DIR rebind
+    // against the stubbed os.homedir() on the next require.
+    delete require.cache[claudeCodePath];
+    claudeCode = require('../../lib/agents/claude-code.js');
+  });
+
+  afterEach(() => {
+    if (originalOsEntry === undefined) delete require.cache[osPath];
+    else require.cache[osPath] = originalOsEntry;
+    if (originalChildProcessEntry === undefined) delete require.cache[childProcessPath];
+    else require.cache[childProcessPath] = originalChildProcessEntry;
+
+    // Re-evict claude-code.js so later suites never see a module instance
+    // still bound to this test's tmpHome.
+    delete require.cache[claudeCodePath];
+    if (originalClaudeCodeEntry !== undefined) require.cache[claudeCodePath] = originalClaudeCodeEntry;
+
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  });
+
   describe('detect', () => {
     it('returns an object with a found boolean', () => {
       const result = claudeCode.detect();
       assert.ok(typeof result === 'object' && result !== null, 'detect() should return an object');
       assert.ok(typeof result.found === 'boolean', 'result.found should be a boolean');
+      // Deterministic under the throwing child_process stub: the `which`
+      // probe always fails, so found is false on every machine (previously
+      // this depended on whether `claude` was really on the PATH).
+      assert.strictEqual(result.found, false, 'the stubbed which-probe must report not-installed');
     });
   });
 
