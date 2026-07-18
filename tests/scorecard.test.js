@@ -655,4 +655,30 @@ describe('computeSecurityLevel + printLevel/printMcpAuditSection render smoke', 
     printMcpAuditSection(null);
     assert.ok(logged.some((l) => /could not complete/.test(l)));
   });
+
+  it('F2: incomplete + verified + unverified renders ALL THREE lines — the warning must never mask partial findings', () => {
+    const { Finding, SEVERITY, CONFIDENCE, EXIT } = require('../lib/mcp/base.js');
+    const verified = Finding({
+      id: 'd/v', detector: 'd', severity: SEVERITY.HIGH, confidence: CONFIDENCE.VERIFIED,
+      agentId: 'claude-code', scope: 'user', serverName: 'srv', message: 'verified msg',
+    });
+    const unverified = Finding({
+      id: 'd/u', detector: 'd', severity: SEVERITY.LOW, confidence: CONFIDENCE.UNVERIFIED,
+      agentId: 'claude-code', scope: 'user', serverName: 'srv', message: 'unverified msg',
+    });
+
+    printMcpAuditSection({ exitCode: EXIT.INCOMPLETE, servers: [], findings: [verified, unverified], sources: [] });
+
+    assert.ok(logged.some((l) => /could not complete/.test(l)), 'the incomplete WARN line must render');
+    assert.ok(logged.some((l) => /1 MCP finding\(s\)/.test(l)), 'the verified-findings count must render too — partial findings are a floor, not maskable');
+    assert.ok(logged.some((l) => /1 unverified notice\(s\)/.test(l)), 'the dim unverified notice must render too');
+  });
+
+  it('F2 guard: single-state outputs are unchanged — incomplete with zero findings prints ONLY the warning', () => {
+    const { EXIT } = require('../lib/mcp/base.js');
+    printMcpAuditSection({ exitCode: EXIT.INCOMPLETE, servers: [], findings: [], sources: [] });
+    assert.ok(logged.some((l) => /could not complete/.test(l)));
+    assert.ok(!logged.some((l) => /MCP finding\(s\)/.test(l)));
+    assert.ok(!logged.some((l) => /unverified notice/.test(l)));
+  });
 });
