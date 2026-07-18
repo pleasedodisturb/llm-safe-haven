@@ -281,6 +281,22 @@ describe('audit --json frozen contract (D-11) and containment', () => {
     assert.deepEqual(contained.mcp, { ran: false, exitCode: EXIT.INCOMPLETE, verifiedCount: 0, unverifiedCount: 0 });
   });
 
+  it('F4: a truthy envelope WITHOUT a findings array is treated as incomplete — never a throw past the containment', async () => {
+    // A malformed envelope (findings missing / non-array) previously hit
+    // the count derivation OUTSIDE the try/catch, throwing past the D-03
+    // containment the docblock promises. It must degrade to the same
+    // incomplete result a rejecting buildEnvelope produces.
+    currentBuildEnvelope = () => Promise.resolve({ exitCode: EXIT.CLEAN, servers: [], sources: [] });
+    const degraded = await getMcpInputs({});
+    assert.equal(degraded.envelope, null, 'a shapeless envelope must not pass through');
+    assert.deepEqual(degraded.mcp, { ran: false, exitCode: EXIT.INCOMPLETE, verifiedCount: 0, unverifiedCount: 0 });
+
+    currentBuildEnvelope = () => Promise.resolve({ exitCode: EXIT.CLEAN, findings: 'not-an-array', servers: [], sources: [] });
+    const degraded2 = await getMcpInputs({});
+    assert.equal(degraded2.envelope, null);
+    assert.deepEqual(degraded2.mcp, { ran: false, exitCode: EXIT.INCOMPLETE, verifiedCount: 0, unverifiedCount: 0 });
+  });
+
   it('audit is forced offline: buildEnvelope always receives online:false, even when the caller passed online:true', async () => {
     let seenFlags = null;
     currentBuildEnvelope = (flags) => { seenFlags = flags; return Promise.resolve(envelope()); };
