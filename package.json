@@ -1,6 +1,6 @@
 {
   "name": "llm-safe-haven",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Harden your AI coding agent in 60 seconds. Security hooks, audit logging, and posture scoring for Claude Code, Cursor, Windsurf, and more.",
   "bin": {
     "llm-safe-haven": "bin/llm-safe-haven.js"
