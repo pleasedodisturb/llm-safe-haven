@@ -20,3 +20,17 @@ jobs:
       # above, not by unit tests) so the ratchet measures shipped
       # lib/hooks code, not CLI glue.
       - run: npm run test:coverage
+
+  # Supported-floor check (WR-01): `test:coverage` needs Node >= 22.5
+  # (--test-coverage-lines / --test-coverage-exclude), but the package
+  # claims `engines: >=18`. This leg proves the suite itself still runs
+  # on the documented Node 18 floor -- without it, CI would only ever
+  # execute tests on Node 22 via the coverage variant above.
+  test-node18:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
+        with:
+          node-version: '18'
+      - run: npm test
