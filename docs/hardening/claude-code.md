@@ -16,7 +16,7 @@ Claude Code has three independent defense layers — a failure in one doesn't co
 
 The sandbox prevents breakout, hooks enforce policy, permissions require approval. Use all three.
 
-**Keeping current is itself a control.** Claude Code's security surface is actively researched and patched — 2026 alone brought trust-dialog bypass (CVE-2026-40068, worktree spoof, fixed v2.1.84), WebFetch out-of-band exfiltration (CVE-2026-54316, fixed v2.1.163), sandbox escapes, and a hook-matcher substring bug (fixed v2.1.195, June 26). See the [Threat Model attack-vector table](../threat-model.md#attack-vector-reference-table) and the [changelog](https://code.claude.com/docs/en/changelog) for the full list, and update before relying on any single control.
+**Keeping current is itself a control.** Claude Code's security surface is actively researched and patched — 2026 alone brought trust-dialog bypass (CVE-2026-40068, worktree spoof, fixed v2.1.84), WebFetch out-of-band exfiltration (CVE-2026-54316, fixed v2.1.163), sandbox escapes, a hook-matcher substring bug (fixed v2.1.195, June 26), an MCP auto-approval bypass where `claude mcp list`/`get` would spawn `.mcp.json` servers a repo self-approved via a committed `.claude/settings.json` (fixed v2.1.196, June 29 — untrusted workspaces now show `⏸ Pending approval`), and a safer default posture in v2.1.200 (July 3), which changed the CLI/VS Code/JetBrains default permission mode from `default` to `Manual`. See the [Threat Model attack-vector table](../threat-model.md#attack-vector-reference-table) and the [changelog](https://code.claude.com/docs/en/changelog) for the full list, and update before relying on any single control.
 
 ## What to configure
 
