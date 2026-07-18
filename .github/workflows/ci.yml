@@ -14,3 +14,9 @@ jobs:
       - run: node -c hooks/audit-logger.js
       - run: node bin/llm-safe-haven.js --version
       - run: node bin/llm-safe-haven.js --help
+      # Coverage gate: fails the job (exit 1) below an 85% line floor.
+      # bin/** and scripts/** are excluded from the denominator (kept out
+      # of the floor intentionally -- exercised only by the smoke steps
+      # above, not by unit tests) so the ratchet measures shipped
+      # lib/hooks code, not CLI glue.
+      - run: npm run test:coverage
