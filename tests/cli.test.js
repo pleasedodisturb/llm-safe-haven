@@ -232,15 +232,65 @@ describe('parseArgs', () => {
       require.cache[scanPath] = stub;
 
       const originalExitCode = process.exitCode;
+      const originalError = console.error;
+      const stderrLines = [];
+      console.error = (msg) => { stderrLines.push(String(msg)); };
       try {
         process.exitCode = 0;
         run(['scan']);
         await new Promise(setImmediate);
         assert.strictEqual(process.exitCode, 2, 'an escaped rejection must fail closed to 2, never stay 0');
+        // F3/WR-04 parity: scan's fail-closed catch previously set the
+        // exit code with ZERO bytes of explanation — the shared
+        // settleCommand helper now prints the diagnostic (incl. stack).
+        assert.ok(
+          stderrLines.some(l => l.includes('scan failed') && l.includes('escaped rejection')),
+          `expected a stderr diagnostic naming the failure, got: ${stderrLines}`
+        );
       } finally {
+        console.error = originalError;
         process.exitCode = originalExitCode;
         if (originalCacheEntry === undefined) delete require.cache[scanPath];
         else require.cache[scanPath] = originalCacheEntry;
+      }
+    });
+  });
+
+  describe('F3/F6: a rejecting install promise fails closed to exit code 1 with a stack trace on stderr', () => {
+    it('run(["install"]) with an install() that rejects sets process.exitCode = 1 and prints the error stack', async () => {
+      const Module = require('module');
+      const installPath = require.resolve('../lib/install.js');
+      const originalCacheEntry = require.cache[installPath];
+      const stub = new Module(installPath);
+      stub.filename = installPath;
+      stub.loaded = true;
+      stub.exports = { install: () => Promise.reject(new Error('install blew up')) };
+      require.cache[installPath] = stub;
+
+      const originalExitCode = process.exitCode;
+      const originalError = console.error;
+      const stderrLines = [];
+      console.error = (msg) => { stderrLines.push(String(msg)); };
+      try {
+        process.exitCode = 0;
+        run(['install']);
+        await new Promise(setImmediate);
+        assert.strictEqual(process.exitCode, 1, 'an escaped install rejection must fail with exit code 1');
+        assert.ok(
+          stderrLines.some(l => l.includes('install failed') && l.includes('install blew up')),
+          `expected a stderr diagnostic naming the failure, got: ${stderrLines}`
+        );
+        // F6: err.stack (not just err.message) — a bare message with no
+        // frames made install failures undebuggable.
+        assert.ok(
+          stderrLines.some(l => /at .+\(.+\)|at .+:\d+:\d+/.test(l)),
+          `expected the stack frames in the diagnostic, got: ${stderrLines}`
+        );
+      } finally {
+        console.error = originalError;
+        process.exitCode = originalExitCode;
+        if (originalCacheEntry === undefined) delete require.cache[installPath];
+        else require.cache[installPath] = originalCacheEntry;
       }
     });
   });
