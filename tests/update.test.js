@@ -20,6 +20,10 @@ const osPath = require.resolve('os');
 const updatePath = require.resolve('../lib/update.js');
 const HOOK_FILES = ['bash-firewall.js', 'secret-guard.js', 'audit-logger.js'];
 
+// Root portability: mode bits do not block uid 0, so permission-denied
+// tests can only pass as non-root (containers/CI sometimes run as root).
+const runningAsRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+
 function loadUpdateAgainstHome(homeDir) {
   // Spread the real os module first so unrelated os.* calls (os.tmpdir(),
   // etc.) keep working — only homedir() is redirected.
@@ -108,7 +112,7 @@ describe('update()', () => {
     }
   });
 
-  it('copy-failure: a read-only destination file makes update() throw synchronously (assert.throws, not assert.rejects)', () => {
+  it('copy-failure: a read-only destination file makes update() throw synchronously (assert.throws, not assert.rejects)', { skip: runningAsRoot }, () => {
     const update = loadUpdateAgainstHome(tmpHome);
     const hooksDir = path.join(tmpHome, '.claude', 'hooks');
     fs.mkdirSync(hooksDir, { recursive: true });

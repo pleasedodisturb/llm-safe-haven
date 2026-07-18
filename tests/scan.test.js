@@ -27,6 +27,10 @@ function mkFixture() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'scan-fixture-'));
 }
 
+// Root portability: mode bits do not block uid 0, so permission-denied
+// tests can only pass as non-root (containers/CI sometimes run as root).
+const runningAsRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+
 // ---------------------------------------------------------------------------
 // findEnvFiles — directory-walk branch families
 // ---------------------------------------------------------------------------
@@ -110,7 +114,7 @@ describe('findEnvFiles', () => {
     assert.deepEqual(findEnvFiles(fixtureDir, 4), [], 'a symlinked .env must be skipped, not followed/reported');
   });
 
-  it('readdirSync throws (permission-denied subdir): caught, walk continues, other .env still found', () => {
+  it('readdirSync throws (permission-denied subdir): caught, walk continues, other .env still found', { skip: runningAsRoot }, () => {
     const locked = path.join(fixtureDir, 'locked');
     fs.mkdirSync(locked);
     fs.writeFileSync(path.join(locked, '.env'), 'LOCKED=1\n');

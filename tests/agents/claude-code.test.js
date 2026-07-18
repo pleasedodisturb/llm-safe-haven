@@ -8,6 +8,10 @@ const os = require('os');
 
 const { installStub } = require('../helpers/module-stub.js');
 
+// Root portability: mode bits do not block uid 0, so permission-denied
+// tests can only pass as non-root (containers/CI sometimes run as root).
+const runningAsRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+
 // WR-04 (Phase 9 review fix): these dry-run/shape describes previously ran
 // against the REAL machine — claude-code.js bakes HOOKS_DIR/SETTINGS_PATH/
 // AUDIT_DIR from os.homedir() at module top level, so audit() iterated the
@@ -311,7 +315,7 @@ describe('claude-code agent — real-fs harden/_mergeSettings/_backupFile (exten
     ].sort());
   });
 
-  it('copy-failure: harden() throws when HOOKS_DIR is read-only', () => {
+  it('copy-failure: harden() throws when HOOKS_DIR is read-only', { skip: runningAsRoot }, () => {
     const hooksDir = path.join(tmpHome, '.claude', 'hooks');
     fs.mkdirSync(hooksDir, { recursive: true });
     fs.chmodSync(hooksDir, 0o500);
