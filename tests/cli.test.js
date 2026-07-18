@@ -232,15 +232,65 @@ describe('parseArgs', () => {
       require.cache[scanPath] = stub;
 
       const originalExitCode = process.exitCode;
+      const originalError = console.error;
+      const stderrLines = [];
+      console.error = (msg) => { stderrLines.push(String(msg)); };
       try {
         process.exitCode = 0;
         run(['scan']);
         await new Promise(setImmediate);
         assert.strictEqual(process.exitCode, 2, 'an escaped rejection must fail closed to 2, never stay 0');
+        // F3/WR-04 parity: scan's fail-closed catch previously set the
+        // exit code with ZERO bytes of explanation — the shared
+        // settleCommand helper now prints the diagnostic (incl. stack).
+        assert.ok(
+          stderrLines.some(l => l.includes('scan failed') && l.includes('escaped rejection')),
+          `expected a stderr diagnostic naming the failure, got: ${stderrLines}`
+        );
       } finally {
+        console.error = originalError;
         process.exitCode = originalExitCode;
         if (originalCacheEntry === undefined) delete require.cache[scanPath];
         else require.cache[scanPath] = originalCacheEntry;
+      }
+    });
+  });
+
+  describe('F3/F6: a rejecting install promise fails closed to exit code 1 with a stack trace on stderr', () => {
+    it('run(["install"]) with an install() that rejects sets process.exitCode = 1 and prints the error stack', async () => {
+      const Module = require('module');
+      const installPath = require.resolve('../lib/install.js');
+      const originalCacheEntry = require.cache[installPath];
+      const stub = new Module(installPath);
+      stub.filename = installPath;
+      stub.loaded = true;
+      stub.exports = { install: () => Promise.reject(new Error('install blew up')) };
+      require.cache[installPath] = stub;
+
+      const originalExitCode = process.exitCode;
+      const originalError = console.error;
+      const stderrLines = [];
+      console.error = (msg) => { stderrLines.push(String(msg)); };
+      try {
+        process.exitCode = 0;
+        run(['install']);
+        await new Promise(setImmediate);
+        assert.strictEqual(process.exitCode, 1, 'an escaped install rejection must fail with exit code 1');
+        assert.ok(
+          stderrLines.some(l => l.includes('install failed') && l.includes('install blew up')),
+          `expected a stderr diagnostic naming the failure, got: ${stderrLines}`
+        );
+        // F6: err.stack (not just err.message) — a bare message with no
+        // frames made install failures undebuggable.
+        assert.ok(
+          stderrLines.some(l => /at .+\(.+\)|at .+:\d+:\d+/.test(l)),
+          `expected the stack frames in the diagnostic, got: ${stderrLines}`
+        );
+      } finally {
+        console.error = originalError;
+        process.exitCode = originalExitCode;
+        if (originalCacheEntry === undefined) delete require.cache[installPath];
+        else require.cache[installPath] = originalCacheEntry;
       }
     });
   });
@@ -301,6 +351,135 @@ describe('parseArgs', () => {
       const { result, lines } = captureStderr(() => parseArgs(['audit', '--agent']));
       assert.strictEqual(result.flags.agent, undefined);
       assert.ok(lines.some(l => l.includes('--agent requires a value')));
+    });
+  });
+
+  describe('run() audit exit-code propagation', () => {
+    it('sets process.exitCode from the async audit() result (human path)', async () => {
+      // Phase 8: audit() is async (D-04/D-05) and returns { code } instead
+      // of calling process.exit(). This invokes real agent detection/env
+      // scan/MCP scan against the actual machine (no injected opts channel
+      // reaches run() at the CLI boundary) — only a numeric exit code is
+      // asserted here.
+      const originalExitCode = process.exitCode;
+      const originalLog = console.log;
+      console.log = () => {}; // suppress the real human-readable report
+      try {
+        run(['audit']);
+        // buildEnvelope()'s awaited detector loop (runAll()) chains several
+        // microtask ticks even when every detector resolves synchronously —
+        // a single `await Promise.resolve()` under-drains it (same gotcha
+        // as the scan --mcp propagation test above).
+        await new Promise(setImmediate);
+        assert.ok(
+          [0, 1, 2].includes(process.exitCode),
+          `audit exit code must be a contract value (0=Level 2+/1=Level<2/2=MCP scan incomplete), got ${process.exitCode}`
+        );
+      } finally {
+        console.log = originalLog;
+        process.exitCode = originalExitCode; // never pollute the real test-runner exit code
+      }
+    });
+
+    it('sets process.exitCode from the async audit() result (--json path)', async () => {
+      const originalExitCode = process.exitCode;
+      const originalLog = console.log;
+      console.log = () => {}; // suppress the real --json envelope output
+      try {
+        run(['audit', '--json']);
+        await new Promise(setImmediate);
+        assert.ok(
+          [0, 1, 2].includes(process.exitCode),
+          `audit --json exit code must be a contract value (0/1, or 2 when the MCP scan can't complete), got ${process.exitCode}`
+        );
+      } finally {
+        console.log = originalLog;
+        process.exitCode = originalExitCode;
+      }
+    });
+  });
+
+  describe('D-03: a buildEnvelope() throw is contained, never crashes audit', () => {
+    it('run(["audit"]) with a rejecting buildEnvelope() renders the scorecard and exits 2 (incomplete-scan contract), never crashes', async () => {
+      // audit() wraps its buildEnvelope() call in try/catch and treats a
+      // throw as an incomplete MCP scan (computeSecurityLevel's incomplete
+      // ceiling caps the level at <=2, and auditExitCode() fails closed to
+      // audit's own DELIBERATE exit 2) — it must never let the throw
+      // escape into an uncaught rejection. Both paths land on exit 2 here,
+      // so the containment proof is stubCalled + the full render + no
+      // rejection, not the exit code alone.
+      //
+      // WR-01 (review fix): the previous version of this test was VACUOUS.
+      // lib/audit.js captures buildEnvelope in a top-level destructured
+      // require, and audit.js was already in the require cache (loaded by
+      // the propagation tests above) — replacing scan-mcp.js's cache entry
+      // afterwards never reached audit.js's already-bound reference, so
+      // the real buildEnvelope ran against the real machine and the stub
+      // never executed. Fix: (1) evict lib/audit.js from the cache BEFORE
+      // stubbing, so cli.js's lazy require('./audit.js') at run() time
+      // loads audit.js fresh and binds the stub; (2) track stubCalled and
+      // assert it, so a silent no-run can never pass; (3) pre-set an
+      // out-of-range sentinel (42, outside {0,1,2}) so the assertion fails
+      // loudly if the promise chain never runs; (4) stub detectAll with a
+      // found agent, because on an agent-less machine (CI) the human path
+      // early-returns BEFORE ever calling buildEnvelope — the containment
+      // under test would otherwise silently not be exercised.
+      // F10: shared require-cache stub helper (WR-01 ordering notes live
+      // in tests/helpers/module-stub.js).
+      const { installStub } = require('./helpers/module-stub.js');
+
+      const scanMcpPath = require.resolve('../lib/scan-mcp.js');
+      const agentsPath = require.resolve('../lib/agents/index.js');
+      const auditPath = require.resolve('../lib/audit.js');
+      const originalScanMcpEntry = require.cache[scanMcpPath];
+      const originalAgentsEntry = require.cache[agentsPath];
+      const originalAuditEntry = require.cache[auditPath];
+
+      // Force audit.js to rebind the stubbed scan-mcp/agents on its next load.
+      delete require.cache[auditPath];
+
+      let stubCalled = false;
+      installStub(scanMcpPath, {
+        buildEnvelope: () => {
+          stubCalled = true;
+          return Promise.reject(new Error('hostile config engineered to crash discovery'));
+        },
+        scanMcp: () => Promise.reject(new Error('unused by audit — present for shape parity')),
+        findingsExitCode: () => 0,
+      });
+      installStub(agentsPath, {
+        detectAll: () => [{
+          id: 'fake-agent', name: 'Fake Agent', tier: 1,
+          detected: { found: true, version: '1.0.0' },
+          audit: () => ({ checks: [], level: 3 }),
+        }],
+        getByIds: () => [],
+      });
+
+      const originalExitCode = process.exitCode;
+      const originalLog = console.log;
+      console.log = () => {};
+      try {
+        process.exitCode = 42; // sentinel outside {0,1,2} — a non-run fails loudly
+        run(['audit']);
+        await new Promise(setImmediate);
+        assert.strictEqual(stubCalled, true, 'the rejecting buildEnvelope stub must actually execute — otherwise this test proves nothing (WR-01)');
+        assert.strictEqual(
+          process.exitCode, 2,
+          `a contained buildEnvelope throw is an incomplete MCP scan — audit must deliberately exit 2 (never 0/1, never the 42 sentinel), got ${process.exitCode}`
+        );
+      } finally {
+        console.log = originalLog;
+        process.exitCode = originalExitCode;
+        if (originalScanMcpEntry === undefined) delete require.cache[scanMcpPath];
+        else require.cache[scanMcpPath] = originalScanMcpEntry;
+        if (originalAgentsEntry === undefined) delete require.cache[agentsPath];
+        else require.cache[agentsPath] = originalAgentsEntry;
+        // The freshly-loaded audit.js is bound to the stubs — it must not
+        // leak into later tests. Restore the pre-test entry (or evict).
+        if (originalAuditEntry === undefined) delete require.cache[auditPath];
+        else require.cache[auditPath] = originalAuditEntry;
+      }
     });
   });
 });

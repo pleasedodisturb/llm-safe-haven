@@ -383,8 +383,10 @@ describe('printMcpScan', () => {
         ],
         servers: [],
         findings: [
-          finding({ id: 'd/one', severity: SEVERITY.CRITICAL, serverName: `srv${HOSTILE}`, message: `msg${HOSTILE}`, scope: `user${HOSTILE}` }),
-          finding({ id: 'd/two', confidence: CONFIDENCE.UNVERIFIED, serverName: `srv${HOSTILE}`, message: `unv${HOSTILE}`, scope: `user${HOSTILE}` }),
+          // IN-01: finding.id is poisoned too — a future detector that
+          // interpolates config data into an id must not regress silently.
+          finding({ id: `d/one${HOSTILE}`, severity: SEVERITY.CRITICAL, serverName: `srv${HOSTILE}`, message: `msg${HOSTILE}`, scope: `user${HOSTILE}` }),
+          finding({ id: `d/two${HOSTILE}`, confidence: CONFIDENCE.UNVERIFIED, serverName: `srv${HOSTILE}`, message: `unv${HOSTILE}`, scope: `user${HOSTILE}` }),
           Finding({
             id: 'd/general', detector: 'd', severity: SEVERITY.HIGH, confidence: CONFIDENCE.VERIFIED,
             agentId: null, scope: null, serverName: null, message: `general${HOSTILE}`,
@@ -424,5 +426,276 @@ describe('printMcpScan', () => {
       !logged.some((l) => l.includes('windsurf') && l.includes('not-found')),
       'a not-found source should not be listed (it is not an exit-2-explaining failure)'
     );
+  });
+});
+
+describe('computeSecurityLevel', () => {
+  const { EXIT, CONFIDENCE } = require('../lib/mcp/base.js');
+  const { computeSecurityLevel } = require('../lib/scorecard.js');
+
+  function assertCapShape(cap) {
+    assert.equal(typeof cap.id, 'string');
+    assert.ok(cap.id.length > 0);
+    assert.equal(typeof cap.cappedFrom, 'number');
+    assert.equal(typeof cap.cappedTo, 'number');
+    assert.equal(typeof cap.reason, 'string');
+    assert.ok(cap.reason.length > 0, 'cap.reason must be a non-empty string');
+  }
+
+  it('no caps: base 3, env 0, mcp clean -> level 3, caps []', () => {
+    const result = computeSecurityLevel({
+      agentLevels: [3],
+      envFileCount: 0,
+      mcp: { ran: true, exitCode: EXIT.CLEAN, verifiedCount: 0, unverifiedCount: 0 },
+    });
+    assert.deepStrictEqual(result, { level: 3, caps: [] });
+  });
+
+  it('env cap only: base 3, envFileCount 2, mcp clean -> level 1, one env-files cap', () => {
+    const result = computeSecurityLevel({
+      agentLevels: [3],
+      envFileCount: 2,
+      mcp: { ran: true, exitCode: EXIT.CLEAN, verifiedCount: 0, unverifiedCount: 0 },
+    });
+    assert.equal(result.level, 1);
+    assert.equal(result.caps.length, 1);
+    assert.equal(result.caps[0].id, 'env-files');
+    assert.equal(result.caps[0].cappedFrom, 3);
+    assert.equal(result.caps[0].cappedTo, 1);
+    assertCapShape(result.caps[0]);
+  });
+
+  it('MCP verified cap only: base 4, env 0, verifiedCount 1, exit 1 -> level 2, mcp-findings cap', () => {
+    const result = computeSecurityLevel({
+      agentLevels: [4],
+      envFileCount: 0,
+      mcp: { ran: true, exitCode: EXIT.FINDINGS, verifiedCount: 1, unverifiedCount: 0 },
+    });
+    assert.equal(result.level, 2);
+    assert.equal(result.caps.length, 1);
+    assert.equal(result.caps[0].id, 'mcp-findings');
+    assert.equal(result.caps[0].cappedFrom, 4);
+    assert.equal(result.caps[0].cappedTo, 2);
+    assertCapShape(result.caps[0]);
+  });
+
+  it('MCP incomplete cap via ran:false: base 3, env 0, ran false -> level 2, mcp-incomplete cap', () => {
+    const result = computeSecurityLevel({
+      agentLevels: [3],
+      envFileCount: 0,
+      mcp: { ran: false, exitCode: EXIT.INCOMPLETE, verifiedCount: 0, unverifiedCount: 0 },
+    });
+    assert.equal(result.level, 2);
+    assert.equal(result.caps.length, 1);
+    assert.equal(result.caps[0].id, 'mcp-incomplete');
+    assertCapShape(result.caps[0]);
+  });
+
+  it('MCP incomplete cap via exitCode: base 3, exitCode EXIT.INCOMPLETE -> level 2, mcp-incomplete cap', () => {
+    const result = computeSecurityLevel({
+      agentLevels: [3],
+      envFileCount: 0,
+      mcp: { ran: true, exitCode: EXIT.INCOMPLETE, verifiedCount: 0, unverifiedCount: 0 },
+    });
+    assert.equal(result.level, 2);
+    assert.equal(result.caps.length, 1);
+    assert.equal(result.caps[0].id, 'mcp-incomplete');
+    assertCapShape(result.caps[0]);
+  });
+
+  it('SCOR-02 regression: unverified-only findings NEVER cap the level', () => {
+    const result = computeSecurityLevel({
+      agentLevels: [3],
+      envFileCount: 0,
+      mcp: { ran: true, exitCode: EXIT.CLEAN, verifiedCount: 0, unverifiedCount: 5 },
+    });
+    assert.equal(result.level, 3);
+    assert.equal(result.caps.length, 0, 'unverified-only findings must never produce a cap');
+  });
+
+  it('combined env+MCP: both caps present, min wins, both reasons non-empty', () => {
+    const result = computeSecurityLevel({
+      agentLevels: [3],
+      envFileCount: 1,
+      mcp: { ran: true, exitCode: EXIT.FINDINGS, verifiedCount: 1, unverifiedCount: 0 },
+    });
+    assert.equal(result.level, 1, 'the lower ceiling (env-files at 1) must win');
+    assert.equal(result.caps.length, 2);
+    const envCap = result.caps.find((c) => c.id === 'env-files');
+    const mcpCap = result.caps.find((c) => c.id === 'mcp-findings');
+    assert.ok(envCap, 'expected an env-files cap');
+    assert.ok(mcpCap, 'expected an mcp-findings cap');
+    assertCapShape(envCap);
+    assertCapShape(mcpCap);
+  });
+
+  it('cap no-op when base already below ceiling: base 2, verifiedCount 1 -> level 2, no mcp cap recorded', () => {
+    const result = computeSecurityLevel({
+      agentLevels: [2],
+      envFileCount: 0,
+      mcp: { ran: true, exitCode: EXIT.FINDINGS, verifiedCount: 1, unverifiedCount: 0 },
+    });
+    assert.equal(result.level, 2);
+    assert.equal(result.caps.length, 0, 'a ceiling equal to or above base fires no cap');
+  });
+
+  it('boundary: base 0 with any caps -> level 0, no caps recorded (nothing to reduce)', () => {
+    const result = computeSecurityLevel({
+      agentLevels: [0],
+      envFileCount: 3,
+      mcp: { ran: false, exitCode: EXIT.INCOMPLETE, verifiedCount: 5, unverifiedCount: 0 },
+    });
+    assert.equal(result.level, 0);
+    assert.equal(result.caps.length, 0);
+  });
+
+  it('boundary: base 4 clean -> level 4', () => {
+    const result = computeSecurityLevel({
+      agentLevels: [1, 4, 2],
+      envFileCount: 0,
+      mcp: { ran: true, exitCode: EXIT.CLEAN, verifiedCount: 0, unverifiedCount: 0 },
+    });
+    assert.equal(result.level, 4);
+    assert.equal(result.caps.length, 0);
+  });
+
+  it('incomplete precedence: incomplete + verifiedCount>0 records ONLY mcp-incomplete', () => {
+    const result = computeSecurityLevel({
+      agentLevels: [3],
+      envFileCount: 0,
+      mcp: { ran: false, exitCode: EXIT.INCOMPLETE, verifiedCount: 4, unverifiedCount: 0 },
+    });
+    assert.equal(result.level, 2);
+    assert.equal(result.caps.length, 1, 'exactly one cap must be recorded on incomplete precedence');
+    assert.equal(result.caps[0].id, 'mcp-incomplete');
+  });
+
+  it('confidence enum sanity: CONFIDENCE.VERIFIED/UNVERIFIED are distinct strings (guards the mcp.verifiedCount contract)', () => {
+    assert.notEqual(CONFIDENCE.VERIFIED, CONFIDENCE.UNVERIFIED);
+  });
+
+  describe('WR-02: fail closed when mcp input is absent or shapeless', () => {
+    it('omitted mcp: base 4, env 0 -> level 2 with an mcp-incomplete cap (never an uncapped 4)', () => {
+      const result = computeSecurityLevel({ agentLevels: [4], envFileCount: 0 });
+      assert.equal(result.level, 2, 'unknown MCP state must never be scored as scanned-and-clean');
+      assert.equal(result.caps.length, 1);
+      assert.equal(result.caps[0].id, 'mcp-incomplete');
+      assertCapShape(result.caps[0]);
+    });
+
+    it('shapeless mcp ({} — no boolean ran): base 3 -> level 2 with an mcp-incomplete cap', () => {
+      const result = computeSecurityLevel({ agentLevels: [3], envFileCount: 0, mcp: {} });
+      assert.equal(result.level, 2);
+      assert.equal(result.caps.length, 1);
+      assert.equal(result.caps[0].id, 'mcp-incomplete');
+    });
+
+    it('no-args call fails closed too (base 0 -> level 0, no cap fires below the ceiling)', () => {
+      const result = computeSecurityLevel();
+      assert.equal(result.level, 0);
+      assert.equal(result.caps.length, 0);
+    });
+  });
+});
+
+describe('computeSecurityLevel + printLevel/printMcpAuditSection render smoke', () => {
+  const { printLevel, printMcpAuditSection } = require('../lib/scorecard.js');
+
+  let originalLog;
+  let logged;
+
+  beforeEach(() => {
+    originalLog = console.log;
+    logged = [];
+    console.log = (...args) => logged.push(args.join(' '));
+  });
+
+  afterEach(() => {
+    console.log = originalLog;
+  });
+
+  it('printLevel(2, [oneCap]) emits a line matching /capped at/', () => {
+    printLevel(2, [{ id: 'mcp-findings', cappedFrom: 3, cappedTo: 2, reason: '1 MCP finding(s) — run npx llm-safe-haven scan --mcp for details' }]);
+    assert.ok(logged.some((l) => /capped at/.test(l)));
+  });
+
+  it('printLevel(level) with no caps emits zero "capped at" lines (backward compatible)', () => {
+    printLevel(3);
+    assert.ok(!logged.some((l) => /capped at/.test(l)));
+  });
+
+  it('IN-01: a hostile cap.reason is sanitized at the print site (no control chars reach the terminal)', () => {
+    printLevel(2, [{ id: 'mcp-findings', cappedFrom: 3, cappedTo: 2, reason: 'evil\x1b[2K\x07reason‮spoof' }]);
+    const capLine = logged.find((l) => /capped at/.test(l));
+    assert.ok(capLine, 'expected the cap line to render');
+    assert.ok(!capLine.includes('\x1b[2K'), 'erase-line escape must not reach the terminal');
+    assert.ok(!capLine.includes('\x07'), 'BEL must not reach the terminal');
+    assert.ok(!capLine.includes('‮'), 'RLO must not reach the terminal');
+    assert.ok(capLine.includes('�'), 'stripped chars are replaced with U+FFFD so tampering is visible');
+  });
+
+  it('printMcpAuditSection with an unverified-only envelope never renders a red FAIL "finding(s)" line', () => {
+    const { Finding, SEVERITY, CONFIDENCE } = require('../lib/mcp/base.js');
+    const unverified = Finding({
+      id: 'd/unverified',
+      detector: 'd',
+      severity: SEVERITY.HIGH,
+      confidence: CONFIDENCE.UNVERIFIED,
+      agentId: 'claude-code',
+      scope: 'user',
+      serverName: 'srv',
+      message: 'unverified msg',
+    });
+    // F8 signature: the production callers pass getMcpInputs' counts.
+    printMcpAuditSection(
+      { exitCode: 0, servers: [{}], findings: [unverified], sources: [] },
+      { ran: true, exitCode: 0, verifiedCount: 0, unverifiedCount: 1 }
+    );
+    assert.ok(!logged.some((l) => /\d+ MCP finding\(s\)/.test(l)), 'unverified-only must not render as a FAIL finding line');
+    assert.ok(logged.some((l) => l.includes('unverified notice')));
+  });
+
+  it('F8 fallback: omitting the mcp counts arg re-derives them from the envelope (no throw, same render)', () => {
+    const { Finding, SEVERITY, CONFIDENCE } = require('../lib/mcp/base.js');
+    const verified = Finding({
+      id: 'd/v', detector: 'd', severity: SEVERITY.HIGH, confidence: CONFIDENCE.VERIFIED,
+      agentId: 'claude-code', scope: 'user', serverName: 'srv', message: 'verified msg',
+    });
+    printMcpAuditSection({ exitCode: 1, servers: [{}], findings: [verified], sources: [] });
+    assert.ok(logged.some((l) => /1 MCP finding\(s\)/.test(l)), 'the fallback derivation must still count the verified finding');
+  });
+
+  it('printMcpAuditSection(null) renders the incomplete state', () => {
+    printMcpAuditSection(null);
+    assert.ok(logged.some((l) => /could not complete/.test(l)));
+  });
+
+  it('F2: incomplete + verified + unverified renders ALL THREE lines — the warning must never mask partial findings', () => {
+    const { Finding, SEVERITY, CONFIDENCE, EXIT } = require('../lib/mcp/base.js');
+    const verified = Finding({
+      id: 'd/v', detector: 'd', severity: SEVERITY.HIGH, confidence: CONFIDENCE.VERIFIED,
+      agentId: 'claude-code', scope: 'user', serverName: 'srv', message: 'verified msg',
+    });
+    const unverified = Finding({
+      id: 'd/u', detector: 'd', severity: SEVERITY.LOW, confidence: CONFIDENCE.UNVERIFIED,
+      agentId: 'claude-code', scope: 'user', serverName: 'srv', message: 'unverified msg',
+    });
+
+    printMcpAuditSection(
+      { exitCode: EXIT.INCOMPLETE, servers: [], findings: [verified, unverified], sources: [] },
+      { ran: true, exitCode: EXIT.INCOMPLETE, verifiedCount: 1, unverifiedCount: 1 }
+    );
+
+    assert.ok(logged.some((l) => /could not complete/.test(l)), 'the incomplete WARN line must render');
+    assert.ok(logged.some((l) => /1 MCP finding\(s\)/.test(l)), 'the verified-findings count must render too — partial findings are a floor, not maskable');
+    assert.ok(logged.some((l) => /1 unverified notice\(s\)/.test(l)), 'the dim unverified notice must render too');
+  });
+
+  it('F2 guard: single-state outputs are unchanged — incomplete with zero findings prints ONLY the warning', () => {
+    const { EXIT } = require('../lib/mcp/base.js');
+    printMcpAuditSection({ exitCode: EXIT.INCOMPLETE, servers: [], findings: [], sources: [] });
+    assert.ok(logged.some((l) => /could not complete/.test(l)));
+    assert.ok(!logged.some((l) => /MCP finding\(s\)/.test(l)));
+    assert.ok(!logged.some((l) => /unverified notice/.test(l)));
   });
 });
