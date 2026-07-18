@@ -16,15 +16,10 @@
 
 const { describe, it, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
-const Module = require('module');
-
-function installStub(resolvedPath, exports) {
-  const stub = new Module(resolvedPath);
-  stub.filename = resolvedPath;
-  stub.loaded = true;
-  stub.exports = exports;
-  require.cache[resolvedPath] = stub;
-}
+// F10: shared require-cache stub helper — see the WR-01 ordering notes in
+// tests/helpers/module-stub.js (stubs must land in require.cache BEFORE
+// lib/audit.js is first required below).
+const { installStub } = require('./helpers/module-stub.js');
 
 // ---- mutable stub state (reset in beforeEach) ----
 let currentBuildEnvelope;

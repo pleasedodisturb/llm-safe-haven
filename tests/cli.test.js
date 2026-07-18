@@ -424,14 +424,9 @@ describe('parseArgs', () => {
       // found agent, because on an agent-less machine (CI) the human path
       // early-returns BEFORE ever calling buildEnvelope — the containment
       // under test would otherwise silently not be exercised.
-      const Module = require('module');
-      function installStub(resolvedPath, exports) {
-        const stub = new Module(resolvedPath);
-        stub.filename = resolvedPath;
-        stub.loaded = true;
-        stub.exports = exports;
-        require.cache[resolvedPath] = stub;
-      }
+      // F10: shared require-cache stub helper (WR-01 ordering notes live
+      // in tests/helpers/module-stub.js).
+      const { installStub } = require('./helpers/module-stub.js');
 
       const scanMcpPath = require.resolve('../lib/scan-mcp.js');
       const agentsPath = require.resolve('../lib/agents/index.js');
