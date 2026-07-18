@@ -33,8 +33,14 @@ function tmpDir() {
 // ---------------------------------------------------------------------------
 // Hermeticity (D-04/D-05, T-09-10/T-09-11): stub child_process ONCE, before
 // any detect()/harden() call below, so no Tier 3 module ever spawns a real
-// CLI subprocess (e.g. `which gemini`) — deterministic regardless of what
-// is actually installed on the machine running this suite. lib/agents/
+// CLI subprocess (e.g. `which gemini`). Scope honesty: only subprocess
+// execution is stubbed — base.js's fs-based detection probes (macAppExists
+// via fs.existsSync under /Applications, vscodeExtensionExists via
+// fs.readdirSync of ~/.vscode/extensions) still hit the real filesystem.
+// Those are bounded existsSync/readdirSync calls (no subprocess, no
+// coverage pollution from child processes), but detect()'s `found` flags
+// remain machine-dependent — which is fine here, since the shape-only
+// assertions below never depend on a specific found value. lib/agents/
 // base.js requires `child_process` INSIDE each function body (commandExists/
 // getVersion), not at module top level, so there is no WR-01 stale-binding
 // ordering requirement — installing the stub here, before the loops run, is

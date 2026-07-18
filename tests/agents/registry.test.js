@@ -106,9 +106,13 @@ describe('detectAll', () => {
     }
     // Agents that rely on commandExists()/getVersion() must have routed
     // through the stub at least once — proving no unstubbed execFileSync
-    // reference leaked through (D-04/D-05, Pitfall 1 coverage-pollution
-    // mechanism closed at its root, not just the surface `Applications/`
-    // grep check).
+    // reference leaked through (D-04/D-05). Scope honesty: only SUBPROCESS
+    // execution is stubbed here. The fs-based detection probes — base.js's
+    // macAppExists (fs.existsSync under /Applications) and
+    // vscodeExtensionExists (fs.readdirSync of ~/.vscode/extensions) —
+    // still hit the real filesystem: bounded existsSync/readdirSync calls,
+    // no subprocess and thus no coverage pollution from child processes,
+    // but the resulting `found` flags remain machine-dependent.
     assert.ok(callCount > 0, 'at least one Tier 1/2 agent must call commandExists/getVersion via the stubbed child_process');
   });
 });
