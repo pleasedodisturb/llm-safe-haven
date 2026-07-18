@@ -20,7 +20,6 @@ const path = require('path');
 const os = require('os');
 
 const { installStub } = require('./helpers/module-stub.js');
-const { makeGitFixture } = require('./helpers/git-fixture.js');
 
 const { findEnvFiles } = require('../lib/scan.js');
 
@@ -77,20 +76,22 @@ describe('findEnvFiles', () => {
     assert.deepEqual(findEnvFiles(fixtureDir, 4), []);
   });
 
-  it('does not recurse into SKIP_DIRS (node_modules, .git via git-fixture)', () => {
+  it('does not recurse into SKIP_DIRS (node_modules, .git)', () => {
     const nodeModules = path.join(fixtureDir, 'node_modules');
     fs.mkdirSync(nodeModules);
     fs.writeFileSync(path.join(nodeModules, '.env'), 'HIDDEN=1\n');
 
-    const gitFixture = makeGitFixture();
-    try {
-      const found = findEnvFiles(gitFixture, 4);
-      assert.deepEqual(found, [], 'a real .git/ subdir must not be recursed into');
-    } finally {
-      fs.rmSync(gitFixture, { recursive: true, force: true });
-    }
+    // lib/scan.js never invokes git — SKIP_DIRS.has('.git') is a plain
+    // string match on the directory NAME, so a bare mkdir'd .git/ (no git
+    // binary, no real repo) exercises the branch identically. Seeding a
+    // .env inside strengthens the assertion: if the walk ever recursed
+    // into .git/, it would be found.
+    const gitDir = path.join(fixtureDir, '.git');
+    fs.mkdirSync(gitDir, { recursive: true });
+    fs.writeFileSync(path.join(gitDir, '.env'), 'HIDDEN=1\n');
 
-    assert.deepEqual(findEnvFiles(fixtureDir, 4), [], 'node_modules/.env must not be found');
+    assert.deepEqual(findEnvFiles(fixtureDir, 4), [],
+      'neither node_modules/.env nor .git/.env must be found — SKIP_DIRS must not be recursed into');
   });
 
   it('does not recurse into dot-prefixed directories other than the walk root', () => {
