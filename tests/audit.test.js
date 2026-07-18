@@ -151,7 +151,7 @@ describe('audit --json frozen contract (D-11) and containment', () => {
     assert.deepEqual(result, { code: 0 });
   });
 
-  it('D-03: a rejecting buildEnvelope is contained — mcp.ran:false, mcp-incomplete cap, still one JSON document, contained 0/1', async () => {
+  it('D-03: a rejecting buildEnvelope is contained — mcp.ran:false, mcp-incomplete cap, still one JSON document, exit 2', async () => {
     currentBuildEnvelope = () => Promise.reject(new Error('hostile config engineered to crash discovery'));
 
     const result = await audit({ json: true });
@@ -163,7 +163,48 @@ describe('audit --json frozen contract (D-11) and containment', () => {
     assert.equal(out.overallLevel, 2, 'incomplete scan fails closed: base 3 capped at 2');
     assert.equal(out.levelCaps.length, 1);
     assert.equal(out.levelCaps[0].id, 'mcp-incomplete');
-    assert.ok([0, 1].includes(result.code), `contained exit code must be audit's own 0/1, got ${result.code}`);
+    // The throw is CONTAINED (no rejection, full JSON emitted), but the
+    // exit code is 2 — audit initiated a scan that did not finish, and a
+    // security tool must never exit 0/1 as if its verdict were complete
+    // (locked security-gate-exit-codes rule).
+    assert.equal(result.code, 2, 'an incomplete MCP scan must fail audit closed with exit 2');
+  });
+
+  it('incomplete-scan exit contract: an envelope with exitCode INCOMPLETE -> exit 2, still one valid JSON document', async () => {
+    currentBuildEnvelope = () => Promise.resolve(envelope({ exitCode: EXIT.INCOMPLETE }));
+
+    const result = await audit({ json: true });
+    const out = parseSingleJsonDocument();
+
+    assert.deepEqual(out.mcp, {
+      ran: true, exitCode: EXIT.INCOMPLETE, findingsCount: 0, verifiedCount: 0, unverifiedCount: 0,
+    });
+    assert.equal(out.overallLevel, 2, 'incomplete scan fails closed: base 3 capped at 2');
+    assert.equal(out.levelCaps[0].id, 'mcp-incomplete');
+    assert.equal(result.code, 2, 'mcp.exitCode === INCOMPLETE must fail audit closed with exit 2 even though the envelope arrived');
+  });
+
+  it('incomplete-scan exit contract: the human path exits 2 too (rejecting buildEnvelope), scorecard still renders', async () => {
+    currentBuildEnvelope = () => Promise.reject(new Error('crash'));
+
+    const result = await audit({});
+    assert.equal(result.code, 2, 'the human path must fail closed with exit 2 on an incomplete MCP scan');
+    assert.ok(logged.length > 0, 'the human scorecard must still render fully before the exit code is decided');
+    assert.ok(logged.some((l) => /could not complete/.test(l)), 'the incomplete state must be visible in the rendered scorecard');
+  });
+
+  it('verified findings are level-only: base level 2 + verified MCP finding -> still exit 0 (scan --mcp is the findings gate)', async () => {
+    currentAgents = [fakeAgent({ audit: () => ({ checks: [], level: 2 }) })];
+    currentBuildEnvelope = () => Promise.resolve(envelope({
+      exitCode: EXIT.FINDINGS,
+      findings: [mcpFinding()],
+    }));
+
+    const result = await audit({ json: true });
+    const out = parseSingleJsonDocument();
+
+    assert.equal(out.overallLevel, 2, 'ceiling equals base — no demotion below 2');
+    assert.deepEqual(result, { code: 0 }, 'verified MCP findings demote the LEVEL only — audit exits 0 at Level 2; gate on scan --mcp (exit 1) for findings');
   });
 
   it('SCOR-02: an unverified-only envelope NEVER caps the level', async () => {

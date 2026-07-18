@@ -322,8 +322,8 @@ describe('parseArgs', () => {
         // as the scan --mcp propagation test above).
         await new Promise(setImmediate);
         assert.ok(
-          [0, 1].includes(process.exitCode),
-          `audit exit code must be 0 or 1 (never audit's own 2 — that's the CLI-level fail-closed value), got ${process.exitCode}`
+          [0, 1, 2].includes(process.exitCode),
+          `audit exit code must be a contract value (0=Level 2+/1=Level<2/2=MCP scan incomplete), got ${process.exitCode}`
         );
       } finally {
         console.log = originalLog;
@@ -339,8 +339,8 @@ describe('parseArgs', () => {
         run(['audit', '--json']);
         await new Promise(setImmediate);
         assert.ok(
-          [0, 1].includes(process.exitCode),
-          `audit --json exit code must be 0 or 1, got ${process.exitCode}`
+          [0, 1, 2].includes(process.exitCode),
+          `audit --json exit code must be a contract value (0/1, or 2 when the MCP scan can't complete), got ${process.exitCode}`
         );
       } finally {
         console.log = originalLog;
@@ -350,12 +350,14 @@ describe('parseArgs', () => {
   });
 
   describe('D-03: a buildEnvelope() throw is contained, never crashes audit', () => {
-    it('run(["audit"]) with a rejecting buildEnvelope() still produces a contained exit code (0 or 1), never crashes', async () => {
+    it('run(["audit"]) with a rejecting buildEnvelope() renders the scorecard and exits 2 (incomplete-scan contract), never crashes', async () => {
       // audit() wraps its buildEnvelope() call in try/catch and treats a
       // throw as an incomplete MCP scan (computeSecurityLevel's incomplete
-      // ceiling caps the level at <=2) — it must never let the throw
-      // escape into an uncaught rejection that would fail closed to the
-      // CLI's OWN .catch (exit code 2) instead of audit's contained 0/1.
+      // ceiling caps the level at <=2, and auditExitCode() fails closed to
+      // audit's own DELIBERATE exit 2) — it must never let the throw
+      // escape into an uncaught rejection. Both paths land on exit 2 here,
+      // so the containment proof is stubCalled + the full render + no
+      // rejection, not the exit code alone.
       //
       // WR-01 (review fix): the previous version of this test was VACUOUS.
       // lib/audit.js captures buildEnvelope in a top-level destructured
@@ -417,9 +419,9 @@ describe('parseArgs', () => {
         run(['audit']);
         await new Promise(setImmediate);
         assert.strictEqual(stubCalled, true, 'the rejecting buildEnvelope stub must actually execute — otherwise this test proves nothing (WR-01)');
-        assert.ok(
-          [0, 1].includes(process.exitCode),
-          `a contained buildEnvelope throw must still produce audit's own 0/1 exit code (D-03 containment fired), got ${process.exitCode}`
+        assert.strictEqual(
+          process.exitCode, 2,
+          `a contained buildEnvelope throw is an incomplete MCP scan — audit must deliberately exit 2 (never 0/1, never the 42 sentinel), got ${process.exitCode}`
         );
       } finally {
         console.log = originalLog;
