@@ -5,6 +5,8 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
+const { installStub } = require('./helpers/module-stub.js');
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -27,6 +29,21 @@ function test(name, fn) {
 function tmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'tier3-test-'));
 }
+
+// ---------------------------------------------------------------------------
+// Hermeticity (D-04/D-05, T-09-10/T-09-11): stub child_process ONCE, before
+// any detect()/harden() call below, so no Tier 3 module ever spawns a real
+// CLI subprocess (e.g. `which gemini`) — deterministic regardless of what
+// is actually installed on the machine running this suite. lib/agents/
+// base.js requires `child_process` INSIDE each function body (commandExists/
+// getVersion), not at module top level, so there is no WR-01 stale-binding
+// ordering requirement — installing the stub here, before the loops run, is
+// sufficient (module-load order of the Tier 3 agent files themselves does
+// not matter either, since they call commandExists()/getVersion() lazily at
+// detect()-call time, not at require()-time).
+installStub(require.resolve('child_process'), {
+  execFileSync: () => { throw new Error('stubbed — must never actually spawn a real CLI binary'); },
+});
 
 // ---------------------------------------------------------------------------
 // Module list — every Tier 3 agent we just added
