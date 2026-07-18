@@ -188,6 +188,31 @@ describe('audit --json frozen contract (D-11) and containment', () => {
     assert.ok(logged.some((l) => /could not complete/.test(l)), 'the incomplete state must be visible in the rendered scorecard');
   });
 
+  it('IN-03: zero-agents human path exits 1 without ever calling buildEnvelope (asymmetry pin)', async () => {
+    currentAgents = [];
+    let buildEnvelopeCalled = false;
+    currentBuildEnvelope = () => { buildEnvelopeCalled = true; return Promise.resolve(envelope()); };
+
+    const result = await audit({});
+
+    assert.equal(result.code, 1);
+    assert.equal(buildEnvelopeCalled, false, 'the human path must short-circuit before the MCP scan on zero agents (documented asymmetry)');
+  });
+
+  it('IN-03: zero-agents --json path still computes the full envelope (mcp/env keys present, asymmetry pin)', async () => {
+    currentAgents = [];
+
+    const result = await audit({ json: true });
+    const out = parseSingleJsonDocument();
+
+    assert.equal(result.code, 1);
+    assert.deepEqual(out.agents, [], 'zero agents still produces an (empty) agents[] key');
+    assert.ok(Array.isArray(out.envFiles), '--json always computes envFiles even with zero agents');
+    assert.deepEqual(out.mcp, {
+      ran: true, exitCode: EXIT.CLEAN, findingsCount: 0, verifiedCount: 0, unverifiedCount: 0,
+    }, '--json always computes the full mcp record even with zero agents (unlike the human short-circuit)');
+  });
+
   it('verified findings are level-only: base level 2 + verified MCP finding -> still exit 0 (scan --mcp is the findings gate)', async () => {
     currentAgents = [fakeAgent({ audit: () => ({ checks: [], level: 2 }) })];
     currentBuildEnvelope = () => Promise.resolve(envelope({
