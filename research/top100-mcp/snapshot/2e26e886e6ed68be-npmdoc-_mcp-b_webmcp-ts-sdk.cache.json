@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@mcp-b/webmcp-ts-sdk",
+    "dist-tags": {
+      "latest": "4.0.0"
+    },
+    "versions": {
+      "4.0.0": {
+        "version": "4.0.0",
+        "description": "Browser-adapted MCP TypeScript SDK - Dynamic tool registration for W3C Web Model Context API and AI agent integration"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "url": "git+https://github.com/WebMCP-org/npm-packages.git",
+      "type": "git",
+      "directory": "packages/webmcp-ts-sdk"
+    },
+    "homepage": "https://docs.mcp-b.ai/packages/webmcp-ts-sdk/reference"
+  },
+  "url": "https://registry.npmjs.org/%40mcp-b%2Fwebmcp-ts-sdk"
+}

@@ -1,0 +1,1002 @@
+[
+  {
+    "rank": 1,
+    "name": "@playwright/mcp",
+    "npmPackage": "@playwright/mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 24440648,
+    "repoUrl": "git+https://github.com/microsoft/playwright-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 2,
+    "name": "chrome-devtools-mcp",
+    "npmPackage": "chrome-devtools-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 11723530,
+    "repoUrl": "git+https://github.com/ChromeDevTools/chrome-devtools-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 3,
+    "name": "mcp-proxy",
+    "npmPackage": "mcp-proxy",
+    "pypiPackage": null,
+    "monthlyDownloads": 5735370,
+    "repoUrl": "git+https://github.com/punkpeye/mcp-proxy.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 4,
+    "name": "agent-install",
+    "npmPackage": "agent-install",
+    "pypiPackage": null,
+    "monthlyDownloads": 4218256,
+    "repoUrl": null,
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 5,
+    "name": "@upstash/context7-mcp",
+    "npmPackage": "@upstash/context7-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 3646022,
+    "repoUrl": "git+https://github.com/upstash/context7.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 6,
+    "name": "mcp-handler",
+    "npmPackage": "mcp-handler",
+    "pypiPackage": null,
+    "monthlyDownloads": 2204481,
+    "repoUrl": "git+https://github.com/vercel/mcp-handler.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 7,
+    "name": "Filesystem",
+    "npmPackage": "@modelcontextprotocol/server-filesystem",
+    "pypiPackage": null,
+    "monthlyDownloads": 2097896,
+    "repoUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+    "source": "reference-readme",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 8,
+    "name": "fastmcp",
+    "npmPackage": "fastmcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 2011969,
+    "repoUrl": "git+https://github.com/punkpeye/fastmcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 9,
+    "name": "add-mcp",
+    "npmPackage": "add-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 737853,
+    "repoUrl": "git+https://github.com/neon-solutions/add-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 10,
+    "name": "Sequential Thinking",
+    "npmPackage": "@modelcontextprotocol/server-sequential-thinking",
+    "pypiPackage": null,
+    "monthlyDownloads": 627501,
+    "repoUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
+    "source": "reference-readme",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 11,
+    "name": "@notionhq/notion-mcp-server",
+    "npmPackage": "@notionhq/notion-mcp-server",
+    "pypiPackage": null,
+    "monthlyDownloads": 600747,
+    "repoUrl": "git+ssh://git@github.com/makenotion/notion-mcp-server.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 12,
+    "name": "expo-mcp",
+    "npmPackage": "expo-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 558632,
+    "repoUrl": "https://github.com/expo/expo-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 13,
+    "name": "n8n-mcp",
+    "npmPackage": "n8n-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 531202,
+    "repoUrl": "git+https://github.com/czlonkowski/n8n-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 14,
+    "name": "@sap-ux/fiori-mcp-server",
+    "npmPackage": "@sap-ux/fiori-mcp-server",
+    "pypiPackage": null,
+    "monthlyDownloads": 495335,
+    "repoUrl": "https://github.com/SAP/open-ux-tools.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 15,
+    "name": "firecrawl-mcp",
+    "npmPackage": "firecrawl-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 485363,
+    "repoUrl": "git+https://github.com/firecrawl/firecrawl-mcp-server.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 16,
+    "name": "@azure/mcp",
+    "npmPackage": "@azure/mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 462159,
+    "repoUrl": "git+https://github.com/microsoft/mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 17,
+    "name": "@ui5/mcp-server",
+    "npmPackage": "@ui5/mcp-server",
+    "pypiPackage": null,
+    "monthlyDownloads": 443021,
+    "repoUrl": "git+https://github.com/UI5/mcp-server.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 18,
+    "name": "Memory",
+    "npmPackage": "@modelcontextprotocol/server-memory",
+    "pypiPackage": null,
+    "monthlyDownloads": 432720,
+    "repoUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+    "source": "reference-readme",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 19,
+    "name": "@azure-devops/mcp",
+    "npmPackage": "@azure-devops/mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 417808,
+    "repoUrl": "git+https://github.com/microsoft/azure-devops-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 20,
+    "name": "@zereight/mcp-gitlab",
+    "npmPackage": "@zereight/mcp-gitlab",
+    "pypiPackage": null,
+    "monthlyDownloads": 406588,
+    "repoUrl": "git+https://github.com/zereight/gitlab-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 21,
+    "name": "agentation-mcp",
+    "npmPackage": "agentation-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 393854,
+    "repoUrl": null,
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 22,
+    "name": "@transcend-io/mcp-server-dsr",
+    "npmPackage": "@transcend-io/mcp-server-dsr",
+    "pypiPackage": null,
+    "monthlyDownloads": 366117,
+    "repoUrl": "git+https://github.com/transcend-io/tools.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 23,
+    "name": "@supabase/mcp-server-supabase",
+    "npmPackage": "@supabase/mcp-server-supabase",
+    "pypiPackage": null,
+    "monthlyDownloads": 358489,
+    "repoUrl": "git+https://github.com/supabase/mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 24,
+    "name": "@sentry/mcp-server",
+    "npmPackage": "@sentry/mcp-server",
+    "pypiPackage": null,
+    "monthlyDownloads": 355532,
+    "repoUrl": "git+ssh://git@github.com/getsentry/sentry-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 25,
+    "name": "@transcend-io/mcp",
+    "npmPackage": "@transcend-io/mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 344029,
+    "repoUrl": "git+https://github.com/transcend-io/tools.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 26,
+    "name": "@transcend-io/mcp-server-assessment",
+    "npmPackage": "@transcend-io/mcp-server-assessment",
+    "pypiPackage": null,
+    "monthlyDownloads": 343723,
+    "repoUrl": "git+https://github.com/transcend-io/tools.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 27,
+    "name": "@transcend-io/mcp-server-admin",
+    "npmPackage": "@transcend-io/mcp-server-admin",
+    "pypiPackage": null,
+    "monthlyDownloads": 343616,
+    "repoUrl": "git+https://github.com/transcend-io/tools.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 28,
+    "name": "@wonderwhy-er/desktop-commander",
+    "npmPackage": "@wonderwhy-er/desktop-commander",
+    "pypiPackage": null,
+    "monthlyDownloads": 340003,
+    "repoUrl": "git+https://github.com/wonderwhy-er/DesktopCommanderMCP.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 29,
+    "name": "@transcend-io/mcp-server-consent",
+    "npmPackage": "@transcend-io/mcp-server-consent",
+    "pypiPackage": null,
+    "monthlyDownloads": 321526,
+    "repoUrl": "git+https://github.com/transcend-io/tools.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 30,
+    "name": "next-devtools-mcp",
+    "npmPackage": "next-devtools-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 301863,
+    "repoUrl": "git+https://github.com/vercel/next-devtools-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 31,
+    "name": "@salesforce/mcp",
+    "npmPackage": "@salesforce/mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 287828,
+    "repoUrl": "git+https://github.com/salesforcecli/mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 32,
+    "name": "@cap-js/mcp-server",
+    "npmPackage": "@cap-js/mcp-server",
+    "pypiPackage": null,
+    "monthlyDownloads": 283986,
+    "repoUrl": "git+https://github.com/cap-js/mcp-server.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 33,
+    "name": "mcp-evals",
+    "npmPackage": "mcp-evals",
+    "pypiPackage": null,
+    "monthlyDownloads": 279021,
+    "repoUrl": "git+https://github.com/mclenhard/mcp-evals.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 34,
+    "name": "hlims-mcp",
+    "npmPackage": "hlims-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 261914,
+    "repoUrl": null,
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 35,
+    "name": "Everything",
+    "npmPackage": "@modelcontextprotocol/server-everything",
+    "pypiPackage": null,
+    "monthlyDownloads": 246429,
+    "repoUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/everything",
+    "source": "reference-readme",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 36,
+    "name": "mcp-framework",
+    "npmPackage": "mcp-framework",
+    "pypiPackage": null,
+    "monthlyDownloads": 244660,
+    "repoUrl": "git+https://github.com/QuantGeekDev/mcp-framework.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 37,
+    "name": "@transcend-io/mcp-server-discovery",
+    "npmPackage": "@transcend-io/mcp-server-discovery",
+    "pypiPackage": null,
+    "monthlyDownloads": 202787,
+    "repoUrl": "git+https://github.com/transcend-io/tools.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 38,
+    "name": "@transcend-io/mcp-server-preferences",
+    "npmPackage": "@transcend-io/mcp-server-preferences",
+    "pypiPackage": null,
+    "monthlyDownloads": 202489,
+    "repoUrl": "git+https://github.com/transcend-io/tools.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 39,
+    "name": "hostinger-api-mcp",
+    "npmPackage": "hostinger-api-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 188970,
+    "repoUrl": "git+https://github.com/hostinger/api-mcp-server.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 40,
+    "name": "@transcend-io/mcp-server-workflows",
+    "npmPackage": "@transcend-io/mcp-server-workflows",
+    "pypiPackage": null,
+    "monthlyDownloads": 180271,
+    "repoUrl": "git+https://github.com/transcend-io/tools.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 41,
+    "name": "@transcend-io/mcp-server-inventory",
+    "npmPackage": "@transcend-io/mcp-server-inventory",
+    "pypiPackage": null,
+    "monthlyDownloads": 168252,
+    "repoUrl": "git+https://github.com/transcend-io/tools.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 42,
+    "name": "mcp-use",
+    "npmPackage": "mcp-use",
+    "pypiPackage": null,
+    "monthlyDownloads": 165332,
+    "repoUrl": "git+https://github.com/mcp-use/mcp-use.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 43,
+    "name": "@mcp-use/inspector",
+    "npmPackage": "@mcp-use/inspector",
+    "pypiPackage": null,
+    "monthlyDownloads": 156379,
+    "repoUrl": "git+https://github.com/mcp-use/mcp-use.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 44,
+    "name": "@gongrzhe/server-gmail-autoauth-mcp",
+    "npmPackage": "@gongrzhe/server-gmail-autoauth-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 154171,
+    "repoUrl": "git+https://github.com/gongrzhe/server-gmail-autoauth-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 45,
+    "name": "@mcp-use/cli",
+    "npmPackage": "@mcp-use/cli",
+    "pypiPackage": null,
+    "monthlyDownloads": 149068,
+    "repoUrl": "git+https://github.com/mcp-use/mcp-use.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 46,
+    "name": "pi-mcp-adapter",
+    "npmPackage": "pi-mcp-adapter",
+    "pypiPackage": null,
+    "monthlyDownloads": 134921,
+    "repoUrl": "git+https://github.com/nicobailon/pi-mcp-adapter.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 47,
+    "name": "@ericthered926/duckduckgo-mcp-server",
+    "npmPackage": "@ericthered926/duckduckgo-mcp-server",
+    "pypiPackage": null,
+    "monthlyDownloads": 133218,
+    "repoUrl": "git+https://github.com/ericthered926/duckduckgo-mcp-server.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 48,
+    "name": "tavily-mcp",
+    "npmPackage": "tavily-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 131960,
+    "repoUrl": "git+https://github.com/tavily-ai/tavily-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 49,
+    "name": "@transcend-io/mcp-server-docs",
+    "npmPackage": "@transcend-io/mcp-server-docs",
+    "pypiPackage": null,
+    "monthlyDownloads": 131509,
+    "repoUrl": "git+https://github.com/transcend-io/tools.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 50,
+    "name": "mcp-hello-world",
+    "npmPackage": "mcp-hello-world",
+    "pypiPackage": null,
+    "monthlyDownloads": 128927,
+    "repoUrl": "git+https://github.com/lobehub/mcp-hello-world.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 51,
+    "name": "@github/computer-use-mcp",
+    "npmPackage": "@github/computer-use-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 126794,
+    "repoUrl": "git+https://github.com/github/computer-use.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 52,
+    "name": "@circleci/mcp-server-circleci",
+    "npmPackage": "@circleci/mcp-server-circleci",
+    "pypiPackage": null,
+    "monthlyDownloads": 126659,
+    "repoUrl": "git+https://github.com/CircleCI-Public/mcp-server-circleci.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 53,
+    "name": "workers-mcp",
+    "npmPackage": "workers-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 125811,
+    "repoUrl": "https://github.com/cloudflare/workers-mcp",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 54,
+    "name": "@eslint/mcp",
+    "npmPackage": "@eslint/mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 121288,
+    "repoUrl": "git+https://github.com/eslint/rewrite.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 55,
+    "name": "@mastra/mcp-docs-server",
+    "npmPackage": "@mastra/mcp-docs-server",
+    "pypiPackage": null,
+    "monthlyDownloads": 110192,
+    "repoUrl": "git+https://github.com/mastra-ai/mastra.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 56,
+    "name": "@softeria/ms-365-mcp-server",
+    "npmPackage": "@softeria/ms-365-mcp-server",
+    "pypiPackage": null,
+    "monthlyDownloads": 108501,
+    "repoUrl": "git+https://github.com/Softeria/ms-365-mcp-server.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 57,
+    "name": "kubernetes-mcp-server",
+    "npmPackage": "kubernetes-mcp-server",
+    "pypiPackage": null,
+    "monthlyDownloads": 104770,
+    "repoUrl": "git+https://github.com/containers/kubernetes-mcp-server.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 58,
+    "name": "slack-mcp-server",
+    "npmPackage": "slack-mcp-server",
+    "pypiPackage": null,
+    "monthlyDownloads": 101769,
+    "repoUrl": "git+https://github.com/korotovsky/slack-mcp-server.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 59,
+    "name": "@drawio/mcp",
+    "npmPackage": "@drawio/mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 101751,
+    "repoUrl": "git+https://github.com/jgraph/drawio-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 60,
+    "name": "mcp-searxng",
+    "npmPackage": "mcp-searxng",
+    "pypiPackage": null,
+    "monthlyDownloads": 97068,
+    "repoUrl": "git+https://github.com/ihor-sokoliuk/mcp-searxng.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 61,
+    "name": "@taazkareem/clickup-mcp-server",
+    "npmPackage": "@taazkareem/clickup-mcp-server",
+    "pypiPackage": null,
+    "monthlyDownloads": 96341,
+    "repoUrl": "git+https://github.com/taazkareem/clickup-mcp-server.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 62,
+    "name": "@penpot/mcp",
+    "npmPackage": "@penpot/mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 90723,
+    "repoUrl": "git+https://github.com/penpot/penpot.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 63,
+    "name": "@antv/mcp-server-chart",
+    "npmPackage": "@antv/mcp-server-chart",
+    "pypiPackage": null,
+    "monthlyDownloads": 88087,
+    "repoUrl": "git+https://github.com/antvis/mcp-server-chart.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 64,
+    "name": "@launchdarkly/mcp-server",
+    "npmPackage": "@launchdarkly/mcp-server",
+    "pypiPackage": null,
+    "monthlyDownloads": 87398,
+    "repoUrl": "git+https://github.com/launchdarkly/mcp-server.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 65,
+    "name": "argocd-mcp",
+    "npmPackage": "argocd-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 86234,
+    "repoUrl": "git+https://github.com/argoproj-labs/mcp-for-argocd.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 66,
+    "name": "@serdnaley/metabase-mcp",
+    "npmPackage": "@serdnaley/metabase-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 85886,
+    "repoUrl": "git+https://github.com/Serdnaley/metabase-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 67,
+    "name": "@currents/mcp",
+    "npmPackage": "@currents/mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 83382,
+    "repoUrl": "git+https://github.com/currents-dev/currents-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 68,
+    "name": "samarth-gtm-mcp",
+    "npmPackage": "samarth-gtm-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 82730,
+    "repoUrl": "git+https://github.com/samarthanalytics-sj/samarth-analytics-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 69,
+    "name": "@benborla29/mcp-server-mysql",
+    "npmPackage": "@benborla29/mcp-server-mysql",
+    "pypiPackage": null,
+    "monthlyDownloads": 78978,
+    "repoUrl": "git+https://github.com/benborla/mcp-server-mysql.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 70,
+    "name": "resend-mcp",
+    "npmPackage": "resend-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 77108,
+    "repoUrl": "git+https://github.com/resend/resend-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 71,
+    "name": "@mobilenext/mobile-mcp",
+    "npmPackage": "@mobilenext/mobile-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 75586,
+    "repoUrl": "git+https://github.com/mobile-next/mobile-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 72,
+    "name": "@aikidosec/mcp",
+    "npmPackage": "@aikidosec/mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 72483,
+    "repoUrl": null,
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 73,
+    "name": "@winor30/mcp-server-datadog",
+    "npmPackage": "@winor30/mcp-server-datadog",
+    "pypiPackage": null,
+    "monthlyDownloads": 70957,
+    "repoUrl": "git+https://github.com/winor30/mcp-server-datadog.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 74,
+    "name": "@anyproto/anytype-mcp",
+    "npmPackage": "@anyproto/anytype-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 69485,
+    "repoUrl": "git+https://github.com/anyproto/anytype-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 75,
+    "name": "@microsoft/workiq",
+    "npmPackage": "@microsoft/workiq",
+    "pypiPackage": null,
+    "monthlyDownloads": 67012,
+    "repoUrl": "git+https://github.com/microsoft/work-iq.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 76,
+    "name": "@brave/brave-search-mcp-server",
+    "npmPackage": "@brave/brave-search-mcp-server",
+    "pypiPackage": null,
+    "monthlyDownloads": 64631,
+    "repoUrl": "git+https://github.com/brave/brave-search-mcp-server.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 77,
+    "name": "@sveltejs/mcp",
+    "npmPackage": "@sveltejs/mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 64341,
+    "repoUrl": "git+https://github.com/sveltejs/ai-tools.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 78,
+    "name": "mcp-server-kubernetes",
+    "npmPackage": "mcp-server-kubernetes",
+    "pypiPackage": null,
+    "monthlyDownloads": 61677,
+    "repoUrl": "git+https://github.com/Flux159/mcp-server-kubernetes.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 79,
+    "name": "xmcp",
+    "npmPackage": "xmcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 61158,
+    "repoUrl": "git+https://github.com/basementstudio/xmcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 80,
+    "name": "@negokaz/excel-mcp-server",
+    "npmPackage": "@negokaz/excel-mcp-server",
+    "pypiPackage": null,
+    "monthlyDownloads": 61117,
+    "repoUrl": null,
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 81,
+    "name": "@apify/actors-mcp-server",
+    "npmPackage": "@apify/actors-mcp-server",
+    "pypiPackage": null,
+    "monthlyDownloads": 55719,
+    "repoUrl": "https://github.com/apify/apify-mcp-server.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 82,
+    "name": "@netlify/mcp",
+    "npmPackage": "@netlify/mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 55579,
+    "repoUrl": null,
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 83,
+    "name": "serper-search-scrape-mcp-server",
+    "npmPackage": "serper-search-scrape-mcp-server",
+    "pypiPackage": null,
+    "monthlyDownloads": 55510,
+    "repoUrl": "git+https://github.com/marcopesani/mcp-server-serper.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 84,
+    "name": "brilliant-directories-mcp",
+    "npmPackage": "brilliant-directories-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 55110,
+    "repoUrl": "git+https://github.com/brilliantdirectories/brilliant-directories-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 85,
+    "name": "@smartbear/mcp",
+    "npmPackage": "@smartbear/mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 53850,
+    "repoUrl": "git+ssh://git@github.com/SmartBear/smartbear-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 86,
+    "name": "@hubspot/mcp-server",
+    "npmPackage": "@hubspot/mcp-server",
+    "pypiPackage": null,
+    "monthlyDownloads": 53308,
+    "repoUrl": null,
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 87,
+    "name": "@shortcut/mcp",
+    "npmPackage": "@shortcut/mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 52379,
+    "repoUrl": "git+https://github.com/useshortcut/mcp-server-shortcut.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 88,
+    "name": "@stripe/mcp",
+    "npmPackage": "@stripe/mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 52218,
+    "repoUrl": "git+https://github.com/stripe/ai.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 89,
+    "name": "@cyanheads/mcp-ts-core",
+    "npmPackage": "@cyanheads/mcp-ts-core",
+    "pypiPackage": null,
+    "monthlyDownloads": 50976,
+    "repoUrl": "git+https://github.com/cyanheads/mcp-ts-core.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 90,
+    "name": "openapi-mcp-generator",
+    "npmPackage": "openapi-mcp-generator",
+    "pypiPackage": null,
+    "monthlyDownloads": 50311,
+    "repoUrl": "git+https://github.com/harsha-iiiv/openapi-mcp-generator.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 91,
+    "name": "@sellable/mcp",
+    "npmPackage": "@sellable/mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 49670,
+    "repoUrl": null,
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 92,
+    "name": "@dynatrace-oss/dynatrace-mcp-server",
+    "npmPackage": "@dynatrace-oss/dynatrace-mcp-server",
+    "pypiPackage": null,
+    "monthlyDownloads": 49012,
+    "repoUrl": "git+https://github.com/dynatrace-oss/dynatrace-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 93,
+    "name": "fetcher-mcp",
+    "npmPackage": "fetcher-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 47779,
+    "repoUrl": null,
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 94,
+    "name": "@ironbee-ai/devtools",
+    "npmPackage": "@ironbee-ai/devtools",
+    "pypiPackage": null,
+    "monthlyDownloads": 45063,
+    "repoUrl": "git+https://github.com/ironbee-ai/ironbee-devtools.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 95,
+    "name": "@google-cloud/observability-mcp",
+    "npmPackage": "@google-cloud/observability-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 44520,
+    "repoUrl": "git+https://github.com/googleapis/gcloud-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 96,
+    "name": "@automattic/mcp-wordpress-remote",
+    "npmPackage": "@automattic/mcp-wordpress-remote",
+    "pypiPackage": null,
+    "monthlyDownloads": 43428,
+    "repoUrl": "git+https://github.com/Automattic/mcp-wordpress-remote.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 97,
+    "name": "@browserstack/mcp-server",
+    "npmPackage": "@browserstack/mcp-server",
+    "pypiPackage": null,
+    "monthlyDownloads": 43219,
+    "repoUrl": "git+https://github.com/browserstack/mcp-server.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 98,
+    "name": "@browsermcp/mcp",
+    "npmPackage": "@browsermcp/mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 42886,
+    "repoUrl": "https://browsermcp.io",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 99,
+    "name": "@cocal/google-calendar-mcp",
+    "npmPackage": "@cocal/google-calendar-mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 41785,
+    "repoUrl": "git+https://github.com/nspady/google-calendar-mcp.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  },
+  {
+    "rank": 100,
+    "name": "@browserbasehq/mcp",
+    "npmPackage": "@browserbasehq/mcp",
+    "pypiPackage": null,
+    "monthlyDownloads": 41374,
+    "repoUrl": "git+https://github.com/browserbase/mcp-server-browserbase.git",
+    "source": "npm-search",
+    "snapshotDate": "2026-07-19"
+  }
+]

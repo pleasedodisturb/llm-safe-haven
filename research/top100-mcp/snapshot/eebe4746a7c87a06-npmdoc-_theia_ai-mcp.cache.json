@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@theia/ai-mcp",
+    "dist-tags": {
+      "latest": "1.73.1"
+    },
+    "versions": {
+      "1.73.1": {
+        "version": "1.73.1",
+        "description": "Theia - MCP Integration"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "url": "git+https://github.com/eclipse-theia/theia.git",
+      "type": "git"
+    },
+    "homepage": "https://github.com/eclipse-theia/theia"
+  },
+  "url": "https://registry.npmjs.org/%40theia%2Fai-mcp"
+}

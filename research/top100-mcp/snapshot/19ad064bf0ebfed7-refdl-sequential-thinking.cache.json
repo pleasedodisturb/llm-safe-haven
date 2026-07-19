@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "downloads": 627501,
+    "start": "2026-06-19",
+    "end": "2026-07-18",
+    "package": "@modelcontextprotocol/server-sequential-thinking"
+  },
+  "url": "https://api.npmjs.org/downloads/point/last-month/%40modelcontextprotocol%2Fserver-sequential-thinking"
+}

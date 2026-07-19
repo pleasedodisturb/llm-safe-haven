@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "serper-search-scrape-mcp-server",
+    "dist-tags": {
+      "latest": "0.1.2"
+    },
+    "versions": {
+      "0.1.2": {
+        "version": "0.1.2",
+        "bin": {
+          "serper-mcp": "build/index.js"
+        },
+        "description": "Serper MCP Server supporting search and webpage scraping"
+      }
+    },
+    "readme": "# Serper Search and Scrape MCP Server\n\nA TypeScript-based MCP server that provides web search and webpage scraping capabilities using the Serper API. This server integrates with Claude Desktop to enable powerful web search and content extraction features.\n\n## Features\n\n### Tools\n\n- `google_search` - Perform web searches via Serper API\n  - Rich search results including organic results, knowledge graph, \"people also ask\", and related searches\n  - Supports region and language targeting\n  - Optional parameters for location, pagination, time filters, and autocorrection\n  \n- `scrape` - Extract content from web pages\n  - Get plain text and optional markdown content\n  - Includes JSON-LD and head metadata\n  - Preserves document structure\n\n## Requirements\n\n- Node.js >= 18\n- Serper API key (set as `SERPER_API_KEY` environment variable)\n\n## Development\n\nInstall dependencies:\n```bash\nnpm install\n```\n\nBuild the server:\n```bash\nnpm run build\n```\n\nFor development with auto-rebuild:\n```bash\nnpm run watch\n```\n\nRun tests:\n```bash\nnpm test                  # Run all tests\nnpm run test:watch       # Run tests in watch mode\nnpm run test:coverage    # Run tests with coverage\nnpm run test:integration # Run integration tests\n```\n\n## Installation\n\nTo use with Claude Desktop, add the server config:\n\nOn MacOS: `~/Library/Application Support/Claude/claude_desktop_config.json`  \nOn Windows: `%APPDATA%/Claude/claude_desktop_config.json`\n\n```json\n{\n  \"mcpServers\": {\n    \"serper-search\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"serper-search-scrape-mcp-server\"\n      ],\n      \"env\": {\n        \"SERPER_API_KEY\": \"your_api_key_here\"\n      }\n    }\n  }\n}\n```\n\n### Environment Variables\n\nCreate a `.env` file in the root directory:\n\n```\nSERPER_API_KEY=your_api_key_here\n```\n\n### Debugging\n\nSince MCP servers communicate over stdio, debugging can be challenging. We recommend using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector), which is available as a package script:\n\n```bash\nnpm run inspector\n```\n\nThe Inspector will provide a URL to access debugging tools in your browser.\n",
+    "readmeFilename": "README.md",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/marcopesani/mcp-server-serper.git"
+    },
+    "homepage": "https://github.com/marcopesani/mcp-server-serper#readme"
+  },
+  "url": "https://registry.npmjs.org/serper-search-scrape-mcp-server"
+}

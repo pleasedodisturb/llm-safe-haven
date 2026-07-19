@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@shortcut/mcp",
+    "dist-tags": {
+      "latest": "0.25.0"
+    },
+    "versions": {
+      "0.25.0": {
+        "version": "0.25.0",
+        "bin": {
+          "mcp-server-shortcut": "dist/index.js"
+        },
+        "description": "Shortcut MCP Server"
+      }
+    },
+    "readme": ":warning: :warning: :warning: \n\nAll future development on the Shortcut MCP server will be done on the remote server at https://mcp.shortcut.com/mcp. \n\nThis repo remains here for historical reference purposes only.\n\n:warning: :warning: :warning: \n\n----\n\n# @shortcut/mcp\n\n<img height=\"125\" src=\"https://github.com/user-attachments/assets/7c3d3b8e-6252-4790-81cd-6640cd46a2d6\" alt=\"Shortcut's logo\" align=\"right\">\n\n[![X](https://img.shields.io/twitter/follow/shortcut.svg?label=Follow%20@shortcut)](https://twitter.com/intent/follow?screen_name=shortcut)\n\nMCP Server for [Shortcut](https://shortcut.com) users.\n\n## Usage\n\nUsage instructions can be found at https://mcp.shortcut.com/mcp\n\n## Issues and Troubleshooting\n\nAsk for help in our [Community Slack](https://shortcut.com/join-slack)\n",
+    "readmeFilename": "README.md",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/useshortcut/mcp-server-shortcut.git"
+    },
+    "homepage": "https://github.com/useshortcut/mcp-server-shortcut#readme"
+  },
+  "url": "https://registry.npmjs.org/%40shortcut%2Fmcp"
+}

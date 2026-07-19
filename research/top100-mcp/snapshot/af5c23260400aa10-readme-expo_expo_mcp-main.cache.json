@@ -1,0 +1,6 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": "# Expo MCP Monorepo\n\nThis monorepo contains MCP local utilities for Expo development.\n\n## Packages\n\n### `expo-mcp`\n\nThe main Expo MCP local capabilities provider that provides MCP tools and prompts for Expo development.\n\n### `@expo/mcp-tunnel`\n\nTunnel functionality for MCP servers that provides WebSocket-based transport for remote MCP connections.\n\n## Development\n\n### Setup\n\n```bash\nbun install\n```\n\n### Build\n\n```bash\nbun run build\n```\n\n### Lint\n\n```bash\nbun run lint\n```\n",
+  "url": "https://raw.githubusercontent.com/expo/expo-mcp/main/README.md"
+}

@@ -1,0 +1,28 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@mcp-use/cli",
+    "dist-tags": {
+      "latest": "3.6.4"
+    },
+    "versions": {
+      "3.6.4": {
+        "version": "3.6.4",
+        "bin": {
+          "mcp-use": "dist/index.cjs"
+        },
+        "description": "The mcp-use CLI is a tool for building and deploying MCP servers with support for ChatGPT Apps, Code Mode, OAuth, Notifications, Sampling, Observability and more."
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "url": "git+https://github.com/mcp-use/mcp-use.git",
+      "type": "git",
+      "directory": "libraries/typescript/packages/cli"
+    },
+    "homepage": "https://github.com/mcp-use/mcp-use#readme"
+  },
+  "url": "https://registry.npmjs.org/%40mcp-use%2Fcli"
+}

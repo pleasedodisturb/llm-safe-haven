@@ -1,0 +1,28 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@mcp-use/inspector",
+    "dist-tags": {
+      "latest": "12.0.3"
+    },
+    "versions": {
+      "12.0.3": {
+        "version": "12.0.3",
+        "bin": {
+          "mcp-inspect": "dist/cli.js"
+        },
+        "description": "MCP Inspector - A tool for inspecting and debugging MCP servers"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "url": "git+https://github.com/mcp-use/mcp-use.git",
+      "type": "git",
+      "directory": "libraries/typescript/packages/inspector"
+    },
+    "homepage": "https://github.com/mcp-use/mcp-use#readme"
+  },
+  "url": "https://registry.npmjs.org/%40mcp-use%2Finspector"
+}

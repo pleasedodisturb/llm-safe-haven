@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@salesforce/mcp",
+    "dist-tags": {
+      "latest": "0.30.15"
+    },
+    "versions": {
+      "0.30.15": {
+        "version": "0.30.15",
+        "bin": {
+          "sf-mcp-server": "bin/run.js"
+        },
+        "description": "MCP Server for interacting with Salesforce instances"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "README.md",
+    "repository": {
+      "url": "git+https://github.com/salesforcecli/mcp.git",
+      "type": "git"
+    },
+    "homepage": "https://github.com/salesforcecli/mcp"
+  },
+  "url": "https://registry.npmjs.org/%40salesforce%2Fmcp"
+}

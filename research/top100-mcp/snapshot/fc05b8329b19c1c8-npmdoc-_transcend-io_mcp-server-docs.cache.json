@@ -1,0 +1,28 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@transcend-io/mcp-server-docs",
+    "dist-tags": {
+      "latest": "0.3.3"
+    },
+    "versions": {
+      "0.3.3": {
+        "version": "0.3.3",
+        "bin": {
+          "transcend-mcp-docs": "dist/cli.mjs"
+        },
+        "description": "Transcend MCP Server — Documentation lookup tools."
+      }
+    },
+    "readme": "# @transcend-io/mcp-server-docs\n\n> **Beta** — this package is under active development. APIs may change without notice.\n\nTranscend MCP Server for documentation lookup. Provides tools to list articles from the public docs index and fetch full markdown content on demand.\n\nRequires **Node.js ≥ 22.12** (see `engines` in `package.json`).\n\n**No authentication required.** This standalone server reads public content from `docs.transcend.io` only. It does not use your Transcend API key or OAuth credentials, even if they are present in the environment (for example when launched via [`scripts/mcp-run.sh`](../../../scripts/mcp-run.sh) with `secret.env` loaded).\n\n## Install\n\nInstall the CLI globally:\n\n```bash\nnpm install -g @transcend-io/mcp-server-docs\n```\n\nOr run from a checkout of this repository (see **Run from the monorepo** below).\n\n## Usage\n\n```bash\ntranscend-mcp-docs\n```\n\nThe process speaks MCP over **stdio** and is meant to be launched by an MCP client (for example, Cursor or Claude Desktop), not used as an interactive shell.\n\n### MCP client configuration\n\n`npx` runs the package’s `transcend-mcp-docs` binary (see `bin` in `package.json`). No `env` block is required.\n\n```json\n{\n  \"mcpServers\": {\n    \"transcend-docs\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@transcend-io/mcp-server-docs\"]\n    }\n  }\n}\n```\n\nWhen developing in this repository:\n\n```json\n{\n  \"mcpServers\": {\n    \"transcend-docs-local\": {\n      \"command\": \"node\",\n      \"args\": [\"packages/mcp/mcp-server-docs/dist/cli.mjs\"]\n    }\n  }\n}\n```\n\nBuild first: `pnpm exec turbo run build --filter=\"@transcend-io/mcp-server-docs...\"`\n\n### Run from the monorepo\n\n```bash\n# from the repository root\npnpm exec turbo run build --filter=\"@transcend-io/mcp-server-docs...\"\npnpm -F @transcend-io/mcp-server-docs exec node ./dist/cli.mjs\n```\n\n**Alternative:** `./scripts/mcp-run.sh ./packages/mcp/mcp-server-docs/dist/cli.mjs` (OAuth vars in `secret.env` are ignored by this server).\n\nSee [CONTRIBUTING.md](../../../CONTRIBUTING.md#mcp-servers) for workspace layout and `pnpm --filter` workflows.\n\n## Tools\n\n- `docs_list` — List/search the Transcend docs index (`llms.txt`); optional `section` and `keyword` filters\n- `docs_fetch` — Fetch full markdown for a docs article URL (host restricted to `docs.transcend.io`)\n\n## Related packages\n\nAlso available as part of the unified [`@transcend-io/mcp`](../mcp/README.md), which includes all domains and **does** require authentication. See the [root README](../../../README.md#mcp-servers) for the full list.\n",
+    "readmeFilename": "README.md",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/transcend-io/tools.git",
+      "directory": "packages/mcp/mcp-server-docs"
+    },
+    "homepage": "https://github.com/transcend-io/tools/tree/main/packages/mcp/mcp-server-docs"
+  },
+  "url": "https://registry.npmjs.org/%40transcend-io%2Fmcp-server-docs"
+}

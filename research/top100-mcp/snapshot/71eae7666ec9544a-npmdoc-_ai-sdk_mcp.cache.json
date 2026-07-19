@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@ai-sdk/mcp",
+    "dist-tags": {
+      "latest": "2.0.15"
+    },
+    "versions": {
+      "2.0.15": {
+        "version": "2.0.15",
+        "description": "The **Model Context Protocol (MCP) client** for the [AI SDK](https://ai-sdk.dev/docs) lets you connect to MCP servers and use their tools with AI SDK functions like `generateText` and `streamText`."
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "url": "git+https://github.com/vercel/ai.git",
+      "type": "git",
+      "directory": "packages/mcp"
+    },
+    "homepage": "https://ai-sdk.dev/docs"
+  },
+  "url": "https://registry.npmjs.org/%40ai-sdk%2Fmcp"
+}

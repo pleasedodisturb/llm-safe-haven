@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "xmcp",
+    "dist-tags": {
+      "latest": "0.6.13"
+    },
+    "versions": {
+      "0.6.13": {
+        "version": "0.6.13",
+        "bin": {
+          "xmcp": "dist/cli.js"
+        },
+        "description": "The MCP framework"
+      }
+    },
+    "readme": "\n<div align=\"center\">\n\n  <a href=\"https://xmcp.dev\">\n    <picture>\n      <source media=\"(prefers-color-scheme: dark)\" srcset=\"https://assets.basehub.com/bf7c3bb1/303b8a62053c9d86ca3b972b5597ab5c/x.png\">\n      <img alt=\"XMCP logo\" src=\"https://assets.basehub.com/bf7c3bb1/303b8a62053c9d86ca3b972b5597ab5c/x.png\" height=\"128\">\n    </picture>\n  </a>\n  <h1>xmcp</h1>\n\n<a href=\"https://basement.studio\"><img alt=\"xmcp logo\" src=\"https://img.shields.io/badge/MADE%20BY%20basement.studio-000000.svg?style=for-the-badge&labelColor=000\"></a>\n<a href=\"https://www.npmjs.com/package/xmcp\"><img alt=\"NPM version\" src=\"https://img.shields.io/npm/v/xmcp.svg?style=for-the-badge&labelColor=000000\"></a>\n<a href=\"https://github.com/basementstudio/xmcp/blob/main/license.md\"><img alt=\"License\" src=\"https://img.shields.io/npm/l/xmcp.svg?style=for-the-badge&labelColor=000000\"></a>\n\n\n</div>\n<div align=\"center\">\n<a href=\"https://vercel.com/open-source-program\">\n  <img alt=\"Vercel OSS Program\" src=\"https://vercel.com/oss/program-badge-2026.svg\" />\n</a>\n</div>\n\n## The TypeScript MCP Framework\n\n`xmcp` is a framework for building and shipping MCP servers with TypeScript. Designed with DX in mind, it streamlines development and lowers the barrier to entry for anyone looking to create and deploy powerful tools on top of the Model Context Protocol ecosystem.\n\n## Getting Started\n\nBootstrap your first `xmcp` application with:\n\n```bash\nnpx create-xmcp-app@latest\n```\n\nor initialize `xmcp` on an existing Next.js or Express project with:\n\n```bash\nnpx init-xmcp@latest\n```\n\n## Features\n\n⊹ **File System Routing** - Tools and prompts are auto-registered from a `tools` and `prompts` directory\\\n⊹ **Hot Reloading** - Instant development feedback\\\n⊹ **Middlewares** - Toolkit for shipping authentication and custom middlewares\\\n⊹ **Extensible Configuration** - Customizable configuration for your MCP server\\\n⊹ **Deploy Anywhere** - Flexible deployment across any platform\\\n⊹ **Vercel Support** - Zero-configuration deployment with Vercel\n\n## Learn more\n\n⊹ Visit [xmcp.dev](https://xmcp.dev) to learn more about the project.\\\n⊹ Visit [xmcp.dev/docs](https://xmcp.dev/docs) to view the full documentation.\n\n## Security\n\nIf you believe you have found a security vulnerability, we encourage you to let us know right away.\n\nWe will investigate all legitimate reports and do our best to quickly fix the problem.\n\nPlease report any vulnerabilities in our open source repositories to [security@xmcp.dev](mailto:security@xmcp.dev).\n",
+    "readmeFilename": "README.md",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/basementstudio/xmcp.git"
+    },
+    "homepage": "https://xmcp.dev"
+  },
+  "url": "https://registry.npmjs.org/xmcp"
+}

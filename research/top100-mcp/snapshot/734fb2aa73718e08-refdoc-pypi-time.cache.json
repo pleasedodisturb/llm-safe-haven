@@ -1,0 +1,628 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "info": {
+      "author": null,
+      "author_email": "Mariusz 'maledorak' Korzekwa <mariusz@korzekwa.dev>",
+      "bugtrack_url": null,
+      "classifiers": [
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: MIT License",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.10"
+      ],
+      "description": "# Time MCP Server\n\n<!-- mcp-name: io.github.modelcontextprotocol/server-time -->\n\nA Model Context Protocol server that provides time and timezone conversion capabilities. This server enables LLMs to get current time information and perform timezone conversions using IANA timezone names, with automatic system timezone detection.\n\nSource: https://github.com/modelcontextprotocol/servers/tree/main/src/time\n\n### Available Tools\n\n- `get_current_time` - Get current time in a specific timezone or system timezone.\n  - Required arguments:\n    - `timezone` (string): IANA timezone name (e.g., 'America/New_York', 'Europe/London')\n\n- `convert_time` - Convert time between timezones.\n  - Required arguments:\n    - `source_timezone` (string): Source IANA timezone name\n    - `time` (string): Time in 24-hour format (HH:MM)\n    - `target_timezone` (string): Target IANA timezone name\n\n## Installation\n\n### Using uv (recommended)\n\nWhen using [`uv`](https://docs.astral.sh/uv/) no specific installation is needed. We will\nuse [`uvx`](https://docs.astral.sh/uv/guides/tools/) to directly run *mcp-server-time*.\n\n```bash\nuvx mcp-server-time\n```\n\n### Using PIP\n\nAlternatively you can install `mcp-server-time` via pip:\n\n```bash\npip install mcp-server-time\n```\n\nAfter installation, you can run it as a script using:\n\n```bash\npython -m mcp_server_time\n```\n\n## Configuration\n\n### Configure for Claude.app\n\nAdd to your Claude settings:\n\n<details>\n<summary>Using uvx</summary>\n\n```json\n{\n  \"mcpServers\": {\n    \"time\": {\n      \"command\": \"uvx\",\n      \"args\": [\"mcp-server-time\"]\n    }\n  }\n}\n```\n</details>\n\n<details>\n<summary>Using docker</summary>\n\n```json\n{\n  \"mcpServers\": {\n    \"time\": {\n      \"command\": \"docker\",\n      \"args\": [\"run\", \"-i\", \"--rm\", \"-e\", \"LOCAL_TIMEZONE\", \"mcp/time\"]\n    }\n  }\n}\n```\n</details>\n\n<details>\n<summary>Using pip installation</summary>\n\n```json\n{\n  \"mcpServers\": {\n    \"time\": {\n      \"command\": \"python\",\n      \"args\": [\"-m\", \"mcp_server_time\"]\n    }\n  }\n}\n```\n</details>\n\n### Configure for Zed\n\nAdd to your Zed settings.json:\n\n<details>\n<summary>Using uvx</summary>\n\n```json\n\"context_servers\": [\n  \"mcp-server-time\": {\n    \"command\": \"uvx\",\n    \"args\": [\"mcp-server-time\"]\n  }\n],\n```\n</details>\n\n<details>\n<summary>Using pip installation</summary>\n\n```json\n\"context_servers\": {\n  \"mcp-server-time\": {\n    \"command\": \"python\",\n    \"args\": [\"-m\", \"mcp_server_time\"]\n  }\n},\n```\n</details>\n\n### Configure for VS Code\n\nFor quick installation, use one of the one-click install buttons below...\n\n[![Install with UV in VS Code](https://img.shields.io/badge/VS_Code-UV-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=time&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22mcp-server-time%22%5D%7D) [![Install with UV in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-UV-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=time&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22mcp-server-time%22%5D%7D&quality=insiders)\n\n[![Install with Docker in VS Code](https://img.shields.io/badge/VS_Code-Docker-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=time&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22mcp%2Ftime%22%5D%7D) [![Install with Docker in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Docker-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=time&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22mcp%2Ftime%22%5D%7D&quality=insiders)\n\nFor manual installation, add the following JSON block to your User Settings (JSON) file in VS Code. You can do this by pressing `Ctrl + Shift + P` and typing `Preferences: Open User Settings (JSON)`.\n\nOptionally, you can add it to a file called `.vscode/mcp.json` in your workspace. This will allow you to share the configuration with others.\n\n> Note that the `mcp` key is needed when using the `mcp.json` file.\n\n<details>\n<summary>Using uvx</summary>\n\n```json\n{\n  \"mcp\": {\n    \"servers\": {\n      \"time\": {\n        \"command\": \"uvx\",\n        \"args\": [\"mcp-server-time\"]\n      }\n    }\n  }\n}\n```\n</details>\n\n<details>\n<summary>Using Docker</summary>\n\n```json\n{\n  \"mcp\": {\n    \"servers\": {\n      \"time\": {\n        \"command\": \"docker\",\n        \"args\": [\"run\", \"-i\", \"--rm\", \"mcp/time\"]\n      }\n    }\n  }\n}\n```\n</details>\n\n### Configure for Zencoder\n\n1. Go to the Zencoder menu (...)\n2. From the dropdown menu, select `Agent Tools`\n3. Click on the `Add Custom MCP`\n4. Add the name and server configuration from below, and make sure to hit the `Install` button\n\n<details>\n<summary>Using uvx</summary>\n\n```json\n{\n    \"command\": \"uvx\",\n    \"args\": [\"mcp-server-time\"]\n  }\n```\n</details>\n\n### Customization - System Timezone\n\nBy default, the server automatically detects your system's timezone. You can override this by adding the argument `--local-timezone` to the `args` list in the configuration.\n\nExample:\n```json\n{\n  \"command\": \"python\",\n  \"args\": [\"-m\", \"mcp_server_time\", \"--local-timezone=America/New_York\"]\n}\n```\n\n## Example Interactions\n\n1. Get current time:\n```json\n{\n  \"name\": \"get_current_time\",\n  \"arguments\": {\n    \"timezone\": \"Europe/Warsaw\"\n  }\n}\n```\nResponse:\n```json\n{\n  \"timezone\": \"Europe/Warsaw\",\n  \"datetime\": \"2024-01-01T13:00:00+01:00\",\n  \"is_dst\": false\n}\n```\n\n2. Convert time between timezones:\n```json\n{\n  \"name\": \"convert_time\",\n  \"arguments\": {\n    \"source_timezone\": \"America/New_York\",\n    \"time\": \"16:30\",\n    \"target_timezone\": \"Asia/Tokyo\"\n  }\n}\n```\nResponse:\n```json\n{\n  \"source\": {\n    \"timezone\": \"America/New_York\",\n    \"datetime\": \"2024-01-01T12:30:00-05:00\",\n    \"is_dst\": false\n  },\n  \"target\": {\n    \"timezone\": \"Asia/Tokyo\",\n    \"datetime\": \"2024-01-01T12:30:00+09:00\",\n    \"is_dst\": false\n  },\n  \"time_difference\": \"+13.0h\",\n}\n```\n\n## Debugging\n\nYou can use the MCP inspector to debug the server. For uvx installations:\n\n```bash\nnpx @modelcontextprotocol/inspector uvx mcp-server-time\n```\n\nOr if you've installed the package in a specific directory or are developing on it:\n\n```bash\ncd path/to/servers/src/time\nnpx @modelcontextprotocol/inspector uv run mcp-server-time\n```\n\n## Examples of Questions for Claude\n\n1. \"What time is it now?\" (will use system timezone)\n2. \"What time is it in Tokyo?\"\n3. \"When it's 4 PM in New York, what time is it in London?\"\n4. \"Convert 9:30 AM Tokyo time to New York time\"\n\n## Build\n\nDocker build:\n\n```bash\ncd src/time\ndocker build -t mcp/time .\n```\n\n## Contributing\n\nWe encourage contributions to help expand and improve mcp-server-time. Whether you want to add new time-related tools, enhance existing functionality, or improve documentation, your input is valuable.\n\nFor examples of other MCP servers and implementation patterns, see:\nhttps://github.com/modelcontextprotocol/servers\n\nPull requests are welcome! Feel free to contribute new ideas, bug fixes, or enhancements to make mcp-server-time even more powerful and useful.\n\n## License\n\nmcp-server-time is licensed under the MIT License. This means you are free to use, modify, and distribute the software, subject to the terms and conditions of the MIT License. For more details, please see the LICENSE file in the project repository.\n",
+      "description_content_type": "text/markdown",
+      "docs_url": null,
+      "download_url": null,
+      "downloads": {
+        "last_day": -1,
+        "last_month": -1,
+        "last_week": -1
+      },
+      "dynamic": null,
+      "home_page": null,
+      "keywords": "llm, mcp, time, timezone",
+      "license": "MIT",
+      "license_expression": null,
+      "license_files": null,
+      "maintainer": null,
+      "maintainer_email": null,
+      "name": "mcp-server-time",
+      "package_url": "https://pypi.org/project/mcp-server-time/",
+      "platform": null,
+      "project_url": "https://pypi.org/project/mcp-server-time/",
+      "project_urls": {
+        "Issues": "https://github.com/modelcontextprotocol/servers/issues",
+        "Repository": "https://github.com/modelcontextprotocol/servers/tree/main/src/time"
+      },
+      "provides_extra": null,
+      "release_url": "https://pypi.org/project/mcp-server-time/2026.7.10/",
+      "requires_dist": [
+        "mcp>=1.23.0",
+        "pydantic>=2.0.0",
+        "tzdata>=2024.2",
+        "tzlocal>=5.3.1"
+      ],
+      "requires_python": ">=3.10",
+      "summary": "A Model Context Protocol server providing tools for time queries and timezone conversions for LLMs",
+      "version": "2026.7.10",
+      "yanked": false,
+      "yanked_reason": null
+    },
+    "last_serial": 38841303,
+    "ownership": {
+      "organization": null,
+      "roles": [
+        {
+          "role": "Owner",
+          "user": "dsp"
+        },
+        {
+          "role": "Owner",
+          "user": "jspahrsummers"
+        }
+      ]
+    },
+    "releases": {
+      "0.5.1": [
+        {
+          "comment_text": null,
+          "core-metadata": {
+            "sha256": "0d7bc6f118cd8267afb0185c38ea47c1b3693dac9ad0d4f9cc3f87857de19b4f"
+          },
+          "digests": {
+            "blake2b_256": "264ee3e3b726b74894c2168db5d9461512d7713d2aefd6e6801a5a3ed3634988",
+            "md5": "c03b9b149c7ce1bcbfd2220b44c29216",
+            "sha256": "2c6a25e3877b13a135efe0546989722b37469b1287e8310c27709048d3e79722"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-0.5.1-py3-none-any.whl",
+          "has_sig": false,
+          "md5_digest": "c03b9b149c7ce1bcbfd2220b44c29216",
+          "packagetype": "bdist_wheel",
+          "python_version": "py3",
+          "requires_python": ">=3.10",
+          "size": 5691,
+          "upload_time": "2024-11-29T11:30:55",
+          "upload_time_iso_8601": "2024-11-29T11:30:55.031967Z",
+          "url": "https://files.pythonhosted.org/packages/26/4e/e3e3b726b74894c2168db5d9461512d7713d2aefd6e6801a5a3ed3634988/mcp_server_time-0.5.1-py3-none-any.whl",
+          "yanked": false,
+          "yanked_reason": null
+        },
+        {
+          "comment_text": null,
+          "core-metadata": false,
+          "digests": {
+            "blake2b_256": "e061e0ccfbcfac6c2b64d374a724bbc40434224243e8427c8900899827518e41",
+            "md5": "110ecd6fa800191335a3b1564a599d36",
+            "sha256": "cb1c76c2b2fadcb78c987b8e305148bbd43f590c55566d2d8d24039416eeceb1"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-0.5.1.tar.gz",
+          "has_sig": false,
+          "md5_digest": "110ecd6fa800191335a3b1564a599d36",
+          "packagetype": "sdist",
+          "python_version": "source",
+          "requires_python": ">=3.10",
+          "size": 26723,
+          "upload_time": "2024-11-29T11:31:02",
+          "upload_time_iso_8601": "2024-11-29T11:31:02.595018Z",
+          "url": "https://files.pythonhosted.org/packages/e0/61/e0ccfbcfac6c2b64d374a724bbc40434224243e8427c8900899827518e41/mcp_server_time-0.5.1.tar.gz",
+          "yanked": false,
+          "yanked_reason": null
+        }
+      ],
+      "0.6.0": [
+        {
+          "comment_text": "",
+          "core-metadata": {
+            "sha256": "bda5ba16436848afb7718f7141748c9fd23deba0830cbbed90d484f5f3edc277"
+          },
+          "digests": {
+            "blake2b_256": "32a6d70a06a2ac350066b9c698038853b0a89bb32e3a683b76706ea14ea9f3c7",
+            "md5": "12c0216c55e5564d37d9a417d8bffbd5",
+            "sha256": "8a51a7e7de9e0d59890b70955bd0d23f3b566c295f6c28227dd187c361ad704e"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-0.6.0-py3-none-any.whl",
+          "has_sig": false,
+          "md5_digest": "12c0216c55e5564d37d9a417d8bffbd5",
+          "packagetype": "bdist_wheel",
+          "python_version": "py3",
+          "requires_python": ">=3.10",
+          "size": 5689,
+          "upload_time": "2024-11-29T17:59:14",
+          "upload_time_iso_8601": "2024-11-29T17:59:14.177848Z",
+          "url": "https://files.pythonhosted.org/packages/32/a6/d70a06a2ac350066b9c698038853b0a89bb32e3a683b76706ea14ea9f3c7/mcp_server_time-0.6.0-py3-none-any.whl",
+          "yanked": false,
+          "yanked_reason": null
+        }
+      ],
+      "0.6.1": [
+        {
+          "comment_text": "",
+          "core-metadata": {
+            "sha256": "439a64d3c043ee3e24de1a1f05a415543ce39b8274ab432ddb8d283d79a53a84"
+          },
+          "digests": {
+            "blake2b_256": "117c196533ff1408dbc077a351c64890b0e0999a76d0db39cf6ab58b6d4ac6ce",
+            "md5": "7941af80039a341241cdde3204c07a6f",
+            "sha256": "30a6b67187ec56eb7020e728f4aa7277001500ef6ce935f0361699e45b949034"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-0.6.1-py3-none-any.whl",
+          "has_sig": false,
+          "md5_digest": "7941af80039a341241cdde3204c07a6f",
+          "packagetype": "bdist_wheel",
+          "python_version": "py3",
+          "requires_python": ">=3.10",
+          "size": 5691,
+          "upload_time": "2024-11-29T18:02:02",
+          "upload_time_iso_8601": "2024-11-29T18:02:02.235914Z",
+          "url": "https://files.pythonhosted.org/packages/11/7c/196533ff1408dbc077a351c64890b0e0999a76d0db39cf6ab58b6d4ac6ce/mcp_server_time-0.6.1-py3-none-any.whl",
+          "yanked": false,
+          "yanked_reason": null
+        },
+        {
+          "comment_text": "",
+          "core-metadata": false,
+          "digests": {
+            "blake2b_256": "3cc050f8f7c6f686d6847af5f63e5b1df6d701b200cd1b0f15fc15ce917c39fc",
+            "md5": "93c6fea9d52c1ddb8067f324ca6f69f4",
+            "sha256": "66aab55d5d9e1f228f04f7b2e1daefeab12c7ac6725cf40e149a31c4fd61b404"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-0.6.1.tar.gz",
+          "has_sig": false,
+          "md5_digest": "93c6fea9d52c1ddb8067f324ca6f69f4",
+          "packagetype": "sdist",
+          "python_version": "source",
+          "requires_python": ">=3.10",
+          "size": 26716,
+          "upload_time": "2024-11-29T18:02:13",
+          "upload_time_iso_8601": "2024-11-29T18:02:13.131363Z",
+          "url": "https://files.pythonhosted.org/packages/3c/c0/50f8f7c6f686d6847af5f63e5b1df6d701b200cd1b0f15fc15ce917c39fc/mcp_server_time-0.6.1.tar.gz",
+          "yanked": false,
+          "yanked_reason": null
+        }
+      ],
+      "0.6.2": [
+        {
+          "comment_text": "",
+          "core-metadata": {
+            "sha256": "db3cdc2c8a9739e14679650156ea99981cbd3063d08e81d7f86d9fc214ff34ac"
+          },
+          "digests": {
+            "blake2b_256": "f671e5b546bbe8769be4608728624ad4c4c51c93243a124e527b39465bcf559e",
+            "md5": "c0414e3a9b161a20f4f5e3f43f5cc152",
+            "sha256": "6b67640eb9df3df834b3de5001e37ca8b0c997ce700b014882b585964094d116"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-0.6.2-py3-none-any.whl",
+          "has_sig": false,
+          "md5_digest": "c0414e3a9b161a20f4f5e3f43f5cc152",
+          "packagetype": "bdist_wheel",
+          "python_version": "py3",
+          "requires_python": ">=3.10",
+          "size": 5693,
+          "upload_time": "2024-12-04T16:10:16",
+          "upload_time_iso_8601": "2024-12-04T16:10:16.487016Z",
+          "url": "https://files.pythonhosted.org/packages/f6/71/e5b546bbe8769be4608728624ad4c4c51c93243a124e527b39465bcf559e/mcp_server_time-0.6.2-py3-none-any.whl",
+          "yanked": false,
+          "yanked_reason": null
+        },
+        {
+          "comment_text": "",
+          "core-metadata": false,
+          "digests": {
+            "blake2b_256": "76656f4ac2df4dbed45e2606ceb8d05d2d63f3d1a4a6982babf37059683c88d0",
+            "md5": "05a27747dcbf1ee4f27d218e8532b036",
+            "sha256": "f8baddaf4787a4ccf8bb585fa936e3537692dd9a24ac2bbe5d2616014f08a6b2"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-0.6.2.tar.gz",
+          "has_sig": false,
+          "md5_digest": "05a27747dcbf1ee4f27d218e8532b036",
+          "packagetype": "sdist",
+          "python_version": "source",
+          "requires_python": ">=3.10",
+          "size": 26714,
+          "upload_time": "2024-12-04T16:10:18",
+          "upload_time_iso_8601": "2024-12-04T16:10:18.275196Z",
+          "url": "https://files.pythonhosted.org/packages/76/65/6f4ac2df4dbed45e2606ceb8d05d2d63f3d1a4a6982babf37059683c88d0/mcp_server_time-0.6.2.tar.gz",
+          "yanked": false,
+          "yanked_reason": null
+        }
+      ],
+      "2025.7.1": [
+        {
+          "comment_text": null,
+          "core-metadata": {
+            "sha256": "4443319d568290c90f88d461570807fe981e59af31379ae3c19beb329bb810c0"
+          },
+          "digests": {
+            "blake2b_256": "c2251af77f1d662614f715fcfcc81a075edca2e0841f3c90902daaeb4f491e52",
+            "md5": "f04011d1cbb1311ed42c766459d55c6e",
+            "sha256": "705d47b0740a8dd917f0e6900306142da978ef479f92944fc81a03e625d1c73c"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-2025.7.1-py3-none-any.whl",
+          "has_sig": false,
+          "md5_digest": "f04011d1cbb1311ed42c766459d55c6e",
+          "packagetype": "bdist_wheel",
+          "python_version": "py3",
+          "requires_python": ">=3.10",
+          "size": 6364,
+          "upload_time": "2025-07-01T18:32:18",
+          "upload_time_iso_8601": "2025-07-01T18:32:18.434116Z",
+          "url": "https://files.pythonhosted.org/packages/c2/25/1af77f1d662614f715fcfcc81a075edca2e0841f3c90902daaeb4f491e52/mcp_server_time-2025.7.1-py3-none-any.whl",
+          "yanked": false,
+          "yanked_reason": null
+        },
+        {
+          "comment_text": null,
+          "core-metadata": false,
+          "digests": {
+            "blake2b_256": "52d2e376343a2b378f8c2eac160413c6f9b222d4c4354309534b506dbd5656d0",
+            "md5": "aaf85f0239866a55208f9cab7763ca23",
+            "sha256": "871c3b3fcd297c27c026ac0b16a4a8df77c20e232abdfe9cf4519626a429a1db"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-2025.7.1.tar.gz",
+          "has_sig": false,
+          "md5_digest": "aaf85f0239866a55208f9cab7763ca23",
+          "packagetype": "sdist",
+          "python_version": "source",
+          "requires_python": ">=3.10",
+          "size": 29436,
+          "upload_time": "2025-07-01T18:32:20",
+          "upload_time_iso_8601": "2025-07-01T18:32:20.598529Z",
+          "url": "https://files.pythonhosted.org/packages/52/d2/e376343a2b378f8c2eac160413c6f9b222d4c4354309534b506dbd5656d0/mcp_server_time-2025.7.1.tar.gz",
+          "yanked": false,
+          "yanked_reason": null
+        }
+      ],
+      "2025.8.4": [
+        {
+          "comment_text": null,
+          "core-metadata": {
+            "sha256": "80c298d365cd83fb8095430ea3bb5391b67aae8632344d5e438ab627533e55d8"
+          },
+          "digests": {
+            "blake2b_256": "5ef7c961382d84df694682ebc76486b2a98cfce429c7d15b1eb3ce89e9cf7ff0",
+            "md5": "1b7f1fccfb0178de26ab6b3a8445150e",
+            "sha256": "8c7bf9ce770fc0df9268cb1ed29d1a6f0ba8e96dac68ee505d1533e58db3ae74"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-2025.8.4-py3-none-any.whl",
+          "has_sig": false,
+          "md5_digest": "1b7f1fccfb0178de26ab6b3a8445150e",
+          "packagetype": "bdist_wheel",
+          "python_version": "py3",
+          "requires_python": ">=3.10",
+          "size": 6510,
+          "upload_time": "2025-08-04T14:52:28",
+          "upload_time_iso_8601": "2025-08-04T14:52:28.891234Z",
+          "url": "https://files.pythonhosted.org/packages/5e/f7/c961382d84df694682ebc76486b2a98cfce429c7d15b1eb3ce89e9cf7ff0/mcp_server_time-2025.8.4-py3-none-any.whl",
+          "yanked": false,
+          "yanked_reason": null
+        },
+        {
+          "comment_text": null,
+          "core-metadata": false,
+          "digests": {
+            "blake2b_256": "041c0593458e9bd1aba06fb981092e213ee668b739f58c58e87a0880d67c7e6f",
+            "md5": "d5ebd5a9bb8d835ea1b097afd05434cf",
+            "sha256": "5605e5222b8d2814160c09c38947731cf816fa977a4158c344a95f6a363ca124"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-2025.8.4.tar.gz",
+          "has_sig": false,
+          "md5_digest": "d5ebd5a9bb8d835ea1b097afd05434cf",
+          "packagetype": "sdist",
+          "python_version": "source",
+          "requires_python": ">=3.10",
+          "size": 30140,
+          "upload_time": "2025-08-04T14:52:29",
+          "upload_time_iso_8601": "2025-08-04T14:52:29.944648Z",
+          "url": "https://files.pythonhosted.org/packages/04/1c/0593458e9bd1aba06fb981092e213ee668b739f58c58e87a0880d67c7e6f/mcp_server_time-2025.8.4.tar.gz",
+          "yanked": false,
+          "yanked_reason": null
+        }
+      ],
+      "2025.9.24": [
+        {
+          "comment_text": null,
+          "core-metadata": {
+            "sha256": "a42fab74b7dcfede1c08bea53966e67d688572a6e664a6581ed77ab1e0bb5883"
+          },
+          "digests": {
+            "blake2b_256": "9655d4424332397d1aa3f91c0df4d7f9f0e63af44d82e33b588a7d3d71d77d3a",
+            "md5": "7b199e27219fd0cd18808c129ce80645",
+            "sha256": "1e003c11f078856e2adf42c79918812357fdab897d09028c6b61c45f7cd30157"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-2025.9.24-py3-none-any.whl",
+          "has_sig": false,
+          "md5_digest": "7b199e27219fd0cd18808c129ce80645",
+          "packagetype": "bdist_wheel",
+          "python_version": "py3",
+          "requires_python": ">=3.10",
+          "size": 6567,
+          "upload_time": "2025-09-25T20:52:24",
+          "upload_time_iso_8601": "2025-09-25T20:52:24.669363Z",
+          "url": "https://files.pythonhosted.org/packages/96/55/d4424332397d1aa3f91c0df4d7f9f0e63af44d82e33b588a7d3d71d77d3a/mcp_server_time-2025.9.24-py3-none-any.whl",
+          "yanked": false,
+          "yanked_reason": null
+        },
+        {
+          "comment_text": null,
+          "core-metadata": false,
+          "digests": {
+            "blake2b_256": "e40b0f09740eb66ec60790d3ed167fe5155e108924a42bb9f1daee7cca9c906a",
+            "md5": "7960f21590568ad11e9547d0d4ca01a7",
+            "sha256": "a62aeebd37b0395b923d548ea050248b1dfc5370bf6b5732f068713b46c524a9"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-2025.9.24.tar.gz",
+          "has_sig": false,
+          "md5_digest": "7960f21590568ad11e9547d0d4ca01a7",
+          "packagetype": "sdist",
+          "python_version": "source",
+          "requires_python": ">=3.10",
+          "size": 30190,
+          "upload_time": "2025-09-25T20:52:25",
+          "upload_time_iso_8601": "2025-09-25T20:52:25.954840Z",
+          "url": "https://files.pythonhosted.org/packages/e4/0b/0f09740eb66ec60790d3ed167fe5155e108924a42bb9f1daee7cca9c906a/mcp_server_time-2025.9.24.tar.gz",
+          "yanked": false,
+          "yanked_reason": null
+        }
+      ],
+      "2025.9.25": [
+        {
+          "comment_text": null,
+          "core-metadata": {
+            "sha256": "b475184667d632c99ab0fb6e1709027d9c67104f16938a0b16f44a615bcae16f"
+          },
+          "digests": {
+            "blake2b_256": "a8819004bc19be15d6d5aae50f18500d865d21b0634064e78deffd8178e6a494",
+            "md5": "2b27bcc56badb11498a9cce2d3796cce",
+            "sha256": "5cc559709887db33bf77546c2efb0a9352c13870cc2bfaeffab1a6bd6390419b"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-2025.9.25-py3-none-any.whl",
+          "has_sig": false,
+          "md5_digest": "2b27bcc56badb11498a9cce2d3796cce",
+          "packagetype": "bdist_wheel",
+          "python_version": "py3",
+          "requires_python": ">=3.10",
+          "size": 6567,
+          "upload_time": "2025-09-25T21:25:55",
+          "upload_time_iso_8601": "2025-09-25T21:25:55.292605Z",
+          "url": "https://files.pythonhosted.org/packages/a8/81/9004bc19be15d6d5aae50f18500d865d21b0634064e78deffd8178e6a494/mcp_server_time-2025.9.25-py3-none-any.whl",
+          "yanked": false,
+          "yanked_reason": null
+        },
+        {
+          "comment_text": null,
+          "core-metadata": false,
+          "digests": {
+            "blake2b_256": "30e208fa9615be0c91b86d0e972638169ae0769f217950c2ea4c5f3df1a144ff",
+            "md5": "3e8b2ef2ef053265beb423573c4c6bcf",
+            "sha256": "41427e33cafba09ef0e0f197a9dc33f2bc7238947fa319e0ec7d6500e2f97421"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-2025.9.25.tar.gz",
+          "has_sig": false,
+          "md5_digest": "3e8b2ef2ef053265beb423573c4c6bcf",
+          "packagetype": "sdist",
+          "python_version": "source",
+          "requires_python": ">=3.10",
+          "size": 30188,
+          "upload_time": "2025-09-25T21:25:57",
+          "upload_time_iso_8601": "2025-09-25T21:25:57.066874Z",
+          "url": "https://files.pythonhosted.org/packages/30/e2/08fa9615be0c91b86d0e972638169ae0769f217950c2ea4c5f3df1a144ff/mcp_server_time-2025.9.25.tar.gz",
+          "yanked": false,
+          "yanked_reason": null
+        }
+      ],
+      "2026.1.26": [
+        {
+          "comment_text": null,
+          "core-metadata": {
+            "sha256": "8c70e5663fa5857077d0e789886cc869061eb6b4a145f1d9de0289321be2f4f8"
+          },
+          "digests": {
+            "blake2b_256": "5dc5ee882c40caeb46405d40166a8614410de26aa54996611b8baab86a857365",
+            "md5": "5969efd1e1625032006fa7fa7e6220a6",
+            "sha256": "7fa7ef7c3cc088d30539ff3de42736324ada8b9353256da2d113d8c977eccbd9"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-2026.1.26-py3-none-any.whl",
+          "has_sig": false,
+          "md5_digest": "5969efd1e1625032006fa7fa7e6220a6",
+          "packagetype": "bdist_wheel",
+          "python_version": "py3",
+          "requires_python": ">=3.10",
+          "size": 6630,
+          "upload_time": "2026-01-27T09:25:56",
+          "upload_time_iso_8601": "2026-01-27T09:25:56.820086Z",
+          "url": "https://files.pythonhosted.org/packages/5d/c5/ee882c40caeb46405d40166a8614410de26aa54996611b8baab86a857365/mcp_server_time-2026.1.26-py3-none-any.whl",
+          "yanked": false,
+          "yanked_reason": null
+        },
+        {
+          "comment_text": null,
+          "core-metadata": false,
+          "digests": {
+            "blake2b_256": "62e10f25a64f430c222511ec10fee3e705921740f6b45b1519e0674cb3ec378d",
+            "md5": "256bf7a0136713d74e9abd359256bb2a",
+            "sha256": "fcef6991e8d8480ed7d9be8016cb853f8c697d146322d3e698f45b586d86f1c1"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-2026.1.26.tar.gz",
+          "has_sig": false,
+          "md5_digest": "256bf7a0136713d74e9abd359256bb2a",
+          "packagetype": "sdist",
+          "python_version": "source",
+          "requires_python": ">=3.10",
+          "size": 63634,
+          "upload_time": "2026-01-27T09:25:57",
+          "upload_time_iso_8601": "2026-01-27T09:25:57.950757Z",
+          "url": "https://files.pythonhosted.org/packages/62/e1/0f25a64f430c222511ec10fee3e705921740f6b45b1519e0674cb3ec378d/mcp_server_time-2026.1.26.tar.gz",
+          "yanked": false,
+          "yanked_reason": null
+        }
+      ],
+      "2026.6.4": [
+        {
+          "comment_text": null,
+          "core-metadata": {
+            "sha256": "ba97fcd13f75305569693b83011b2fa1694417988e04423aa92f6a24a800bbb6"
+          },
+          "digests": {
+            "blake2b_256": "772b4ae11c581639fcee79e208ebc5c0215c5d28bade04f8efb8090913d6f964",
+            "md5": "e0ed1c8bbf82452c10b95cfe3c204b21",
+            "sha256": "22cea5f7e01ad6a7750a2b3d38051e91df085db914d29ef2b889aca6b5cd69e1"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-2026.6.4-py3-none-any.whl",
+          "has_sig": false,
+          "md5_digest": "e0ed1c8bbf82452c10b95cfe3c204b21",
+          "packagetype": "bdist_wheel",
+          "python_version": "py3",
+          "requires_python": ">=3.10",
+          "size": 6699,
+          "upload_time": "2026-06-04T01:22:42",
+          "upload_time_iso_8601": "2026-06-04T01:22:42.580115Z",
+          "url": "https://files.pythonhosted.org/packages/77/2b/4ae11c581639fcee79e208ebc5c0215c5d28bade04f8efb8090913d6f964/mcp_server_time-2026.6.4-py3-none-any.whl",
+          "yanked": false,
+          "yanked_reason": null
+        },
+        {
+          "comment_text": null,
+          "core-metadata": false,
+          "digests": {
+            "blake2b_256": "bd839a2e2ab4da69f1b3acbd6c0763d694f599377cc940c7fb1778103fafd15a",
+            "md5": "71a8d6aac9d02df8b0e0bec001d6ea74",
+            "sha256": "5d14cba0bd6f71d5b75a12fb3780d270c7feb10d6ac9aba7f13b10233615a7a1"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-2026.6.4.tar.gz",
+          "has_sig": false,
+          "md5_digest": "71a8d6aac9d02df8b0e0bec001d6ea74",
+          "packagetype": "sdist",
+          "python_version": "source",
+          "requires_python": ">=3.10",
+          "size": 63427,
+          "upload_time": "2026-06-04T01:22:43",
+          "upload_time_iso_8601": "2026-06-04T01:22:43.902678Z",
+          "url": "https://files.pythonhosted.org/packages/bd/83/9a2e2ab4da69f1b3acbd6c0763d694f599377cc940c7fb1778103fafd15a/mcp_server_time-2026.6.4.tar.gz",
+          "yanked": false,
+          "yanked_reason": null
+        }
+      ],
+      "2026.7.10": [
+        {
+          "comment_text": null,
+          "core-metadata": {
+            "sha256": "33e78b84a316157a139dbfd2cd8c1f22318e7b74dbe206efa8c5b7ce7d3e42b4"
+          },
+          "digests": {
+            "blake2b_256": "d11ac1bb1eeea019fc547964384db9c6a092837cb3cb4936d75517e19826d8d9",
+            "md5": "d3dda9d67a1c308b0f6c5e886242e36e",
+            "sha256": "b99cb0ecfe94ec8e05d4abb65c617b591a21e61a17a084ac782af0fa9e82c944"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-2026.7.10-py3-none-any.whl",
+          "has_sig": false,
+          "md5_digest": "d3dda9d67a1c308b0f6c5e886242e36e",
+          "packagetype": "bdist_wheel",
+          "python_version": "py3",
+          "requires_python": ">=3.10",
+          "size": 6759,
+          "upload_time": "2026-07-10T03:31:04",
+          "upload_time_iso_8601": "2026-07-10T03:31:04.803450Z",
+          "url": "https://files.pythonhosted.org/packages/d1/1a/c1bb1eeea019fc547964384db9c6a092837cb3cb4936d75517e19826d8d9/mcp_server_time-2026.7.10-py3-none-any.whl",
+          "yanked": false,
+          "yanked_reason": null
+        },
+        {
+          "comment_text": null,
+          "core-metadata": false,
+          "digests": {
+            "blake2b_256": "edd727d984c1cd61847975ed33c528b86ea3cba946dd37c0ceb597fba062df03",
+            "md5": "737463ebf523e1345b02823aef200a31",
+            "sha256": "47fcd220e529d9a2e08c68af3d64633197b6f920489d391293bfe9ef0f387830"
+          },
+          "downloads": -1,
+          "filename": "mcp_server_time-2026.7.10.tar.gz",
+          "has_sig": false,
+          "md5_digest": "737463ebf523e1345b02823aef200a31",
+          "packagetype": "sdist",
+          "python_version": "source",
+          "requires_python": ">=3.10",
+          "size": 63132,
+          "upload_time": "2026-07-10T03:31:05",
+          "upload_time_iso_8601": "2026-07-10T03:31:05.833966Z",
+          "url": "https://files.pythonhosted.org/packages/ed/d7/27d984c1cd61847975ed33c528b86ea3cba946dd37c0ceb597fba062df03/mcp_server_time-2026.7.10.tar.gz",
+          "yanked": false,
+          "yanked_reason": null
+        }
+      ]
+    },
+    "urls": [
+      {
+        "comment_text": null,
+        "core-metadata": {
+          "sha256": "33e78b84a316157a139dbfd2cd8c1f22318e7b74dbe206efa8c5b7ce7d3e42b4"
+        },
+        "digests": {
+          "blake2b_256": "d11ac1bb1eeea019fc547964384db9c6a092837cb3cb4936d75517e19826d8d9",
+          "md5": "d3dda9d67a1c308b0f6c5e886242e36e",
+          "sha256": "b99cb0ecfe94ec8e05d4abb65c617b591a21e61a17a084ac782af0fa9e82c944"
+        },
+        "downloads": -1,
+        "filename": "mcp_server_time-2026.7.10-py3-none-any.whl",
+        "has_sig": false,
+        "md5_digest": "d3dda9d67a1c308b0f6c5e886242e36e",
+        "packagetype": "bdist_wheel",
+        "python_version": "py3",
+        "requires_python": ">=3.10",
+        "size": 6759,
+        "upload_time": "2026-07-10T03:31:04",
+        "upload_time_iso_8601": "2026-07-10T03:31:04.803450Z",
+        "url": "https://files.pythonhosted.org/packages/d1/1a/c1bb1eeea019fc547964384db9c6a092837cb3cb4936d75517e19826d8d9/mcp_server_time-2026.7.10-py3-none-any.whl",
+        "yanked": false,
+        "yanked_reason": null
+      },
+      {
+        "comment_text": null,
+        "core-metadata": false,
+        "digests": {
+          "blake2b_256": "edd727d984c1cd61847975ed33c528b86ea3cba946dd37c0ceb597fba062df03",
+          "md5": "737463ebf523e1345b02823aef200a31",
+          "sha256": "47fcd220e529d9a2e08c68af3d64633197b6f920489d391293bfe9ef0f387830"
+        },
+        "downloads": -1,
+        "filename": "mcp_server_time-2026.7.10.tar.gz",
+        "has_sig": false,
+        "md5_digest": "737463ebf523e1345b02823aef200a31",
+        "packagetype": "sdist",
+        "python_version": "source",
+        "requires_python": ">=3.10",
+        "size": 63132,
+        "upload_time": "2026-07-10T03:31:05",
+        "upload_time_iso_8601": "2026-07-10T03:31:05.833966Z",
+        "url": "https://files.pythonhosted.org/packages/ed/d7/27d984c1cd61847975ed33c528b86ea3cba946dd37c0ceb597fba062df03/mcp_server_time-2026.7.10.tar.gz",
+        "yanked": false,
+        "yanked_reason": null
+      }
+    ],
+    "vulnerabilities": []
+  },
+  "url": "https://pypi.org/pypi/mcp-server-time/json"
+}

@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@expo/mcp-tunnel",
+    "dist-tags": {
+      "latest": "0.2.4"
+    },
+    "versions": {
+      "0.2.4": {
+        "version": "0.2.4",
+        "description": "Expo MCP tunnel client"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "url": "https://github.com/expo/expo-mcp.git",
+      "type": "git",
+      "directory": "packages/mcp-tunnel"
+    }
+  },
+  "url": "https://registry.npmjs.org/%40expo%2Fmcp-tunnel"
+}

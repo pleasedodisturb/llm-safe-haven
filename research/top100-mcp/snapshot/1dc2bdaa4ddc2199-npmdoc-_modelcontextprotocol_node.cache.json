@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@modelcontextprotocol/node",
+    "dist-tags": {
+      "latest": "2.0.0-beta.4"
+    },
+    "versions": {
+      "2.0.0-beta.4": {
+        "version": "2.0.0-beta.4",
+        "description": "Model Context Protocol implementation for TypeScript - Node.js middleware"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "README.md",
+    "repository": {
+      "url": "git+https://github.com/modelcontextprotocol/typescript-sdk.git",
+      "type": "git"
+    },
+    "homepage": "https://modelcontextprotocol.io"
+  },
+  "url": "https://registry.npmjs.org/%40modelcontextprotocol%2Fnode"
+}

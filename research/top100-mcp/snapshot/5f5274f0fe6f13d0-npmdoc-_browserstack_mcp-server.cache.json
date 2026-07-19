@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@browserstack/mcp-server",
+    "dist-tags": {
+      "latest": "1.2.28"
+    },
+    "versions": {
+      "1.2.28": {
+        "version": "1.2.28",
+        "bin": {
+          "browserstack-mcp-server": "dist/index.js"
+        },
+        "description": "BrowserStack's Official MCP Server"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "url": "git+https://github.com/browserstack/mcp-server.git",
+      "type": "git"
+    },
+    "homepage": "https://github.com/browserstack/mcp-server#readme"
+  },
+  "url": "https://registry.npmjs.org/%40browserstack%2Fmcp-server"
+}

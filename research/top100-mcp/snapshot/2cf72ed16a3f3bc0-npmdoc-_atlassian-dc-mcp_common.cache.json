@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@atlassian-dc-mcp/common",
+    "dist-tags": {
+      "latest": "0.27.0"
+    },
+    "versions": {
+      "0.27.0": {
+        "version": "0.27.0",
+        "description": "Shared utilities for @atlassian-dc-mcp MCP servers. Not affiliated with Atlassian."
+      }
+    },
+    "readme": "ERROR: No README data found!",
+    "readmeFilename": "",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/b1ff/atlassian-dc-mcp.git",
+      "directory": "packages/common"
+    },
+    "homepage": "https://github.com/b1ff/atlassian-dc-mcp#readme"
+  },
+  "url": "https://registry.npmjs.org/%40atlassian-dc-mcp%2Fcommon"
+}

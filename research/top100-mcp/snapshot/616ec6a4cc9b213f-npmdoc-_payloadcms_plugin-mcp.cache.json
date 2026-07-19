@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@payloadcms/plugin-mcp",
+    "dist-tags": {
+      "latest": "3.86.0"
+    },
+    "versions": {
+      "3.86.0": {
+        "version": "3.86.0",
+        "description": "MCP (Model Context Protocol) capabilities with Payload"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "url": "https://github.com/payloadcms/payload.git",
+      "type": "git",
+      "directory": "packages/plugin-mcp"
+    }
+  },
+  "url": "https://registry.npmjs.org/%40payloadcms%2Fplugin-mcp"
+}

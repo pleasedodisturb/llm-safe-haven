@@ -1,0 +1,28 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "mcp-use",
+    "dist-tags": {
+      "latest": "1.34.3"
+    },
+    "versions": {
+      "1.34.3": {
+        "version": "1.34.3",
+        "bin": {
+          "mcp-use": "dist/src/bin.js"
+        },
+        "description": "Opinionated MCP Framework for TypeScript (@modelcontextprotocol/sdk compatible) - Build MCP Agents, Clients and Servers with support for ChatGPT Apps, Code Mode, OAuth, Notifications, Sampling, Observability and more."
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "url": "git+https://github.com/mcp-use/mcp-use.git",
+      "type": "git",
+      "directory": "libraries/typescript/packages/mcp-use"
+    },
+    "homepage": "https://github.com/mcp-use/mcp-use#readme"
+  },
+  "url": "https://registry.npmjs.org/mcp-use"
+}

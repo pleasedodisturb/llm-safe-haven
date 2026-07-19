@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@azure-devops/mcp",
+    "dist-tags": {
+      "latest": "2.8.1"
+    },
+    "versions": {
+      "2.8.1": {
+        "version": "2.8.1",
+        "bin": {
+          "mcp-server-azuredevops": "dist/index.js"
+        },
+        "description": "MCP server for interacting with Azure DevOps"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "url": "git+https://github.com/microsoft/azure-devops-mcp.git",
+      "type": "git"
+    },
+    "homepage": "https://github.com/microsoft/azure-devops-mcp"
+  },
+  "url": "https://registry.npmjs.org/%40azure-devops%2Fmcp"
+}

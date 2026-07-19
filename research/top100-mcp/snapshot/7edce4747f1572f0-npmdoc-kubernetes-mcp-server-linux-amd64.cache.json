@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "kubernetes-mcp-server-linux-amd64",
+    "dist-tags": {
+      "latest": "0.0.65"
+    },
+    "versions": {
+      "0.0.65": {
+        "version": "0.0.65",
+        "description": "Model Context Protocol (MCP) server for Kubernetes and OpenShift"
+      }
+    },
+    "readme": "ERROR: No README data found!",
+    "readmeFilename": "",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/containers/kubernetes-mcp-server.git"
+    },
+    "homepage": "https://github.com/containers/kubernetes-mcp-server#readme"
+  },
+  "url": "https://registry.npmjs.org/kubernetes-mcp-server-linux-amd64"
+}

@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@metorial/mcp-session",
+    "dist-tags": {
+      "latest": "3.0.2"
+    },
+    "versions": {
+      "3.0.2": {
+        "version": "3.0.2",
+        "description": "MCP session management for Metorial. Provides session handling and tool lifecycle management for Model Context Protocol."
+      }
+    },
+    "readme": "# @metorial/mcp-session\n\nMCP session management for Metorial. Provides session handling and tool lifecycle management for Model Context Protocol.\n\n## Installation\n\n```bash\nnpm install @metorial/mcp-session\n# or\nyarn add @metorial/mcp-session\n# or\npnpm add @metorial/mcp-session\n# or\nbun add @metorial/mcp-session\n```\n\n## Usage\n\nThis package provides direct MCP session management for advanced use cases.\n\n```typescript\nimport { MetorialMcpSession } from '@metorial/mcp-session';\nimport { Metorial } from 'metorial';\n\nlet metorial = new Metorial({\n  apiKey: 'your-metorial-api-key'\n});\n\n// Create an MCP session instance\nlet mcpSession = new MetorialMcpSession(metorial, {\n  serverDeployments: ['your-server-deployment-id']\n});\n\n// Get the session metadata\nlet session = await mcpSession.getSession();\n\n// Get the tool manager\nlet toolManager = await mcpSession.getToolManager();\n\n// Get available tools\nlet tools = toolManager.getTools();\n\n// Call a tool directly\nlet searchContextTool = tools.find(t => t.name === 'searchContext');\nif (searchContextTool) {\n  let toolResponse = await searchContextTool.call({\n    query: 'metorial websocket explorer',\n    maxResults: 3\n  });\n  console.log('Tool response:', toolResponse);\n}\n\n// Clean up the session\nawait mcpSession.close();\n```\n\n## License\n\nMIT License - see [LICENSE](../../LICENSE) file for details.\n",
+    "readmeFilename": "README.md",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/metorial/metorial-node.git"
+    },
+    "homepage": "https://github.com/metorial/metorial-node#readme"
+  },
+  "url": "https://registry.npmjs.org/%40metorial%2Fmcp-session"
+}

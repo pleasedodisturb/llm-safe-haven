@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@n8n/mcp-apps",
+    "dist-tags": {
+      "latest": "0.7.1"
+    },
+    "versions": {
+      "0.7.1": {
+        "version": "0.7.1",
+        "description": "MCP Apps UI resources and server helpers for n8n"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "README.md",
+    "repository": {
+      "url": "git+https://github.com/n8n-io/n8n.git",
+      "type": "git"
+    },
+    "homepage": "https://n8n.io"
+  },
+  "url": "https://registry.npmjs.org/%40n8n%2Fmcp-apps"
+}
