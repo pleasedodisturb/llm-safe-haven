@@ -9,17 +9,18 @@ const {
   packageNameFromSpec,
   versionFromSpec,
   classifySpecSuffix,
+  gitSpecPin,
   EXACT_SEMVER_RE,
   derivePackageName,
   isSafePackageName,
 } = require('../../lib/mcp/npx-args.js');
 
 describe('npx-args shared helpers (Phase 6, D-15)', () => {
-  it('exports exactly the eight documented helpers', () => {
+  it('exports exactly the nine documented helpers', () => {
     const mod = require('../../lib/mcp/npx-args.js');
     assert.deepStrictEqual(
       Object.keys(mod).sort(),
-      ['EXACT_SEMVER_RE', 'classifySpecSuffix', 'commandBasename', 'derivePackageName', 'extractSpec', 'isSafePackageName', 'packageNameFromSpec', 'versionFromSpec']
+      ['EXACT_SEMVER_RE', 'classifySpecSuffix', 'commandBasename', 'derivePackageName', 'extractSpec', 'gitSpecPin', 'isSafePackageName', 'packageNameFromSpec', 'versionFromSpec']
     );
   });
 
@@ -174,6 +175,77 @@ describe('npx-args shared helpers (Phase 6, D-15)', () => {
 
     it('EXACT_SEMVER_RE capture group normalizes the v prefix away', () => {
       assert.strictEqual(EXACT_SEMVER_RE.exec('v1.2.3')[1], '1.2.3');
+    });
+  });
+
+  describe('gitSpecPin (G-1368: git direct-reference pin classification)', () => {
+    const FULL_SHA = 'd2f6f8b0c3a94ef7f4b8c19aa2f0e3d4c5b6a798';
+
+    it('returns null for non-git specs (caller falls through to SPEC_RE classification)', () => {
+      assert.strictEqual(gitSpecPin('pkg'), null);
+      assert.strictEqual(gitSpecPin('pkg@1.2.3'), null);
+      assert.strictEqual(gitSpecPin('@scope/pkg@1.2.3'), null);
+      assert.strictEqual(gitSpecPin('mcp-server-fetch==1.0.0'), null);
+      assert.strictEqual(gitSpecPin('https://github.com/org/repo'), null);
+      assert.strictEqual(gitSpecPin('git-extras'), null);
+      assert.strictEqual(gitSpecPin(null), null);
+      assert.strictEqual(gitSpecPin(undefined), null);
+      assert.strictEqual(gitSpecPin(42), null);
+    });
+
+    it('classifies a git+https spec with NO ref as unpinned', () => {
+      assert.strictEqual(gitSpecPin('git+https://github.com/oraios/serena'), 'unpinned');
+    });
+
+    it('classifies branch and tag refs as unpinned (mutable)', () => {
+      assert.strictEqual(gitSpecPin('git+https://github.com/oraios/serena@main'), 'unpinned');
+      assert.strictEqual(gitSpecPin('git+https://github.com/oraios/serena@v1.2.3'), 'unpinned');
+    });
+
+    it('classifies a full 40-hex commit SHA ref as exact (the immutable pin)', () => {
+      assert.strictEqual(gitSpecPin(`git+https://github.com/oraios/serena@${FULL_SHA}`), 'exact');
+    });
+
+    it('accepts an UPPERCASE full SHA (lowercased before the hex check)', () => {
+      assert.strictEqual(gitSpecPin(`git+https://github.com/oraios/serena@${FULL_SHA.toUpperCase()}`), 'exact');
+    });
+
+    it('classifies a short SHA (7-39 hex) as unpinned (prefix-ambiguous)', () => {
+      assert.strictEqual(gitSpecPin(`git+https://github.com/oraios/serena@${FULL_SHA.slice(0, 12)}`), 'unpinned');
+      assert.strictEqual(gitSpecPin(`git+https://github.com/oraios/serena@${FULL_SHA.slice(0, 39)}`), 'unpinned');
+    });
+
+    it('a 41-hex ref and a 40-char non-hex ref are unpinned (not a SHA)', () => {
+      assert.strictEqual(gitSpecPin(`git+https://github.com/oraios/serena@${FULL_SHA}0`), 'unpinned');
+      assert.strictEqual(gitSpecPin(`git+https://github.com/oraios/serena@${'g'.repeat(40)}`), 'unpinned');
+    });
+
+    it('git+ssh authority disambiguation: the user@host @ is never the ref separator', () => {
+      assert.strictEqual(gitSpecPin(`git+ssh://git@github.com/org/repo@${FULL_SHA}`), 'exact');
+      assert.strictEqual(gitSpecPin('git+ssh://git@github.com/org/repo'), 'unpinned');
+      assert.strictEqual(gitSpecPin('git+ssh://git@github.com/org/repo@main'), 'unpinned');
+    });
+
+    it('handles the bare git:// scheme', () => {
+      assert.strictEqual(gitSpecPin(`git://github.com/org/repo@${FULL_SHA}`), 'exact');
+      assert.strictEqual(gitSpecPin('git://github.com/org/repo'), 'unpinned');
+    });
+
+    it('a pip-style #fragment is not part of the ref', () => {
+      assert.strictEqual(gitSpecPin(`git+https://github.com/org/repo@${FULL_SHA}#egg=pkg`), 'exact');
+      assert.strictEqual(gitSpecPin(`git+https://github.com/org/repo@${FULL_SHA}#subdirectory=sub`), 'exact');
+      assert.strictEqual(gitSpecPin('git+https://github.com/org/repo@main#egg=pkg'), 'unpinned');
+    });
+
+    it('a trailing @ with an empty ref is unpinned', () => {
+      assert.strictEqual(gitSpecPin('git+https://github.com/org/repo@'), 'unpinned');
+    });
+
+    it('consumer refusal pin: name/version derivation on git specs stays null (typosquat/provenance/tool-poisoning behavior unchanged)', () => {
+      const spec = `git+https://github.com/oraios/serena@${FULL_SHA}`;
+      assert.strictEqual(packageNameFromSpec(spec), null);
+      assert.strictEqual(versionFromSpec(spec), null);
+      assert.strictEqual(derivePackageName(['--from', spec, 'serena'], 'uvx'), null);
     });
   });
 
