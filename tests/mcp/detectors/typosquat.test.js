@@ -63,6 +63,12 @@ describe('typosquat detector (MCPD-03)', () => {
         'expected the positional after --python <value> to be compared');
     });
 
+    it('G-1368 pin: a git direct-reference spec refuses to derive a name — no typosquat finding, no throw', () => {
+      const servers = [makeServer({ command: 'uvx', args: ['--from', 'git+https://github.com/oraios/serena@d2f6f8b0c3a94ef7f4b8c19aa2f0e3d4c5b6a798', 'serena'] })];
+      assert.doesNotThrow(() => run(servers, {}));
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
     it('F1: flags a uvx typosquat selected via --from (the --from value is the installed package)', () => {
       const servers = [makeServer({ command: 'uvx', args: ['--from', 'mcp-server-fetc==1.0.0', 'mcp-server-fetch'] })];
       const findings = run(servers, {});

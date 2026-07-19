@@ -213,6 +213,70 @@ describe('unpinned-execution detector (MCPD-01)', () => {
     });
   });
 
+  describe('G-1368 regression: git direct-reference specs (uvx --from git+..., npx git URLs)', () => {
+    const FULL_SHA = 'd2f6f8b0c3a94ef7f4b8c19aa2f0e3d4c5b6a798';
+
+    it('flags uvx --from git+https://... with NO ref as unpinned', () => {
+      const servers = [makeServer({ command: 'uvx', args: ['--from', 'git+https://github.com/oraios/serena', 'serena'] })];
+      const findings = run(servers, {});
+      assert.ok(findings.some(f => f.id === 'unpinned-execution/uvx-no-version'));
+    });
+
+    it('flags a @main branch ref as unpinned (mutable)', () => {
+      const servers = [makeServer({ command: 'uvx', args: ['--from', 'git+https://github.com/oraios/serena@main', 'serena'] })];
+      const findings = run(servers, {});
+      assert.ok(findings.some(f => f.id === 'unpinned-execution/uvx-no-version'));
+    });
+
+    it('flags a @v1.2.3 tag ref as unpinned (tags can be re-pointed)', () => {
+      const servers = [makeServer({ command: 'uvx', args: ['--from', 'git+https://github.com/oraios/serena@v1.2.3', 'serena'] })];
+      const findings = run(servers, {});
+      assert.ok(findings.some(f => f.id === 'unpinned-execution/uvx-no-version'));
+    });
+
+    it('does NOT flag a full 40-hex commit SHA ref (the G-1368 false positive)', () => {
+      const servers = [makeServer({ command: 'uvx', args: ['--from', `git+https://github.com/oraios/serena@${FULL_SHA}`, 'serena'] })];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
+    it('flags a short 12-hex SHA as unpinned (prefix-ambiguous)', () => {
+      const servers = [makeServer({ command: 'uvx', args: ['--from', `git+https://github.com/oraios/serena@${FULL_SHA.slice(0, 12)}`, 'serena'] })];
+      const findings = run(servers, {});
+      assert.ok(findings.some(f => f.id === 'unpinned-execution/uvx-no-version'));
+    });
+
+    it('does NOT flag a git+ssh spec pinned to a full SHA (authority git@ is not the ref separator)', () => {
+      const servers = [makeServer({ command: 'uvx', args: ['--from', `git+ssh://git@github.com/org/repo@${FULL_SHA}`, 'cmd'] })];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
+    it('real-world shape: the SHA-pinned serena invocation produces no finding', () => {
+      const servers = [makeServer({
+        name: 'serena',
+        command: 'uvx',
+        args: ['--from', `git+https://github.com/oraios/serena@${FULL_SHA}`, 'serena', 'start-mcp-server', '--context', 'claude-code', '--project-from-cwd'],
+      })];
+      assert.deepStrictEqual(run(servers, {}), []);
+    });
+
+    it('npx positional git URLs get the same classification (unpinned without a SHA, pinned with one)', () => {
+      const bare = [makeServer({ command: 'npx', args: ['git+https://github.com/org/repo'] })];
+      assert.ok(run(bare, {}).some(f => f.id === 'unpinned-execution/npx-no-version'));
+      const pinned = [makeServer({ command: 'npx', args: [`git+https://github.com/org/repo@${FULL_SHA}`] })];
+      assert.deepStrictEqual(run(pinned, {}), []);
+    });
+
+    it('the git-spec finding message never contains the spec (a git URL authority can carry credentials — CR-01)', () => {
+      const SECRET = 'ghp_SECRETtoken1234';
+      const servers = [makeServer({ command: 'uvx', args: ['--from', `git+https://x-access-token:${SECRET}@github.com/org/repo@main`, 'cmd'] })];
+      const findings = run(servers, {});
+      assert.ok(findings.some(f => f.id === 'unpinned-execution/uvx-no-version'));
+      for (const f of findings) {
+        assert.ok(!JSON.stringify(f).includes(SECRET), `credential leaked: ${JSON.stringify(f)}`);
+      }
+    });
+  });
+
   describe('D-07 boundary: no transport findings from this detector', () => {
     it('a plain http:// remote URL only yields the version-binding rule, never a transport rule', () => {
       const servers = [makeServer({ url: 'http://mcp.example.com/server' })];
