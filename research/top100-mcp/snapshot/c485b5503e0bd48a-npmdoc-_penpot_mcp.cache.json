@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@penpot/mcp",
+    "dist-tags": {
+      "latest": "2.15.4"
+    },
+    "versions": {
+      "2.15.4": {
+        "version": "2.15.4",
+        "bin": {
+          "penpot-mcp": "bin/mcp-local.js"
+        },
+        "description": "MCP server for Penpot integration"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "url": "git+https://github.com/penpot/penpot.git",
+      "type": "git"
+    },
+    "homepage": "https://github.com/penpot/penpot#readme"
+  },
+  "url": "https://registry.npmjs.org/%40penpot%2Fmcp"
+}

@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@currents/mcp",
+    "dist-tags": {
+      "latest": "2.3.3"
+    },
+    "versions": {
+      "2.3.3": {
+        "version": "2.3.3",
+        "bin": {
+          "mcp": "dist/index.mjs"
+        },
+        "description": "Currents MCP server"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "url": "git+https://github.com/currents-dev/currents-mcp.git",
+      "type": "git"
+    },
+    "homepage": "https://currents.dev"
+  },
+  "url": "https://registry.npmjs.org/%40currents%2Fmcp"
+}

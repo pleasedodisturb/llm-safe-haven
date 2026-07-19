@@ -1,0 +1,3023 @@
+{
+  "snapshotDate": "2026-07-19",
+  "pinnedCommit": "9be47145400310292307f047242d637d82b36c72",
+  "scannerVersion": "0.3.1",
+  "incompleteBatchCount": 0,
+  "servers": [
+    {
+      "rank": 1,
+      "name": "@playwright/mcp",
+      "npmPackage": "@playwright/mcp",
+      "pypiPackage": null,
+      "version": null,
+      "monthlyDownloads": 24440648,
+      "repoUrl": "git+https://github.com/microsoft/playwright-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"playwright\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"@playwright/mcp@latest\"\n      ]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s001__playwright\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 2,
+      "name": "chrome-devtools-mcp",
+      "npmPackage": "chrome-devtools-mcp",
+      "pypiPackage": null,
+      "version": "1.6.0",
+      "monthlyDownloads": 11723530,
+      "repoUrl": "git+https://github.com/ChromeDevTools/chrome-devtools-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"chrome-devtools\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"chrome-devtools-mcp@latest\"]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s002__chrome-devtools\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 3,
+      "name": "mcp-proxy",
+      "npmPackage": "mcp-proxy",
+      "pypiPackage": null,
+      "version": "6.5.4",
+      "monthlyDownloads": 5735370,
+      "repoUrl": "git+https://github.com/punkpeye/mcp-proxy.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"mcp-proxy\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-proxy\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s003__mcp-proxy\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 4,
+      "name": "agent-install",
+      "npmPackage": "agent-install",
+      "pypiPackage": null,
+      "version": "0.0.8",
+      "monthlyDownloads": 4218256,
+      "repoUrl": null,
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"agent-install\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"agent-install\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s004__agent-install\"'s package \"agent-install\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s004__agent-install\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 5,
+      "name": "@upstash/context7-mcp",
+      "npmPackage": "@upstash/context7-mcp",
+      "pypiPackage": null,
+      "version": "3.2.4",
+      "monthlyDownloads": 3646022,
+      "repoUrl": "git+https://github.com/upstash/context7.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"context7\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@upstash/context7-mcp\", \"--api-key\", \"YOUR_API_KEY\"]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s005__context7\"'s package \"@upstash/context7-mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s005__context7\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 6,
+      "name": "mcp-handler",
+      "npmPackage": "mcp-handler",
+      "pypiPackage": null,
+      "version": "1.1.0",
+      "monthlyDownloads": 2204481,
+      "repoUrl": "git+https://github.com/vercel/mcp-handler.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"mcp-handler\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-handler\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s006__mcp-handler\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 7,
+      "name": "Filesystem",
+      "npmPackage": "@modelcontextprotocol/server-filesystem",
+      "pypiPackage": null,
+      "version": "2026.7.10",
+      "monthlyDownloads": 2097896,
+      "repoUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+      "source": "reference-readme",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"filesystem\": {\n      \"command\": \"docker\",\n      \"args\": [\n        \"run\",\n        \"-i\",\n        \"--rm\",\n        \"--mount\", \"type=bind,src=/Users/username/Desktop,dst=/projects/Desktop\",\n        \"--mount\", \"type=bind,src=/path/to/other/allowed/dir,dst=/projects/other/allowed/dir,ro\",\n        \"--mount\", \"type=bind,src=/path/to/file.txt,dst=/projects/path/to/file.txt\",\n        \"mcp/filesystem\",\n        \"/projects\"\n      ]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [],
+      "provenance": "not-applicable"
+    },
+    {
+      "rank": 8,
+      "name": "fastmcp",
+      "npmPackage": "fastmcp",
+      "pypiPackage": null,
+      "version": "4.7.2",
+      "monthlyDownloads": 2011969,
+      "repoUrl": "git+https://github.com/punkpeye/fastmcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"fastmcp\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"fastmcp\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s008__fastmcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 9,
+      "name": "add-mcp",
+      "npmPackage": "add-mcp",
+      "pypiPackage": null,
+      "version": "1.14.0",
+      "monthlyDownloads": 737853,
+      "repoUrl": "git+https://github.com/neon-solutions/add-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"add-mcp\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"add-mcp\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s009__add-mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 10,
+      "name": "Sequential Thinking",
+      "npmPackage": "@modelcontextprotocol/server-sequential-thinking",
+      "pypiPackage": null,
+      "version": "2026.7.4",
+      "monthlyDownloads": 627501,
+      "repoUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
+      "source": "reference-readme",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"sequential-thinking\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@modelcontextprotocol/server-sequential-thinking\"\n      ]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s010__sequential-thinking\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 11,
+      "name": "@notionhq/notion-mcp-server",
+      "npmPackage": "@notionhq/notion-mcp-server",
+      "pypiPackage": null,
+      "version": "2.4.1",
+      "monthlyDownloads": 600747,
+      "repoUrl": "git+ssh://git@github.com/makenotion/notion-mcp-server.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"notionApi\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@notionhq/notion-mcp-server\"],\n      \"env\": {\n        \"NOTION_TOKEN\": \"ntn_****\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s011__notionApi\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 12,
+      "name": "expo-mcp",
+      "npmPackage": "expo-mcp",
+      "pypiPackage": null,
+      "version": null,
+      "monthlyDownloads": 558632,
+      "repoUrl": "https://github.com/expo/expo-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"expo-mcp\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"expo-mcp\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s012__expo-mcp\"'s package \"expo-mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s012__expo-mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 13,
+      "name": "n8n-mcp",
+      "npmPackage": "n8n-mcp",
+      "pypiPackage": null,
+      "version": "2.65.1",
+      "monthlyDownloads": 531202,
+      "repoUrl": "git+https://github.com/czlonkowski/n8n-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"n8n-mcp\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"n8n-mcp\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s013__n8n-mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 14,
+      "name": "@sap-ux/fiori-mcp-server",
+      "npmPackage": "@sap-ux/fiori-mcp-server",
+      "pypiPackage": null,
+      "version": null,
+      "monthlyDownloads": 495335,
+      "repoUrl": "https://github.com/SAP/open-ux-tools.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"@sap-ux/fiori-mcp-server\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@sap-ux/fiori-mcp-server\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s014___sap-ux_fiori-mcp-server\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 15,
+      "name": "firecrawl-mcp",
+      "npmPackage": "firecrawl-mcp",
+      "pypiPackage": null,
+      "version": "3.22.3",
+      "monthlyDownloads": 485363,
+      "repoUrl": "git+https://github.com/firecrawl/firecrawl-mcp-server.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n     \"mcpServers\": {\n       \"firecrawl-mcp\": {\n         \"command\": \"npx\",\n         \"args\": [\"-y\", \"firecrawl-mcp\"],\n         \"env\": {\n           \"FIRECRAWL_API_KEY\": \"YOUR-API-KEY\"\n         }\n       }\n     }\n   }",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s015__firecrawl-mcp\" env var \"FIRECRAWL_API_KEY\" has a sensitive-sounding name but an inlined literal value (YOUR…[redacted]) — use `${env:FIRECRAWL_API_KEY}` or `${input:FIRECRAWL_API_KEY}` interpolation instead."
+        },
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s015__firecrawl-mcp\"'s package \"firecrawl-mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s015__firecrawl-mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 16,
+      "name": "@azure/mcp",
+      "npmPackage": "@azure/mcp",
+      "pypiPackage": null,
+      "version": "3.0.0-beta.27",
+      "monthlyDownloads": 462159,
+      "repoUrl": "git+https://github.com/microsoft/mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n        \"mcpServers\": {\n            \"azure-mcp-server\": {\n            \"command\": \"npx\",\n            \"args\": [\n                \"-y\",\n                \"@azure/mcp@latest\",\n                \"server\",\n                \"start\"\n                ]\n            }\n        }\n    }",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s016__azure-mcp-server\"'s package \"@azure/mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s016__azure-mcp-server\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 17,
+      "name": "@ui5/mcp-server",
+      "npmPackage": "@ui5/mcp-server",
+      "pypiPackage": null,
+      "version": "0.2.14",
+      "monthlyDownloads": 443021,
+      "repoUrl": "git+https://github.com/UI5/mcp-server.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n    \"mcpServers\": {\n        \"@ui5/mcp-server\": {\n            \"type\": \"stdio\",\n            \"command\": \"npx\",\n            \"args\": [\n                \"-y\",\n                \"@ui5/mcp-server\"\n            ]\n        }\n    }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "typosquat/scope-confusion",
+          "detector": "typosquat",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s017___ui5_mcp-server\"'s package \"@ui5/mcp-server\" reuses the exact name of a known scoped package under the unrecognized scope \"@ui5\" — possible scope-confusion squat."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s017___ui5_mcp-server\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 18,
+      "name": "Memory",
+      "npmPackage": "@modelcontextprotocol/server-memory",
+      "pypiPackage": null,
+      "version": "2026.7.4",
+      "monthlyDownloads": 432720,
+      "repoUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+      "source": "reference-readme",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"memory\": {\n      \"command\": \"docker\",\n      \"args\": [\"run\", \"-i\", \"-v\", \"claude-memory:/app/dist\", \"--rm\", \"mcp/memory\"]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [],
+      "provenance": "not-applicable"
+    },
+    {
+      "rank": 19,
+      "name": "@azure-devops/mcp",
+      "npmPackage": "@azure-devops/mcp",
+      "pypiPackage": null,
+      "version": null,
+      "monthlyDownloads": 417808,
+      "repoUrl": "git+https://github.com/microsoft/azure-devops-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"@azure-devops/mcp\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@azure-devops/mcp\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s019___azure-devops_mcp\"'s package \"@azure-devops/mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s019___azure-devops_mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 20,
+      "name": "@zereight/mcp-gitlab",
+      "npmPackage": "@zereight/mcp-gitlab",
+      "pypiPackage": null,
+      "version": "2.1.42",
+      "monthlyDownloads": 406588,
+      "repoUrl": "git+https://github.com/zereight/gitlab-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"gitlab\": {\n      \"command\": \"zereight-mcp-gitlab\",\n      \"args\": [\"--token=YOUR_GITLAB_TOKEN\", \"--api-url=https://gitlab.com/api/v4\"],\n      \"tools\": [\"*\"]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [],
+      "provenance": "not-applicable"
+    },
+    {
+      "rank": 21,
+      "name": "agentation-mcp",
+      "npmPackage": "agentation-mcp",
+      "pypiPackage": null,
+      "version": "1.2.0",
+      "monthlyDownloads": 393854,
+      "repoUrl": null,
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"agentation-mcp\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"agentation-mcp\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s021__agentation-mcp\"'s package \"agentation-mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s021__agentation-mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 22,
+      "name": "@transcend-io/mcp-server-dsr",
+      "npmPackage": "@transcend-io/mcp-server-dsr",
+      "pypiPackage": null,
+      "version": "0.4.9",
+      "monthlyDownloads": 366117,
+      "repoUrl": "git+https://github.com/transcend-io/tools.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"transcend-dsr\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@transcend-io/mcp-server-dsr\"],\n      \"env\": {\n        \"TRANSCEND_OAUTH_CLIENT_ID\": \"your-client-id\",\n        \"TRANSCEND_OAUTH_CLIENT_SECRET\": \"your-client-secret\",\n        \"TRANSCEND_OAUTH_REDIRECT_PORT\": \"your-client-redirect-port\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s022__transcend-dsr\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s022__transcend-dsr\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s022__transcend-dsr\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s022__transcend-dsr\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 23,
+      "name": "@supabase/mcp-server-supabase",
+      "npmPackage": "@supabase/mcp-server-supabase",
+      "pypiPackage": null,
+      "version": "0.9.0",
+      "monthlyDownloads": 358489,
+      "repoUrl": "git+https://github.com/supabase/mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"@supabase/mcp-server-supabase\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@supabase/mcp-server-supabase\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s023___supabase_mcp-server-supabase\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 24,
+      "name": "@sentry/mcp-server",
+      "npmPackage": "@sentry/mcp-server",
+      "pypiPackage": null,
+      "version": "0.37.0",
+      "monthlyDownloads": 355532,
+      "repoUrl": "git+ssh://git@github.com/getsentry/sentry-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"@sentry/mcp-server\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@sentry/mcp-server\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s024___sentry_mcp-server\"'s package \"@sentry/mcp-server\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s024___sentry_mcp-server\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 25,
+      "name": "@transcend-io/mcp",
+      "npmPackage": "@transcend-io/mcp",
+      "pypiPackage": null,
+      "version": "0.6.9",
+      "monthlyDownloads": 344029,
+      "repoUrl": "git+https://github.com/transcend-io/tools.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"transcend\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@transcend-io/mcp\"],\n      \"env\": {\n        \"TRANSCEND_OAUTH_CLIENT_ID\": \"your-client-id\",\n        \"TRANSCEND_OAUTH_CLIENT_SECRET\": \"your-client-secret\",\n        \"TRANSCEND_OAUTH_REDIRECT_PORT\": \"your-client-redirect-port\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s025__transcend\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s025__transcend\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s025__transcend\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s025__transcend\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 26,
+      "name": "@transcend-io/mcp-server-assessment",
+      "npmPackage": "@transcend-io/mcp-server-assessment",
+      "pypiPackage": null,
+      "version": "0.4.9",
+      "monthlyDownloads": 343723,
+      "repoUrl": "git+https://github.com/transcend-io/tools.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"transcend-assessments\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@transcend-io/mcp-server-assessment\"],\n      \"env\": {\n        \"TRANSCEND_OAUTH_CLIENT_ID\": \"your-client-id\",\n        \"TRANSCEND_OAUTH_CLIENT_SECRET\": \"your-client-secret\",\n        \"TRANSCEND_OAUTH_REDIRECT_PORT\": \"your-client-redirect-port\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s026__transcend-assessments\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s026__transcend-assessments\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s026__transcend-assessments\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s026__transcend-assessments\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 27,
+      "name": "@transcend-io/mcp-server-admin",
+      "npmPackage": "@transcend-io/mcp-server-admin",
+      "pypiPackage": null,
+      "version": "0.4.9",
+      "monthlyDownloads": 343616,
+      "repoUrl": "git+https://github.com/transcend-io/tools.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"transcend-admin\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@transcend-io/mcp-server-admin\"],\n      \"env\": {\n        \"TRANSCEND_OAUTH_CLIENT_ID\": \"your-client-id\",\n        \"TRANSCEND_OAUTH_CLIENT_SECRET\": \"your-client-secret\",\n        \"TRANSCEND_OAUTH_REDIRECT_PORT\": \"your-client-redirect-port\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s027__transcend-admin\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s027__transcend-admin\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s027__transcend-admin\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s027__transcend-admin\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 28,
+      "name": "@wonderwhy-er/desktop-commander",
+      "npmPackage": "@wonderwhy-er/desktop-commander",
+      "pypiPackage": null,
+      "version": "0.2.46",
+      "monthlyDownloads": 340003,
+      "repoUrl": "git+https://github.com/wonderwhy-er/DesktopCommanderMCP.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"desktop-commander\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@wonderwhy-er/desktop-commander@latest\"\n      ]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s028__desktop-commander\"'s package \"@wonderwhy-er/desktop-commander\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "scope-breadth/unscoped-broad-capability",
+          "detector": "scope-breadth",
+          "severity": "info",
+          "confidence": "verified",
+          "message": "Server \"s028__desktop-commander\" appears filesystem/shell-capable and declares no explicit directory scope — consider adding a bounded path argument (e.g. an absolute path or ~/-prefixed directory)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s028__desktop-commander\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 29,
+      "name": "@transcend-io/mcp-server-consent",
+      "npmPackage": "@transcend-io/mcp-server-consent",
+      "pypiPackage": null,
+      "version": "0.4.10",
+      "monthlyDownloads": 321526,
+      "repoUrl": "git+https://github.com/transcend-io/tools.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"transcend-consent\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@transcend-io/mcp-server-consent\"],\n      \"env\": {\n        \"TRANSCEND_OAUTH_CLIENT_ID\": \"your-client-id\",\n        \"TRANSCEND_OAUTH_CLIENT_SECRET\": \"your-client-secret\",\n        \"TRANSCEND_OAUTH_REDIRECT_PORT\": \"your-client-redirect-port\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s029__transcend-consent\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s029__transcend-consent\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s029__transcend-consent\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s029__transcend-consent\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 30,
+      "name": "next-devtools-mcp",
+      "npmPackage": "next-devtools-mcp",
+      "pypiPackage": null,
+      "version": "0.4.0",
+      "monthlyDownloads": 301863,
+      "repoUrl": "git+https://github.com/vercel/next-devtools-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"next-devtools\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"next-devtools-mcp@latest\"]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s030__next-devtools\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 31,
+      "name": "@salesforce/mcp",
+      "npmPackage": "@salesforce/mcp",
+      "pypiPackage": null,
+      "version": null,
+      "monthlyDownloads": 287828,
+      "repoUrl": "git+https://github.com/salesforcecli/mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"Salesforce DX\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@salesforce/mcp\",\n               \"--orgs\", \"DEFAULT_TARGET_ORG\",\n               \"--toolsets\", \"orgs,metadata,data,users\",\n               \"--tools\", \"run_apex_test\",\n               \"--allow-non-ga-tools\"]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s031__Salesforce_DX\"'s package \"@salesforce/mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s031__Salesforce_DX\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 32,
+      "name": "@cap-js/mcp-server",
+      "npmPackage": "@cap-js/mcp-server",
+      "pypiPackage": null,
+      "version": "0.0.5",
+      "monthlyDownloads": 283986,
+      "repoUrl": "git+https://github.com/cap-js/mcp-server.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"cds-mcp\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@cap-js/mcp-server\"],\n      \"env\": {}\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "typosquat/scope-confusion",
+          "detector": "typosquat",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s032__cds-mcp\"'s package \"@cap-js/mcp-server\" reuses the exact name of a known scoped package under the unrecognized scope \"@cap-js\" — possible scope-confusion squat."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s032__cds-mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 33,
+      "name": "mcp-evals",
+      "npmPackage": "mcp-evals",
+      "pypiPackage": null,
+      "version": "2.0.1",
+      "monthlyDownloads": 279021,
+      "repoUrl": "git+https://github.com/mclenhard/mcp-evals.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"mcp-evals\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-evals\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s033__mcp-evals\"'s package \"mcp-evals\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s033__mcp-evals\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 34,
+      "name": "hlims-mcp",
+      "npmPackage": "hlims-mcp",
+      "pypiPackage": null,
+      "version": "1.0.0",
+      "monthlyDownloads": 261914,
+      "repoUrl": null,
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"hlims\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"hlims-mcp\"],\n      \"env\": {\n        \"HLIMS_MCP_URL\": \"http://your-server:8020/mcp\",\n        \"HLIMS_MCP_TOKEN\": \"your-token\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s034__hlims\"'s package \"hlims-mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s034__hlims\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 35,
+      "name": "Everything",
+      "npmPackage": "@modelcontextprotocol/server-everything",
+      "pypiPackage": null,
+      "version": "2026.7.4",
+      "monthlyDownloads": 246429,
+      "repoUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/everything",
+      "source": "reference-readme",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"everything\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@modelcontextprotocol/server-everything\"\n      ]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s035__everything\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 36,
+      "name": "mcp-framework",
+      "npmPackage": "mcp-framework",
+      "pypiPackage": null,
+      "version": "0.2.22",
+      "monthlyDownloads": 244660,
+      "repoUrl": "git+https://github.com/QuantGeekDev/mcp-framework.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n\"mcpServers\": {\n\"${projectName}\": {\n      \"command\": \"node\",\n      \"args\":[\"/absolute/path/to/${projectName}/dist/index.js\"]\n}\n}\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [],
+      "provenance": "not-applicable"
+    },
+    {
+      "rank": 37,
+      "name": "@transcend-io/mcp-server-discovery",
+      "npmPackage": "@transcend-io/mcp-server-discovery",
+      "pypiPackage": null,
+      "version": "0.4.9",
+      "monthlyDownloads": 202787,
+      "repoUrl": "git+https://github.com/transcend-io/tools.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"transcend-discovery\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@transcend-io/mcp-server-discovery\"],\n      \"env\": {\n        \"TRANSCEND_OAUTH_CLIENT_ID\": \"your-client-id\",\n        \"TRANSCEND_OAUTH_CLIENT_SECRET\": \"your-client-secret\",\n        \"TRANSCEND_OAUTH_REDIRECT_PORT\": \"your-client-redirect-port\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s037__transcend-discovery\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s037__transcend-discovery\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s037__transcend-discovery\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s037__transcend-discovery\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 38,
+      "name": "@transcend-io/mcp-server-preferences",
+      "npmPackage": "@transcend-io/mcp-server-preferences",
+      "pypiPackage": null,
+      "version": "0.4.9",
+      "monthlyDownloads": 202489,
+      "repoUrl": "git+https://github.com/transcend-io/tools.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"transcend-preferences\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@transcend-io/mcp-server-preferences\"],\n      \"env\": {\n        \"TRANSCEND_OAUTH_CLIENT_ID\": \"your-client-id\",\n        \"TRANSCEND_OAUTH_CLIENT_SECRET\": \"your-client-secret\",\n        \"TRANSCEND_OAUTH_REDIRECT_PORT\": \"your-client-redirect-port\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s038__transcend-preferences\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s038__transcend-preferences\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s038__transcend-preferences\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s038__transcend-preferences\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 39,
+      "name": "hostinger-api-mcp",
+      "npmPackage": "hostinger-api-mcp",
+      "pypiPackage": null,
+      "version": "1.8.0",
+      "monthlyDownloads": 188970,
+      "repoUrl": "git+https://github.com/hostinger/api-mcp-server.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n    \"mcpServers\": {\n        \"hostinger-api\": {\n            \"command\": \"hostinger-api-mcp\",\n            \"env\": {\n                \"DEBUG\": \"false\",\n                \"HOSTINGER_API_TOKEN\": \"YOUR API TOKEN\"\n            }\n        }\n    }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [],
+      "provenance": "not-applicable"
+    },
+    {
+      "rank": 40,
+      "name": "@transcend-io/mcp-server-workflows",
+      "npmPackage": "@transcend-io/mcp-server-workflows",
+      "pypiPackage": null,
+      "version": "0.4.9",
+      "monthlyDownloads": 180271,
+      "repoUrl": "git+https://github.com/transcend-io/tools.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"transcend-workflows\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@transcend-io/mcp-server-workflows\"],\n      \"env\": {\n        \"TRANSCEND_OAUTH_CLIENT_ID\": \"your-client-id\",\n        \"TRANSCEND_OAUTH_CLIENT_SECRET\": \"your-client-secret\",\n        \"TRANSCEND_OAUTH_REDIRECT_PORT\": \"your-client-redirect-port\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s040__transcend-workflows\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s040__transcend-workflows\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s040__transcend-workflows\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s040__transcend-workflows\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 41,
+      "name": "@transcend-io/mcp-server-inventory",
+      "npmPackage": "@transcend-io/mcp-server-inventory",
+      "pypiPackage": null,
+      "version": "0.4.9",
+      "monthlyDownloads": 168252,
+      "repoUrl": "git+https://github.com/transcend-io/tools.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"transcend-inventory\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@transcend-io/mcp-server-inventory\"],\n      \"env\": {\n        \"TRANSCEND_OAUTH_CLIENT_ID\": \"your-client-id\",\n        \"TRANSCEND_OAUTH_CLIENT_SECRET\": \"your-client-secret\",\n        \"TRANSCEND_OAUTH_REDIRECT_PORT\": \"your-client-redirect-port\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s041__transcend-inventory\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s041__transcend-inventory\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s041__transcend-inventory\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s041__transcend-inventory\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 42,
+      "name": "mcp-use",
+      "npmPackage": "mcp-use",
+      "pypiPackage": null,
+      "version": null,
+      "monthlyDownloads": 165332,
+      "repoUrl": "git+https://github.com/mcp-use/mcp-use.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"mcp-use\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-use\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s042__mcp-use\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 43,
+      "name": "@mcp-use/inspector",
+      "npmPackage": "@mcp-use/inspector",
+      "pypiPackage": null,
+      "version": null,
+      "monthlyDownloads": 156379,
+      "repoUrl": "git+https://github.com/mcp-use/mcp-use.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"@mcp-use/inspector\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@mcp-use/inspector\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s043___mcp-use_inspector\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 44,
+      "name": "@gongrzhe/server-gmail-autoauth-mcp",
+      "npmPackage": "@gongrzhe/server-gmail-autoauth-mcp",
+      "pypiPackage": null,
+      "version": "1.1.11",
+      "monthlyDownloads": 154171,
+      "repoUrl": "git+https://github.com/gongrzhe/server-gmail-autoauth-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\r\n  \"mcpServers\": {\r\n    \"gmail\": {\r\n      \"command\": \"npx\",\r\n      \"args\": [\r\n        \"@gongrzhe/server-gmail-autoauth-mcp\"\r\n      ]\r\n    }\r\n  }\r\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s044__gmail\"'s package \"@gongrzhe/server-gmail-autoauth-mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s044__gmail\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 45,
+      "name": "@mcp-use/cli",
+      "npmPackage": "@mcp-use/cli",
+      "pypiPackage": null,
+      "version": null,
+      "monthlyDownloads": 149068,
+      "repoUrl": "git+https://github.com/mcp-use/mcp-use.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"@mcp-use/cli\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@mcp-use/cli\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s045___mcp-use_cli\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 46,
+      "name": "pi-mcp-adapter",
+      "npmPackage": "pi-mcp-adapter",
+      "pypiPackage": null,
+      "version": "2.11.0",
+      "monthlyDownloads": 134921,
+      "repoUrl": "git+https://github.com/nicobailon/pi-mcp-adapter.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"pi-mcp-adapter\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"pi-mcp-adapter\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s046__pi-mcp-adapter\"'s package \"pi-mcp-adapter\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s046__pi-mcp-adapter\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 47,
+      "name": "@ericthered926/duckduckgo-mcp-server",
+      "npmPackage": "@ericthered926/duckduckgo-mcp-server",
+      "pypiPackage": null,
+      "version": "0.6.0",
+      "monthlyDownloads": 133218,
+      "repoUrl": "git+https://github.com/ericthered926/duckduckgo-mcp-server.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"duckduckgo\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@ericthered926/duckduckgo-mcp-server\"]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s047__duckduckgo\"'s package \"@ericthered926/duckduckgo-mcp-server\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s047__duckduckgo\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 48,
+      "name": "tavily-mcp",
+      "npmPackage": "tavily-mcp",
+      "pypiPackage": null,
+      "version": "0.2.21",
+      "monthlyDownloads": 131960,
+      "repoUrl": "git+https://github.com/tavily-ai/tavily-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"tavily-remote-mcp\": {\n      \"command\": \"npx -y mcp-remote https://mcp.tavily.com/mcp/?tavilyApiKey=<your-api-key>\",\n      \"env\": {}\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [],
+      "provenance": "not-applicable"
+    },
+    {
+      "rank": 49,
+      "name": "@transcend-io/mcp-server-docs",
+      "npmPackage": "@transcend-io/mcp-server-docs",
+      "pypiPackage": null,
+      "version": "0.3.3",
+      "monthlyDownloads": 131509,
+      "repoUrl": "git+https://github.com/transcend-io/tools.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"transcend-docs\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@transcend-io/mcp-server-docs\"]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s049__transcend-docs\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 50,
+      "name": "mcp-hello-world",
+      "npmPackage": "mcp-hello-world",
+      "pypiPackage": null,
+      "version": "1.1.2",
+      "monthlyDownloads": 128927,
+      "repoUrl": "git+https://github.com/lobehub/mcp-hello-world.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"mcp-hello-world\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-hello-world\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s050__mcp-hello-world\"'s package \"mcp-hello-world\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s050__mcp-hello-world\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 51,
+      "name": "@github/computer-use-mcp",
+      "npmPackage": "@github/computer-use-mcp",
+      "pypiPackage": null,
+      "version": "0.1.71",
+      "monthlyDownloads": 126794,
+      "repoUrl": "git+https://github.com/github/computer-use.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"@github/computer-use-mcp\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@github/computer-use-mcp\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s051___github_computer-use-mcp\"'s package \"@github/computer-use-mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s051___github_computer-use-mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 52,
+      "name": "@circleci/mcp-server-circleci",
+      "npmPackage": "@circleci/mcp-server-circleci",
+      "pypiPackage": null,
+      "version": "0.18.0",
+      "monthlyDownloads": 126659,
+      "repoUrl": "git+https://github.com/CircleCI-Public/mcp-server-circleci.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"circleci-mcp-server\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@circleci/mcp-server-circleci@latest\"],\n      \"env\": {\n        \"CIRCLECI_TOKEN\": \"your-circleci-token\",\n        \"CIRCLECI_BASE_URL\": \"https://circleci.com\",\n        \"MAX_MCP_OUTPUT_LENGTH\": \"50000\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s052__circleci-mcp-server\" env var \"CIRCLECI_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:CIRCLECI_TOKEN}` or `${input:CIRCLECI_TOKEN}` interpolation instead."
+        },
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s052__circleci-mcp-server\"'s package \"@circleci/mcp-server-circleci\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s052__circleci-mcp-server\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 53,
+      "name": "workers-mcp",
+      "npmPackage": "workers-mcp",
+      "pypiPackage": null,
+      "version": null,
+      "monthlyDownloads": 125811,
+      "repoUrl": "https://github.com/cloudflare/workers-mcp",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"your-mcp-server-name\": {\n      \"command\": \"/path/to/workers-mcp\",\n      \"args\": [\n        \"run\",\n        \"your-mcp-server-name\",\n        \"https://your-server-url.workers.dev\",\n        \"/path/to/your/project\"\n      ],\n      \"env\": {}\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [],
+      "provenance": "not-applicable"
+    },
+    {
+      "rank": 54,
+      "name": "@eslint/mcp",
+      "npmPackage": "@eslint/mcp",
+      "pypiPackage": null,
+      "version": "0.3.9",
+      "monthlyDownloads": 121288,
+      "repoUrl": "git+https://github.com/eslint/rewrite.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"@eslint/mcp\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@eslint/mcp\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s054___eslint_mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 55,
+      "name": "@mastra/mcp-docs-server",
+      "npmPackage": "@mastra/mcp-docs-server",
+      "pypiPackage": null,
+      "version": null,
+      "monthlyDownloads": 110192,
+      "repoUrl": "git+https://github.com/mastra-ai/mastra.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"@mastra/mcp-docs-server\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@mastra/mcp-docs-server\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s055___mastra_mcp-docs-server\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 56,
+      "name": "@softeria/ms-365-mcp-server",
+      "npmPackage": "@softeria/ms-365-mcp-server",
+      "pypiPackage": null,
+      "version": "0.131.2",
+      "monthlyDownloads": 108501,
+      "repoUrl": "git+https://github.com/Softeria/ms-365-mcp-server.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"ms365\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@softeria/ms-365-mcp-server\", \"--toon\"]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s056__ms365\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 57,
+      "name": "kubernetes-mcp-server",
+      "npmPackage": "kubernetes-mcp-server",
+      "pypiPackage": null,
+      "version": "0.0.65",
+      "monthlyDownloads": 104770,
+      "repoUrl": "git+https://github.com/containers/kubernetes-mcp-server.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"kubernetes\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"kubernetes-mcp-server@latest\"]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s057__kubernetes\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 58,
+      "name": "slack-mcp-server",
+      "npmPackage": "slack-mcp-server",
+      "pypiPackage": null,
+      "version": "1.3.0",
+      "monthlyDownloads": 101769,
+      "repoUrl": "git+https://github.com/korotovsky/slack-mcp-server.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"slack-mcp-server\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"slack-mcp-server\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s058__slack-mcp-server\"'s package \"slack-mcp-server\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s058__slack-mcp-server\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 59,
+      "name": "@drawio/mcp",
+      "npmPackage": "@drawio/mcp",
+      "pypiPackage": null,
+      "version": "1.4.1",
+      "monthlyDownloads": 101751,
+      "repoUrl": "git+https://github.com/jgraph/drawio-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"drawio\": {\n      \"command\": \"npx\",\n      \"args\": [\"@drawio/mcp\"]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s059__drawio\"'s package \"@drawio/mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s059__drawio\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 60,
+      "name": "mcp-searxng",
+      "npmPackage": "mcp-searxng",
+      "pypiPackage": null,
+      "version": "1.11.1",
+      "monthlyDownloads": 97068,
+      "repoUrl": "git+https://github.com/ihor-sokoliuk/mcp-searxng.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"searxng\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"mcp-searxng\"],\n      \"env\": {\n        \"SEARXNG_URL\": \"YOUR_SEARXNG_INSTANCE_URL\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s060__searxng\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 61,
+      "name": "@taazkareem/clickup-mcp-server",
+      "npmPackage": "@taazkareem/clickup-mcp-server",
+      "pypiPackage": null,
+      "version": "0.14.4",
+      "monthlyDownloads": 96341,
+      "repoUrl": "git+https://github.com/taazkareem/clickup-mcp-server.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"ClickUp\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@taazkareem/clickup-mcp-server@latest\"],\n      \"env\": {\n        \"CLICKUP_API_KEY\": \"your-api-key\",\n        \"CLICKUP_TEAM_ID\": \"your-team-id\",\n        \"CLICKUP_MCP_LICENSE_KEY\": \"your-license-key\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s061__ClickUp\" env var \"CLICKUP_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:CLICKUP_API_KEY}` or `${input:CLICKUP_API_KEY}` interpolation instead."
+        },
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s061__ClickUp\"'s package \"@taazkareem/clickup-mcp-server\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s061__ClickUp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 62,
+      "name": "@penpot/mcp",
+      "npmPackage": "@penpot/mcp",
+      "pypiPackage": null,
+      "version": null,
+      "monthlyDownloads": 90723,
+      "repoUrl": "git+https://github.com/penpot/penpot.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"@penpot/mcp\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@penpot/mcp\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s062___penpot_mcp\"'s package \"@penpot/mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s062___penpot_mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 63,
+      "name": "@antv/mcp-server-chart",
+      "npmPackage": "@antv/mcp-server-chart",
+      "pypiPackage": null,
+      "version": null,
+      "monthlyDownloads": 88087,
+      "repoUrl": "git+https://github.com/antvis/mcp-server-chart.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"mcp-server-chart\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@antv/mcp-server-chart\"]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s063__mcp-server-chart\"'s package \"@antv/mcp-server-chart\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s063__mcp-server-chart\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 64,
+      "name": "@launchdarkly/mcp-server",
+      "npmPackage": "@launchdarkly/mcp-server",
+      "pypiPackage": null,
+      "version": "0.6.2",
+      "monthlyDownloads": 87398,
+      "repoUrl": "git+https://github.com/launchdarkly/mcp-server.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"LaunchDarkly\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\", \"--package\", \"@launchdarkly/mcp-server\", \"--\", \"mcp\", \"start\",\n        \"--api-key\", \"api-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx\"\n      ]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "typosquat/scope-confusion",
+          "detector": "typosquat",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s064__LaunchDarkly\"'s package \"@launchdarkly/mcp-server\" reuses the exact name of a known scoped package under the unrecognized scope \"@launchdarkly\" — possible scope-confusion squat."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s064__LaunchDarkly\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 65,
+      "name": "argocd-mcp",
+      "npmPackage": "argocd-mcp",
+      "pypiPackage": null,
+      "version": "0.8.0",
+      "monthlyDownloads": 86234,
+      "repoUrl": "git+https://github.com/argoproj-labs/mcp-for-argocd.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"argocd-mcp\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"argocd-mcp@latest\",\n        \"stdio\"\n      ],\n      \"env\": {\n        \"ARGOCD_BASE_URL\": \"<argocd_url>\",\n        \"ARGOCD_API_TOKEN\": \"<argocd_token>\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s065__argocd-mcp\" env var \"ARGOCD_API_TOKEN\" has a sensitive-sounding name but an inlined literal value (<arg…[redacted]) — use `${env:ARGOCD_API_TOKEN}` or `${input:ARGOCD_API_TOKEN}` interpolation instead."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s065__argocd-mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 66,
+      "name": "@serdnaley/metabase-mcp",
+      "npmPackage": "@serdnaley/metabase-mcp",
+      "pypiPackage": null,
+      "version": "0.2.0",
+      "monthlyDownloads": 85886,
+      "repoUrl": "git+https://github.com/Serdnaley/metabase-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"metabase\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@serdnaley/metabase-mcp\"],\n      \"env\": {\n        \"METABASE_URL\": \"https://your-metabase.example.com\",\n        \"METABASE_API_KEY\": \"mb_xxx\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s066__metabase\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 67,
+      "name": "@currents/mcp",
+      "npmPackage": "@currents/mcp",
+      "pypiPackage": null,
+      "version": null,
+      "monthlyDownloads": 83382,
+      "repoUrl": "git+https://github.com/currents-dev/currents-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"currents\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@currents/mcp\"],\n      \"env\": {\n        \"CURRENTS_API_KEY\": \"your-api-key\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s067__currents\" env var \"CURRENTS_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:CURRENTS_API_KEY}` or `${input:CURRENTS_API_KEY}` interpolation instead."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s067__currents\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 68,
+      "name": "samarth-gtm-mcp",
+      "npmPackage": "samarth-gtm-mcp",
+      "pypiPackage": null,
+      "version": "1.354.0",
+      "monthlyDownloads": 82730,
+      "repoUrl": "git+https://github.com/samarthanalytics-sj/samarth-analytics-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"samarth-gtm\": {\n      \"command\": \"node\",\n      \"args\": [\"/absolute/path/to/samarth-gtm-mcp/dist/index.js\"],\n      \"env\": {\n        \"GOOGLE_CLIENT_ID\": \"your-client-id.apps.googleusercontent.com\",\n        \"GOOGLE_CLIENT_SECRET\": \"your-client-secret\",\n        \"GOOGLE_REFRESH_TOKEN\": \"your-refresh-token\",\n        \"GTM_MCP_ENABLE_WRITES\": \"false\",\n        \"GTM_MCP_ENABLE_PUBLISH\": \"false\",\n        \"GTM_MCP_ENABLE_DELETES\": \"false\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s068__samarth-gtm\" env var \"GOOGLE_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:GOOGLE_CLIENT_SECRET}` or `${input:GOOGLE_CLIENT_SECRET}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s068__samarth-gtm\" env var \"GOOGLE_REFRESH_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:GOOGLE_REFRESH_TOKEN}` or `${input:GOOGLE_REFRESH_TOKEN}` interpolation instead."
+        }
+      ],
+      "provenance": "not-applicable"
+    },
+    {
+      "rank": 69,
+      "name": "@benborla29/mcp-server-mysql",
+      "npmPackage": "@benborla29/mcp-server-mysql",
+      "pypiPackage": null,
+      "version": "2.0.9",
+      "monthlyDownloads": 78978,
+      "repoUrl": "git+https://github.com/benborla/mcp-server-mysql.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"mcp_server_mysql\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@benborla29/mcp-server-mysql\"],\n      \"env\": {\n        \"MYSQL_HOST\": \"127.0.0.1\",\n        \"MYSQL_PORT\": \"3306\",\n        \"MYSQL_USER\": \"root\",\n        \"MYSQL_PASS\": \"your_password\",\n        \"MYSQL_DB\": \"your_database\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s069__mcp_server_mysql\"'s package \"@benborla29/mcp-server-mysql\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s069__mcp_server_mysql\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 70,
+      "name": "resend-mcp",
+      "npmPackage": "resend-mcp",
+      "pypiPackage": null,
+      "version": "2.11.0",
+      "monthlyDownloads": 77108,
+      "repoUrl": "git+https://github.com/resend/resend-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"resend\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"resend-mcp\"],\n      \"env\": {\n        \"RESEND_API_KEY\": \"re_xxxxxxxxx\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s070__resend\" env var \"RESEND_API_KEY\" has a sensitive-sounding name but an inlined literal value (re_x…[redacted]) — use `${env:RESEND_API_KEY}` or `${input:RESEND_API_KEY}` interpolation instead."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s070__resend\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 71,
+      "name": "@mobilenext/mobile-mcp",
+      "npmPackage": "@mobilenext/mobile-mcp",
+      "pypiPackage": null,
+      "version": "0.0.62",
+      "monthlyDownloads": 75586,
+      "repoUrl": "git+https://github.com/mobile-next/mobile-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"mobile-mcp\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@mobilenext/mobile-mcp@latest\"]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s071__mobile-mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 72,
+      "name": "@aikidosec/mcp",
+      "npmPackage": "@aikidosec/mcp",
+      "pypiPackage": null,
+      "version": "1.0.14",
+      "monthlyDownloads": 72483,
+      "repoUrl": null,
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"aikido\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@aikidosec/mcp\"]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s072__aikido\"'s package \"@aikidosec/mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s072__aikido\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 73,
+      "name": "@winor30/mcp-server-datadog",
+      "npmPackage": "@winor30/mcp-server-datadog",
+      "pypiPackage": null,
+      "version": "1.8.0",
+      "monthlyDownloads": 70957,
+      "repoUrl": "git+https://github.com/winor30/mcp-server-datadog.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"mcp-server-datadog\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@winor30/mcp-server-datadog\"\n      ],\n      \"env\": {\n        \"DATADOG_API_KEY\": \"<YOUR_API_KEY>\",\n        \"DATADOG_APP_KEY\": \"<YOUR_APP_KEY>\",\n        \"DATADOG_SITE\": \"<YOUR_SITE>\",\n        \"DATADOG_SUBDOMAIN\": \"<YOUR_SUBDOMAIN>\",\n        \"DATADOG_STORAGE_TIER\": \"indexes\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s073__mcp-server-datadog\" env var \"DATADOG_API_KEY\" has a sensitive-sounding name but an inlined literal value (<YOU…[redacted]) — use `${env:DATADOG_API_KEY}` or `${input:DATADOG_API_KEY}` interpolation instead."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s073__mcp-server-datadog\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 74,
+      "name": "@anyproto/anytype-mcp",
+      "npmPackage": "@anyproto/anytype-mcp",
+      "pypiPackage": null,
+      "version": "1.2.9",
+      "monthlyDownloads": 69485,
+      "repoUrl": "git+https://github.com/anyproto/anytype-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"anytype\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@anyproto/anytype-mcp\"],\n      \"env\": {\n        \"OPENAPI_MCP_HEADERS\": \"{\\\"Authorization\\\":\\\"Bearer <YOUR_API_KEY>\\\", \\\"Anytype-Version\\\":\\\"2025-11-08\\\"}\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s074__anytype\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 75,
+      "name": "@microsoft/workiq",
+      "npmPackage": "@microsoft/workiq",
+      "pypiPackage": null,
+      "version": "1.0.0",
+      "monthlyDownloads": 67012,
+      "repoUrl": "git+https://github.com/microsoft/work-iq.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"@microsoft/workiq\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@microsoft/workiq\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s075___microsoft_workiq\"'s package \"@microsoft/workiq\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s075___microsoft_workiq\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 76,
+      "name": "@brave/brave-search-mcp-server",
+      "npmPackage": "@brave/brave-search-mcp-server",
+      "pypiPackage": null,
+      "version": "2.1.0",
+      "monthlyDownloads": 64631,
+      "repoUrl": "git+https://github.com/brave/brave-search-mcp-server.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"brave-search\": {\n      \"command\": \"docker\",\n      \"args\": [\"run\", \"-i\", \"--rm\", \"-e\", \"BRAVE_API_KEY\", \"docker.io/mcp/brave-search\"],\n      \"env\": {\n        \"BRAVE_API_KEY\": \"YOUR_API_KEY_HERE\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s076__brave-search\" env var \"BRAVE_API_KEY\" has a sensitive-sounding name but an inlined literal value (YOUR…[redacted]) — use `${env:BRAVE_API_KEY}` or `${input:BRAVE_API_KEY}` interpolation instead."
+        }
+      ],
+      "provenance": "not-applicable"
+    },
+    {
+      "rank": 77,
+      "name": "@sveltejs/mcp",
+      "npmPackage": "@sveltejs/mcp",
+      "pypiPackage": null,
+      "version": "0.1.25",
+      "monthlyDownloads": 64341,
+      "repoUrl": "git+https://github.com/sveltejs/ai-tools.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"@sveltejs/mcp\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@sveltejs/mcp\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s077___sveltejs_mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 78,
+      "name": "mcp-server-kubernetes",
+      "npmPackage": "mcp-server-kubernetes",
+      "pypiPackage": null,
+      "version": "4.0.7",
+      "monthlyDownloads": 61677,
+      "repoUrl": "git+https://github.com/Flux159/mcp-server-kubernetes.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"kubernetes\": {\n      \"command\": \"npx\",\n      \"args\": [\"mcp-server-kubernetes\"]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s078__kubernetes\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 79,
+      "name": "xmcp",
+      "npmPackage": "xmcp",
+      "pypiPackage": null,
+      "version": "0.6.13",
+      "monthlyDownloads": 61158,
+      "repoUrl": "git+https://github.com/basementstudio/xmcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"xmcp\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"xmcp\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s079__xmcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 80,
+      "name": "@negokaz/excel-mcp-server",
+      "npmPackage": "@negokaz/excel-mcp-server",
+      "pypiPackage": null,
+      "version": "0.12.0",
+      "monthlyDownloads": 61117,
+      "repoUrl": null,
+      "source": "npm-search",
+      "snippetRaw": "{\n    \"mcpServers\": {\n        \"excel\": {\n            \"command\": \"cmd\",\n            \"args\": [\"/c\", \"npx\", \"--yes\", \"@negokaz/excel-mcp-server\"],\n            \"env\": {\n                \"EXCEL_MCP_PAGING_CELLS_LIMIT\": \"4000\"\n            }\n        }\n    }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [],
+      "provenance": "not-applicable"
+    },
+    {
+      "rank": 81,
+      "name": "@apify/actors-mcp-server",
+      "npmPackage": "@apify/actors-mcp-server",
+      "pypiPackage": null,
+      "version": null,
+      "monthlyDownloads": 55719,
+      "repoUrl": "https://github.com/apify/apify-mcp-server.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"skyfire\": {\n      \"url\": \"https://api.skyfire.xyz/mcp/sse\",\n      \"headers\": {\n        \"skyfire-api-key\": \"<YOUR_SKYFIRE_API_KEY>\"\n      }\n    },\n    \"apify\": {\n      \"url\": \"https://mcp.apify.com?payment=skyfire\"\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "insecure-endpoint/unauthenticated-transport",
+          "detector": "insecure-endpoint",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s081__skyfire\" has no recognized authentication header configured (https://api.skyfire.xyz/mcp/sse) — the endpoint accepts unauthenticated requests."
+        },
+        {
+          "id": "insecure-endpoint/unauthenticated-transport",
+          "detector": "insecure-endpoint",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s081__apify\" has no recognized authentication header configured (https://mcp.apify.com/) — the endpoint accepts unauthenticated requests."
+        },
+        {
+          "id": "unpinned-execution/url-no-version-binding",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s081__skyfire\" points at a remote URL with no version/integrity binding (https://api.skyfire.xyz/mcp/sse) — the endpoint can change contents without notice."
+        },
+        {
+          "id": "unpinned-execution/url-no-version-binding",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s081__apify\" points at a remote URL with no version/integrity binding (https://mcp.apify.com/) — the endpoint can change contents without notice."
+        }
+      ],
+      "provenance": "not-applicable"
+    },
+    {
+      "rank": 82,
+      "name": "@netlify/mcp",
+      "npmPackage": "@netlify/mcp",
+      "pypiPackage": null,
+      "version": "1.15.1",
+      "monthlyDownloads": 55579,
+      "repoUrl": null,
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"netlify\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@netlify/mcp\"\n      ]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s082__netlify\"'s package \"@netlify/mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s082__netlify\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 83,
+      "name": "serper-search-scrape-mcp-server",
+      "npmPackage": "serper-search-scrape-mcp-server",
+      "pypiPackage": null,
+      "version": "0.1.2",
+      "monthlyDownloads": 55510,
+      "repoUrl": "git+https://github.com/marcopesani/mcp-server-serper.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"serper-search\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"serper-search-scrape-mcp-server\"\n      ],\n      \"env\": {\n        \"SERPER_API_KEY\": \"your_api_key_here\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s083__serper-search\" env var \"SERPER_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:SERPER_API_KEY}` or `${input:SERPER_API_KEY}` interpolation instead."
+        },
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s083__serper-search\"'s package \"serper-search-scrape-mcp-server\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s083__serper-search\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 84,
+      "name": "brilliant-directories-mcp",
+      "npmPackage": "brilliant-directories-mcp",
+      "pypiPackage": null,
+      "version": "6.58.267",
+      "monthlyDownloads": 55110,
+      "repoUrl": "git+https://github.com/brilliantdirectories/brilliant-directories-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"brilliant-directories\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"--prefer-online\",\n        \"brilliant-directories-mcp@latest\",\n        \"--api-key\", \"ENTER_API_KEY\",\n        \"--url\", \"https://www.your-site.com\"\n      ]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s084__brilliant-directories\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 85,
+      "name": "@smartbear/mcp",
+      "npmPackage": "@smartbear/mcp",
+      "pypiPackage": null,
+      "version": "0.29.0",
+      "monthlyDownloads": 53850,
+      "repoUrl": "git+ssh://git@github.com/SmartBear/smartbear-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"smartbear\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@smartbear/mcp@latest\"\n      ],\n      \"env\": {\n        \"BEARQ_API_TOKEN\": \"your_bearq_api_token\",\n        \"BUGSNAG_AUTH_TOKEN\": \"your_personal_auth_token\",\n        \"BUGSNAG_PROJECT_API_KEY\": \"your_project_api_key\",\n        \"REFLECT_API_TOKEN\": \"your_reflect_token\",\n        \"SWAGGER_API_KEY\": \"your_swagger_key\",\n        \"SWAGGER_PORTAL_BASE_PATH\": \"https://api.portal.swaggerhub.com/v1\",\n        \"SWAGGER_REGISTRY_BASE_PATH\": \"https://api.swaggerhub.com\",\n        \"SWAGGER_UI_BASE_PATH\": \"https://app.swaggerhub.com\",\n        \"PACT_BROKER_BASE_URL\": \"your_pactflow_or_pactbroker_base_url\",\n        \"PACT_BROKER_TOKEN\": \"your_pactflow_token\",\n        \"PACT_BROKER_USERNAME\": \"your_pact_broker_username\",\n        \"PACT_BROKER_PASSWORD\": \"your_pact_broker_password\",\n        \"QMETRY_API_KEY\": \"your_qmetry_api_key\",\n        \"QMETRY_BASE_URL\": \"https://testmanagement.qmetry.com\",\n        \"ZEPHYR_API_TOKEN\": \"your_zephyr_api_token\",\n        \"ZEPHYR_BASE_URL\": \"https://api.zephyrscale.smartbear.com/v2\",\n        \"COLLABORATOR_BASE_URL\": \"your collab base url\",\n        \"COLLABORATOR_USERNAME\": \"your collab user name\",\n        \"COLLABORATOR_LOGIN_TICKET\": \"your collab login ticket\",\n        \"QTM4J_API_KEY\": \"your_qtm4j_key\",\n        \"QTM4J_BASE_URL\": \"https://qtmcloud.qmetry.com\",\n        \"QTM4J_AUTOMATION_API_KEY\": \"your_qtm4j_automation_api_key\",\n        \"SWAGGER_FUNCTIONAL_TESTING_API_TOKEN\": \"your_swagger_functional_testing_api_token\",\n        \"SWAGGER_FUNCTIONAL_TESTING_BASE_PATH\": \"https://api.reflect.run/v1\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s085__smartbear\" env var \"BEARQ_API_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:BEARQ_API_TOKEN}` or `${input:BEARQ_API_TOKEN}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s085__smartbear\" env var \"BUGSNAG_AUTH_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:BUGSNAG_AUTH_TOKEN}` or `${input:BUGSNAG_AUTH_TOKEN}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s085__smartbear\" env var \"BUGSNAG_PROJECT_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:BUGSNAG_PROJECT_API_KEY}` or `${input:BUGSNAG_PROJECT_API_KEY}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s085__smartbear\" env var \"REFLECT_API_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:REFLECT_API_TOKEN}` or `${input:REFLECT_API_TOKEN}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s085__smartbear\" env var \"SWAGGER_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:SWAGGER_API_KEY}` or `${input:SWAGGER_API_KEY}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s085__smartbear\" env var \"PACT_BROKER_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:PACT_BROKER_TOKEN}` or `${input:PACT_BROKER_TOKEN}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s085__smartbear\" env var \"PACT_BROKER_PASSWORD\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:PACT_BROKER_PASSWORD}` or `${input:PACT_BROKER_PASSWORD}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s085__smartbear\" env var \"QMETRY_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:QMETRY_API_KEY}` or `${input:QMETRY_API_KEY}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s085__smartbear\" env var \"ZEPHYR_API_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:ZEPHYR_API_TOKEN}` or `${input:ZEPHYR_API_TOKEN}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s085__smartbear\" env var \"QTM4J_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:QTM4J_API_KEY}` or `${input:QTM4J_API_KEY}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s085__smartbear\" env var \"QTM4J_AUTOMATION_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:QTM4J_AUTOMATION_API_KEY}` or `${input:QTM4J_AUTOMATION_API_KEY}` interpolation instead."
+        },
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s085__smartbear\" env var \"SWAGGER_FUNCTIONAL_TESTING_API_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:SWAGGER_FUNCTIONAL_TESTING_API_TOKEN}` or `${input:SWAGGER_FUNCTIONAL_TESTING_API_TOKEN}` interpolation instead."
+        },
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s085__smartbear\"'s package \"@smartbear/mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s085__smartbear\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 86,
+      "name": "@hubspot/mcp-server",
+      "npmPackage": "@hubspot/mcp-server",
+      "pypiPackage": null,
+      "version": "0.4.0",
+      "monthlyDownloads": 53308,
+      "repoUrl": null,
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"hubspot\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@hubspot/mcp-server\"],\n      \"env\": {\n        \"PRIVATE_APP_ACCESS_TOKEN\": \"<your-private-app-access-token>\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s086__hubspot\" env var \"PRIVATE_APP_ACCESS_TOKEN\" has a sensitive-sounding name but an inlined literal value (<you…[redacted]) — use `${env:PRIVATE_APP_ACCESS_TOKEN}` or `${input:PRIVATE_APP_ACCESS_TOKEN}` interpolation instead."
+        },
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s086__hubspot\"'s package \"@hubspot/mcp-server\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "typosquat/scope-confusion",
+          "detector": "typosquat",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s086__hubspot\"'s package \"@hubspot/mcp-server\" reuses the exact name of a known scoped package under the unrecognized scope \"@hubspot\" — possible scope-confusion squat."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s086__hubspot\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 87,
+      "name": "@shortcut/mcp",
+      "npmPackage": "@shortcut/mcp",
+      "pypiPackage": null,
+      "version": "0.25.0",
+      "monthlyDownloads": 52379,
+      "repoUrl": "git+https://github.com/useshortcut/mcp-server-shortcut.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"@shortcut/mcp\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@shortcut/mcp\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s087___shortcut_mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 88,
+      "name": "@stripe/mcp",
+      "npmPackage": "@stripe/mcp",
+      "pypiPackage": null,
+      "version": "0.3.3",
+      "monthlyDownloads": 52218,
+      "repoUrl": "git+https://github.com/stripe/ai.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"stripe\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@stripe/mcp\", \"--api-key=STRIPE_SECRET_KEY\"]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s088__stripe\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 89,
+      "name": "@cyanheads/mcp-ts-core",
+      "npmPackage": "@cyanheads/mcp-ts-core",
+      "pypiPackage": null,
+      "version": "0.10.14",
+      "monthlyDownloads": 50976,
+      "repoUrl": "git+https://github.com/cyanheads/mcp-ts-core.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"@cyanheads/mcp-ts-core\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@cyanheads/mcp-ts-core\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s089___cyanheads_mcp-ts-core\"'s package \"@cyanheads/mcp-ts-core\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s089___cyanheads_mcp-ts-core\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 90,
+      "name": "openapi-mcp-generator",
+      "npmPackage": "openapi-mcp-generator",
+      "pypiPackage": null,
+      "version": "4.0.1",
+      "monthlyDownloads": 50311,
+      "repoUrl": "git+https://github.com/harsha-iiiv/openapi-mcp-generator.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"openapi-mcp-generator\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"openapi-mcp-generator\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s090__openapi-mcp-generator\"'s package \"openapi-mcp-generator\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s090__openapi-mcp-generator\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 91,
+      "name": "@sellable/mcp",
+      "npmPackage": "@sellable/mcp",
+      "pypiPackage": null,
+      "version": "0.1.614",
+      "monthlyDownloads": 49670,
+      "repoUrl": null,
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"@sellable/mcp\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@sellable/mcp\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s091___sellable_mcp\"'s package \"@sellable/mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s091___sellable_mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 92,
+      "name": "@dynatrace-oss/dynatrace-mcp-server",
+      "npmPackage": "@dynatrace-oss/dynatrace-mcp-server",
+      "pypiPackage": null,
+      "version": "2.1.1",
+      "monthlyDownloads": 49012,
+      "repoUrl": "git+https://github.com/dynatrace-oss/dynatrace-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"dynatrace-mcp-server\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@dynatrace-oss/dynatrace-mcp-server@latest\"],\n      \"env\": {\n        \"DT_ENVIRONMENT\": \"https://abc12345.apps.dynatrace.com\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s092__dynatrace-mcp-server\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 93,
+      "name": "fetcher-mcp",
+      "npmPackage": "fetcher-mcp",
+      "pypiPackage": null,
+      "version": "0.3.9",
+      "monthlyDownloads": 47779,
+      "repoUrl": null,
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"fetcher\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"fetcher-mcp\"]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s093__fetcher\"'s package \"fetcher-mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s093__fetcher\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 94,
+      "name": "@ironbee-ai/devtools",
+      "npmPackage": "@ironbee-ai/devtools",
+      "pypiPackage": null,
+      "version": "0.22.0",
+      "monthlyDownloads": 45063,
+      "repoUrl": "git+https://github.com/ironbee-ai/ironbee-devtools.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"node-devtools\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"-p\", \"@ironbee-ai/devtools\", \"ironbee-node-devtools-mcp\"]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s094__node-devtools\"'s package \"@ironbee-ai/devtools\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s094__node-devtools\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 95,
+      "name": "@google-cloud/observability-mcp",
+      "npmPackage": "@google-cloud/observability-mcp",
+      "pypiPackage": null,
+      "version": "0.2.3",
+      "monthlyDownloads": 44520,
+      "repoUrl": "git+https://github.com/googleapis/gcloud-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"@google-cloud/observability-mcp\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@google-cloud/observability-mcp\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s095___google-cloud_observability-mcp\"'s package \"@google-cloud/observability-mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s095___google-cloud_observability-mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 96,
+      "name": "@automattic/mcp-wordpress-remote",
+      "npmPackage": "@automattic/mcp-wordpress-remote",
+      "pypiPackage": null,
+      "version": "0.3.5",
+      "monthlyDownloads": 43428,
+      "repoUrl": "git+https://github.com/Automattic/mcp-wordpress-remote.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"wordpress\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@automattic/mcp-wordpress-remote\"],\n      \"env\": {\n        \"WP_API_URL\": \"https://your-wordpress-site.com/wp-json/mcp/mcp-adapter-default-server\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s096__wordpress\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 97,
+      "name": "@browserstack/mcp-server",
+      "npmPackage": "@browserstack/mcp-server",
+      "pypiPackage": null,
+      "version": null,
+      "monthlyDownloads": 43219,
+      "repoUrl": "git+https://github.com/browserstack/mcp-server.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n     \"mcpServers\": {\n       \"browserstack\": {\n         \"command\": \"npx\",\n         \"args\": [\"-y\", \"@browserstack/mcp-server@latest\"],\n         \"env\": {\n           \"BROWSERSTACK_USERNAME\": \"<username>\",\n           \"BROWSERSTACK_ACCESS_KEY\": \"<access_key>\"\n         }\n       }\n     }\n   }",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "typosquat/scope-confusion",
+          "detector": "typosquat",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s097__browserstack\"'s package \"@browserstack/mcp-server\" reuses the exact name of a known scoped package under the unrecognized scope \"@browserstack\" — possible scope-confusion squat."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s097__browserstack\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 98,
+      "name": "@browsermcp/mcp",
+      "npmPackage": "@browsermcp/mcp",
+      "pypiPackage": null,
+      "version": "0.1.3",
+      "monthlyDownloads": 42886,
+      "repoUrl": "https://browsermcp.io",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"@browsermcp/mcp\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"@browsermcp/mcp\"\n      ]\n    }\n  }\n}",
+      "synthesized": true,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s098___browsermcp_mcp\"'s package \"@browsermcp/mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s098___browsermcp_mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    },
+    {
+      "rank": 99,
+      "name": "@cocal/google-calendar-mcp",
+      "npmPackage": "@cocal/google-calendar-mcp",
+      "pypiPackage": null,
+      "version": "2.6.2",
+      "monthlyDownloads": 41785,
+      "repoUrl": "git+https://github.com/nspady/google-calendar-mcp.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"google-calendar\": {\n      \"command\": \"npx\",\n      \"args\": [\"@cocal/google-calendar-mcp\"],\n      \"env\": {\n        \"GOOGLE_OAUTH_CREDENTIALS\": \"/path/to/your/gcp-oauth.keys.json\"\n      }\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": false,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "credential-passthrough/sensitive-name-literal",
+          "detector": "credential-passthrough",
+          "severity": "high",
+          "confidence": "verified",
+          "message": "Server \"s099__google-calendar\" env var \"GOOGLE_OAUTH_CREDENTIALS\" has a sensitive-sounding name but an inlined literal value (/pat…[redacted]) — use `${env:GOOGLE_OAUTH_CREDENTIALS}` or `${input:GOOGLE_OAUTH_CREDENTIALS}` interpolation instead."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s099__google-calendar\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "has-attestation"
+    },
+    {
+      "rank": 100,
+      "name": "@browserbasehq/mcp",
+      "npmPackage": "@browserbasehq/mcp",
+      "pypiPackage": null,
+      "version": "3.0.0",
+      "monthlyDownloads": 41374,
+      "repoUrl": "git+https://github.com/browserbase/mcp-server-browserbase.git",
+      "source": "npm-search",
+      "snippetRaw": "{\n  \"mcpServers\": {\n    \"browserbase\": {\n      \"command\": \"npx\",\n      \"args\": [\"mcp-remote\", \"https://mcp.browserbase.com/mcp\"]\n    }\n  }\n}",
+      "synthesized": false,
+      "needsReview": true,
+      "scanIncomplete": false,
+      "findings": [
+        {
+          "id": "provenance/no-attestation",
+          "detector": "provenance",
+          "severity": "low",
+          "confidence": "verified",
+          "message": "Server \"s100__browserbase\"'s package \"mcp-remote\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+        },
+        {
+          "id": "unpinned-execution/npx-no-version",
+          "detector": "unpinned-execution",
+          "severity": "medium",
+          "confidence": "verified",
+          "message": "Server \"s100__browserbase\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+        }
+      ],
+      "provenance": "lacks-attestation"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@stripe/mcp",
+    "dist-tags": {
+      "latest": "0.3.3"
+    },
+    "versions": {
+      "0.3.3": {
+        "version": "0.3.3",
+        "bin": {
+          "mcp": "dist/index.js"
+        },
+        "description": "A command line tool for setting up Stripe MCP server"
+      }
+    },
+    "readme": "# Stripe Model Context Protocol\n\nThe Stripe [Model Context Protocol](https://modelcontextprotocol.com/) server allows you to integrate with Stripe APIs through function calling. This protocol supports various tools to interact with different Stripe services.\n\n## Setup\n\nStripe hosts a remote MCP server at https://mcp.stripe.com. View the docs [here](https://docs.stripe.com/mcp).\n\n## Local\n\nTo run the Stripe MCP server locally using npx, use the following command:\n\n```bash\n# Basic usage\nnpx -y @stripe/mcp --api-key=YOUR_STRIPE_SECRET_KEY\n\n# To configure a Stripe connected account\nnpx -y @stripe/mcp --api-key=YOUR_STRIPE_SECRET_KEY --stripe-account=CONNECTED_ACCOUNT_ID\n```\n\nMake sure to replace `YOUR_STRIPE_SECRET_KEY` with your actual Stripe secret key. Alternatively, you could set the STRIPE_SECRET_KEY in your environment variables.\n\n**Note:** Tool permissions are controlled by your Restricted API Key (RAK). Create a RAK with the desired permissions at https://dashboard.stripe.com/apikeys\n\n### Usage with Claude Desktop\n\nAdd the following to your `claude_desktop_config.json`. See [here](https://modelcontextprotocol.io/quickstart/user) for more details.\n\n```json\n{\n  \"mcpServers\": {\n    \"stripe\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@stripe/mcp\", \"--api-key=STRIPE_SECRET_KEY\"]\n    }\n  }\n}\n```\n\nor if you're using Docker\n\n```json\n{\n  \"mcpServers\": {\n    \"stripe\": {\n      \"command\": \"docker\",\n      \"args\": [\"run\", \"--rm\", \"-i\", \"mcp/stripe\", \"--api-key=STRIPE_SECRET_KEY\"]\n    }\n  }\n}\n```\n\n### Usage with Gemini CLI\n\n1. Install [Gemini CLI](https://google-gemini.github.io/gemini-cli/#-installation) through your preferred method.\n2. Install the Stripe MCP extension: `gemini extensions install https://github.com/stripe/ai`.\n3. Start Gemini CLI: `gemini`.\n4. Go through the OAUTH flow: `/mcp auth stripe`.\n\n## Available tools\n\nSee the [Stripe MCP documentation](https://docs.stripe.com/mcp#tools) for a list of tools.\n\n## Debugging the Server\n\nTo debug your server, you can use the [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector).\n\nFirst build the server\n\n```\nnpm run build\n```\n\nRun the following command in your terminal:\n\n```bash\n# Start MCP Inspector and server\nnpx @modelcontextprotocol/inspector node dist/index.js --api-key=YOUR_STRIPE_SECRET_KEY\n```\n\n### Build using Docker\n\nFirst build the server\n\n```\ndocker build -t mcp/stripe .\n```\n\nRun the following command in your terminal:\n\n```bash\ndocker run -p 3000:3000 -p 5173:5173 -v /var/run/docker.sock:/var/run/docker.sock mcp/inspector docker run --rm -i mcp/stripe --api-key=YOUR_STRIPE_SECRET_KEY\n```\n\n### Instructions\n\n1. Replace `YOUR_STRIPE_SECRET_KEY` with your actual Stripe API secret key.\n2. Run the command to start the MCP Inspector.\n3. Open the MCP Inspector UI in your browser and click Connect to start the MCP server.\n4. You can see the list of tools you selected and test each tool individually.\n",
+    "readmeFilename": "README.md",
+    "repository": {
+      "url": "git+https://github.com/stripe/ai.git",
+      "type": "git"
+    },
+    "homepage": "https://github.com/stripe/ai/tree/main/tools/modelcontextprotocol"
+  },
+  "url": "https://registry.npmjs.org/%40stripe%2Fmcp"
+}

@@ -1,0 +1,28 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@sveltejs/mcp",
+    "dist-tags": {
+      "latest": "0.1.25"
+    },
+    "versions": {
+      "0.1.25": {
+        "version": "0.1.25",
+        "bin": {
+          "svelte-mcp": "dist/index.mjs"
+        },
+        "description": "The CLI version of the Svelte MCP."
+      }
+    },
+    "readme": "# @sveltejs/mcp\n\nThe CLI version of the Svelte MCP.\n\nYou can run it directly with\n\n```bash\nnpx @sveltejs/mcp\n```\n\nor install it and then run it\n\n```bash\npnpm i @sveltejs/mcp\npnpm svelte-mcp\n```\n",
+    "readmeFilename": "README.md",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/sveltejs/ai-tools.git",
+      "path": "packages/mcp-stdio"
+    },
+    "homepage": "https://github.com/sveltejs/ai-tools#readme"
+  },
+  "url": "https://registry.npmjs.org/%40sveltejs%2Fmcp"
+}

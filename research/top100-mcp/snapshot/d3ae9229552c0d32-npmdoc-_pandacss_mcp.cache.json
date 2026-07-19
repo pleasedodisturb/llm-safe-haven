@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@pandacss/mcp",
+    "dist-tags": {
+      "latest": "1.11.4"
+    },
+    "versions": {
+      "1.11.4": {
+        "version": "1.11.4",
+        "description": "MCP server for Panda CSS AI assistants"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "url": "git+https://github.com/chakra-ui/panda.git",
+      "type": "git",
+      "directory": "packages/mcp"
+    },
+    "homepage": "https://panda-css.com"
+  },
+  "url": "https://registry.npmjs.org/%40pandacss%2Fmcp"
+}

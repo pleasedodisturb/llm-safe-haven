@@ -1,0 +1,26 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@sentry/mcp-server",
+    "dist-tags": {
+      "latest": "0.37.0"
+    },
+    "versions": {
+      "0.37.0": {
+        "version": "0.37.0",
+        "bin": {
+          "sentry-mcp": "dist/index.js"
+        }
+      }
+    },
+    "readme": "ERROR: No README data found!",
+    "readmeFilename": "",
+    "repository": {
+      "type": "git",
+      "url": "git+ssh://git@github.com/getsentry/sentry-mcp.git"
+    },
+    "homepage": "https://github.com/getsentry/sentry-mcp"
+  },
+  "url": "https://registry.npmjs.org/%40sentry%2Fmcp-server"
+}

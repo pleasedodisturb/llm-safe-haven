@@ -1,0 +1,19 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@salesforce/mcp-provider-lwc-experts",
+    "dist-tags": {
+      "latest": "0.7.0"
+    },
+    "versions": {
+      "0.7.0": {
+        "version": "0.7.0",
+        "description": "(For Interal Use Only) Provided MCP Tools for code analysis and improvement of LWC components"
+      }
+    },
+    "readme": "# @salesforce/mcp-provider-lwc-experts\n\nA comprehensive collection of Model Context Protocol (MCP) tools for Lightning Web Component (LWC) development, analysis, and improvement. This package provides AI-powered tools accessible through MCP-compatible clients to analyze, review, and enhance LWC code for accessibility, performance, security, and best practices.\n\n## License\n\nSEE LICENSE IN LICENSE.txt\n",
+    "readmeFilename": "README.md"
+  },
+  "url": "https://registry.npmjs.org/%40salesforce%2Fmcp-provider-lwc-experts"
+}

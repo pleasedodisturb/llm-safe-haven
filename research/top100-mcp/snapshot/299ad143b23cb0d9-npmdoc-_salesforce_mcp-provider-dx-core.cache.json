@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@salesforce/mcp-provider-dx-core",
+    "dist-tags": {
+      "latest": "0.10.0"
+    },
+    "versions": {
+      "0.10.0": {
+        "version": "0.10.0",
+        "description": "MCP provider for core Salesforce DX functionality"
+      }
+    },
+    "readme": "ERROR: No README data found!",
+    "readmeFilename": "",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/salesforcecli/mcp.git"
+    },
+    "homepage": "https://github.com/salesforcecli/mcp"
+  },
+  "url": "https://registry.npmjs.org/%40salesforce%2Fmcp-provider-dx-core"
+}

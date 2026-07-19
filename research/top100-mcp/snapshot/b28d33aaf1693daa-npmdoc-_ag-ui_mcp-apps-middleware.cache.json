@@ -1,0 +1,19 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@ag-ui/mcp-apps-middleware",
+    "dist-tags": {
+      "latest": "0.0.3"
+    },
+    "versions": {
+      "0.0.3": {
+        "version": "0.0.3",
+        "description": "MCP Apps middleware for AG-UI that enables UI-enabled tools from MCP (Model Context Protocol) servers."
+      }
+    },
+    "readme": "# @ag-ui/mcp-apps-middleware\n\nMCP Apps middleware for AG-UI that enables UI-enabled tools from MCP (Model Context Protocol) servers.\n\n## Installation\n\n```bash\nnpm install @ag-ui/mcp-apps-middleware\n# or\npnpm add @ag-ui/mcp-apps-middleware\n```\n\n## Usage\n\n```typescript\nimport { MCPAppsMiddleware } from \"@ag-ui/mcp-apps-middleware\";\n\nconst agent = new YourAgent().use(\n  new MCPAppsMiddleware({\n    mcpServers: [\n      { type: \"http\", url: \"http://localhost:3001/mcp\", serverId: \"weather-server\" }\n    ],\n  })\n);\n```\n\n## Features\n\n- Discovers UI-enabled tools from MCP servers\n- Injects tools into the agent's tool list\n- Executes tool calls and emits activity snapshots with resource URIs\n- Supports proxied MCP requests for frontend resource fetching\n\n## Configuration\n\n```typescript\ninterface MCPAppsMiddlewareConfig {\n  mcpServers?: MCPClientConfig[];\n}\n\ntype MCPClientConfig =\n  | { type: \"http\"; url: string; serverId?: string }\n  | { type: \"sse\"; url: string; headers?: Record<string, string>; serverId?: string };\n```\n\n### Server ID\n\nThe optional `serverId` field provides a stable identifier for the server. This is useful when:\n- Server URLs may change (e.g., different environments)\n- You want human-readable server identification\n- Frontend code needs to reference servers by name\n\nIf `serverId` is not provided, the server is identified by an MD5 hash of its configuration.\n\n## Activity Snapshot\n\nThe middleware emits activity snapshots with the following structure:\n\n```typescript\n{\n  type: \"ACTIVITY_SNAPSHOT\",\n  activityType: \"mcp-apps\",\n  content: {\n    result: MCPToolCallResult,     // Result from the tool execution\n    resourceUri: string,           // URI of the UI resource to fetch\n    serverHash: string,            // MD5 hash of server config\n    serverId?: string,           // Server ID (if configured)\n    toolInput: Record<string, unknown>  // Arguments passed to the tool\n  },\n  replace: true\n}\n```\n\nThe frontend should fetch the resource content via proxied MCP request using `resourceUri` and either `serverHash` or `serverId`.\n\n## Proxied MCP Requests\n\nThe middleware supports proxied MCP requests from the frontend. Pass a `ProxiedMCPRequest` in `forwardedProps.__proxiedMCPRequest`:\n\n```typescript\ninterface ProxiedMCPRequest {\n  serverHash: string;      // MD5 hash of server config\n  serverId?: string;     // Optional server ID for lookup\n  method: string;          // MCP method (e.g., \"resources/read\", \"tools/call\")\n  params?: Record<string, unknown>;\n}\n```\n\nServer lookup prefers `serverId` if provided, falling back to `serverHash`.\n\n## Exported Utilities\n\n```typescript\nimport {\n  MCPAppsActivityType,  // \"mcp-apps\" constant\n  getServerHash         // Generate server hash from config\n} from \"@ag-ui/mcp-apps-middleware\";\n```\n\n## License\n\nMIT\n",
+    "readmeFilename": "README.md"
+  },
+  "url": "https://registry.npmjs.org/%40ag-ui%2Fmcp-apps-middleware"
+}

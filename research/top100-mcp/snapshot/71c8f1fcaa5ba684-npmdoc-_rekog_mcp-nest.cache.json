@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@rekog/mcp-nest",
+    "dist-tags": {
+      "latest": "1.9.11"
+    },
+    "versions": {
+      "1.9.11": {
+        "version": "1.9.11",
+        "description": "NestJS module for creating Model Context Protocol (MCP) servers"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "url": "git+https://github.com/rekog-labs/MCP-Nest.git",
+      "type": "git"
+    },
+    "homepage": "https://github.com/rekog-labs/MCP-Nest#readme"
+  },
+  "url": "https://registry.npmjs.org/%40rekog%2Fmcp-nest"
+}

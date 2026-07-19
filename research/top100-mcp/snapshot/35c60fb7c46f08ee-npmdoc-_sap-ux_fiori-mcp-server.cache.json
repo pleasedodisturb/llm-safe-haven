@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@sap-ux/fiori-mcp-server",
+    "dist-tags": {
+      "latest": "1.9.1"
+    },
+    "versions": {
+      "1.9.1": {
+        "version": "1.9.1",
+        "bin": {
+          "fiori-mcp": "./dist/index.js"
+        },
+        "description": "SAP Fiori - Model Context Protocol (MCP) server"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/SAP/open-ux-tools.git",
+      "directory": "packages/fiori-mcp-server"
+    }
+  },
+  "url": "https://registry.npmjs.org/%40sap-ux%2Ffiori-mcp-server"
+}

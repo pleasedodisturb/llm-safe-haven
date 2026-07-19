@@ -1,0 +1,21 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "fastify-mcp",
+    "dist-tags": {
+      "latest": "3.0.0"
+    },
+    "versions": {
+      "3.0.0": {
+        "version": "3.0.0"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "url": "https://github.com/haroldadmin/fastify-mcp"
+    }
+  },
+  "url": "https://registry.npmjs.org/fastify-mcp"
+}

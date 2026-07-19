@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@github/computer-use-mcp",
+    "dist-tags": {
+      "latest": "0.1.71"
+    },
+    "versions": {
+      "0.1.71": {
+        "version": "0.1.71",
+        "bin": {
+          "computer-use-mcp": "main.js"
+        },
+        "description": "Computer Use MCP Server"
+      }
+    },
+    "readme": "\n# Copilot Computer Use\n",
+    "readmeFilename": "README.md",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/github/computer-use.git"
+    },
+    "homepage": "https://github.com/github/computer-use#readme"
+  },
+  "url": "https://registry.npmjs.org/%40github%2Fcomputer-use-mcp"
+}

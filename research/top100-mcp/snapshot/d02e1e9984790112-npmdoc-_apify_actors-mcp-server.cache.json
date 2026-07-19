@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@apify/actors-mcp-server",
+    "dist-tags": {
+      "latest": "0.11.6"
+    },
+    "versions": {
+      "0.11.6": {
+        "version": "0.11.6",
+        "bin": {
+          "actors-mcp-server": "./dist/stdio.js"
+        },
+        "description": "Apify MCP Server"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "url": "https://github.com/apify/apify-mcp-server.git",
+      "type": "git"
+    },
+    "homepage": "https://mcp.apify.com"
+  },
+  "url": "https://registry.npmjs.org/%40apify%2Factors-mcp-server"
+}

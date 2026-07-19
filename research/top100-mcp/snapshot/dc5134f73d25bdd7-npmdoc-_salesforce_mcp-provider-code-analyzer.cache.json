@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@salesforce/mcp-provider-code-analyzer",
+    "dist-tags": {
+      "latest": "0.9.0"
+    },
+    "versions": {
+      "0.9.0": {
+        "version": "0.9.0",
+        "description": "(For Internal Use Only) Provides MCP Tools for Salesforce Code Analyzer to a MCP Server"
+      }
+    },
+    "readme": "# For Internal Use Only\n\nThis npm package is currently for internal use only. Its contents may change at any time with no gaurantee of compatibility with prior versions.",
+    "readmeFilename": "README.md",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/salesforcecli/mcp.git",
+      "directory": "packages/mcp-provider-code-analyzer"
+    },
+    "homepage": "https://github.com/salesforcecli/mcp#readme"
+  },
+  "url": "https://registry.npmjs.org/%40salesforce%2Fmcp-provider-code-analyzer"
+}

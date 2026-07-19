@@ -1,0 +1,22 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@aikidosec/mcp",
+    "dist-tags": {
+      "latest": "1.0.14"
+    },
+    "versions": {
+      "1.0.14": {
+        "version": "1.0.14",
+        "bin": {
+          "aikido-mcp": "dist/index.js"
+        },
+        "description": "Aikido MCP server"
+      }
+    },
+    "readme": "# Aikido MCP Server\n\nA lightweight Model Context Protocol (MCP) server that exposes Aikido’s Code and Secrets Scan as a tool for AI coding agents and IDEs. It lets your agent scan code and returns machine-readable findings you can triage, fix or ignore.\n\n## Prerequisites\n- **Node.js** 18.19.0 or newer\n- An **Aikido account** ([sign up](https://app.aikido.dev))\n\n## Authentication\n\nThe MCP authenticates in one of two ways. You don’t need to pick up front — just add the server to your IDE (see below) and run any Aikido tool.\n\n### Browser sign-in (recommended)\n\nIf no token is configured, the first tool call returns a one-time set of sign-in links — one per Aikido region (EU / US / ME). Click the link that matches your account.\n\n### Environment variable (CI / headless)\n\nFor CI, containers, or any setup where opening a browser/using keychain isn’t an option, generate a Personal Access Token in **Settings → Integrations → MCP Server** and pass it as `AIKIDO_API_KEY` — either in your MCP config’s `env` block (examples below) or as a system env var. When set, `AIKIDO_API_KEY` takes precedence over the cached browser token.\n\n## Add to your IDE or agent\n\nBelow are example configurations. They use the browser sign-in flow. To use `AIKIDO_API_KEY` instead, add an `env` block to any of them — see [Using AIKIDO_API_KEY](#using-aikido_api_key).\n\n### Cursor\n\nGo to `Settings` > `Cursor Settings` > `MCP & Integrations` > `New MCP server`\n\nAdd the following configuration to your Cursor `~/.cursor/mcp.json` file. See [Cursor MCP docs](https://docs.cursor.com/en/context/mcp) for more info.\n\n```json\n{\n  \"mcpServers\": {\n    \"aikido\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@aikidosec/mcp\"]\n    }\n  }\n}\n```\n\n### Windsurf\n\nAdd the following config to `~/.codeium/windsurf/mcp_config.json`. See [Windsurf MCP docs](https://docs.windsurf.com/windsurf/cascade/mcp) for more info.\n\n```json\n{\n  \"mcpServers\": {\n    \"aikido\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@aikidosec/mcp\"]\n    }\n  }\n}\n```\n\n### VS Code\n\nOpen the VS Code Command Palette by using Ctrl+⇧Shift+P or ⌘Command+⇧Shift+P (macOS). Type `MCP: Open User Configuration`.\nAdd the following config to the MCP config file. See [VS Code MCP docs](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) for more info.\n\n```json\n{\n  \"servers\": {\n    \"aikido\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@aikidosec/mcp\"]\n    }\n  }\n}\n```\n\n## Using AIKIDO_API_KEY\n\nTo use a pre-generated token instead of the browser sign-in flow, add an `env` block to any of the configs above:\n\n```json\n{\n  \"mcpServers\": {\n    \"aikido\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@aikidosec/mcp\"],\n      \"env\": {\n        \"AIKIDO_API_KEY\": \"your-api-key-here\"\n      }\n    }\n  }\n}\n```\n",
+    "readmeFilename": "README.md"
+  },
+  "url": "https://registry.npmjs.org/%40aikidosec%2Fmcp"
+}

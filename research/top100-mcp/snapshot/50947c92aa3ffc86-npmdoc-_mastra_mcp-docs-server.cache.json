@@ -1,0 +1,28 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@mastra/mcp-docs-server",
+    "dist-tags": {
+      "latest": "1.2.7"
+    },
+    "versions": {
+      "1.2.7": {
+        "version": "1.2.7",
+        "bin": {
+          "mcp-docs-server": "dist/stdio.js"
+        },
+        "description": "MCP server for accessing Mastra.ai documentation, changelogs, and news."
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "url": "git+https://github.com/mastra-ai/mastra.git",
+      "type": "git",
+      "directory": "packages/mcp-docs-server"
+    },
+    "homepage": "https://mastra.ai"
+  },
+  "url": "https://registry.npmjs.org/%40mastra%2Fmcp-docs-server"
+}

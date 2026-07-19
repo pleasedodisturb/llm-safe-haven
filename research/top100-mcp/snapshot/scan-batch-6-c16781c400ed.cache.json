@@ -1,0 +1,438 @@
+{
+  "envelope": {
+    "schemaVersion": "1",
+    "exitCode": 1,
+    "generatedAt": "2026-07-19T11:58:20.054Z",
+    "offline": false,
+    "sources": [
+      {
+        "agentId": "claude-code",
+        "scope": "user",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-oqHolW/home/.claude.json",
+        "format": "json",
+        "status": "not-found"
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "local",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-oqHolW/home/.claude.json",
+        "format": "json",
+        "status": "not-found"
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "path": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-oqHolW/cwd/.mcp.json",
+        "format": "json",
+        "status": "parsed"
+      },
+      {
+        "agentId": "cursor",
+        "scope": "global",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-oqHolW/home/.cursor/mcp.json",
+        "format": "jsonc",
+        "status": "not-found"
+      },
+      {
+        "agentId": "cursor",
+        "scope": "project",
+        "path": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-oqHolW/cwd/.cursor/mcp.json",
+        "format": "jsonc",
+        "status": "not-found"
+      }
+    ],
+    "servers": [
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-oqHolW/cwd/.mcp.json",
+        "name": "s061__ClickUp",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@taazkareem/clickup-mcp-server@latest"
+        ],
+        "env": {
+          "CLICKUP_API_KEY": "your-api-key",
+          "CLICKUP_TEAM_ID": "your-team-id",
+          "CLICKUP_MCP_LICENSE_KEY": "your-license-key"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-oqHolW/cwd/.mcp.json",
+        "name": "s062___penpot_mcp",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@penpot/mcp"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-oqHolW/cwd/.mcp.json",
+        "name": "s063__mcp-server-chart",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@antv/mcp-server-chart"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-oqHolW/cwd/.mcp.json",
+        "name": "s064__LaunchDarkly",
+        "command": "npx",
+        "args": [
+          "-y",
+          "--package",
+          "@launchdarkly/mcp-server",
+          "--",
+          "mcp",
+          "start",
+          "--api-key",
+          "api-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-oqHolW/cwd/.mcp.json",
+        "name": "s065__argocd-mcp",
+        "command": "npx",
+        "args": [
+          "argocd-mcp@latest",
+          "stdio"
+        ],
+        "env": {
+          "ARGOCD_BASE_URL": "<argocd_url>",
+          "ARGOCD_API_TOKEN": "<argocd_token>"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-oqHolW/cwd/.mcp.json",
+        "name": "s066__metabase",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@serdnaley/metabase-mcp"
+        ],
+        "env": {
+          "METABASE_URL": "https://your-metabase.example.com",
+          "METABASE_API_KEY": "mb_xxx"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-oqHolW/cwd/.mcp.json",
+        "name": "s067__currents",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@currents/mcp"
+        ],
+        "env": {
+          "CURRENTS_API_KEY": "your-api-key"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-oqHolW/cwd/.mcp.json",
+        "name": "s068__samarth-gtm",
+        "command": "node",
+        "args": [
+          "/absolute/path/to/samarth-gtm-mcp/dist/index.js"
+        ],
+        "env": {
+          "GOOGLE_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
+          "GOOGLE_CLIENT_SECRET": "your-client-secret",
+          "GOOGLE_REFRESH_TOKEN": "your-refresh-token",
+          "GTM_MCP_ENABLE_WRITES": "false",
+          "GTM_MCP_ENABLE_PUBLISH": "false",
+          "GTM_MCP_ENABLE_DELETES": "false"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-oqHolW/cwd/.mcp.json",
+        "name": "s069__mcp_server_mysql",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@benborla29/mcp-server-mysql"
+        ],
+        "env": {
+          "MYSQL_HOST": "127.0.0.1",
+          "MYSQL_PORT": "3306",
+          "MYSQL_USER": "root",
+          "MYSQL_PASS": "your_password",
+          "MYSQL_DB": "your_database"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-oqHolW/cwd/.mcp.json",
+        "name": "s070__resend",
+        "command": "npx",
+        "args": [
+          "-y",
+          "resend-mcp"
+        ],
+        "env": {
+          "RESEND_API_KEY": "re_xxxxxxxxx"
+        },
+        "url": null,
+        "headers": {}
+      }
+    ],
+    "findings": [
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s061__ClickUp",
+        "message": "Server \"s061__ClickUp\" env var \"CLICKUP_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:CLICKUP_API_KEY}` or `${input:CLICKUP_API_KEY}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s065__argocd-mcp",
+        "message": "Server \"s065__argocd-mcp\" env var \"ARGOCD_API_TOKEN\" has a sensitive-sounding name but an inlined literal value (<arg…[redacted]) — use `${env:ARGOCD_API_TOKEN}` or `${input:ARGOCD_API_TOKEN}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s067__currents",
+        "message": "Server \"s067__currents\" env var \"CURRENTS_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:CURRENTS_API_KEY}` or `${input:CURRENTS_API_KEY}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s068__samarth-gtm",
+        "message": "Server \"s068__samarth-gtm\" env var \"GOOGLE_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:GOOGLE_CLIENT_SECRET}` or `${input:GOOGLE_CLIENT_SECRET}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s068__samarth-gtm",
+        "message": "Server \"s068__samarth-gtm\" env var \"GOOGLE_REFRESH_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:GOOGLE_REFRESH_TOKEN}` or `${input:GOOGLE_REFRESH_TOKEN}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s070__resend",
+        "message": "Server \"s070__resend\" env var \"RESEND_API_KEY\" has a sensitive-sounding name but an inlined literal value (re_x…[redacted]) — use `${env:RESEND_API_KEY}` or `${input:RESEND_API_KEY}` interpolation instead."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s061__ClickUp",
+        "message": "Server \"s061__ClickUp\"'s package \"@taazkareem/clickup-mcp-server\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s062___penpot_mcp",
+        "message": "Server \"s062___penpot_mcp\"'s package \"@penpot/mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s063__mcp-server-chart",
+        "message": "Server \"s063__mcp-server-chart\"'s package \"@antv/mcp-server-chart\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s069__mcp_server_mysql",
+        "message": "Server \"s069__mcp_server_mysql\"'s package \"@benborla29/mcp-server-mysql\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "typosquat/scope-confusion",
+        "detector": "typosquat",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s064__LaunchDarkly",
+        "message": "Server \"s064__LaunchDarkly\"'s package \"@launchdarkly/mcp-server\" reuses the exact name of a known scoped package under the unrecognized scope \"@launchdarkly\" — possible scope-confusion squat."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s061__ClickUp",
+        "message": "Server \"s061__ClickUp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s062___penpot_mcp",
+        "message": "Server \"s062___penpot_mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s063__mcp-server-chart",
+        "message": "Server \"s063__mcp-server-chart\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s064__LaunchDarkly",
+        "message": "Server \"s064__LaunchDarkly\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s065__argocd-mcp",
+        "message": "Server \"s065__argocd-mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s066__metabase",
+        "message": "Server \"s066__metabase\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s067__currents",
+        "message": "Server \"s067__currents\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s069__mcp_server_mysql",
+        "message": "Server \"s069__mcp_server_mysql\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s070__resend",
+        "message": "Server \"s070__resend\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      }
+    ],
+    "summary": {
+      "bySeverity": {
+        "high": 7,
+        "low": 4,
+        "medium": 9
+      },
+      "byDetector": {
+        "credential-passthrough": 6,
+        "provenance": 4,
+        "typosquat": 1,
+        "unpinned-execution": 9
+      }
+    }
+  },
+  "status": 1,
+  "stderr": "Command failed: node <repoRoot>/bin/llm-safe-haven.js scan --mcp --json --online",
+  "spawnError": null,
+  "parseError": null
+}

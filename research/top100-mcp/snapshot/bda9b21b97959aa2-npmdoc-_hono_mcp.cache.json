@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@hono/mcp",
+    "dist-tags": {
+      "latest": "0.3.1"
+    },
+    "versions": {
+      "0.3.1": {
+        "version": "0.3.1",
+        "description": "MCP Middleware for Hono"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/honojs/middleware.git",
+      "directory": "packages/mcp"
+    },
+    "homepage": "https://honohub.dev/docs/hono-mcp"
+  },
+  "url": "https://registry.npmjs.org/%40hono%2Fmcp"
+}

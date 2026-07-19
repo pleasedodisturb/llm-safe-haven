@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@supabase/mcp-utils",
+    "dist-tags": {
+      "latest": "0.5.1"
+    },
+    "versions": {
+      "0.5.1": {
+        "version": "0.5.1",
+        "description": "MCP utilities"
+      }
+    },
+    "readme": "# @supabase/mcp-utils\n\nA collection of utilities for working with the Model Context Protocol (MCP).\n\n## Installation\n\n```shell\nnpm i @supabase/mcp-utils\n```\n\n```shell\nyarn add @supabase/mcp-utils\n```\n\n```shell\npnpm add @supabase/mcp-utils\n```\n\n## API\n\n### `StreamTransport`\n\nIf you're building an MCP client, you'll need to connect to MCP servers programmatically using a [transport](https://modelcontextprotocol.io/docs/concepts/transports).\n\nIn addition to MCP's [built-in](https://modelcontextprotocol.io/docs/concepts/transports#built-in-transport-types) transports, we also offer a `StreamTransport` to connect to clients with servers directly in-memory or over your own stream-based transport:\n\n```ts\nimport { Client } from '@modelcontextprotocol/sdk/client/index.js';\nimport { StreamTransport } from '@supabase/mcp-utils';\nimport { PostgrestMcpServer } from '@supabase/mcp-server-postgrest';\n\n// Create a stream transport for both client and server\nconst clientTransport = new StreamTransport();\nconst serverTransport = new StreamTransport();\n\n// Connect the streams together\nclientTransport.readable.pipeTo(serverTransport.writable);\nserverTransport.readable.pipeTo(clientTransport.writable);\n\nconst client = new Client(\n  {\n    name: 'MyClient',\n    version: '0.1.0',\n  },\n  {\n    capabilities: {},\n  }\n);\n\nconst server = new PostgrestMcpServer({\n  apiUrl: API_URL,\n  schema: 'public',\n});\n\n// Connect the client and server to their respective transports\nawait server.connect(serverTransport);\nawait client.connect(clientTransport);\n```\n\nA `StreamTransport` implements a standard duplex stream interface via [`ReadableStream`](https://developer.mozilla.org/docs/Web/API/ReadableStream) and [`WritableStream`](https://developer.mozilla.org/docs/Web/API/WritableStream):\n\n```ts\ninterface StreamTransport {\n  readable: ReadableStream;\n  writable: WritableStream;\n}\n```\n\nYou can use `pipeTo` or `pipeThrough` to connect or transform streams. For more information, see the [Web Streams API](https://developer.mozilla.org/docs/Web/API/Streams_API).\n\nIf your using Node.js streams, you can use their [`.toWeb()`](https://nodejs.org/api/stream.html#streamduplextowebstreamduplex) and [`.fromWeb()`](https://nodejs.org/api/stream.html#streamduplexfromwebpair-options) methods to convert to and from web standard streams.\n\nThe full interface for `StreamTransport` is as follows:\n\n```ts\nimport { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';\nimport { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';\n\ninterface DuplexStream<T> {\n  readable: ReadableStream<T>;\n  writable: WritableStream<T>;\n}\n\ndeclare class StreamTransport\n  implements Transport, DuplexStream<JSONRPCMessage>\n{\n  ready: Promise<void>;\n  readable: ReadableStream<JSONRPCMessage>;\n  writable: WritableStream<JSONRPCMessage>;\n  onclose?: () => void;\n  onerror?: (error: Error) => void;\n  onmessage?: (message: JSONRPCMessage) => void;\n\n  constructor();\n  start(): Promise<void>;\n  send(message: JSONRPCMessage): Promise<void>;\n  close(): Promise<void>;\n}\n```\n",
+    "readmeFilename": "README.md",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/supabase/mcp.git"
+    },
+    "homepage": "https://github.com/supabase/mcp#readme"
+  },
+  "url": "https://registry.npmjs.org/%40supabase%2Fmcp-utils"
+}

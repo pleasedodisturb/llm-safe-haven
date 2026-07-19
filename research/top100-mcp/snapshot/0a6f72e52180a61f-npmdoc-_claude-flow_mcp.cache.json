@@ -1,0 +1,19 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@claude-flow/mcp",
+    "dist-tags": {
+      "latest": "3.0.0-alpha.9"
+    },
+    "versions": {
+      "3.0.0-alpha.9": {
+        "version": "3.0.0-alpha.9",
+        "description": "Standalone MCP (Model Context Protocol) server - stdio/http/websocket transports, connection pooling, tool registry"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "README.md"
+  },
+  "url": "https://registry.npmjs.org/%40claude-flow%2Fmcp"
+}

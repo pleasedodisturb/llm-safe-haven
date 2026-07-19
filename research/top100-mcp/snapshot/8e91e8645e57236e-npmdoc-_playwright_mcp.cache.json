@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "status": 200,
+  "body": {
+    "name": "@playwright/mcp",
+    "dist-tags": {
+      "latest": "0.0.78"
+    },
+    "versions": {
+      "0.0.78": {
+        "version": "0.0.78",
+        "bin": {
+          "playwright-mcp": "cli.js"
+        },
+        "description": "Playwright Tools for MCP"
+      }
+    },
+    "readme": "",
+    "readmeFilename": "",
+    "repository": {
+      "url": "git+https://github.com/microsoft/playwright-mcp.git",
+      "type": "git"
+    },
+    "homepage": "https://playwright.dev"
+  },
+  "url": "https://registry.npmjs.org/%40playwright%2Fmcp"
+}
