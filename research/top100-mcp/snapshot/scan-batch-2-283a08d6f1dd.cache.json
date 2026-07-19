@@ -1,0 +1,517 @@
+{
+  "envelope": {
+    "schemaVersion": "1",
+    "exitCode": 1,
+    "generatedAt": "2026-07-19T11:58:16.354Z",
+    "offline": false,
+    "sources": [
+      {
+        "agentId": "claude-code",
+        "scope": "user",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-eRJm76/home/.claude.json",
+        "format": "json",
+        "status": "not-found"
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "local",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-eRJm76/home/.claude.json",
+        "format": "json",
+        "status": "not-found"
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "path": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-eRJm76/cwd/.mcp.json",
+        "format": "json",
+        "status": "parsed"
+      },
+      {
+        "agentId": "cursor",
+        "scope": "global",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-eRJm76/home/.cursor/mcp.json",
+        "format": "jsonc",
+        "status": "not-found"
+      },
+      {
+        "agentId": "cursor",
+        "scope": "project",
+        "path": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-eRJm76/cwd/.cursor/mcp.json",
+        "format": "jsonc",
+        "status": "not-found"
+      }
+    ],
+    "servers": [
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-eRJm76/cwd/.mcp.json",
+        "name": "s021__agentation-mcp",
+        "command": "npx",
+        "args": [
+          "-y",
+          "agentation-mcp"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-eRJm76/cwd/.mcp.json",
+        "name": "s022__transcend-dsr",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@transcend-io/mcp-server-dsr"
+        ],
+        "env": {
+          "TRANSCEND_OAUTH_CLIENT_ID": "your-client-id",
+          "TRANSCEND_OAUTH_CLIENT_SECRET": "your-client-secret",
+          "TRANSCEND_OAUTH_REDIRECT_PORT": "your-client-redirect-port"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-eRJm76/cwd/.mcp.json",
+        "name": "s023___supabase_mcp-server-supabase",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@supabase/mcp-server-supabase"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-eRJm76/cwd/.mcp.json",
+        "name": "s024___sentry_mcp-server",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@sentry/mcp-server"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-eRJm76/cwd/.mcp.json",
+        "name": "s025__transcend",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@transcend-io/mcp"
+        ],
+        "env": {
+          "TRANSCEND_OAUTH_CLIENT_ID": "your-client-id",
+          "TRANSCEND_OAUTH_CLIENT_SECRET": "your-client-secret",
+          "TRANSCEND_OAUTH_REDIRECT_PORT": "your-client-redirect-port"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-eRJm76/cwd/.mcp.json",
+        "name": "s026__transcend-assessments",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@transcend-io/mcp-server-assessment"
+        ],
+        "env": {
+          "TRANSCEND_OAUTH_CLIENT_ID": "your-client-id",
+          "TRANSCEND_OAUTH_CLIENT_SECRET": "your-client-secret",
+          "TRANSCEND_OAUTH_REDIRECT_PORT": "your-client-redirect-port"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-eRJm76/cwd/.mcp.json",
+        "name": "s027__transcend-admin",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@transcend-io/mcp-server-admin"
+        ],
+        "env": {
+          "TRANSCEND_OAUTH_CLIENT_ID": "your-client-id",
+          "TRANSCEND_OAUTH_CLIENT_SECRET": "your-client-secret",
+          "TRANSCEND_OAUTH_REDIRECT_PORT": "your-client-redirect-port"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-eRJm76/cwd/.mcp.json",
+        "name": "s028__desktop-commander",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@wonderwhy-er/desktop-commander@latest"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-eRJm76/cwd/.mcp.json",
+        "name": "s029__transcend-consent",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@transcend-io/mcp-server-consent"
+        ],
+        "env": {
+          "TRANSCEND_OAUTH_CLIENT_ID": "your-client-id",
+          "TRANSCEND_OAUTH_CLIENT_SECRET": "your-client-secret",
+          "TRANSCEND_OAUTH_REDIRECT_PORT": "your-client-redirect-port"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-eRJm76/cwd/.mcp.json",
+        "name": "s030__next-devtools",
+        "command": "npx",
+        "args": [
+          "-y",
+          "next-devtools-mcp@latest"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      }
+    ],
+    "findings": [
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s022__transcend-dsr",
+        "message": "Server \"s022__transcend-dsr\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s022__transcend-dsr",
+        "message": "Server \"s022__transcend-dsr\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s022__transcend-dsr",
+        "message": "Server \"s022__transcend-dsr\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s025__transcend",
+        "message": "Server \"s025__transcend\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s025__transcend",
+        "message": "Server \"s025__transcend\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s025__transcend",
+        "message": "Server \"s025__transcend\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s026__transcend-assessments",
+        "message": "Server \"s026__transcend-assessments\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s026__transcend-assessments",
+        "message": "Server \"s026__transcend-assessments\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s026__transcend-assessments",
+        "message": "Server \"s026__transcend-assessments\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s027__transcend-admin",
+        "message": "Server \"s027__transcend-admin\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s027__transcend-admin",
+        "message": "Server \"s027__transcend-admin\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s027__transcend-admin",
+        "message": "Server \"s027__transcend-admin\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s029__transcend-consent",
+        "message": "Server \"s029__transcend-consent\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s029__transcend-consent",
+        "message": "Server \"s029__transcend-consent\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s029__transcend-consent",
+        "message": "Server \"s029__transcend-consent\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s021__agentation-mcp",
+        "message": "Server \"s021__agentation-mcp\"'s package \"agentation-mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s024___sentry_mcp-server",
+        "message": "Server \"s024___sentry_mcp-server\"'s package \"@sentry/mcp-server\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s028__desktop-commander",
+        "message": "Server \"s028__desktop-commander\"'s package \"@wonderwhy-er/desktop-commander\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "scope-breadth/unscoped-broad-capability",
+        "detector": "scope-breadth",
+        "severity": "info",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s028__desktop-commander",
+        "message": "Server \"s028__desktop-commander\" appears filesystem/shell-capable and declares no explicit directory scope — consider adding a bounded path argument (e.g. an absolute path or ~/-prefixed directory)."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s021__agentation-mcp",
+        "message": "Server \"s021__agentation-mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s022__transcend-dsr",
+        "message": "Server \"s022__transcend-dsr\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s023___supabase_mcp-server-supabase",
+        "message": "Server \"s023___supabase_mcp-server-supabase\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s024___sentry_mcp-server",
+        "message": "Server \"s024___sentry_mcp-server\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s025__transcend",
+        "message": "Server \"s025__transcend\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s026__transcend-assessments",
+        "message": "Server \"s026__transcend-assessments\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s027__transcend-admin",
+        "message": "Server \"s027__transcend-admin\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s028__desktop-commander",
+        "message": "Server \"s028__desktop-commander\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s029__transcend-consent",
+        "message": "Server \"s029__transcend-consent\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s030__next-devtools",
+        "message": "Server \"s030__next-devtools\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      }
+    ],
+    "summary": {
+      "bySeverity": {
+        "high": 15,
+        "low": 3,
+        "info": 1,
+        "medium": 10
+      },
+      "byDetector": {
+        "credential-passthrough": 15,
+        "provenance": 3,
+        "scope-breadth": 1,
+        "unpinned-execution": 10
+      }
+    }
+  },
+  "status": 1,
+  "stderr": "Command failed: node /Users/pleasedodisturb/Projects/research/llm-safe-haven/bin/llm-safe-haven.js scan --mcp --json --online",
+  "spawnError": null,
+  "parseError": null
+}

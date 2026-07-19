@@ -1,0 +1,365 @@
+{
+  "envelope": {
+    "schemaVersion": "1",
+    "exitCode": 1,
+    "generatedAt": "2026-07-19T11:58:18.272Z",
+    "offline": false,
+    "sources": [
+      {
+        "agentId": "claude-code",
+        "scope": "user",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-SAPDWD/home/.claude.json",
+        "format": "json",
+        "status": "not-found"
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "local",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-SAPDWD/home/.claude.json",
+        "format": "json",
+        "status": "not-found"
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "path": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-SAPDWD/cwd/.mcp.json",
+        "format": "json",
+        "status": "parsed"
+      },
+      {
+        "agentId": "cursor",
+        "scope": "global",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-SAPDWD/home/.cursor/mcp.json",
+        "format": "jsonc",
+        "status": "not-found"
+      },
+      {
+        "agentId": "cursor",
+        "scope": "project",
+        "path": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-SAPDWD/cwd/.cursor/mcp.json",
+        "format": "jsonc",
+        "status": "not-found"
+      }
+    ],
+    "servers": [
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-SAPDWD/cwd/.mcp.json",
+        "name": "s041__transcend-inventory",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@transcend-io/mcp-server-inventory"
+        ],
+        "env": {
+          "TRANSCEND_OAUTH_CLIENT_ID": "your-client-id",
+          "TRANSCEND_OAUTH_CLIENT_SECRET": "your-client-secret",
+          "TRANSCEND_OAUTH_REDIRECT_PORT": "your-client-redirect-port"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-SAPDWD/cwd/.mcp.json",
+        "name": "s042__mcp-use",
+        "command": "npx",
+        "args": [
+          "-y",
+          "mcp-use"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-SAPDWD/cwd/.mcp.json",
+        "name": "s043___mcp-use_inspector",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@mcp-use/inspector"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-SAPDWD/cwd/.mcp.json",
+        "name": "s044__gmail",
+        "command": "npx",
+        "args": [
+          "@gongrzhe/server-gmail-autoauth-mcp"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-SAPDWD/cwd/.mcp.json",
+        "name": "s045___mcp-use_cli",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@mcp-use/cli"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-SAPDWD/cwd/.mcp.json",
+        "name": "s046__pi-mcp-adapter",
+        "command": "npx",
+        "args": [
+          "-y",
+          "pi-mcp-adapter"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-SAPDWD/cwd/.mcp.json",
+        "name": "s047__duckduckgo",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@ericthered926/duckduckgo-mcp-server"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-SAPDWD/cwd/.mcp.json",
+        "name": "s048__tavily-remote-mcp",
+        "command": "npx -y mcp-remote https://mcp.tavily.com/mcp/?tavilyApiKey=<your-api-key>",
+        "args": [],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-SAPDWD/cwd/.mcp.json",
+        "name": "s049__transcend-docs",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@transcend-io/mcp-server-docs"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-SAPDWD/cwd/.mcp.json",
+        "name": "s050__mcp-hello-world",
+        "command": "npx",
+        "args": [
+          "-y",
+          "mcp-hello-world"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      }
+    ],
+    "findings": [
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s041__transcend-inventory",
+        "message": "Server \"s041__transcend-inventory\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s041__transcend-inventory",
+        "message": "Server \"s041__transcend-inventory\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s041__transcend-inventory",
+        "message": "Server \"s041__transcend-inventory\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s044__gmail",
+        "message": "Server \"s044__gmail\"'s package \"@gongrzhe/server-gmail-autoauth-mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s046__pi-mcp-adapter",
+        "message": "Server \"s046__pi-mcp-adapter\"'s package \"pi-mcp-adapter\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s047__duckduckgo",
+        "message": "Server \"s047__duckduckgo\"'s package \"@ericthered926/duckduckgo-mcp-server\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s050__mcp-hello-world",
+        "message": "Server \"s050__mcp-hello-world\"'s package \"mcp-hello-world\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s041__transcend-inventory",
+        "message": "Server \"s041__transcend-inventory\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s042__mcp-use",
+        "message": "Server \"s042__mcp-use\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s043___mcp-use_inspector",
+        "message": "Server \"s043___mcp-use_inspector\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s044__gmail",
+        "message": "Server \"s044__gmail\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s045___mcp-use_cli",
+        "message": "Server \"s045___mcp-use_cli\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s046__pi-mcp-adapter",
+        "message": "Server \"s046__pi-mcp-adapter\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s047__duckduckgo",
+        "message": "Server \"s047__duckduckgo\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s049__transcend-docs",
+        "message": "Server \"s049__transcend-docs\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s050__mcp-hello-world",
+        "message": "Server \"s050__mcp-hello-world\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      }
+    ],
+    "summary": {
+      "bySeverity": {
+        "high": 3,
+        "low": 4,
+        "medium": 9
+      },
+      "byDetector": {
+        "credential-passthrough": 3,
+        "provenance": 4,
+        "unpinned-execution": 9
+      }
+    }
+  },
+  "status": 1,
+  "stderr": "Command failed: node /Users/pleasedodisturb/Projects/research/llm-safe-haven/bin/llm-safe-haven.js scan --mcp --json --online",
+  "spawnError": null,
+  "parseError": null
+}

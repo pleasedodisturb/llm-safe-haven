@@ -1,0 +1,356 @@
+{
+  "envelope": {
+    "schemaVersion": "1",
+    "exitCode": 1,
+    "generatedAt": "2026-07-19T11:58:15.256Z",
+    "offline": false,
+    "sources": [
+      {
+        "agentId": "claude-code",
+        "scope": "user",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-rv1Ap7/home/.claude.json",
+        "format": "json",
+        "status": "not-found"
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "local",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-rv1Ap7/home/.claude.json",
+        "format": "json",
+        "status": "not-found"
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "path": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-rv1Ap7/cwd/.mcp.json",
+        "format": "json",
+        "status": "parsed"
+      },
+      {
+        "agentId": "cursor",
+        "scope": "global",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-rv1Ap7/home/.cursor/mcp.json",
+        "format": "jsonc",
+        "status": "not-found"
+      },
+      {
+        "agentId": "cursor",
+        "scope": "project",
+        "path": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-rv1Ap7/cwd/.cursor/mcp.json",
+        "format": "jsonc",
+        "status": "not-found"
+      }
+    ],
+    "servers": [
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-rv1Ap7/cwd/.mcp.json",
+        "name": "s011__notionApi",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@notionhq/notion-mcp-server"
+        ],
+        "env": {
+          "NOTION_TOKEN": "ntn_****"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-rv1Ap7/cwd/.mcp.json",
+        "name": "s012__expo-mcp",
+        "command": "npx",
+        "args": [
+          "-y",
+          "expo-mcp"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-rv1Ap7/cwd/.mcp.json",
+        "name": "s013__n8n-mcp",
+        "command": "npx",
+        "args": [
+          "-y",
+          "n8n-mcp"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-rv1Ap7/cwd/.mcp.json",
+        "name": "s014___sap-ux_fiori-mcp-server",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@sap-ux/fiori-mcp-server"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-rv1Ap7/cwd/.mcp.json",
+        "name": "s015__firecrawl-mcp",
+        "command": "npx",
+        "args": [
+          "-y",
+          "firecrawl-mcp"
+        ],
+        "env": {
+          "FIRECRAWL_API_KEY": "YOUR-API-KEY"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-rv1Ap7/cwd/.mcp.json",
+        "name": "s016__azure-mcp-server",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@azure/mcp@latest",
+          "server",
+          "start"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-rv1Ap7/cwd/.mcp.json",
+        "name": "s017___ui5_mcp-server",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@ui5/mcp-server"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-rv1Ap7/cwd/.mcp.json",
+        "name": "s018__memory",
+        "command": "docker",
+        "args": [
+          "run",
+          "-i",
+          "-v",
+          "claude-memory:/app/dist",
+          "--rm",
+          "mcp/memory"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-rv1Ap7/cwd/.mcp.json",
+        "name": "s019___azure-devops_mcp",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@azure-devops/mcp"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-rv1Ap7/cwd/.mcp.json",
+        "name": "s020__gitlab",
+        "command": "zereight-mcp-gitlab",
+        "args": [
+          "--token=YOUR_GITLAB_TOKEN",
+          "--api-url=https://gitlab.com/api/v4"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      }
+    ],
+    "findings": [
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s015__firecrawl-mcp",
+        "message": "Server \"s015__firecrawl-mcp\" env var \"FIRECRAWL_API_KEY\" has a sensitive-sounding name but an inlined literal value (YOUR…[redacted]) — use `${env:FIRECRAWL_API_KEY}` or `${input:FIRECRAWL_API_KEY}` interpolation instead."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s012__expo-mcp",
+        "message": "Server \"s012__expo-mcp\"'s package \"expo-mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s015__firecrawl-mcp",
+        "message": "Server \"s015__firecrawl-mcp\"'s package \"firecrawl-mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s016__azure-mcp-server",
+        "message": "Server \"s016__azure-mcp-server\"'s package \"@azure/mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s019___azure-devops_mcp",
+        "message": "Server \"s019___azure-devops_mcp\"'s package \"@azure-devops/mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "typosquat/scope-confusion",
+        "detector": "typosquat",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s017___ui5_mcp-server",
+        "message": "Server \"s017___ui5_mcp-server\"'s package \"@ui5/mcp-server\" reuses the exact name of a known scoped package under the unrecognized scope \"@ui5\" — possible scope-confusion squat."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s011__notionApi",
+        "message": "Server \"s011__notionApi\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s012__expo-mcp",
+        "message": "Server \"s012__expo-mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s013__n8n-mcp",
+        "message": "Server \"s013__n8n-mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s014___sap-ux_fiori-mcp-server",
+        "message": "Server \"s014___sap-ux_fiori-mcp-server\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s015__firecrawl-mcp",
+        "message": "Server \"s015__firecrawl-mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s016__azure-mcp-server",
+        "message": "Server \"s016__azure-mcp-server\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s017___ui5_mcp-server",
+        "message": "Server \"s017___ui5_mcp-server\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s019___azure-devops_mcp",
+        "message": "Server \"s019___azure-devops_mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      }
+    ],
+    "summary": {
+      "bySeverity": {
+        "high": 2,
+        "low": 4,
+        "medium": 8
+      },
+      "byDetector": {
+        "credential-passthrough": 1,
+        "provenance": 4,
+        "typosquat": 1,
+        "unpinned-execution": 8
+      }
+    }
+  },
+  "status": 1,
+  "stderr": "Command failed: node /Users/pleasedodisturb/Projects/research/llm-safe-haven/bin/llm-safe-haven.js scan --mcp --json --online",
+  "spawnError": null,
+  "parseError": null
+}

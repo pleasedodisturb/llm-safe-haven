@@ -1,0 +1,323 @@
+{
+  "envelope": {
+    "schemaVersion": "1",
+    "exitCode": 1,
+    "generatedAt": "2026-07-19T11:58:14.352Z",
+    "offline": false,
+    "sources": [
+      {
+        "agentId": "claude-code",
+        "scope": "user",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-pZ2gUk/home/.claude.json",
+        "format": "json",
+        "status": "not-found"
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "local",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-pZ2gUk/home/.claude.json",
+        "format": "json",
+        "status": "not-found"
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "path": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-pZ2gUk/cwd/.mcp.json",
+        "format": "json",
+        "status": "parsed"
+      },
+      {
+        "agentId": "cursor",
+        "scope": "global",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-pZ2gUk/home/.cursor/mcp.json",
+        "format": "jsonc",
+        "status": "not-found"
+      },
+      {
+        "agentId": "cursor",
+        "scope": "project",
+        "path": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-pZ2gUk/cwd/.cursor/mcp.json",
+        "format": "jsonc",
+        "status": "not-found"
+      }
+    ],
+    "servers": [
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-pZ2gUk/cwd/.mcp.json",
+        "name": "s001__playwright",
+        "command": "npx",
+        "args": [
+          "@playwright/mcp@latest"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-pZ2gUk/cwd/.mcp.json",
+        "name": "s002__chrome-devtools",
+        "command": "npx",
+        "args": [
+          "-y",
+          "chrome-devtools-mcp@latest"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-pZ2gUk/cwd/.mcp.json",
+        "name": "s003__mcp-proxy",
+        "command": "npx",
+        "args": [
+          "-y",
+          "mcp-proxy"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-pZ2gUk/cwd/.mcp.json",
+        "name": "s004__agent-install",
+        "command": "npx",
+        "args": [
+          "-y",
+          "agent-install"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-pZ2gUk/cwd/.mcp.json",
+        "name": "s005__context7",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@upstash/context7-mcp",
+          "--api-key",
+          "YOUR_API_KEY"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-pZ2gUk/cwd/.mcp.json",
+        "name": "s006__mcp-handler",
+        "command": "npx",
+        "args": [
+          "-y",
+          "mcp-handler"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-pZ2gUk/cwd/.mcp.json",
+        "name": "s007__filesystem",
+        "command": "docker",
+        "args": [
+          "run",
+          "-i",
+          "--rm",
+          "--mount",
+          "type=bind,src=/Users/username/Desktop,dst=/projects/Desktop",
+          "--mount",
+          "type=bind,src=/path/to/other/allowed/dir,dst=/projects/other/allowed/dir,ro",
+          "--mount",
+          "type=bind,src=/path/to/file.txt,dst=/projects/path/to/file.txt",
+          "mcp/filesystem",
+          "/projects"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-pZ2gUk/cwd/.mcp.json",
+        "name": "s008__fastmcp",
+        "command": "npx",
+        "args": [
+          "-y",
+          "fastmcp"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-pZ2gUk/cwd/.mcp.json",
+        "name": "s009__add-mcp",
+        "command": "npx",
+        "args": [
+          "-y",
+          "add-mcp"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-pZ2gUk/cwd/.mcp.json",
+        "name": "s010__sequential-thinking",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-sequential-thinking"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      }
+    ],
+    "findings": [
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s004__agent-install",
+        "message": "Server \"s004__agent-install\"'s package \"agent-install\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s005__context7",
+        "message": "Server \"s005__context7\"'s package \"@upstash/context7-mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s001__playwright",
+        "message": "Server \"s001__playwright\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s002__chrome-devtools",
+        "message": "Server \"s002__chrome-devtools\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s003__mcp-proxy",
+        "message": "Server \"s003__mcp-proxy\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s004__agent-install",
+        "message": "Server \"s004__agent-install\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s005__context7",
+        "message": "Server \"s005__context7\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s006__mcp-handler",
+        "message": "Server \"s006__mcp-handler\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s008__fastmcp",
+        "message": "Server \"s008__fastmcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s009__add-mcp",
+        "message": "Server \"s009__add-mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s010__sequential-thinking",
+        "message": "Server \"s010__sequential-thinking\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      }
+    ],
+    "summary": {
+      "bySeverity": {
+        "low": 2,
+        "medium": 9
+      },
+      "byDetector": {
+        "provenance": 2,
+        "unpinned-execution": 9
+      }
+    }
+  },
+  "status": 1,
+  "stderr": "Command failed: node /Users/pleasedodisturb/Projects/research/llm-safe-haven/bin/llm-safe-haven.js scan --mcp --json --online",
+  "spawnError": null,
+  "parseError": null
+}

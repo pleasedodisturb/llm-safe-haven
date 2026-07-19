@@ -1,0 +1,575 @@
+{
+  "generatedAt": "2026-07-19T12:00:15.802Z",
+  "snapshotDate": "2026-07-19",
+  "pinnedCommit": "9be47145400310292307f047242d637d82b36c72",
+  "scannerVersion": "0.3.1",
+  "total": 100,
+  "synthesizedCount": 32,
+  "realSnippetCount": 68,
+  "scanIncompleteCount": 0,
+  "headline": {
+    "unpinnedCount": 90,
+    "lacksAttestationCount": 38,
+    "insecureEndpointCount": 1,
+    "credentialPassthroughCount": 22,
+    "scopeBreadthCount": 1,
+    "toolPoisoningCount": 0,
+    "typosquatCount": 5,
+    "toolShadowingCount": 0
+  },
+  "byDetectorFindingCount": {
+    "unpinned-execution": 91,
+    "provenance": 38,
+    "credential-passthrough": 52,
+    "typosquat": 5,
+    "scope-breadth": 1,
+    "insecure-endpoint": 2
+  },
+  "byDetectorServerCount": {
+    "unpinned-execution": 90,
+    "provenance": 38,
+    "credential-passthrough": 22,
+    "typosquat": 5,
+    "scope-breadth": 1,
+    "insecure-endpoint": 1
+  },
+  "provenanceCounts": {
+    "has-attestation": 51,
+    "lacks-attestation": 38,
+    "unverified-fetch-failed": 0,
+    "unverified-offline": 0,
+    "not-applicable": 11,
+    "scan-incomplete": 0
+  },
+  "toolCollisionAnalysis": {
+    "method": "static README tool-table scrape (no code execution, no live tools/list)",
+    "serversWithStaticallyVisibleToolNames": 0,
+    "serversSkipped": 100,
+    "collisionsFound": 0,
+    "note": "Tool names were not statically recoverable from the recommended-install-snippet collection performed in Task 1 (README tool tables require dedicated per-server table parsing beyond the mcpServers-snippet scrape this pipeline does). Every one of the 100 servers is counted as skipped rather than fabricating a collision figure — this mirrors the scanner's own honesty-first framing (docs/mcp-security.md §5): tool-shadowing here is the static server-NAME collision proxy only (already reflected in tool-shadowing findings above), never verified tool-level shadowing."
+  },
+  "disclosureCandidates": [
+    {
+      "server": "firecrawl-mcp",
+      "rank": 15,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s015__firecrawl-mcp\" env var \"FIRECRAWL_API_KEY\" has a sensitive-sounding name but an inlined literal value (YOUR…[redacted]) — use `${env:FIRECRAWL_API_KEY}` or `${input:FIRECRAWL_API_KEY}` interpolation instead."
+    },
+    {
+      "server": "@ui5/mcp-server",
+      "rank": 17,
+      "detector": "typosquat",
+      "id": "typosquat/scope-confusion",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s017___ui5_mcp-server\"'s package \"@ui5/mcp-server\" reuses the exact name of a known scoped package under the unrecognized scope \"@ui5\" — possible scope-confusion squat."
+    },
+    {
+      "server": "@transcend-io/mcp-server-dsr",
+      "rank": 22,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s022__transcend-dsr\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-dsr",
+      "rank": 22,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s022__transcend-dsr\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-dsr",
+      "rank": 22,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s022__transcend-dsr\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp",
+      "rank": 25,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s025__transcend\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp",
+      "rank": 25,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s025__transcend\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp",
+      "rank": 25,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s025__transcend\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-assessment",
+      "rank": 26,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s026__transcend-assessments\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-assessment",
+      "rank": 26,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s026__transcend-assessments\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-assessment",
+      "rank": 26,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s026__transcend-assessments\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-admin",
+      "rank": 27,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s027__transcend-admin\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-admin",
+      "rank": 27,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s027__transcend-admin\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-admin",
+      "rank": 27,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s027__transcend-admin\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+    },
+    {
+      "server": "@wonderwhy-er/desktop-commander",
+      "rank": 28,
+      "detector": "scope-breadth",
+      "id": "scope-breadth/unscoped-broad-capability",
+      "severity": "info",
+      "confidence": "verified",
+      "message": "Server \"s028__desktop-commander\" appears filesystem/shell-capable and declares no explicit directory scope — consider adding a bounded path argument (e.g. an absolute path or ~/-prefixed directory)."
+    },
+    {
+      "server": "@transcend-io/mcp-server-consent",
+      "rank": 29,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s029__transcend-consent\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-consent",
+      "rank": 29,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s029__transcend-consent\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-consent",
+      "rank": 29,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s029__transcend-consent\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+    },
+    {
+      "server": "@cap-js/mcp-server",
+      "rank": 32,
+      "detector": "typosquat",
+      "id": "typosquat/scope-confusion",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s032__cds-mcp\"'s package \"@cap-js/mcp-server\" reuses the exact name of a known scoped package under the unrecognized scope \"@cap-js\" — possible scope-confusion squat."
+    },
+    {
+      "server": "@transcend-io/mcp-server-discovery",
+      "rank": 37,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s037__transcend-discovery\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-discovery",
+      "rank": 37,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s037__transcend-discovery\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-discovery",
+      "rank": 37,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s037__transcend-discovery\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-preferences",
+      "rank": 38,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s038__transcend-preferences\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-preferences",
+      "rank": 38,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s038__transcend-preferences\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-preferences",
+      "rank": 38,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s038__transcend-preferences\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-workflows",
+      "rank": 40,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s040__transcend-workflows\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-workflows",
+      "rank": 40,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s040__transcend-workflows\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-workflows",
+      "rank": 40,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s040__transcend-workflows\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-inventory",
+      "rank": 41,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s041__transcend-inventory\" env var \"TRANSCEND_OAUTH_CLIENT_ID\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_ID}` or `${input:TRANSCEND_OAUTH_CLIENT_ID}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-inventory",
+      "rank": 41,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s041__transcend-inventory\" env var \"TRANSCEND_OAUTH_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_CLIENT_SECRET}` or `${input:TRANSCEND_OAUTH_CLIENT_SECRET}` interpolation instead."
+    },
+    {
+      "server": "@transcend-io/mcp-server-inventory",
+      "rank": 41,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s041__transcend-inventory\" env var \"TRANSCEND_OAUTH_REDIRECT_PORT\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:TRANSCEND_OAUTH_REDIRECT_PORT}` or `${input:TRANSCEND_OAUTH_REDIRECT_PORT}` interpolation instead."
+    },
+    {
+      "server": "@circleci/mcp-server-circleci",
+      "rank": 52,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s052__circleci-mcp-server\" env var \"CIRCLECI_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:CIRCLECI_TOKEN}` or `${input:CIRCLECI_TOKEN}` interpolation instead."
+    },
+    {
+      "server": "@taazkareem/clickup-mcp-server",
+      "rank": 61,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s061__ClickUp\" env var \"CLICKUP_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:CLICKUP_API_KEY}` or `${input:CLICKUP_API_KEY}` interpolation instead."
+    },
+    {
+      "server": "@launchdarkly/mcp-server",
+      "rank": 64,
+      "detector": "typosquat",
+      "id": "typosquat/scope-confusion",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s064__LaunchDarkly\"'s package \"@launchdarkly/mcp-server\" reuses the exact name of a known scoped package under the unrecognized scope \"@launchdarkly\" — possible scope-confusion squat."
+    },
+    {
+      "server": "argocd-mcp",
+      "rank": 65,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s065__argocd-mcp\" env var \"ARGOCD_API_TOKEN\" has a sensitive-sounding name but an inlined literal value (<arg…[redacted]) — use `${env:ARGOCD_API_TOKEN}` or `${input:ARGOCD_API_TOKEN}` interpolation instead."
+    },
+    {
+      "server": "@currents/mcp",
+      "rank": 67,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s067__currents\" env var \"CURRENTS_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:CURRENTS_API_KEY}` or `${input:CURRENTS_API_KEY}` interpolation instead."
+    },
+    {
+      "server": "samarth-gtm-mcp",
+      "rank": 68,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s068__samarth-gtm\" env var \"GOOGLE_CLIENT_SECRET\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:GOOGLE_CLIENT_SECRET}` or `${input:GOOGLE_CLIENT_SECRET}` interpolation instead."
+    },
+    {
+      "server": "samarth-gtm-mcp",
+      "rank": 68,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s068__samarth-gtm\" env var \"GOOGLE_REFRESH_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:GOOGLE_REFRESH_TOKEN}` or `${input:GOOGLE_REFRESH_TOKEN}` interpolation instead."
+    },
+    {
+      "server": "resend-mcp",
+      "rank": 70,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s070__resend\" env var \"RESEND_API_KEY\" has a sensitive-sounding name but an inlined literal value (re_x…[redacted]) — use `${env:RESEND_API_KEY}` or `${input:RESEND_API_KEY}` interpolation instead."
+    },
+    {
+      "server": "@winor30/mcp-server-datadog",
+      "rank": 73,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s073__mcp-server-datadog\" env var \"DATADOG_API_KEY\" has a sensitive-sounding name but an inlined literal value (<YOU…[redacted]) — use `${env:DATADOG_API_KEY}` or `${input:DATADOG_API_KEY}` interpolation instead."
+    },
+    {
+      "server": "@brave/brave-search-mcp-server",
+      "rank": 76,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s076__brave-search\" env var \"BRAVE_API_KEY\" has a sensitive-sounding name but an inlined literal value (YOUR…[redacted]) — use `${env:BRAVE_API_KEY}` or `${input:BRAVE_API_KEY}` interpolation instead."
+    },
+    {
+      "server": "serper-search-scrape-mcp-server",
+      "rank": 83,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s083__serper-search\" env var \"SERPER_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:SERPER_API_KEY}` or `${input:SERPER_API_KEY}` interpolation instead."
+    },
+    {
+      "server": "@smartbear/mcp",
+      "rank": 85,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s085__smartbear\" env var \"BEARQ_API_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:BEARQ_API_TOKEN}` or `${input:BEARQ_API_TOKEN}` interpolation instead."
+    },
+    {
+      "server": "@smartbear/mcp",
+      "rank": 85,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s085__smartbear\" env var \"BUGSNAG_AUTH_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:BUGSNAG_AUTH_TOKEN}` or `${input:BUGSNAG_AUTH_TOKEN}` interpolation instead."
+    },
+    {
+      "server": "@smartbear/mcp",
+      "rank": 85,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s085__smartbear\" env var \"BUGSNAG_PROJECT_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:BUGSNAG_PROJECT_API_KEY}` or `${input:BUGSNAG_PROJECT_API_KEY}` interpolation instead."
+    },
+    {
+      "server": "@smartbear/mcp",
+      "rank": 85,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s085__smartbear\" env var \"REFLECT_API_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:REFLECT_API_TOKEN}` or `${input:REFLECT_API_TOKEN}` interpolation instead."
+    },
+    {
+      "server": "@smartbear/mcp",
+      "rank": 85,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s085__smartbear\" env var \"SWAGGER_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:SWAGGER_API_KEY}` or `${input:SWAGGER_API_KEY}` interpolation instead."
+    },
+    {
+      "server": "@smartbear/mcp",
+      "rank": 85,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s085__smartbear\" env var \"PACT_BROKER_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:PACT_BROKER_TOKEN}` or `${input:PACT_BROKER_TOKEN}` interpolation instead."
+    },
+    {
+      "server": "@smartbear/mcp",
+      "rank": 85,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s085__smartbear\" env var \"PACT_BROKER_PASSWORD\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:PACT_BROKER_PASSWORD}` or `${input:PACT_BROKER_PASSWORD}` interpolation instead."
+    },
+    {
+      "server": "@smartbear/mcp",
+      "rank": 85,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s085__smartbear\" env var \"QMETRY_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:QMETRY_API_KEY}` or `${input:QMETRY_API_KEY}` interpolation instead."
+    },
+    {
+      "server": "@smartbear/mcp",
+      "rank": 85,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s085__smartbear\" env var \"ZEPHYR_API_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:ZEPHYR_API_TOKEN}` or `${input:ZEPHYR_API_TOKEN}` interpolation instead."
+    },
+    {
+      "server": "@smartbear/mcp",
+      "rank": 85,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s085__smartbear\" env var \"QTM4J_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:QTM4J_API_KEY}` or `${input:QTM4J_API_KEY}` interpolation instead."
+    },
+    {
+      "server": "@smartbear/mcp",
+      "rank": 85,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s085__smartbear\" env var \"QTM4J_AUTOMATION_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:QTM4J_AUTOMATION_API_KEY}` or `${input:QTM4J_AUTOMATION_API_KEY}` interpolation instead."
+    },
+    {
+      "server": "@smartbear/mcp",
+      "rank": 85,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s085__smartbear\" env var \"SWAGGER_FUNCTIONAL_TESTING_API_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:SWAGGER_FUNCTIONAL_TESTING_API_TOKEN}` or `${input:SWAGGER_FUNCTIONAL_TESTING_API_TOKEN}` interpolation instead."
+    },
+    {
+      "server": "@hubspot/mcp-server",
+      "rank": 86,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s086__hubspot\" env var \"PRIVATE_APP_ACCESS_TOKEN\" has a sensitive-sounding name but an inlined literal value (<you…[redacted]) — use `${env:PRIVATE_APP_ACCESS_TOKEN}` or `${input:PRIVATE_APP_ACCESS_TOKEN}` interpolation instead."
+    },
+    {
+      "server": "@hubspot/mcp-server",
+      "rank": 86,
+      "detector": "typosquat",
+      "id": "typosquat/scope-confusion",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s086__hubspot\"'s package \"@hubspot/mcp-server\" reuses the exact name of a known scoped package under the unrecognized scope \"@hubspot\" — possible scope-confusion squat."
+    },
+    {
+      "server": "@browserstack/mcp-server",
+      "rank": 97,
+      "detector": "typosquat",
+      "id": "typosquat/scope-confusion",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s097__browserstack\"'s package \"@browserstack/mcp-server\" reuses the exact name of a known scoped package under the unrecognized scope \"@browserstack\" — possible scope-confusion squat."
+    },
+    {
+      "server": "@cocal/google-calendar-mcp",
+      "rank": 99,
+      "detector": "credential-passthrough",
+      "id": "credential-passthrough/sensitive-name-literal",
+      "severity": "high",
+      "confidence": "verified",
+      "message": "Server \"s099__google-calendar\" env var \"GOOGLE_OAUTH_CREDENTIALS\" has a sensitive-sounding name but an inlined literal value (/pat…[redacted]) — use `${env:GOOGLE_OAUTH_CREDENTIALS}` or `${input:GOOGLE_OAUTH_CREDENTIALS}` interpolation instead."
+    }
+  ]
+}

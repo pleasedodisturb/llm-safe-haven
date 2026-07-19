@@ -11,8 +11,30 @@ Per the disclosure policy (Methodology §5): anything resembling an exploitable 
 unique to one server is aggregated/anonymized in `DRAFT.md` and listed here instead, for
 private maintainer notification rather than public naming.
 
-_(populated after `04-aggregate.js`'s `disclosureCandidates` are reviewed in Task 3 — see
-the "Private appendix candidates" section below this line once populated)_
+**Reviewed in Task 3 against `stats.json`'s 58 `disclosureCandidates`
+(52 `credential-passthrough/sensitive-name-literal`, 5 `typosquat/scope-confusion`, 1
+`scope-breadth/unscoped-broad-capability`) — conclusion: 0 private appendix items.**
+
+- The 52 `credential-passthrough` findings are all placeholder-text conventions
+  (`YOUR_API_KEY`, `<YOUR_TOKEN>`, etc.) in public READMEs — a documentation-convention
+  observation, not a per-server secret or exploitable defect. Reported in DRAFT.md as an
+  aggregate count only, with no individual server named for it.
+- The 5 `typosquat/scope-confusion` findings are a confirmed DETECTOR FALSE POSITIVE (see
+  "Detector false positive" section below) — not a real security claim about any of the 5
+  vendors involved, so naming them as "flagged for typosquat" would be actively misleading.
+  Reported in DRAFT.md as an aggregate count with an explicit false-positive caveat; no
+  vendor named as suspect.
+- The 1 `scope-breadth` finding (`@wonderwhy-er/desktop-commander`) describes a fact
+  directly visible in the server's own public recommended snippet (no bounded path
+  argument) — arguably itself a public install-snippet fact, but held to the conservative
+  "when unsure, aggregate" standard anyway. Reported in DRAFT.md as an aggregate count
+  only.
+
+This is a legitimate, non-suspicious "zero" outcome, not a shortcut: `scan --mcp` reads
+only PUBLICLY posted README/registry content, so by construction the worst thing a static
+scan of public documentation can surface is a bad **convention** (unpinned installs,
+placeholder secrets, missing attestations) — never a genuinely private, exploitable,
+per-server secret. See DRAFT.md for the exact aggregate figures.
 
 ---
 
@@ -86,3 +108,47 @@ exists to catch (it worked as designed both times).
 ## Scan anomalies (Task 2 — `03-scan-runner.js`)
 
 _(populated by `03-scan-runner.js` as it runs — see below)_
+
+**Scan run status: 0 of 10 batches incomplete, 0 fixture-assembly anomalies.** All 100
+selected servers scanned cleanly (exitCode 0 or 1, never 2) on the first attempt.
+
+## Detector false positive — `typosquat/scope-confusion` over-fires on a generic, widely-reused package leaf name
+
+**Found during:** Task 2, dataset review (`04-aggregate.js` prep — 25x dogfood scale per
+the ticket's stated purpose).
+**Detector/rule:** `typosquat` / `scope-confusion` (`lib/mcp/detectors/typosquat.js`).
+**Severity as reported:** `high`, confidence `verified`.
+
+**Symptom:** 5 of 100 servers in this dataset are flagged `typosquat/scope-confusion`, and
+ALL FIVE are false positives — every one is a legitimate, officially-published vendor
+package under that vendor's own npm scope:
+
+| Server (rank) | Package | Message |
+|---|---|---|
+| `@ui5/mcp-server` | `@ui5/mcp-server` | "reuses the exact name of a known scoped package under the unrecognized scope `@ui5`" |
+| `@cap-js/mcp-server` | `@cap-js/mcp-server` | same, scope `@cap-js` |
+| `@launchdarkly/mcp-server` | `@launchdarkly/mcp-server` | same, scope `@launchdarkly` |
+| `@hubspot/mcp-server` | `@hubspot/mcp-server` | same, scope `@hubspot` |
+| `@browserstack/mcp-server` | `@browserstack/mcp-server` | same, scope `@browserstack` |
+
+**Root cause (read from `lib/mcp/detectors/typosquat.js`, not modified):** the
+scope-confusion class fires when an input's NAME segment exactly matches a KNOWN name half
+from the allowlist (`manifests/mcp-known-servers.json`), but the scope is missing or not in
+`knownScopes`. `manifests/mcp-known-servers.json`'s full-spec entry `@sentry/mcp-server`
+contributes the name half `mcp-server` to the allowlist's `fullSpecNameHalves` pool (known
+only under `@sentry`). But `mcp-server` is an extremely generic, independently-and-widely
+chosen leaf name — SAP (UI5, CAP-js), LaunchDarkly, HubSpot, and BrowserStack all
+legitimately publish their own MCP server under that same generic leaf name, each under
+their own distinct, real npm scope. The detector's exact-name-match heuristic treats every
+one of them as "the Sentry package under the wrong scope," which is not what's happening.
+
+**Suggested fix direction (not implemented here — scanner code is out of scope for this
+ticket):** the scope-confusion class needs either (a) a minimum specificity/entropy bar on
+which name halves seed the `fullSpecNameHalves` comparison pool (a generic compound like
+`mcp-server` is far more likely to be independently reused than a distinctive coined name
+like `context7-mcp`), or (b) to drop obviously-generic name segments from that pool
+entirely and rely on the existing distance-based classes for them.
+
+**Ticket-worthy?** Yes — recommend filing under team G, parent G-507, with this table as
+the repro. This is exactly the class of 25x-dogfood-scale detector hardening the ticket
+exists to surface (see G-1368 precedent).

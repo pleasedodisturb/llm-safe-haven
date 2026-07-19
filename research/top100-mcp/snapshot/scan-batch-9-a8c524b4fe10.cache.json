@@ -1,0 +1,396 @@
+{
+  "envelope": {
+    "schemaVersion": "1",
+    "exitCode": 1,
+    "generatedAt": "2026-07-19T11:58:22.757Z",
+    "offline": false,
+    "sources": [
+      {
+        "agentId": "claude-code",
+        "scope": "user",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-idZQha/home/.claude.json",
+        "format": "json",
+        "status": "not-found"
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "local",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-idZQha/home/.claude.json",
+        "format": "json",
+        "status": "not-found"
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "path": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-idZQha/cwd/.mcp.json",
+        "format": "json",
+        "status": "parsed"
+      },
+      {
+        "agentId": "cursor",
+        "scope": "global",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-idZQha/home/.cursor/mcp.json",
+        "format": "jsonc",
+        "status": "not-found"
+      },
+      {
+        "agentId": "cursor",
+        "scope": "project",
+        "path": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-idZQha/cwd/.cursor/mcp.json",
+        "format": "jsonc",
+        "status": "not-found"
+      }
+    ],
+    "servers": [
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-idZQha/cwd/.mcp.json",
+        "name": "s091___sellable_mcp",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@sellable/mcp"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-idZQha/cwd/.mcp.json",
+        "name": "s092__dynatrace-mcp-server",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@dynatrace-oss/dynatrace-mcp-server@latest"
+        ],
+        "env": {
+          "DT_ENVIRONMENT": "https://abc12345.apps.dynatrace.com"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-idZQha/cwd/.mcp.json",
+        "name": "s093__fetcher",
+        "command": "npx",
+        "args": [
+          "-y",
+          "fetcher-mcp"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-idZQha/cwd/.mcp.json",
+        "name": "s094__node-devtools",
+        "command": "npx",
+        "args": [
+          "-y",
+          "-p",
+          "@ironbee-ai/devtools",
+          "ironbee-node-devtools-mcp"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-idZQha/cwd/.mcp.json",
+        "name": "s095___google-cloud_observability-mcp",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@google-cloud/observability-mcp"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-idZQha/cwd/.mcp.json",
+        "name": "s096__wordpress",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@automattic/mcp-wordpress-remote"
+        ],
+        "env": {
+          "WP_API_URL": "https://your-wordpress-site.com/wp-json/mcp/mcp-adapter-default-server"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-idZQha/cwd/.mcp.json",
+        "name": "s097__browserstack",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@browserstack/mcp-server@latest"
+        ],
+        "env": {
+          "BROWSERSTACK_USERNAME": "<username>",
+          "BROWSERSTACK_ACCESS_KEY": "<access_key>"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-idZQha/cwd/.mcp.json",
+        "name": "s098___browsermcp_mcp",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@browsermcp/mcp"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-idZQha/cwd/.mcp.json",
+        "name": "s099__google-calendar",
+        "command": "npx",
+        "args": [
+          "@cocal/google-calendar-mcp"
+        ],
+        "env": {
+          "GOOGLE_OAUTH_CREDENTIALS": "/path/to/your/gcp-oauth.keys.json"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-idZQha/cwd/.mcp.json",
+        "name": "s100__browserbase",
+        "command": "npx",
+        "args": [
+          "mcp-remote",
+          "https://mcp.browserbase.com/mcp"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      }
+    ],
+    "findings": [
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s099__google-calendar",
+        "message": "Server \"s099__google-calendar\" env var \"GOOGLE_OAUTH_CREDENTIALS\" has a sensitive-sounding name but an inlined literal value (/pat…[redacted]) — use `${env:GOOGLE_OAUTH_CREDENTIALS}` or `${input:GOOGLE_OAUTH_CREDENTIALS}` interpolation instead."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s091___sellable_mcp",
+        "message": "Server \"s091___sellable_mcp\"'s package \"@sellable/mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s093__fetcher",
+        "message": "Server \"s093__fetcher\"'s package \"fetcher-mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s094__node-devtools",
+        "message": "Server \"s094__node-devtools\"'s package \"@ironbee-ai/devtools\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s095___google-cloud_observability-mcp",
+        "message": "Server \"s095___google-cloud_observability-mcp\"'s package \"@google-cloud/observability-mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s098___browsermcp_mcp",
+        "message": "Server \"s098___browsermcp_mcp\"'s package \"@browsermcp/mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s100__browserbase",
+        "message": "Server \"s100__browserbase\"'s package \"mcp-remote\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "typosquat/scope-confusion",
+        "detector": "typosquat",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s097__browserstack",
+        "message": "Server \"s097__browserstack\"'s package \"@browserstack/mcp-server\" reuses the exact name of a known scoped package under the unrecognized scope \"@browserstack\" — possible scope-confusion squat."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s091___sellable_mcp",
+        "message": "Server \"s091___sellable_mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s092__dynatrace-mcp-server",
+        "message": "Server \"s092__dynatrace-mcp-server\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s093__fetcher",
+        "message": "Server \"s093__fetcher\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s094__node-devtools",
+        "message": "Server \"s094__node-devtools\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s095___google-cloud_observability-mcp",
+        "message": "Server \"s095___google-cloud_observability-mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s096__wordpress",
+        "message": "Server \"s096__wordpress\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s097__browserstack",
+        "message": "Server \"s097__browserstack\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s098___browsermcp_mcp",
+        "message": "Server \"s098___browsermcp_mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s099__google-calendar",
+        "message": "Server \"s099__google-calendar\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s100__browserbase",
+        "message": "Server \"s100__browserbase\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      }
+    ],
+    "summary": {
+      "bySeverity": {
+        "high": 2,
+        "low": 6,
+        "medium": 10
+      },
+      "byDetector": {
+        "credential-passthrough": 1,
+        "provenance": 6,
+        "typosquat": 1,
+        "unpinned-execution": 10
+      }
+    }
+  },
+  "status": 1,
+  "stderr": "Command failed: node /Users/pleasedodisturb/Projects/research/llm-safe-haven/bin/llm-safe-haven.js scan --mcp --json --online",
+  "spawnError": null,
+  "parseError": null
+}

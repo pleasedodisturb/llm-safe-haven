@@ -1,0 +1,592 @@
+{
+  "envelope": {
+    "schemaVersion": "1",
+    "exitCode": 1,
+    "generatedAt": "2026-07-19T11:58:21.710Z",
+    "offline": false,
+    "sources": [
+      {
+        "agentId": "claude-code",
+        "scope": "user",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-QUAAPG/home/.claude.json",
+        "format": "json",
+        "status": "not-found"
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "local",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-QUAAPG/home/.claude.json",
+        "format": "json",
+        "status": "not-found"
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "path": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-QUAAPG/cwd/.mcp.json",
+        "format": "json",
+        "status": "parsed"
+      },
+      {
+        "agentId": "cursor",
+        "scope": "global",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-QUAAPG/home/.cursor/mcp.json",
+        "format": "jsonc",
+        "status": "not-found"
+      },
+      {
+        "agentId": "cursor",
+        "scope": "project",
+        "path": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-QUAAPG/cwd/.cursor/mcp.json",
+        "format": "jsonc",
+        "status": "not-found"
+      }
+    ],
+    "servers": [
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-QUAAPG/cwd/.mcp.json",
+        "name": "s081__skyfire",
+        "command": null,
+        "args": [],
+        "env": {},
+        "url": "https://api.skyfire.xyz/mcp/sse",
+        "headers": {
+          "skyfire-api-key": "<YOUR_SKYFIRE_API_KEY>"
+        }
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-QUAAPG/cwd/.mcp.json",
+        "name": "s081__apify",
+        "command": null,
+        "args": [],
+        "env": {},
+        "url": "https://mcp.apify.com?payment=skyfire",
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-QUAAPG/cwd/.mcp.json",
+        "name": "s082__netlify",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@netlify/mcp"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-QUAAPG/cwd/.mcp.json",
+        "name": "s083__serper-search",
+        "command": "npx",
+        "args": [
+          "-y",
+          "serper-search-scrape-mcp-server"
+        ],
+        "env": {
+          "SERPER_API_KEY": "your_api_key_here"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-QUAAPG/cwd/.mcp.json",
+        "name": "s084__brilliant-directories",
+        "command": "npx",
+        "args": [
+          "-y",
+          "--prefer-online",
+          "brilliant-directories-mcp@latest",
+          "--api-key",
+          "ENTER_API_KEY",
+          "--url",
+          "https://www.your-site.com"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-QUAAPG/cwd/.mcp.json",
+        "name": "s085__smartbear",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@smartbear/mcp@latest"
+        ],
+        "env": {
+          "BEARQ_API_TOKEN": "your_bearq_api_token",
+          "BUGSNAG_AUTH_TOKEN": "your_personal_auth_token",
+          "BUGSNAG_PROJECT_API_KEY": "your_project_api_key",
+          "REFLECT_API_TOKEN": "your_reflect_token",
+          "SWAGGER_API_KEY": "your_swagger_key",
+          "SWAGGER_PORTAL_BASE_PATH": "https://api.portal.swaggerhub.com/v1",
+          "SWAGGER_REGISTRY_BASE_PATH": "https://api.swaggerhub.com",
+          "SWAGGER_UI_BASE_PATH": "https://app.swaggerhub.com",
+          "PACT_BROKER_BASE_URL": "your_pactflow_or_pactbroker_base_url",
+          "PACT_BROKER_TOKEN": "your_pactflow_token",
+          "PACT_BROKER_USERNAME": "your_pact_broker_username",
+          "PACT_BROKER_PASSWORD": "your_pact_broker_password",
+          "QMETRY_API_KEY": "your_qmetry_api_key",
+          "QMETRY_BASE_URL": "https://testmanagement.qmetry.com",
+          "ZEPHYR_API_TOKEN": "your_zephyr_api_token",
+          "ZEPHYR_BASE_URL": "https://api.zephyrscale.smartbear.com/v2",
+          "COLLABORATOR_BASE_URL": "your collab base url",
+          "COLLABORATOR_USERNAME": "your collab user name",
+          "COLLABORATOR_LOGIN_TICKET": "your collab login ticket",
+          "QTM4J_API_KEY": "your_qtm4j_key",
+          "QTM4J_BASE_URL": "https://qtmcloud.qmetry.com",
+          "QTM4J_AUTOMATION_API_KEY": "your_qtm4j_automation_api_key",
+          "SWAGGER_FUNCTIONAL_TESTING_API_TOKEN": "your_swagger_functional_testing_api_token",
+          "SWAGGER_FUNCTIONAL_TESTING_BASE_PATH": "https://api.reflect.run/v1"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-QUAAPG/cwd/.mcp.json",
+        "name": "s086__hubspot",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@hubspot/mcp-server"
+        ],
+        "env": {
+          "PRIVATE_APP_ACCESS_TOKEN": "<your-private-app-access-token>"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-QUAAPG/cwd/.mcp.json",
+        "name": "s087___shortcut_mcp",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@shortcut/mcp"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-QUAAPG/cwd/.mcp.json",
+        "name": "s088__stripe",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@stripe/mcp",
+          "--api-key=STRIPE_SECRET_KEY"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-QUAAPG/cwd/.mcp.json",
+        "name": "s089___cyanheads_mcp-ts-core",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@cyanheads/mcp-ts-core"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-QUAAPG/cwd/.mcp.json",
+        "name": "s090__openapi-mcp-generator",
+        "command": "npx",
+        "args": [
+          "-y",
+          "openapi-mcp-generator"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      }
+    ],
+    "findings": [
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s083__serper-search",
+        "message": "Server \"s083__serper-search\" env var \"SERPER_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:SERPER_API_KEY}` or `${input:SERPER_API_KEY}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s085__smartbear",
+        "message": "Server \"s085__smartbear\" env var \"BEARQ_API_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:BEARQ_API_TOKEN}` or `${input:BEARQ_API_TOKEN}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s085__smartbear",
+        "message": "Server \"s085__smartbear\" env var \"BUGSNAG_AUTH_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:BUGSNAG_AUTH_TOKEN}` or `${input:BUGSNAG_AUTH_TOKEN}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s085__smartbear",
+        "message": "Server \"s085__smartbear\" env var \"BUGSNAG_PROJECT_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:BUGSNAG_PROJECT_API_KEY}` or `${input:BUGSNAG_PROJECT_API_KEY}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s085__smartbear",
+        "message": "Server \"s085__smartbear\" env var \"REFLECT_API_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:REFLECT_API_TOKEN}` or `${input:REFLECT_API_TOKEN}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s085__smartbear",
+        "message": "Server \"s085__smartbear\" env var \"SWAGGER_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:SWAGGER_API_KEY}` or `${input:SWAGGER_API_KEY}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s085__smartbear",
+        "message": "Server \"s085__smartbear\" env var \"PACT_BROKER_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:PACT_BROKER_TOKEN}` or `${input:PACT_BROKER_TOKEN}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s085__smartbear",
+        "message": "Server \"s085__smartbear\" env var \"PACT_BROKER_PASSWORD\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:PACT_BROKER_PASSWORD}` or `${input:PACT_BROKER_PASSWORD}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s085__smartbear",
+        "message": "Server \"s085__smartbear\" env var \"QMETRY_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:QMETRY_API_KEY}` or `${input:QMETRY_API_KEY}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s085__smartbear",
+        "message": "Server \"s085__smartbear\" env var \"ZEPHYR_API_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:ZEPHYR_API_TOKEN}` or `${input:ZEPHYR_API_TOKEN}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s085__smartbear",
+        "message": "Server \"s085__smartbear\" env var \"QTM4J_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:QTM4J_API_KEY}` or `${input:QTM4J_API_KEY}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s085__smartbear",
+        "message": "Server \"s085__smartbear\" env var \"QTM4J_AUTOMATION_API_KEY\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:QTM4J_AUTOMATION_API_KEY}` or `${input:QTM4J_AUTOMATION_API_KEY}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s085__smartbear",
+        "message": "Server \"s085__smartbear\" env var \"SWAGGER_FUNCTIONAL_TESTING_API_TOKEN\" has a sensitive-sounding name but an inlined literal value (your…[redacted]) — use `${env:SWAGGER_FUNCTIONAL_TESTING_API_TOKEN}` or `${input:SWAGGER_FUNCTIONAL_TESTING_API_TOKEN}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s086__hubspot",
+        "message": "Server \"s086__hubspot\" env var \"PRIVATE_APP_ACCESS_TOKEN\" has a sensitive-sounding name but an inlined literal value (<you…[redacted]) — use `${env:PRIVATE_APP_ACCESS_TOKEN}` or `${input:PRIVATE_APP_ACCESS_TOKEN}` interpolation instead."
+      },
+      {
+        "id": "insecure-endpoint/unauthenticated-transport",
+        "detector": "insecure-endpoint",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s081__skyfire",
+        "message": "Server \"s081__skyfire\" has no recognized authentication header configured (https://api.skyfire.xyz/mcp/sse) — the endpoint accepts unauthenticated requests."
+      },
+      {
+        "id": "insecure-endpoint/unauthenticated-transport",
+        "detector": "insecure-endpoint",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s081__apify",
+        "message": "Server \"s081__apify\" has no recognized authentication header configured (https://mcp.apify.com/) — the endpoint accepts unauthenticated requests."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s082__netlify",
+        "message": "Server \"s082__netlify\"'s package \"@netlify/mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s083__serper-search",
+        "message": "Server \"s083__serper-search\"'s package \"serper-search-scrape-mcp-server\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s085__smartbear",
+        "message": "Server \"s085__smartbear\"'s package \"@smartbear/mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s086__hubspot",
+        "message": "Server \"s086__hubspot\"'s package \"@hubspot/mcp-server\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s089___cyanheads_mcp-ts-core",
+        "message": "Server \"s089___cyanheads_mcp-ts-core\"'s package \"@cyanheads/mcp-ts-core\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s090__openapi-mcp-generator",
+        "message": "Server \"s090__openapi-mcp-generator\"'s package \"openapi-mcp-generator\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "typosquat/scope-confusion",
+        "detector": "typosquat",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s086__hubspot",
+        "message": "Server \"s086__hubspot\"'s package \"@hubspot/mcp-server\" reuses the exact name of a known scoped package under the unrecognized scope \"@hubspot\" — possible scope-confusion squat."
+      },
+      {
+        "id": "unpinned-execution/url-no-version-binding",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s081__skyfire",
+        "message": "Server \"s081__skyfire\" points at a remote URL with no version/integrity binding (https://api.skyfire.xyz/mcp/sse) — the endpoint can change contents without notice."
+      },
+      {
+        "id": "unpinned-execution/url-no-version-binding",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s081__apify",
+        "message": "Server \"s081__apify\" points at a remote URL with no version/integrity binding (https://mcp.apify.com/) — the endpoint can change contents without notice."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s082__netlify",
+        "message": "Server \"s082__netlify\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s083__serper-search",
+        "message": "Server \"s083__serper-search\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s084__brilliant-directories",
+        "message": "Server \"s084__brilliant-directories\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s085__smartbear",
+        "message": "Server \"s085__smartbear\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s086__hubspot",
+        "message": "Server \"s086__hubspot\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s087___shortcut_mcp",
+        "message": "Server \"s087___shortcut_mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s088__stripe",
+        "message": "Server \"s088__stripe\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s089___cyanheads_mcp-ts-core",
+        "message": "Server \"s089___cyanheads_mcp-ts-core\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s090__openapi-mcp-generator",
+        "message": "Server \"s090__openapi-mcp-generator\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      }
+    ],
+    "summary": {
+      "bySeverity": {
+        "high": 15,
+        "medium": 13,
+        "low": 6
+      },
+      "byDetector": {
+        "credential-passthrough": 14,
+        "insecure-endpoint": 2,
+        "provenance": 6,
+        "typosquat": 1,
+        "unpinned-execution": 11
+      }
+    }
+  },
+  "status": 1,
+  "stderr": "Command failed: node /Users/pleasedodisturb/Projects/research/llm-safe-haven/bin/llm-safe-haven.js scan --mcp --json --online",
+  "spawnError": null,
+  "parseError": null
+}

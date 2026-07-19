@@ -1,0 +1,342 @@
+{
+  "envelope": {
+    "schemaVersion": "1",
+    "exitCode": 1,
+    "generatedAt": "2026-07-19T11:58:20.862Z",
+    "offline": false,
+    "sources": [
+      {
+        "agentId": "claude-code",
+        "scope": "user",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-PZ8Qm1/home/.claude.json",
+        "format": "json",
+        "status": "not-found"
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "local",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-PZ8Qm1/home/.claude.json",
+        "format": "json",
+        "status": "not-found"
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "path": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-PZ8Qm1/cwd/.mcp.json",
+        "format": "json",
+        "status": "parsed"
+      },
+      {
+        "agentId": "cursor",
+        "scope": "global",
+        "path": "/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-PZ8Qm1/home/.cursor/mcp.json",
+        "format": "jsonc",
+        "status": "not-found"
+      },
+      {
+        "agentId": "cursor",
+        "scope": "project",
+        "path": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-PZ8Qm1/cwd/.cursor/mcp.json",
+        "format": "jsonc",
+        "status": "not-found"
+      }
+    ],
+    "servers": [
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-PZ8Qm1/cwd/.mcp.json",
+        "name": "s071__mobile-mcp",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@mobilenext/mobile-mcp@latest"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-PZ8Qm1/cwd/.mcp.json",
+        "name": "s072__aikido",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@aikidosec/mcp"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-PZ8Qm1/cwd/.mcp.json",
+        "name": "s073__mcp-server-datadog",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@winor30/mcp-server-datadog"
+        ],
+        "env": {
+          "DATADOG_API_KEY": "<YOUR_API_KEY>",
+          "DATADOG_APP_KEY": "<YOUR_APP_KEY>",
+          "DATADOG_SITE": "<YOUR_SITE>",
+          "DATADOG_SUBDOMAIN": "<YOUR_SUBDOMAIN>",
+          "DATADOG_STORAGE_TIER": "indexes"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-PZ8Qm1/cwd/.mcp.json",
+        "name": "s074__anytype",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@anyproto/anytype-mcp"
+        ],
+        "env": {
+          "OPENAPI_MCP_HEADERS": "{\"Authorization\":\"Bearer <YOUR_API_KEY>\", \"Anytype-Version\":\"2025-11-08\"}"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-PZ8Qm1/cwd/.mcp.json",
+        "name": "s075___microsoft_workiq",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@microsoft/workiq"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-PZ8Qm1/cwd/.mcp.json",
+        "name": "s076__brave-search",
+        "command": "docker",
+        "args": [
+          "run",
+          "-i",
+          "--rm",
+          "-e",
+          "BRAVE_API_KEY",
+          "docker.io/mcp/brave-search"
+        ],
+        "env": {
+          "BRAVE_API_KEY": "YOUR_API_KEY_HERE"
+        },
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-PZ8Qm1/cwd/.mcp.json",
+        "name": "s077___sveltejs_mcp",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@sveltejs/mcp"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-PZ8Qm1/cwd/.mcp.json",
+        "name": "s078__kubernetes",
+        "command": "npx",
+        "args": [
+          "mcp-server-kubernetes"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-PZ8Qm1/cwd/.mcp.json",
+        "name": "s079__xmcp",
+        "command": "npx",
+        "args": [
+          "-y",
+          "xmcp"
+        ],
+        "env": {},
+        "url": null,
+        "headers": {}
+      },
+      {
+        "agentId": "claude-code",
+        "scope": "project",
+        "configPath": "/private/var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/g1372-batch-PZ8Qm1/cwd/.mcp.json",
+        "name": "s080__excel",
+        "command": "cmd",
+        "args": [
+          "/c",
+          "npx",
+          "--yes",
+          "@negokaz/excel-mcp-server"
+        ],
+        "env": {
+          "EXCEL_MCP_PAGING_CELLS_LIMIT": "4000"
+        },
+        "url": null,
+        "headers": {}
+      }
+    ],
+    "findings": [
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s073__mcp-server-datadog",
+        "message": "Server \"s073__mcp-server-datadog\" env var \"DATADOG_API_KEY\" has a sensitive-sounding name but an inlined literal value (<YOU…[redacted]) — use `${env:DATADOG_API_KEY}` or `${input:DATADOG_API_KEY}` interpolation instead."
+      },
+      {
+        "id": "credential-passthrough/sensitive-name-literal",
+        "detector": "credential-passthrough",
+        "severity": "high",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s076__brave-search",
+        "message": "Server \"s076__brave-search\" env var \"BRAVE_API_KEY\" has a sensitive-sounding name but an inlined literal value (YOUR…[redacted]) — use `${env:BRAVE_API_KEY}` or `${input:BRAVE_API_KEY}` interpolation instead."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s072__aikido",
+        "message": "Server \"s072__aikido\"'s package \"@aikidosec/mcp\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "provenance/no-attestation",
+        "detector": "provenance",
+        "severity": "low",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s075___microsoft_workiq",
+        "message": "Server \"s075___microsoft_workiq\"'s package \"@microsoft/workiq\" lacks a provenance attestation (checked against the floating ref \"latest\" — the result applies to what it pointed at during the scan, not necessarily what npx actually resolved)."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s071__mobile-mcp",
+        "message": "Server \"s071__mobile-mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s072__aikido",
+        "message": "Server \"s072__aikido\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s073__mcp-server-datadog",
+        "message": "Server \"s073__mcp-server-datadog\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s074__anytype",
+        "message": "Server \"s074__anytype\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s075___microsoft_workiq",
+        "message": "Server \"s075___microsoft_workiq\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s077___sveltejs_mcp",
+        "message": "Server \"s077___sveltejs_mcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s078__kubernetes",
+        "message": "Server \"s078__kubernetes\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      },
+      {
+        "id": "unpinned-execution/npx-no-version",
+        "detector": "unpinned-execution",
+        "severity": "medium",
+        "confidence": "verified",
+        "agentId": "claude-code",
+        "scope": "project",
+        "serverName": "s079__xmcp",
+        "message": "Server \"s079__xmcp\" runs npx without a pinned package version — an unpinned spec can silently pull a compromised update."
+      }
+    ],
+    "summary": {
+      "bySeverity": {
+        "high": 2,
+        "low": 2,
+        "medium": 8
+      },
+      "byDetector": {
+        "credential-passthrough": 2,
+        "provenance": 2,
+        "unpinned-execution": 8
+      }
+    }
+  },
+  "status": 1,
+  "stderr": "Command failed: node /Users/pleasedodisturb/Projects/research/llm-safe-haven/bin/llm-safe-haven.js scan --mcp --json --online",
+  "spawnError": null,
+  "parseError": null
+}
