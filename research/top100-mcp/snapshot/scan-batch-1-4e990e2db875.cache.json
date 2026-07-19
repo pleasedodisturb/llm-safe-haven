@@ -350,7 +350,7 @@
     }
   },
   "status": 1,
-  "stderr": "Command failed: node /Users/pleasedodisturb/Projects/research/llm-safe-haven/bin/llm-safe-haven.js scan --mcp --json --online",
+  "stderr": "Command failed: node <repoRoot>/bin/llm-safe-haven.js scan --mcp --json --online",
   "spawnError": null,
   "parseError": null
 }

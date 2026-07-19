@@ -216,8 +216,19 @@ async function main() {
   let synthesizedCount = 0;
   let needsReviewCount = 0;
 
+  // The two documented Task-1 hand-corrections (METHODOLOGY §2,
+  // FINDINGS-FOR-TICKETS anomaly #3). A plain re-run must NOT clobber a
+  // human-reviewed snippet with the auto-picker's known-wrong choice — for
+  // these keys an existing snippets.json entry always wins over re-extraction.
+  const HAND_CORRECTED = new Set(['pi-mcp-adapter', '@winor30/mcp-server-datadog']);
+
   for (const entry of selection) {
     const key = entry.name;
+    if (HAND_CORRECTED.has(key) && snippets[key]) {
+      if (snippets[key].synthesized) synthesizedCount++;
+      if (snippets[key].needsReview) needsReviewCount++;
+      continue;
+    }
     // eslint-disable-next-line no-await-in-loop -- sequential/polite by design
     const { readme, version, via } = await resolveReadme(entry, offlineOnly);
 

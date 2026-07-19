@@ -97,8 +97,9 @@ below) — that class of error requires human judgment, which is exactly what th
 - **`@winor30/mcp-server-datadog`** — README leads with an unrelated leftover
   `@modelcontextprotocol/server-github` block (likely a forgotten template artifact from a
   scaffolding tool) *before* its own real Datadog snippet appears later in the same
-  document. Corrected to the package's own verbatim block (transcribed from later in the
-  same README, JSONC comments preserved as originally written).
+  document. Corrected to the package's own block from later in the same README — stored as
+  a content-equivalent transcription (same command/args/env keys and values; args reflowed,
+  JSONC comments dropped), not byte-verbatim. See METHODOLOGY §2 for the full fidelity note.
 
 **Ticket-worthy?** No — both are README-content quirks in third-party packages, not
 scanner or pipeline defects. Recorded here as the anomaly-capture requirement calls for,

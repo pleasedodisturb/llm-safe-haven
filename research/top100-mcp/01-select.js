@@ -215,7 +215,10 @@ async function buildRanking(referenceServers, npmSearchServers, limit, offlineOn
     const ad = a.monthlyDownloads == null ? -1 : a.monthlyDownloads;
     const bd = b.monthlyDownloads == null ? -1 : b.monthlyDownloads;
     if (bd !== ad) return bd - ad;
-    return a.name.localeCompare(b.name);
+    // Codepoint compare, NOT localeCompare — localeCompare is ICU/locale
+    // dependent, which would make the "deterministic tiebreak" (and --verify
+    // byte-stability) vary across machines.
+    return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
   });
 
   const final = [];

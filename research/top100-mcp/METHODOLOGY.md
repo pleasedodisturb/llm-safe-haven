@@ -86,7 +86,8 @@ negative results (404s, exhausted retries) so a second run never re-fetches anyt
 including permanent misses. `node 01-select.js --verify` re-derives the identical ranked
 list reading `snapshot/` **only** (every fetch call is `offlineOnly:true`, and any URL not
 already cached resolves to a deterministic "missing" result rather than a network call) and
-asserts byte-for-byte JSON equality against the committed `selection.json`. Verified locally
+asserts re-serialized JSON equality (order- and value-stable; whitespace-insensitive)
+against the committed `selection.json`. Verified locally
 after every run in this ticket (`VERIFY OK: 100 servers, byte-stable order reproduced from
 snapshot/ offline`).
 
@@ -145,9 +146,14 @@ in `FINDINGS-FOR-TICKETS.md`):
   synthesized minimal form.
 - `@winor30/mcp-server-datadog` — its README leads with an unrelated leftover
   `@modelcontextprotocol/server-github` boilerplate block (a copy-paste artifact) before
-  its own real Datadog snippet later in the document. Corrected to the package's own
-  verbatim block (transcribed from the same README, JSONC comments preserved as originally
-  written).
+  its own real Datadog snippet later in the document. Corrected to the package's own block
+  from later in the same README — stored as a content-equivalent transcription (same
+  command/args/env keys and values), NOT byte-verbatim: the args were reflowed to
+  one-per-line and the original `// Optional` JSONC comments dropped during transcription.
+  This is the single `synthesized:false` entry (1 of 68) whose stored snippet does not
+  byte-match its cached README source; the other 67 are byte-verbatim against `snapshot/`.
+  Both hand-corrections are pinned in `02-fetch-readmes.js`'s `HAND_CORRECTED` set, so a
+  re-run preserves them instead of reverting to the auto-picker's known-wrong choice.
 
 ## 3. Scanning (Task 2 — `03-scan-runner.js`)
 
@@ -163,7 +169,7 @@ discovery — which reads `<HOME>/.claude.json` — can never see the executor's
 Discovery for the `claude-code` agent additionally gates on `commandExists('claude')`,
 which shells out to `which claude` — PATH-based and independent of `HOME`, so the isolated
 child still discovers the fixture correctly as long as the `claude` CLI is on `PATH`
-(verified locally: `/Users/pleasedodisturb/.local/bin/claude`). Spawned via
+(verified locally: `~/.local/bin/claude`). Spawned via
 `execFileSync('node', [<repoRoot>/bin/llm-safe-haven.js, 'scan', '--mcp', '--json',
 '--online'], { cwd, env, maxBuffer })`. After parsing stdout, only `envelope.servers` /
 `envelope.findings` whose name/`serverName` is in that batch's injected set are kept
@@ -180,10 +186,20 @@ resumable (a batch whose result is already cached is skipped on re-run).
 
 ## 4. Cross-set tool-shadowing analysis (Task 2 — `04-aggregate.js`)
 
-Best-effort, from README tool tables where tool names are statically visible in the
-snippet/README text — no code execution, no live `tools/list` introspection (this scanner
-never does that, see fidelity limits below). Servers where tool names are not statically
-recoverable are skipped and counted as skipped, not silently omitted.
+**Outcome: not performed — 100/100 servers skipped, and the skip is counted, not silently
+omitted.** Tool names turned out not to be statically recoverable from the
+recommended-install-snippet collection this pipeline performs (README tool-reference
+tables would need their own dedicated per-server table parser — a different and much
+larger extraction task). `04-aggregate.js` therefore attempts no tool-table extraction
+and records every server as skipped in `stats.json`'s `toolCollisionAnalysis`, per the
+ticket's "best-effort; skip and say so" instruction. No code execution, no live
+`tools/list` introspection (this scanner never does that, see fidelity limits below).
+
+Relatedly: the scanner's own within-batch `tool-shadowing` detector (server-NAME collision
+proxy) reports 0/100, but that zero is **structural, not observational** — the fixture
+builder rewrites every server key to a unique `sNNN__<name>` id precisely so unrelated
+servers can't collide by both picking a generic display name, which also makes a real
+within-batch collision impossible by construction. `DRAFT.md` presents it accordingly.
 
 ## 5. Disclosure policy (locked, ticket §Methodology step 5)
 

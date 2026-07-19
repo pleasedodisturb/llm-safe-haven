@@ -195,21 +195,27 @@ function runBatch(batch, offlineOnly) {
     }
   }
 
-  const result = { envelope, status, stderr, spawnError, parseError };
+  // Redact the local checkout path from anything persisted to snapshot/ —
+  // committed cache files must not leak the machine's home-directory layout.
+  const redact = v => (typeof v === 'string' ? v.split(REPO_ROOT).join('<repoRoot>') : v);
+  const result = { envelope, status, stderr: redact(stderr), spawnError: redact(spawnError), parseError };
   fs.mkdirSync(SNAPSHOT_DIR, { recursive: true });
   fs.writeFileSync(cachePath, JSON.stringify(result, null, 2));
   return result;
 }
 
-function deriveProvenance(findings, hadNpxOrUvxCommand) {
+function deriveProvenance(findings, hadCheckableNpxCommand) {
   const relevant = findings.filter(f => f.detector === 'provenance');
   if (relevant.some(f => f.id.endsWith('/no-attestation'))) return 'lacks-attestation';
   if (relevant.some(f => f.id.endsWith('/fetch-failed'))) return 'unverified-fetch-failed';
   if (relevant.some(f => f.id.endsWith('/unverified-offline'))) return 'unverified-offline';
-  if (!hadNpxOrUvxCommand) return 'not-applicable';
-  // provenance.js: "attestations present -> no finding (clean)" — the
-  // absence of any provenance finding for an npx/uvx-resolvable server
-  // that WAS checked (--online) means it has one.
+  if (!hadCheckableNpxCommand) return 'not-applicable';
+  // provenance.js: "attestations present -> no finding (clean)" — but the
+  // detector only ever checks npx servers whose registry package name is
+  // derivable from the args (uvx and git-URL/unsafe specs are explicitly
+  // skipped and produce no finding either way). "No finding" therefore
+  // implies has-attestation ONLY for an npx command with a known registry
+  // package; everything else must resolve to not-applicable above.
   return 'has-attestation';
 }
 
@@ -267,7 +273,10 @@ async function main() {
         entry,
         findings,
         servers,
-        scanIncomplete: envelope.exitCode === 2,
+        // A server whose snippet produced zero fixture entries was never
+        // scanned at all — it must surface as scan-incomplete, not be
+        // indistinguishable from "scanned clean with zero findings".
+        scanIncomplete: envelope.exitCode === 2 || injectedNames.size === 0,
       });
     }
   }
@@ -278,7 +287,7 @@ async function main() {
   for (const entry of selection) {
     const snip = snippets[entry.name] || {};
     const rec = serversByRank.get(entry.rank) || { findings: [], servers: [], scanIncomplete: true };
-    const hadNpxOrUvx = rec.servers.some(s => s.command === 'npx' || s.command === 'uvx');
+    const hadCheckableNpx = rec.servers.some(s => s.command === 'npx') && !!entry.npmPackage;
     datasetServers.push({
       rank: entry.rank,
       name: entry.name,
@@ -299,7 +308,7 @@ async function main() {
         confidence: f.confidence,
         message: f.message,
       })),
-      provenance: rec.scanIncomplete ? 'scan-incomplete' : deriveProvenance(rec.findings, hadNpxOrUvx),
+      provenance: rec.scanIncomplete ? 'scan-incomplete' : deriveProvenance(rec.findings, hadCheckableNpx),
     });
   }
 

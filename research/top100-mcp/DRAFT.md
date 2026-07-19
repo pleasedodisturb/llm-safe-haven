@@ -41,10 +41,11 @@ against each server's own recommended install snippet:
   named like `API_KEY`/`TOKEN`/`SECRET` set to a literal string, usually a placeholder like
   `YOUR_API_KEY`) instead of an interpolated reference — a habit that trains users to paste
   real secrets straight into a JSON file that regularly gets committed to a repo.
-- A handful of servers ship a remote endpoint with **no recognized authentication header**
-  at all, or a filesystem/shell-capable local server with **no bounded path argument** —
-  both are the exact shape of the June "Insecure Default" wave's failure mode, just caught
-  before install instead of after a CVE.
+- Two servers' recommended snippets show the June "Insecure Default" wave's failure shape
+  directly: one remote-transport config with **no recognized authentication header** on
+  its endpoints, and one filesystem/shell-capable local server with **no bounded path
+  argument** — the exact pattern behind that wave's CVEs, just caught before install
+  instead of after.
 - **32 of the 100 had no literal `mcpServers` block in their README at all** — no
   copy-pasteable snippet, just a bare package name. Their line in this dataset is a
   synthesized minimal form (`npx -y <package>`), flagged `synthesized:true` throughout, and
@@ -67,10 +68,13 @@ for those). Remember what this number does and doesn't mean: `has-attestation` m
 package was published through npm's own provenance pipeline. It is *not* a claim that the
 code inside was audited or is safe — see the fidelity-limits section below.
 
-**`insecure-endpoint` — 1/100.** Low count, but worth flagging precisely because it's rare:
-when a server does ship a remote transport by default, it's disproportionately likely to
-skip authentication rather than merely use plain HTTP, mirroring the exact failure mode
-behind `mcp-pinot`/`dbt-mcp` above.
+**`insecure-endpoint` — 1/100.** Both hits come from a single server's recommended
+multi-server example: two HTTPS endpoints (the server's own remote transport, plus a
+third-party service endpoint shown in the same example block) with no recognized
+authentication header configured. Notably, neither hit is plain-HTTP — in this dataset
+the remote-transport failure mode is skipped authentication, not skipped TLS, mirroring
+the exact failure mode behind `mcp-pinot`/`dbt-mcp` above. Remote-transport snippets are
+rare in the top 100, so read this as a shape, not a rate.
 
 **`credential-passthrough` — 22/100.** All 22 are the `sensitive-name-literal` rule
 (inlined literal value for a sensitive-sounding env var name) — none triggered the
@@ -86,8 +90,11 @@ path argument in its default snippet. This detector is deliberately narrow by de
 small allowlist, false negatives accepted) — a low count here is expected, not reassuring.
 
 **`tool-poisoning` / `tool-shadowing` — 0/100.** No injection-phrase or invisible-Unicode
-hits in any config-adjacent string across 100 servers, and no server-name collision within
-this dataset's own fixture batches. Read this alongside the fidelity limits below — this
+hits in any config-adjacent string across 100 servers. The tool-shadowing zero deserves an
+asterisk: the scan fixtures rewrite every server to a unique generated name (so two
+unrelated servers can't collide merely by both calling themselves `filesystem`), which
+also makes a within-batch name collision structurally impossible — that zero is by
+construction, not a measurement. Read both alongside the fidelity limits below — this
 detector is a static heuristic over config text, not a live `tools/list` inspection, so a
 clean result here says nothing about a server's actual runtime tool descriptions.
 
