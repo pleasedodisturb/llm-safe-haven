@@ -377,6 +377,19 @@ describe('typosquat detector (MCPD-03)', () => {
             `expected no scope-confusion finding for legitimate vendor package ${pkg}, got: ${JSON.stringify(findings)}`);
         });
       }
+
+      // WR-02 (G-1376): the genericness bar silences BOTH WR-04 attack
+      // variants for generic halves — the foreign-scope variant (locked
+      // above) AND the bare unscoped one. Pre-fix, bare "mcp-server"
+      // fired the "published WITHOUT its scope" wording via
+      // @sentry/mcp-server's seeded half; post-fix it is deliberately
+      // silent. This test documents that half of the behavior change.
+      it('generic full-spec half published BARE (npx -y mcp-server@1.0.0) produces zero scope-confusion findings', () => {
+        const servers = [makeServer({ command: 'npx', args: ['-y', 'mcp-server@1.0.0'] })];
+        const findings = run(servers, {});
+        assert.ok(!findings.some(f => f.id === 'typosquat/scope-confusion'),
+          `expected no scope-confusion finding for the bare generic half, got: ${JSON.stringify(findings)}`);
+      });
     });
 
     describe('true-positive retention (D-07)', () => {
@@ -439,6 +452,44 @@ describe('typosquat detector (MCPD-03)', () => {
         const findings = run(servers, { manifestPath });
         assert.ok(findings.some(f => f.id === 'typosquat/scope-confusion'),
           `expected scope-confusion for the distinctive half, got: ${JSON.stringify(findings)}`);
+      });
+    });
+
+    describe('WR-01: fully-generic scopedOnly[] entry fails closed (isolated synthetic allowlist)', () => {
+      let tmpDir;
+      let manifestPath;
+
+      beforeEach(() => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-typosquat-wr01-'));
+        manifestPath = path.join(tmpDir, 'generic-scopedonly.json');
+        // scopedOnly names are EXEMPT from the genericness bar at the
+        // check site (D-04 — hand-curated manifest data), so a generic
+        // scopedOnly entry would silently reintroduce the G-1376 FP
+        // class. indexAllowlist must treat it as a malformed manifest
+        // (same class as scopedOnly/servers drift) and fail closed.
+        fs.writeFileSync(manifestPath, JSON.stringify({
+          manifestVersion: 1,
+          updated: '2026-07-20',
+          knownScopes: ['@acme'],
+          scopedOnly: ['mcp-server'], // fully generic — malformed manifest
+          servers: ['mcp-server', 'server-real'], // lockstep bare entry present
+        }));
+      });
+
+      afterEach(() => {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      });
+
+      it('yields exactly ONE typosquat/allowlist-unavailable finding, never scope-confusion', () => {
+        const servers = [
+          makeServer({ command: 'npx', args: ['@evil/mcp-server'] }),
+          makeServer({ command: 'npx', args: ['mcp-server'] }),
+        ];
+        const findings = run(servers, { manifestPath });
+        assert.strictEqual(findings.length, 1);
+        assert.strictEqual(findings[0].id, 'typosquat/allowlist-unavailable');
+        assert.strictEqual(findings[0].severity, 'info');
+        assert.strictEqual(findings[0].confidence, 'unverified');
       });
     });
   });
