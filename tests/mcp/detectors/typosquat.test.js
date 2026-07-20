@@ -359,4 +359,87 @@ describe('typosquat detector (MCPD-03)', () => {
       });
     });
   });
+
+  describe('G-1376: scope-confusion genericness bar', () => {
+    describe('real bundled allowlist — the 5 known FP vendor packages (D-06)', () => {
+      const vendorPackages = [
+        '@ui5/mcp-server',
+        '@cap-js/mcp-server',
+        '@launchdarkly/mcp-server',
+        '@hubspot/mcp-server',
+        '@browserstack/mcp-server',
+      ];
+      for (const pkg of vendorPackages) {
+        it(`produces zero scope-confusion findings for ${pkg}@1.0.0`, () => {
+          const servers = [makeServer({ command: 'npx', args: ['-y', `${pkg}@1.0.0`] })];
+          const findings = run(servers, {});
+          assert.ok(!findings.some(f => f.id === 'typosquat/scope-confusion'),
+            `expected no scope-confusion finding for legitimate vendor package ${pkg}, got: ${JSON.stringify(findings)}`);
+        });
+      }
+    });
+
+    describe('true-positive retention (D-07)', () => {
+      it('foreign-scope distinctive half (@evil/context7-mcp) still fires scope-confusion', () => {
+        const findings = run(loadFixture('scope-confusion'), {});
+        const f = findings.find(x => x.serverName === 'npx-foreign-scope-fullspec-half');
+        assert.ok(f, 'expected a finding for the full-spec distinctive name-half squat');
+        assert.strictEqual(f.id, 'typosquat/scope-confusion');
+      });
+
+      it('bare unscoped scopedOnly half (server-filesystem) still fires scope-confusion', () => {
+        const servers = [makeServer({ command: 'npx', args: ['server-filesystem'] })];
+        const findings = run(servers, {});
+        assert.ok(findings.some(f => f.id === 'typosquat/scope-confusion'),
+          'expected the bare scopedOnly half to still fire scope-confusion');
+      });
+
+      it('existing scope-confusion fixture still produces exactly 3 findings', () => {
+        const findings = run(loadFixture('scope-confusion'), {});
+        assert.strictEqual(findings.length, 3);
+        assert.ok(findings.every(f => f.id === 'typosquat/scope-confusion'));
+      });
+    });
+
+    describe('pool-seeding (D-08, isolated synthetic allowlist)', () => {
+      let tmpDir;
+      let manifestPath;
+
+      beforeEach(() => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-typosquat-g1376-'));
+        manifestPath = path.join(tmpDir, 'mini-manifest.json');
+        fs.writeFileSync(manifestPath, JSON.stringify({
+          manifestVersion: 1,
+          updated: '2026-07-20',
+          knownScopes: ['@acme'],
+          servers: ['@acme/mcp-server', '@acme/distinctive-mcp'],
+        }));
+      });
+
+      afterEach(() => {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      });
+
+      it('generic full-spec half (mcp-server) is excluded from scope-confusion under a foreign scope', () => {
+        const servers = [makeServer({ command: 'npx', args: ['@evil/mcp-server'] })];
+        const findings = run(servers, { manifestPath });
+        assert.ok(!findings.some(f => f.id === 'typosquat/scope-confusion'),
+          `expected no scope-confusion for the generic half, got: ${JSON.stringify(findings)}`);
+      });
+
+      it('generic full-spec half (mcp-server) STILL near-matches its typo (mcp-servr) — proves nameCandidates/class-1 untouched (D-03)', () => {
+        const servers = [makeServer({ command: 'npx', args: ['mcp-servr'] })];
+        const findings = run(servers, { manifestPath });
+        assert.ok(findings.some(f => f.id === 'typosquat/near-known-name'),
+          `expected near-known-name for the generic half's typo, got: ${JSON.stringify(findings)}`);
+      });
+
+      it('distinctive full-spec half (distinctive-mcp) is STILL included in scope-confusion under a foreign scope', () => {
+        const servers = [makeServer({ command: 'npx', args: ['@evil/distinctive-mcp'] })];
+        const findings = run(servers, { manifestPath });
+        assert.ok(findings.some(f => f.id === 'typosquat/scope-confusion'),
+          `expected scope-confusion for the distinctive half, got: ${JSON.stringify(findings)}`);
+      });
+    });
+  });
 });
