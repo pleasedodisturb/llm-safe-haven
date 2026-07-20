@@ -453,6 +453,18 @@ COMPROMISED_PKGS=(
   "@immobiliarelabs/backstage-plugin-gitlab-backend"
   "@immobiliarelabs/backstage-plugin-ldap-auth"
   "@immobiliarelabs/backstage-plugin-ldap-auth-backend"
+  # Wave J / Miasma "M-RED-TEAM" — AsyncAPI (July 14, 2026); PAT theft via a
+  # "pull_request_target" pwn request + npm trusted-publishing abuse (valid
+  # SLSA provenance, passes `npm audit signatures`). First IMPORT-TIME
+  # execution payload on npm — fires on `require`/`import`, not install, so
+  # presence in a lockfile alone is lower-signal than for install-time worms;
+  # treat any process that actually loaded the module as compromised.
+  # See scripts/scan-miasma-june2026.sh for the fuller Wave J IOC set
+  # (miasma-monitor persistence, C2 85.137.53.71, marker strings).
+  "@asyncapi/specs"
+  "@asyncapi/generator"
+  "@asyncapi/generator-components"
+  "@asyncapi/generator-helpers"
 )
 
 if command -v npm >/dev/null 2>&1; then
