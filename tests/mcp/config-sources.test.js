@@ -382,3 +382,71 @@ describe('discoverAll', () => {
     assert.ok(result.some(s => s.agentId === 'windsurf'));
   });
 });
+
+describe('end-to-end discovery + parse smoke (5 new agents, D-10 additive-only)', () => {
+  // Hermetic integration test: drives lib/scan-mcp.js's buildEnvelope()
+  // with a fabricated discoverAll() that points the 5 new agents' sources
+  // directly at their Wave-1 fixture files (opts-injection — never touches
+  // the real filesystem/homedir), and the REAL parser modules from
+  // lib/mcp/parsers/ (not stubs) so a copy-paste agentId mismatch (Pitfall
+  // 5) would surface as 'parser-mismatch', not a silently-wrong parse.
+  const { buildEnvelope } = require('../../lib/scan-mcp.js');
+  const FIXTURES = path.join(__dirname, 'fixtures');
+  const FIXED_NOW = () => '2026-01-01T00:00:00.000Z';
+
+  const NEW_AGENT_FIXTURES = [
+    { agentId: 'codex-cli', scope: 'user', format: 'toml', fixture: 'codex-cli/valid.toml' },
+    { agentId: 'gemini-cli', scope: 'user', format: 'json', fixture: 'gemini-cli/valid.json' },
+    { agentId: 'goose', scope: 'global', format: 'yaml', fixture: 'goose/valid.yaml' },
+    { agentId: 'antigravity', scope: 'global', format: 'json', fixture: 'antigravity/valid.json' },
+    { agentId: 'github-copilot', scope: 'project', format: 'jsonc', fixture: 'github-copilot/valid.jsonc' },
+  ];
+
+  function fabricatedSources() {
+    return NEW_AGENT_FIXTURES.map(({ agentId, scope, format, fixture }) => ({
+      agentId, scope, format, path: path.join(FIXTURES, fixture), status: 'found',
+    }));
+  }
+
+  function realParsersForNewAgents() {
+    return {
+      'codex-cli': require('../../lib/mcp/parsers/codex-cli.js'),
+      'gemini-cli': require('../../lib/mcp/parsers/gemini-cli.js'),
+      goose: require('../../lib/mcp/parsers/goose.js'),
+      antigravity: require('../../lib/mcp/parsers/antigravity.js'),
+      'github-copilot': require('../../lib/mcp/parsers/github-copilot.js'),
+    };
+  }
+
+  it('all 5 new agents route to the correct parser and parse their valid fixture without parser-mismatch', async () => {
+    const envelope = await buildEnvelope({}, {
+      discoverAll: fabricatedSources,
+      parsers: realParsersForNewAgents(),
+      now: FIXED_NOW,
+    });
+
+    for (const { agentId } of NEW_AGENT_FIXTURES) {
+      const src = envelope.sources.find(s => s.agentId === agentId);
+      assert.ok(src, `expected a source entry for ${agentId}`);
+      assert.notStrictEqual(src.status, 'parser-mismatch', `${agentId} must not hit the parser-mismatch guard`);
+      assert.strictEqual(src.status, 'parsed', `${agentId}'s valid fixture should parse cleanly (got status=${src.status})`);
+    }
+  });
+
+  it('keeps the frozen envelope shape additive-only: schemaVersion unchanged, no new top-level keys', async () => {
+    const envelope = await buildEnvelope({}, {
+      discoverAll: fabricatedSources,
+      parsers: realParsersForNewAgents(),
+      now: FIXED_NOW,
+    });
+    const { SCHEMA_VERSION } = require('../../lib/mcp/base.js');
+    assert.strictEqual(envelope.schemaVersion, SCHEMA_VERSION);
+    assert.deepEqual(Object.keys(envelope).sort(), [
+      'exitCode', 'findings', 'generatedAt', 'offline', 'schemaVersion', 'servers', 'sources', 'summary',
+    ]);
+    // New agentId values are additive data within the existing `sources`
+    // array shape — no structural change to how a source descriptor looks.
+    const newAgentIds = new Set(NEW_AGENT_FIXTURES.map(f => f.agentId));
+    assert.ok(envelope.sources.some(s => newAgentIds.has(s.agentId)));
+  });
+});
