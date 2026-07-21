@@ -18,12 +18,18 @@ describe('parsers/continue-dev', () => {
     assert.strictEqual(agentId, 'continue-dev');
   });
 
-  it('does NOT require any npm YAML package (zero-dep, only ../base.js + node built-ins)', () => {
+  it('does NOT require any npm YAML package (zero-dep, only ../base.js + ../restricted-yaml.js + node built-ins)', () => {
     const src = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'lib', 'mcp', 'parsers', 'continue-dev.js'), 'utf8');
     const requireCalls = [...src.matchAll(/require\(['"]([^'"]+)['"]\)/g)].map(m => m[1]);
-    // Only the shared base module is required — no yaml/js-yaml/etc package.
-    assert.deepStrictEqual(requireCalls, ['../base.js']);
-    assert.ok(!requireCalls.some(r => /yaml/i.test(r)), 'must not require any yaml package');
+    // Only the shared base module and the internal restricted-yaml sibling
+    // are required (D-03 extraction) — no yaml/js-yaml/etc npm package.
+    assert.deepStrictEqual(requireCalls, ['../base.js', '../restricted-yaml.js']);
+    // Filter to NON-RELATIVE (npm package) requires before the /yaml/i guard,
+    // so the internal './restricted-yaml.js'-style sibling (which matches
+    // /yaml/i by name) does not trip the "no npm yaml package" assertion,
+    // while a real js-yaml/yaml npm dependency still would.
+    const npmRequires = requireCalls.filter(r => !r.startsWith('.'));
+    assert.ok(!npmRequires.some(r => /yaml/i.test(r)), 'must not require any npm yaml package');
   });
 
   it('valid.yaml yields exactly 2 normalized servers with agentId "continue-dev"', () => {
