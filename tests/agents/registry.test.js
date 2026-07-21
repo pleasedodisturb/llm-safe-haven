@@ -2,6 +2,7 @@
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
 
 const { installStub } = require('../helpers/module-stub.js');
 
@@ -74,6 +75,36 @@ describe('detectAll', () => {
     else require.cache[childProcessPath] = originalChildProcessEntry;
   }
 
+  // Hermeticity (TESTQ-01, D-01/D-03): stub fs so base.js's macAppExists()
+  // (fs.existsSync under /Applications) and vscodeExtensionExists()
+  // (fs.readdirSync of ~/.vscode/extensions) produce deterministic `found`
+  // flags regardless of what is really installed on the machine running the
+  // suite. Spread-and-override (Pitfall 2): writeIgnoreFile() in the same
+  // base.js file uses fs.realpathSync/fs.writeFileSync, never
+  // existsSync/readdirSync, so spreading the real fs module first keeps
+  // those calls real for any other test in this process.
+  const fsPath = require.resolve('fs');
+  let originalFsEntry;
+
+  function installFsProbeStub({ appExists, extDirEntries }) {
+    originalFsEntry = require.cache[fsPath];
+    installStub(fsPath, {
+      ...fs,
+      existsSync: (p) => (appExists ? p.includes('.app') : false),
+      readdirSync: (p) => {
+        if (extDirEntries === undefined) {
+          throw Object.assign(new Error('ENOENT — simulate no ~/.vscode/extensions dir'), { code: 'ENOENT' });
+        }
+        return extDirEntries;
+      },
+    });
+  }
+
+  function restoreFs() {
+    if (originalFsEntry === undefined) delete require.cache[fsPath];
+    else require.cache[fsPath] = originalFsEntry;
+  }
+
   it('returns results for each agent without crashing', () => {
     installThrowingChildProcessStub();
     let results;
@@ -114,5 +145,50 @@ describe('detectAll', () => {
     // no subprocess and thus no coverage pollution from child processes,
     // but the resulting `found` flags remain machine-dependent.
     assert.ok(callCount > 0, 'at least one Tier 1/2 agent must call commandExists/getVersion via the stubbed child_process');
+  });
+
+  // D-03 both-branch hermeticity: these two tests assert OPPOSITE outcomes
+  // (found vs not-found) from the same stubbed fs, so neither can pass by
+  // accident on any particular machine — they can only both pass if
+  // macAppExists()/vscodeExtensionExists() actually honor the require.cache
+  // stub, proving the fs-probe seam is closed (T-11-02-02 non-vacuity).
+  it('found branch: reports found for agents whose macAppExists/vscodeExtensionExists probes match the stubbed fs', () => {
+    installThrowingChildProcessStub();
+    installFsProbeStub({ appExists: true, extDirEntries: ['continue.continue-1.2.3'] });
+    let results;
+    try {
+      results = detectAll();
+    } finally {
+      restoreChildProcess();
+      restoreFs();
+    }
+    const cursor = results.find(r => r.id === 'cursor');
+    const continueDev = results.find(r => r.id === 'continue-dev');
+    assert.ok(cursor, 'cursor agent result must be present');
+    assert.ok(continueDev, 'continue-dev agent result must be present');
+    assert.strictEqual(cursor.detected.found, true,
+      'cursor.detect() must report found=true when macAppExists() matches the stubbed fs (CLI stubbed absent, so this proves the fs branch)');
+    assert.strictEqual(continueDev.detected.found, true,
+      'continue-dev.detect() must report found=true when vscodeExtensionExists() matches the stubbed extension dir');
+  });
+
+  it('not-found branch: reports not-found for agents whose macAppExists/vscodeExtensionExists probes miss the stubbed fs', () => {
+    installThrowingChildProcessStub();
+    installFsProbeStub({ appExists: false, extDirEntries: undefined });
+    let results;
+    try {
+      results = detectAll();
+    } finally {
+      restoreChildProcess();
+      restoreFs();
+    }
+    const cursor = results.find(r => r.id === 'cursor');
+    const continueDev = results.find(r => r.id === 'continue-dev');
+    assert.ok(cursor, 'cursor agent result must be present');
+    assert.ok(continueDev, 'continue-dev agent result must be present');
+    assert.strictEqual(cursor.detected.found, false,
+      'cursor.detect() must report found=false when macAppExists() misses the stubbed fs and the CLI is stubbed absent');
+    assert.strictEqual(continueDev.detected.found, false,
+      'continue-dev.detect() must report found=false when vscodeExtensionExists() throws ENOENT against the stubbed fs');
   });
 });
