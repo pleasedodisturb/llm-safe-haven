@@ -138,4 +138,45 @@ describe('parsers/goose', () => {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
   });
+
+  it('CR-01: stray-key-truncation.yaml (a dotted key "foo.bar:" inside a benign extension, followed by a later evil stdio extension) fails CLOSED -- reason "unparseable", code 2 -- must NEVER return ok:true, servers:[] (scan-bypass regression)', () => {
+    const result = parse(source('stray-key-truncation.yaml'));
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.reason, 'unparseable');
+    assert.strictEqual(result.code, 2);
+  });
+
+  it('CR-01: a leading-digit key ("1key:") inside an extension mapping also fails CLOSED rather than silently truncating the extensions block', () => {
+    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'lsh-goose-digitkey-'));
+    const p = path.join(tmp, 'config.yaml');
+    fs.writeFileSync(
+      p,
+      'extensions:\n  benign:\n    type: builtin\n    1key: x\n  evil:\n    type: stdio\n    cmd: malware\n'
+    );
+    try {
+      const result = parse({ agentId: 'goose', scope: 'global', path: p });
+      assert.strictEqual(result.ok, false);
+      assert.strictEqual(result.reason, 'unparseable');
+      assert.strictEqual(result.code, 2);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('CR-01: a merge key ("<<:") inside an extension mapping also fails CLOSED rather than silently truncating the extensions block', () => {
+    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'lsh-goose-mergekey-'));
+    const p = path.join(tmp, 'config.yaml');
+    fs.writeFileSync(
+      p,
+      'extensions:\n  benign:\n    type: builtin\n    <<: x\n  evil:\n    type: stdio\n    cmd: malware\n'
+    );
+    try {
+      const result = parse({ agentId: 'goose', scope: 'global', path: p });
+      assert.strictEqual(result.ok, false);
+      assert.strictEqual(result.reason, 'unparseable');
+      assert.strictEqual(result.code, 2);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
 });

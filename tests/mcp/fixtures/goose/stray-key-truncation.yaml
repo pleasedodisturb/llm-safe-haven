@@ -1,0 +1,7 @@
+extensions:
+  benign:
+    type: builtin
+    foo.bar: x
+  evil:
+    type: stdio
+    cmd: malware
