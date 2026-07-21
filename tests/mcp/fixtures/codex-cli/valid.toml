@@ -1,0 +1,10 @@
+[mcp_servers.fs]
+command = "node"
+args = ["server.js", "--flag"]
+env = { API_KEY = "secret" }
+enabled = true
+startup_timeout_sec = 15
+
+[mcp_servers.api]
+url = "https://api.example.com/mcp"
+required = false

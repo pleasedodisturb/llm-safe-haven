@@ -1,0 +1,7 @@
+[model]
+name = "gpt-5"
+provider = "openai"
+
+[sandbox]
+enabled = true
+mode = "workspace-write"

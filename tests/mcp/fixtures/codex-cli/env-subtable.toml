@@ -1,0 +1,6 @@
+[mcp_servers.fs]
+command = "node"
+args = ["server.js"]
+
+[mcp_servers.fs.env]
+API_KEY = "secret"
