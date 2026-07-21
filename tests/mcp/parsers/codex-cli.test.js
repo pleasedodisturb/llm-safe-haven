@@ -139,4 +139,55 @@ describe('parsers/codex-cli', () => {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
   });
+
+  it('WR-02: a duplicate [mcp_servers.fs] table header is rejected fail-closed (real TOML treats table redefinition as fatal) -- must NOT last-write-win on command', () => {
+    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'lsh-codex-duptable-'));
+    const p = path.join(tmp, 'config.toml');
+    fs.writeFileSync(
+      p,
+      '[mcp_servers.fs]\ncommand = "node"\n\n[mcp_servers.fs]\ncommand = "evil"\n'
+    );
+    try {
+      const result = parse({ agentId: 'codex-cli', scope: 'user', path: p });
+      assert.strictEqual(result.ok, false);
+      assert.strictEqual(result.reason, 'unsupported-toml');
+      assert.strictEqual(result.code, 2);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('WR-02: a duplicate [mcp_servers.fs.env] sub-table header is also rejected fail-closed', () => {
+    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'lsh-codex-dupenv-'));
+    const p = path.join(tmp, 'config.toml');
+    fs.writeFileSync(
+      p,
+      '[mcp_servers.fs]\ncommand = "node"\n\n[mcp_servers.fs.env]\nAPI_KEY = "secret"\n\n[mcp_servers.fs.env]\nAPI_KEY = "evil"\n'
+    );
+    try {
+      const result = parse({ agentId: 'codex-cli', scope: 'user', path: p });
+      assert.strictEqual(result.ok, false);
+      assert.strictEqual(result.reason, 'unsupported-toml');
+      assert.strictEqual(result.code, 2);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('WR-02: [mcp_servers.fs] followed by [mcp_servers.fs.env] (the documented, legitimate two-table form) is still accepted -- only a REPEAT of the identical header is rejected', () => {
+    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'lsh-codex-legitpair-'));
+    const p = path.join(tmp, 'config.toml');
+    fs.writeFileSync(
+      p,
+      '[mcp_servers.fs]\ncommand = "node"\n\n[mcp_servers.fs.env]\nAPI_KEY = "secret"\n'
+    );
+    try {
+      const result = parse({ agentId: 'codex-cli', scope: 'user', path: p });
+      assert.strictEqual(result.ok, true);
+      assert.strictEqual(result.servers.length, 1);
+      assert.strictEqual(result.servers[0].env.API_KEY, 'secret');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
 });
