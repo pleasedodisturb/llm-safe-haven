@@ -1,25 +1,12 @@
 'use strict';
 
-const { describe, it, beforeEach, afterEach } = require('node:test');
+const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
+const { captureLog } = require('./helpers/capture-log.js');
 
 describe('scorecard', () => {
   // The scorecard module reads NO_COLOR at require time, so we need
-  // a fresh require for each environment configuration. We also need
-  // to suppress console.log output during tests.
-
-  let originalLog;
-  let logged;
-
-  beforeEach(() => {
-    originalLog = console.log;
-    logged = [];
-    console.log = (...args) => logged.push(args.join(' '));
-  });
-
-  afterEach(() => {
-    console.log = originalLog;
-  });
+  // a fresh require for each environment configuration.
 
   it('NO_COLOR env var disables ANSI codes', () => {
     // Set NO_COLOR and re-require the module
@@ -49,27 +36,31 @@ describe('scorecard', () => {
     delete require.cache[modPath];
   });
 
-  it('printHeader does not throw', () => {
+  it('printHeader does not throw', async () => {
     const modPath = require.resolve('../lib/scorecard.js');
     delete require.cache[modPath];
     const scorecard = require('../lib/scorecard.js');
 
-    assert.doesNotThrow(() => {
-      scorecard.printHeader();
+    await captureLog(() => {
+      assert.doesNotThrow(() => {
+        scorecard.printHeader();
+      });
     });
     delete require.cache[modPath];
   });
 
-  it('printLevel does not throw for each level 0-4', () => {
+  it('printLevel does not throw for each level 0-4', async () => {
     const modPath = require.resolve('../lib/scorecard.js');
     delete require.cache[modPath];
     const scorecard = require('../lib/scorecard.js');
 
-    for (let level = 0; level <= 4; level++) {
-      assert.doesNotThrow(() => {
-        scorecard.printLevel(level);
-      }, `printLevel(${level}) should not throw`);
-    }
+    await captureLog(() => {
+      for (let level = 0; level <= 4; level++) {
+        assert.doesNotThrow(() => {
+          scorecard.printLevel(level);
+        }, `printLevel(${level}) should not throw`);
+      }
+    });
     delete require.cache[modPath];
   });
 });
@@ -77,19 +68,6 @@ describe('scorecard', () => {
 describe('printMcpScan', () => {
   const { Finding, SEVERITY, CONFIDENCE } = require('../lib/mcp/base.js');
   const { printMcpScan } = require('../lib/scorecard.js');
-
-  let originalLog;
-  let logged;
-
-  beforeEach(() => {
-    originalLog = console.log;
-    logged = [];
-    console.log = (...args) => logged.push(args.join(' '));
-  });
-
-  afterEach(() => {
-    console.log = originalLog;
-  });
 
   function finding(overrides = {}) {
     return Finding({
@@ -105,17 +83,21 @@ describe('printMcpScan', () => {
     });
   }
 
-  it('zero servers/zero findings prints the existing friendly PASS line (stub behavior preserved)', () => {
-    printMcpScan({ sources: [], servers: [], findings: [], summary: { bySeverity: {}, byDetector: {} } });
-    assert.ok(logged.some((l) => l.includes('No MCP findings')));
+  it('zero servers/zero findings prints the existing friendly PASS line (stub behavior preserved)', async () => {
+    const { logs } = await captureLog(() =>
+      printMcpScan({ sources: [], servers: [], findings: [], summary: { bySeverity: {}, byDetector: {} } })
+    );
+    assert.ok(logs.some((l) => l.includes('No MCP findings')));
   });
 
-  it('handles a null/undefined envelope defensively without throwing', () => {
-    assert.doesNotThrow(() => printMcpScan(undefined));
-    assert.doesNotThrow(() => printMcpScan(null));
+  it('handles a null/undefined envelope defensively without throwing', async () => {
+    await captureLog(() => {
+      assert.doesNotThrow(() => printMcpScan(undefined));
+      assert.doesNotThrow(() => printMcpScan(null));
+    });
   });
 
-  it('groups findings per server: agent > server-name (scope) header, sorted critical->high->medium->low->info', () => {
+  it('groups findings per server: agent > server-name (scope) header, sorted critical->high->medium->low->info', async () => {
     const critical = finding({ id: 'd/critical', severity: SEVERITY.CRITICAL, message: 'critical msg' });
     const high = finding({ id: 'd/high', severity: SEVERITY.HIGH, message: 'high msg' });
     const medium = finding({ id: 'd/medium', severity: SEVERITY.MEDIUM, message: 'medium msg' });
@@ -124,20 +106,22 @@ describe('printMcpScan', () => {
 
     // Findings intentionally listed out of severity order to prove the
     // renderer sorts them, not just preserves input order.
-    printMcpScan({
-      sources: [],
-      servers: [],
-      findings: [info, low, medium, high, critical],
-    });
+    const { logs } = await captureLog(() =>
+      printMcpScan({
+        sources: [],
+        servers: [],
+        findings: [info, low, medium, high, critical],
+      })
+    );
 
-    const headerIndex = logged.findIndex((l) => l.includes('claude-code') && l.includes('some-server') && l.includes('(user)'));
+    const headerIndex = logs.findIndex((l) => l.includes('claude-code') && l.includes('some-server') && l.includes('(user)'));
     assert.ok(headerIndex !== -1, 'expected an agent > server-name (scope) group header');
 
-    const criticalIndex = logged.findIndex((l) => l.includes('critical msg'));
-    const highIndex = logged.findIndex((l) => l.includes('high msg'));
-    const mediumIndex = logged.findIndex((l) => l.includes('medium msg'));
-    const lowIndex = logged.findIndex((l) => l.includes('low msg'));
-    const infoIndex = logged.findIndex((l) => l.includes('info msg'));
+    const criticalIndex = logs.findIndex((l) => l.includes('critical msg'));
+    const highIndex = logs.findIndex((l) => l.includes('high msg'));
+    const mediumIndex = logs.findIndex((l) => l.includes('medium msg'));
+    const lowIndex = logs.findIndex((l) => l.includes('low msg'));
+    const infoIndex = logs.findIndex((l) => l.includes('info msg'));
 
     assert.ok(criticalIndex < highIndex, 'critical should render before high');
     assert.ok(highIndex < mediumIndex, 'high should render before medium');
@@ -145,7 +129,7 @@ describe('printMcpScan', () => {
     assert.ok(lowIndex < infoIndex, 'low should render before info');
   });
 
-  it('agentId: null findings render in a final General group', () => {
+  it('agentId: null findings render in a final General group', async () => {
     const attributed = finding({ id: 'd/attributed', severity: SEVERITY.HIGH, message: 'attributed msg' });
     const unattributed = Finding({
       id: 'typosquat/allowlist-unavailable',
@@ -158,16 +142,18 @@ describe('printMcpScan', () => {
       message: 'allowlist unavailable',
     });
 
-    printMcpScan({ sources: [], servers: [], findings: [attributed, unattributed] });
+    const { logs } = await captureLog(() =>
+      printMcpScan({ sources: [], servers: [], findings: [attributed, unattributed] })
+    );
 
-    const generalIndex = logged.findIndex((l) => l.includes('General'));
+    const generalIndex = logs.findIndex((l) => l.includes('General'));
     assert.ok(generalIndex !== -1, 'expected a General group header');
 
-    const unattributedIndex = logged.findIndex((l) => l.includes('allowlist unavailable'));
+    const unattributedIndex = logs.findIndex((l) => l.includes('allowlist unavailable'));
     assert.ok(unattributedIndex > generalIndex, 'unattributed finding should render under the General header');
   });
 
-  it('unverified findings render in a distinct dim style, never red/yellow (D-06)', () => {
+  it('unverified findings render in a distinct dim style, never red/yellow (D-06)', async () => {
     // Force color on so red/yellow escape codes would appear if the
     // renderer used them for an unverified finding.
     const originalNoColor = process.env.NO_COLOR;
@@ -191,14 +177,16 @@ describe('printMcpScan', () => {
         message: 'unverified critical msg',
       });
 
-      scorecard.printMcpScan({ sources: [], servers: [], findings: [unverified] });
+      const { logs } = await captureLog(() =>
+        scorecard.printMcpScan({ sources: [], servers: [], findings: [unverified] })
+      );
 
-      const unverifiedLine = logged.find((l) => l.includes('unverified critical msg'));
+      const unverifiedLine = logs.find((l) => l.includes('unverified critical msg'));
       assert.ok(unverifiedLine, 'expected the unverified finding line to be rendered');
       assert.ok(!unverifiedLine.includes(scorecard.C.red), 'unverified line must not contain the red ANSI code');
       assert.ok(!unverifiedLine.includes(scorecard.C.yellow), 'unverified line must not contain the yellow ANSI code');
 
-      const separatorLine = logged.find((l) => l.includes('unverified') && l.includes('--online'));
+      const separatorLine = logs.find((l) => l.includes('unverified') && l.includes('--online'));
       assert.ok(separatorLine, 'expected a dim "unverified -- run with --online to verify" sub-line');
     } finally {
       if (originalNoColor === undefined) delete process.env.NO_COLOR;
@@ -209,28 +197,30 @@ describe('printMcpScan', () => {
   });
 
   describe('summary header mirrors D-14/D-08 exit-code semantics', () => {
-    it('red FAIL header counts ONLY verified findings; unverified get a separate dim notice line (mixed)', () => {
+    it('red FAIL header counts ONLY verified findings; unverified get a separate dim notice line (mixed)', async () => {
       const verified1 = finding({ id: 'd/v1', severity: SEVERITY.HIGH, message: 'verified one' });
       const verified2 = finding({ id: 'd/v2', severity: SEVERITY.LOW, message: 'verified two' });
       const unverified = finding({ id: 'd/u1', confidence: CONFIDENCE.UNVERIFIED, message: 'unverified one' });
 
-      printMcpScan({ sources: [], servers: [], findings: [verified1, unverified, verified2] });
+      const { logs } = await captureLog(() =>
+        printMcpScan({ sources: [], servers: [], findings: [verified1, unverified, verified2] })
+      );
 
       assert.ok(
-        logged.some((l) => l.includes('2 finding(s)')),
+        logs.some((l) => l.includes('2 finding(s)')),
         'the red header must count the 2 verified findings, not all 3'
       );
       assert.ok(
-        !logged.some((l) => l.includes('3 finding(s)')),
+        !logs.some((l) => l.includes('3 finding(s)')),
         'the header must never count unverified findings into the FAIL total'
       );
       assert.ok(
-        logged.some((l) => l.includes('1 unverified notice(s)') && l.includes('--online')),
+        logs.some((l) => l.includes('1 unverified notice(s)') && l.includes('--online')),
         'expected a separate dim notice line for the unverified finding'
       );
     });
 
-    it('unverified-only envelope prints NO red FAIL header — only the dim notice (consistent with exit 0)', () => {
+    it('unverified-only envelope prints NO red FAIL header — only the dim notice (consistent with exit 0)', async () => {
       // Force color on so the red ANSI code would be detectable if the
       // renderer emitted a FAIL header for an unverified-only scan.
       const originalNoColor = process.env.NO_COLOR;
@@ -246,13 +236,15 @@ describe('printMcpScan', () => {
         const u1 = finding({ id: 'd/u1', confidence: CONFIDENCE.UNVERIFIED, severity: SEVERITY.HIGH, message: 'unverified a' });
         const u2 = finding({ id: 'd/u2', confidence: CONFIDENCE.UNVERIFIED, severity: SEVERITY.LOW, message: 'unverified b' });
 
-        scorecard.printMcpScan({ sources: [], servers: [], findings: [u1, u2] });
+        const { logs } = await captureLog(() =>
+          scorecard.printMcpScan({ sources: [], servers: [], findings: [u1, u2] })
+        );
 
         assert.ok(
-          !logged.some((l) => l.includes('finding(s)')),
+          !logs.some((l) => l.includes('finding(s)')),
           'an unverified-only scan (exit 0) must not render the red "N finding(s)" FAIL header'
         );
-        const noticeLine = logged.find((l) => l.includes('2 unverified notice(s)'));
+        const noticeLine = logs.find((l) => l.includes('2 unverified notice(s)'));
         assert.ok(noticeLine, 'expected the dim "2 unverified notice(s)" header line');
         assert.ok(!noticeLine.includes(scorecard.C.red), 'the notice line must not contain the red ANSI code');
         assert.ok(!noticeLine.includes(scorecard.C.yellow), 'the notice line must not contain the yellow ANSI code');
@@ -264,11 +256,13 @@ describe('printMcpScan', () => {
       }
     });
 
-    it('zero findings keeps the existing PASS line', () => {
-      printMcpScan({ sources: [], servers: [], findings: [] });
-      assert.ok(logged.some((l) => l.includes('No MCP findings')));
-      assert.ok(!logged.some((l) => l.includes('finding(s)')));
-      assert.ok(!logged.some((l) => l.includes('unverified notice')));
+    it('zero findings keeps the existing PASS line', async () => {
+      const { logs } = await captureLog(() =>
+        printMcpScan({ sources: [], servers: [], findings: [] })
+      );
+      assert.ok(logs.some((l) => l.includes('No MCP findings')));
+      assert.ok(!logs.some((l) => l.includes('finding(s)')));
+      assert.ok(!logs.some((l) => l.includes('unverified notice')));
     });
   });
 
@@ -280,15 +274,17 @@ describe('printMcpScan', () => {
     // (CWE-150). The renderer must strip every C0/C1 control char and DEL.
     const HOSTILE_NAME = 'evil\x1b[2K\x1b[1A\x1b[2Khidden';
 
-    it('strips ANSI escape sequences from the server name in the group header', () => {
+    it('strips ANSI escape sequences from the server name in the group header', async () => {
       const hostile = finding({
         serverName: HOSTILE_NAME,
         message: 'plain msg',
       });
 
-      printMcpScan({ sources: [], servers: [], findings: [hostile] });
+      const { logs } = await captureLog(() =>
+        printMcpScan({ sources: [], servers: [], findings: [hostile] })
+      );
 
-      const headerLine = logged.find((l) => l.includes('evil'));
+      const headerLine = logs.find((l) => l.includes('evil'));
       assert.ok(headerLine, 'expected the group header naming the hostile server');
       assert.ok(!headerLine.includes('\x1b[2K'), 'erase-line escape must not reach the terminal');
       assert.ok(!headerLine.includes('\x1b[1A'), 'cursor-up escape must not reach the terminal');
@@ -296,31 +292,35 @@ describe('printMcpScan', () => {
       assert.ok(headerLine.includes('hidden'), 'the non-control text around the escapes is preserved');
     });
 
-    it('strips control characters from finding.message (detector messages embed the raw server name)', () => {
+    it('strips control characters from finding.message (detector messages embed the raw server name)', async () => {
       const hostile = finding({
         serverName: 'srv',
         message: `Server "${HOSTILE_NAME}" uses an unpinned spec\x07`,
       });
 
-      printMcpScan({ sources: [], servers: [], findings: [hostile] });
+      const { logs } = await captureLog(() =>
+        printMcpScan({ sources: [], servers: [], findings: [hostile] })
+      );
 
-      const msgLine = logged.find((l) => l.includes('unpinned spec'));
+      const msgLine = logs.find((l) => l.includes('unpinned spec'));
       assert.ok(msgLine, 'expected the finding message line to be rendered');
       assert.ok(!msgLine.includes('\x1b'), 'no raw ESC byte may survive in the message line');
       assert.ok(!msgLine.includes('\x07'), 'no BEL byte may survive in the message line');
       assert.ok(msgLine.includes('�'), 'stripped control chars are replaced with U+FFFD');
     });
 
-    it('strips control characters on the unverified (dim) finding line too', () => {
+    it('strips control characters on the unverified (dim) finding line too', async () => {
       const hostile = finding({
         confidence: CONFIDENCE.UNVERIFIED,
         serverName: 'srv',
         message: `Server "${HOSTILE_NAME}" unverified`,
       });
 
-      printMcpScan({ sources: [], servers: [], findings: [hostile] });
+      const { logs } = await captureLog(() =>
+        printMcpScan({ sources: [], servers: [], findings: [hostile] })
+      );
 
-      const msgLine = logged.find((l) => l.includes('unverified') && l.includes('evil'));
+      const msgLine = logs.find((l) => l.includes('unverified') && l.includes('evil'));
       assert.ok(msgLine, 'expected the unverified finding line to be rendered');
       assert.ok(!msgLine.includes('\x1b[2K'), 'erase-line escape must not reach the terminal on the unverified path');
     });
@@ -346,15 +346,17 @@ describe('printMcpScan', () => {
       assert.strictEqual(sanitizeForTerminal('café-服务器'), 'café-服务器');
     });
 
-    it('printMcpScan never lets U+202E from a hostile server name reach the rendered output', () => {
+    it('printMcpScan never lets U+202E from a hostile server name reach the rendered output', async () => {
       const hostile = finding({
         serverName: 'evil‮name',
         message: 'msg with ‮ override',
       });
-      printMcpScan({ sources: [], servers: [], findings: [hostile] });
-      assert.ok(logged.length > 0);
+      const { logs } = await captureLog(() =>
+        printMcpScan({ sources: [], servers: [], findings: [hostile] })
+      );
+      assert.ok(logs.length > 0);
       assert.ok(
-        logged.every((l) => !l.includes('‮')),
+        logs.every((l) => !l.includes('‮')),
         'no rendered line may contain the RLO character'
       );
     });
@@ -376,7 +378,7 @@ describe('printMcpScan', () => {
       return line.replace(/\x1b\[[0-9;]*m/g, '');
     }
 
-    it('every logged line is free of /[\\x00-\\x1f\\x7f-\\x9f]|\\p{Cf}/u after stripping renderer SGR', () => {
+    it('every logged line is free of /[\\x00-\\x1f\\x7f-\\x9f]|\\p{Cf}/u after stripping renderer SGR', async () => {
       const hostileEnvelope = {
         sources: [
           { agentId: `agent${HOSTILE}`, scope: `user${HOSTILE}`, path: '/p', format: 'json', status: `parse-error${HOSTILE}` },
@@ -395,10 +397,10 @@ describe('printMcpScan', () => {
         summary: { bySeverity: {}, byDetector: {} },
       };
 
-      printMcpScan(hostileEnvelope);
+      const { logs } = await captureLog(() => printMcpScan(hostileEnvelope));
 
-      assert.ok(logged.length > 0, 'expected rendered output');
-      for (const line of logged) {
+      assert.ok(logs.length > 0, 'expected rendered output');
+      for (const line of logs) {
         const visible = stripSgr(line);
         assert.ok(
           !/[\x00-\x1f\x7f-\x9f]|\p{Cf}/u.test(visible),
@@ -408,22 +410,24 @@ describe('printMcpScan', () => {
     });
   });
 
-  it('non-parsed/not-found source statuses are listed so an exit-2 scan explains itself (D-07)', () => {
-    printMcpScan({
-      sources: [
-        { agentId: 'claude-code', scope: 'user', path: '/some/path', format: 'json', status: 'parsed' },
-        { agentId: 'cursor', scope: 'project', path: '/other/path', format: 'json', status: 'parse-error' },
-        { agentId: 'windsurf', scope: 'user', path: '/missing/path', format: 'json', status: 'not-found' },
-      ],
-      servers: [],
-      findings: [],
-    });
+  it('non-parsed/not-found source statuses are listed so an exit-2 scan explains itself (D-07)', async () => {
+    const { logs } = await captureLog(() =>
+      printMcpScan({
+        sources: [
+          { agentId: 'claude-code', scope: 'user', path: '/some/path', format: 'json', status: 'parsed' },
+          { agentId: 'cursor', scope: 'project', path: '/other/path', format: 'json', status: 'parse-error' },
+          { agentId: 'windsurf', scope: 'user', path: '/missing/path', format: 'json', status: 'not-found' },
+        ],
+        servers: [],
+        findings: [],
+      })
+    );
 
-    const errorSourceLine = logged.find((l) => l.includes('cursor') && l.includes('parse-error'));
+    const errorSourceLine = logs.find((l) => l.includes('cursor') && l.includes('parse-error'));
     assert.ok(errorSourceLine, 'expected the parse-error source to be listed with its status');
 
     assert.ok(
-      !logged.some((l) => l.includes('windsurf') && l.includes('not-found')),
+      !logs.some((l) => l.includes('windsurf') && l.includes('not-found')),
       'a not-found source should not be listed (it is not an exit-2-explaining failure)'
     );
   });
@@ -601,32 +605,23 @@ describe('computeSecurityLevel', () => {
 describe('computeSecurityLevel + printLevel/printMcpAuditSection render smoke', () => {
   const { printLevel, printMcpAuditSection } = require('../lib/scorecard.js');
 
-  let originalLog;
-  let logged;
-
-  beforeEach(() => {
-    originalLog = console.log;
-    logged = [];
-    console.log = (...args) => logged.push(args.join(' '));
+  it('printLevel(2, [oneCap]) emits a line matching /capped at/', async () => {
+    const { logs } = await captureLog(() =>
+      printLevel(2, [{ id: 'mcp-findings', cappedFrom: 3, cappedTo: 2, reason: '1 MCP finding(s) — run npx llm-safe-haven scan --mcp for details' }])
+    );
+    assert.ok(logs.some((l) => /capped at/.test(l)));
   });
 
-  afterEach(() => {
-    console.log = originalLog;
+  it('printLevel(level) with no caps emits zero "capped at" lines (backward compatible)', async () => {
+    const { logs } = await captureLog(() => printLevel(3));
+    assert.ok(!logs.some((l) => /capped at/.test(l)));
   });
 
-  it('printLevel(2, [oneCap]) emits a line matching /capped at/', () => {
-    printLevel(2, [{ id: 'mcp-findings', cappedFrom: 3, cappedTo: 2, reason: '1 MCP finding(s) — run npx llm-safe-haven scan --mcp for details' }]);
-    assert.ok(logged.some((l) => /capped at/.test(l)));
-  });
-
-  it('printLevel(level) with no caps emits zero "capped at" lines (backward compatible)', () => {
-    printLevel(3);
-    assert.ok(!logged.some((l) => /capped at/.test(l)));
-  });
-
-  it('IN-01: a hostile cap.reason is sanitized at the print site (no control chars reach the terminal)', () => {
-    printLevel(2, [{ id: 'mcp-findings', cappedFrom: 3, cappedTo: 2, reason: 'evil\x1b[2K\x07reason‮spoof' }]);
-    const capLine = logged.find((l) => /capped at/.test(l));
+  it('IN-01: a hostile cap.reason is sanitized at the print site (no control chars reach the terminal)', async () => {
+    const { logs } = await captureLog(() =>
+      printLevel(2, [{ id: 'mcp-findings', cappedFrom: 3, cappedTo: 2, reason: 'evil\x1b[2K\x07reason‮spoof' }])
+    );
+    const capLine = logs.find((l) => /capped at/.test(l));
     assert.ok(capLine, 'expected the cap line to render');
     assert.ok(!capLine.includes('\x1b[2K'), 'erase-line escape must not reach the terminal');
     assert.ok(!capLine.includes('\x07'), 'BEL must not reach the terminal');
@@ -634,7 +629,7 @@ describe('computeSecurityLevel + printLevel/printMcpAuditSection render smoke', 
     assert.ok(capLine.includes('�'), 'stripped chars are replaced with U+FFFD so tampering is visible');
   });
 
-  it('printMcpAuditSection with an unverified-only envelope never renders a red FAIL "finding(s)" line', () => {
+  it('printMcpAuditSection with an unverified-only envelope never renders a red FAIL "finding(s)" line', async () => {
     const { Finding, SEVERITY, CONFIDENCE } = require('../lib/mcp/base.js');
     const unverified = Finding({
       id: 'd/unverified',
@@ -647,30 +642,34 @@ describe('computeSecurityLevel + printLevel/printMcpAuditSection render smoke', 
       message: 'unverified msg',
     });
     // F8 signature: the production callers pass getMcpInputs' counts.
-    printMcpAuditSection(
-      { exitCode: 0, servers: [{}], findings: [unverified], sources: [] },
-      { ran: true, exitCode: 0, verifiedCount: 0, unverifiedCount: 1 }
+    const { logs } = await captureLog(() =>
+      printMcpAuditSection(
+        { exitCode: 0, servers: [{}], findings: [unverified], sources: [] },
+        { ran: true, exitCode: 0, verifiedCount: 0, unverifiedCount: 1 }
+      )
     );
-    assert.ok(!logged.some((l) => /\d+ MCP finding\(s\)/.test(l)), 'unverified-only must not render as a FAIL finding line');
-    assert.ok(logged.some((l) => l.includes('unverified notice')));
+    assert.ok(!logs.some((l) => /\d+ MCP finding\(s\)/.test(l)), 'unverified-only must not render as a FAIL finding line');
+    assert.ok(logs.some((l) => l.includes('unverified notice')));
   });
 
-  it('F8 fallback: omitting the mcp counts arg re-derives them from the envelope (no throw, same render)', () => {
+  it('F8 fallback: omitting the mcp counts arg re-derives them from the envelope (no throw, same render)', async () => {
     const { Finding, SEVERITY, CONFIDENCE } = require('../lib/mcp/base.js');
     const verified = Finding({
       id: 'd/v', detector: 'd', severity: SEVERITY.HIGH, confidence: CONFIDENCE.VERIFIED,
       agentId: 'claude-code', scope: 'user', serverName: 'srv', message: 'verified msg',
     });
-    printMcpAuditSection({ exitCode: 1, servers: [{}], findings: [verified], sources: [] });
-    assert.ok(logged.some((l) => /1 MCP finding\(s\)/.test(l)), 'the fallback derivation must still count the verified finding');
+    const { logs } = await captureLog(() =>
+      printMcpAuditSection({ exitCode: 1, servers: [{}], findings: [verified], sources: [] })
+    );
+    assert.ok(logs.some((l) => /1 MCP finding\(s\)/.test(l)), 'the fallback derivation must still count the verified finding');
   });
 
-  it('printMcpAuditSection(null) renders the incomplete state', () => {
-    printMcpAuditSection(null);
-    assert.ok(logged.some((l) => /could not complete/.test(l)));
+  it('printMcpAuditSection(null) renders the incomplete state', async () => {
+    const { logs } = await captureLog(() => printMcpAuditSection(null));
+    assert.ok(logs.some((l) => /could not complete/.test(l)));
   });
 
-  it('F2: incomplete + verified + unverified renders ALL THREE lines — the warning must never mask partial findings', () => {
+  it('F2: incomplete + verified + unverified renders ALL THREE lines — the warning must never mask partial findings', async () => {
     const { Finding, SEVERITY, CONFIDENCE, EXIT } = require('../lib/mcp/base.js');
     const verified = Finding({
       id: 'd/v', detector: 'd', severity: SEVERITY.HIGH, confidence: CONFIDENCE.VERIFIED,
@@ -681,21 +680,25 @@ describe('computeSecurityLevel + printLevel/printMcpAuditSection render smoke', 
       agentId: 'claude-code', scope: 'user', serverName: 'srv', message: 'unverified msg',
     });
 
-    printMcpAuditSection(
-      { exitCode: EXIT.INCOMPLETE, servers: [], findings: [verified, unverified], sources: [] },
-      { ran: true, exitCode: EXIT.INCOMPLETE, verifiedCount: 1, unverifiedCount: 1 }
+    const { logs } = await captureLog(() =>
+      printMcpAuditSection(
+        { exitCode: EXIT.INCOMPLETE, servers: [], findings: [verified, unverified], sources: [] },
+        { ran: true, exitCode: EXIT.INCOMPLETE, verifiedCount: 1, unverifiedCount: 1 }
+      )
     );
 
-    assert.ok(logged.some((l) => /could not complete/.test(l)), 'the incomplete WARN line must render');
-    assert.ok(logged.some((l) => /1 MCP finding\(s\)/.test(l)), 'the verified-findings count must render too — partial findings are a floor, not maskable');
-    assert.ok(logged.some((l) => /1 unverified notice\(s\)/.test(l)), 'the dim unverified notice must render too');
+    assert.ok(logs.some((l) => /could not complete/.test(l)), 'the incomplete WARN line must render');
+    assert.ok(logs.some((l) => /1 MCP finding\(s\)/.test(l)), 'the verified-findings count must render too — partial findings are a floor, not maskable');
+    assert.ok(logs.some((l) => /1 unverified notice\(s\)/.test(l)), 'the dim unverified notice must render too');
   });
 
-  it('F2 guard: single-state outputs are unchanged — incomplete with zero findings prints ONLY the warning', () => {
+  it('F2 guard: single-state outputs are unchanged — incomplete with zero findings prints ONLY the warning', async () => {
     const { EXIT } = require('../lib/mcp/base.js');
-    printMcpAuditSection({ exitCode: EXIT.INCOMPLETE, servers: [], findings: [], sources: [] });
-    assert.ok(logged.some((l) => /could not complete/.test(l)));
-    assert.ok(!logged.some((l) => /MCP finding\(s\)/.test(l)));
-    assert.ok(!logged.some((l) => /unverified notice/.test(l)));
+    const { logs } = await captureLog(() =>
+      printMcpAuditSection({ exitCode: EXIT.INCOMPLETE, servers: [], findings: [], sources: [] })
+    );
+    assert.ok(logs.some((l) => /could not complete/.test(l)));
+    assert.ok(!logs.some((l) => /MCP finding\(s\)/.test(l)));
+    assert.ok(!logs.some((l) => /unverified notice/.test(l)));
   });
 });

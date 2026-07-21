@@ -51,6 +51,47 @@ installStub(require.resolve('child_process'), {
   execFileSync: () => { throw new Error('stubbed — must never actually spawn a real CLI binary'); },
 });
 
+// Hermeticity (TESTQ-01, D-01/D-03): stub fs ONCE, immediately after the
+// child_process stub above, so base.js's macAppExists() (fs.existsSync
+// under /Applications) and vscodeExtensionExists() (fs.readdirSync of
+// ~/.vscode/extensions) produce deterministic, machine-independent `found`
+// flags for the Tier 3 modules below. This is a hand-rolled single-pass
+// runner (Pitfall 4) with no per-test setup/teardown lifecycle, so — matching
+// the file's own child_process precedent — the stub is installed once and
+// never restored; spread-and-override (Pitfall 2) keeps writeIgnoreFile's
+// realpathSync/writeFileSync real so the IGNORE_FILE_MODULES harden() loop
+// below is unaffected.
+//
+// Fixture is deliberately mixed so both D-03 branches are exercised across
+// the Tier 3 modules that call these probes: existsSync only matches a
+// "Zed.app" path (zed-ai's macAppExists('Zed') finds it; replit-agent's
+// macAppExists('Replit') does not), and readdirSync returns extension-dir
+// entries that match amazon-q and github-copilot's extension IDs but not
+// augment's.
+//
+// Scope note (honest hermeticity): the claim above covers detect()'s found
+// flags only. audit() paths that read file CONTENTS stay live — e.g.
+// github-copilot's audit() readFileSync of the real VS Code settings.json
+// goes through the spread-through real fs — so those branches still vary by
+// machine. The audit-loop assertions below are deliberately shape-only
+// (checks array + numeric level), so this cannot flake; closing the
+// readFileSync seam is follow-up scope, not TESTQ-01.
+const VSCODE_EXT_DIR_SUFFIX = path.join('.vscode', 'extensions');
+installStub(require.resolve('fs'), {
+  ...fs,
+  existsSync: (p) => p.endsWith('Zed.app'),
+  readdirSync: (p) => {
+    // Only the ~/.vscode/extensions probe is stubbed — other readdirSync
+    // callers in-process (notably lib/agents/index.js's own auto-discovery
+    // scan of this directory) must keep hitting the real filesystem, or
+    // loadAgents()/detectAll() below would break entirely.
+    if (p.endsWith(VSCODE_EXT_DIR_SUFFIX)) {
+      return ['amazonwebservices.amazon-q-vscode-1.2.3', 'github.copilot-1.90.0'];
+    }
+    return fs.readdirSync(p);
+  },
+});
+
 // ---------------------------------------------------------------------------
 // Module list — every Tier 3 agent we just added
 // ---------------------------------------------------------------------------
@@ -112,6 +153,40 @@ for (const { file, id } of TIER3_MODULES) {
     assert.strictEqual(typeof result.found, 'boolean');
   });
 }
+
+// ---------------------------------------------------------------------------
+// fs-probe hermeticity (TESTQ-01, D-03 both-branch): these cases assert
+// OPPOSITE outcomes from the single fs stub installed above, so they cannot
+// all pass unless macAppExists()/vscodeExtensionExists() actually honor the
+// require.cache stub — proving the fix is non-vacuous and machine-independent
+// (T-11-02-02). child_process is stubbed to throw for every module in this
+// file, so commandExists() is false everywhere and cannot mask these results.
+// ---------------------------------------------------------------------------
+
+test('zed-ai: macAppExists finds the stubbed Zed.app (found branch)', () => {
+  const mod = require(path.join(__dirname, '..', 'lib', 'agents', 'zed-ai.js'));
+  assert.strictEqual(mod.detect().found, true);
+});
+
+test('replit-agent: macAppExists misses when the app name does not match the stub (not-found branch)', () => {
+  const mod = require(path.join(__dirname, '..', 'lib', 'agents', 'replit-agent.js'));
+  assert.strictEqual(mod.detect().found, false);
+});
+
+test('amazon-q: vscodeExtensionExists finds a matching stubbed extension-dir entry (found branch)', () => {
+  const mod = require(path.join(__dirname, '..', 'lib', 'agents', 'amazon-q.js'));
+  assert.strictEqual(mod.detect().found, true);
+});
+
+test('github-copilot: vscodeExtensionExists finds a matching stubbed extension-dir entry (found branch)', () => {
+  const mod = require(path.join(__dirname, '..', 'lib', 'agents', 'github-copilot.js'));
+  assert.strictEqual(mod.detect().found, true);
+});
+
+test('augment: vscodeExtensionExists misses when no stubbed extension-dir entry matches (not-found branch)', () => {
+  const mod = require(path.join(__dirname, '..', 'lib', 'agents', 'augment.js'));
+  assert.strictEqual(mod.detect().found, false);
+});
 
 // ---------------------------------------------------------------------------
 // harden() tests — returns { actions: [], warnings: [] }

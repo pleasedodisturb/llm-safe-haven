@@ -14,7 +14,7 @@
 // Scope note (TQ-02): this is the minimal contract suite the Phase 8
 // review demanded; the full audit test suite is Phase 9 work.
 
-const { describe, it, beforeEach, afterEach } = require('node:test');
+const { describe, it, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 // F10: shared require-cache stub helper — see the WR-01 ordering notes in
 // tests/helpers/module-stub.js (stubs must land in require.cache BEFORE
@@ -40,70 +40,36 @@ installStub(require.resolve('../lib/scan.js'), {
 });
 
 // Real (non-stubbed) collaborators: scorecard.js (computeSecurityLevel —
-// the unified path under test) and mcp/base.js (frozen enums).
-const { CONFIDENCE, EXIT, Finding, SEVERITY } = require('../lib/mcp/base.js');
+// the unified path under test) and mcp/base.js (frozen enums). Only
+// CONFIDENCE and EXIT are referenced directly below — Finding and
+// SEVERITY were only used inside the now-removed local mcpFinding()
+// factory (migrated to tests/helpers/audit-fixtures.js).
+const { CONFIDENCE, EXIT } = require('../lib/mcp/base.js');
+const { fakeAgent, mcpFinding, envelope } = require('./helpers/audit-fixtures.js');
+const { captureLog } = require('./helpers/capture-log.js');
 
 // audit.js is required AFTER the stubs exist, so its top-level bindings
 // resolve to the stubs above.
 const { audit, getMcpInputs, normalizeAuditResult } = require('../lib/audit.js');
 
-function fakeAgent(overrides = {}) {
-  return {
-    id: 'fake-agent',
-    name: 'Fake Agent',
-    tier: 1,
-    detected: { found: true, version: '1.2.3' },
-    audit: () => ({ checks: [{ name: 'check', detail: 'ok', pass: true }], level: 3 }),
-    ...overrides,
-  };
-}
-
-function mcpFinding(overrides = {}) {
-  return Finding({
-    id: 'detector/rule',
-    detector: 'detector',
-    severity: SEVERITY.HIGH,
-    confidence: CONFIDENCE.VERIFIED,
-    agentId: 'fake-agent',
-    scope: 'user',
-    serverName: 'srv',
-    message: 'a finding',
-    ...overrides,
-  });
-}
-
-function envelope({ exitCode = EXIT.CLEAN, findings = [] } = {}) {
-  return { exitCode, findings, servers: [], sources: [] };
-}
-
 describe('audit --json frozen contract (D-11) and containment', () => {
-  let originalLog;
-  let logged;
-
   beforeEach(() => {
     currentBuildEnvelope = () => Promise.resolve(envelope());
     currentAgents = [fakeAgent()];
     currentEnvFiles = [];
-    originalLog = console.log;
-    logged = [];
-    console.log = (...args) => logged.push(args.join(' '));
   });
 
-  afterEach(() => {
-    console.log = originalLog;
-  });
-
-  function parseSingleJsonDocument() {
-    assert.equal(logged.length, 1, `audit --json must emit EXACTLY one console.log call (stdout purity), got ${logged.length}`);
+  function parseSingleJsonDocument(logs) {
+    assert.equal(logs.length, 1, `audit --json must emit EXACTLY one console.log call (stdout purity), got ${logs.length}`);
     let parsed;
-    assert.doesNotThrow(() => { parsed = JSON.parse(logged[0]); }, 'audit --json stdout must parse as JSON');
+    assert.doesNotThrow(() => { parsed = JSON.parse(logs[0]); }, 'audit --json stdout must parse as JSON');
     return parsed;
   }
 
   it('clean run: output is one parseable JSON document with the full frozen shape', async () => {
-    const result = await audit({ json: true });
+    const { logs, result } = await captureLog(() => audit({ json: true }));
 
-    const out = parseSingleJsonDocument();
+    const out = parseSingleJsonDocument(logs);
     // Frozen pre-Phase-8 keys.
     assert.ok(Array.isArray(out.agents), 'agents[] key');
     assert.ok(Array.isArray(out.envFiles), 'envFiles[] key');
@@ -132,8 +98,8 @@ describe('audit --json frozen contract (D-11) and containment', () => {
       findings: [mcpFinding()],
     }));
 
-    const result = await audit({ json: true });
-    const out = parseSingleJsonDocument();
+    const { logs, result } = await captureLog(() => audit({ json: true }));
+    const out = parseSingleJsonDocument(logs);
 
     assert.equal(out.overallLevel, 2, 'a verified finding must demote the audit level (base 3 -> 2)');
     assert.equal(out.levelCaps.length, 1);
@@ -149,8 +115,8 @@ describe('audit --json frozen contract (D-11) and containment', () => {
   it('D-03: a rejecting buildEnvelope is contained — mcp.ran:false, mcp-incomplete cap, still one JSON document, exit 2', async () => {
     currentBuildEnvelope = () => Promise.reject(new Error('hostile config engineered to crash discovery'));
 
-    const result = await audit({ json: true });
-    const out = parseSingleJsonDocument();
+    const { logs, result } = await captureLog(() => audit({ json: true }));
+    const out = parseSingleJsonDocument(logs);
 
     assert.deepEqual(out.mcp, {
       ran: false, exitCode: EXIT.INCOMPLETE, findingsCount: 0, verifiedCount: 0, unverifiedCount: 0,
@@ -168,8 +134,8 @@ describe('audit --json frozen contract (D-11) and containment', () => {
   it('incomplete-scan exit contract: an envelope with exitCode INCOMPLETE -> exit 2, still one valid JSON document', async () => {
     currentBuildEnvelope = () => Promise.resolve(envelope({ exitCode: EXIT.INCOMPLETE }));
 
-    const result = await audit({ json: true });
-    const out = parseSingleJsonDocument();
+    const { logs, result } = await captureLog(() => audit({ json: true }));
+    const out = parseSingleJsonDocument(logs);
 
     assert.deepEqual(out.mcp, {
       ran: true, exitCode: EXIT.INCOMPLETE, findingsCount: 0, verifiedCount: 0, unverifiedCount: 0,
@@ -182,10 +148,10 @@ describe('audit --json frozen contract (D-11) and containment', () => {
   it('incomplete-scan exit contract: the human path exits 2 too (rejecting buildEnvelope), scorecard still renders', async () => {
     currentBuildEnvelope = () => Promise.reject(new Error('crash'));
 
-    const result = await audit({});
+    const { logs, result } = await captureLog(() => audit({}));
     assert.equal(result.code, 2, 'the human path must fail closed with exit 2 on an incomplete MCP scan');
-    assert.ok(logged.length > 0, 'the human scorecard must still render fully before the exit code is decided');
-    assert.ok(logged.some((l) => /could not complete/.test(l)), 'the incomplete state must be visible in the rendered scorecard');
+    assert.ok(logs.length > 0, 'the human scorecard must still render fully before the exit code is decided');
+    assert.ok(logs.some((l) => /could not complete/.test(l)), 'the incomplete state must be visible in the rendered scorecard');
   });
 
   it('IN-03: zero-agents human path exits 1 without ever calling buildEnvelope (asymmetry pin)', async () => {
@@ -193,7 +159,7 @@ describe('audit --json frozen contract (D-11) and containment', () => {
     let buildEnvelopeCalled = false;
     currentBuildEnvelope = () => { buildEnvelopeCalled = true; return Promise.resolve(envelope()); };
 
-    const result = await audit({});
+    const { result } = await captureLog(() => audit({}));
 
     assert.equal(result.code, 1);
     assert.equal(buildEnvelopeCalled, false, 'the human path must short-circuit before the MCP scan on zero agents (documented asymmetry)');
@@ -202,8 +168,8 @@ describe('audit --json frozen contract (D-11) and containment', () => {
   it('IN-03: zero-agents --json path still computes the full envelope (mcp/env keys present, asymmetry pin)', async () => {
     currentAgents = [];
 
-    const result = await audit({ json: true });
-    const out = parseSingleJsonDocument();
+    const { logs, result } = await captureLog(() => audit({ json: true }));
+    const out = parseSingleJsonDocument(logs);
 
     assert.equal(result.code, 1);
     assert.deepEqual(out.agents, [], 'zero agents still produces an (empty) agents[] key');
@@ -221,8 +187,8 @@ describe('audit --json frozen contract (D-11) and containment', () => {
     currentAgents = [];
     currentBuildEnvelope = () => Promise.reject(new Error('hostile config engineered to crash discovery'));
 
-    const result = await audit({ json: true });
-    const out = parseSingleJsonDocument();
+    const { logs, result } = await captureLog(() => audit({ json: true }));
+    const out = parseSingleJsonDocument(logs);
 
     assert.deepEqual(out.agents, [], 'zero agents still produces an (empty) agents[] key');
     assert.deepEqual(out.mcp, {
@@ -238,8 +204,8 @@ describe('audit --json frozen contract (D-11) and containment', () => {
       findings: [mcpFinding()],
     }));
 
-    const result = await audit({ json: true });
-    const out = parseSingleJsonDocument();
+    const { logs, result } = await captureLog(() => audit({ json: true }));
+    const out = parseSingleJsonDocument(logs);
 
     assert.equal(out.overallLevel, 2, 'ceiling equals base — no demotion below 2');
     assert.deepEqual(result, { code: 0 }, 'verified MCP findings demote the LEVEL only — audit exits 0 at Level 2; gate on scan --mcp (exit 1) for findings');
@@ -254,8 +220,8 @@ describe('audit --json frozen contract (D-11) and containment', () => {
       ],
     }));
 
-    const result = await audit({ json: true });
-    const out = parseSingleJsonDocument();
+    const { logs, result } = await captureLog(() => audit({ json: true }));
+    const out = parseSingleJsonDocument(logs);
 
     assert.equal(out.overallLevel, 3, 'unverified-only findings must not demote the level');
     assert.deepEqual(out.levelCaps, []);
@@ -272,8 +238,8 @@ describe('audit --json frozen contract (D-11) and containment', () => {
       findings: [mcpFinding()],
     }));
 
-    const result = await audit({ json: true });
-    const out = parseSingleJsonDocument();
+    const { logs, result } = await captureLog(() => audit({ json: true }));
+    const out = parseSingleJsonDocument(logs);
 
     assert.equal(out.overallLevel, 1, 'the lower ceiling (env-files at 1) must win');
     assert.equal(out.envFileCount, 1);
@@ -285,8 +251,8 @@ describe('audit --json frozen contract (D-11) and containment', () => {
   it('WR-03: an agent audit() returning null still emits a full JSON envelope (never empty stdout)', async () => {
     currentAgents = [fakeAgent({ audit: () => null })];
 
-    const result = await audit({ json: true });
-    const out = parseSingleJsonDocument();
+    const { logs, result } = await captureLog(() => audit({ json: true }));
+    const out = parseSingleJsonDocument(logs);
 
     assert.equal(out.agents[0].level, 0, 'a malformed audit() return normalizes to level 0');
     assert.deepEqual(out.agents[0].checks, []);
@@ -298,10 +264,10 @@ describe('audit --json frozen contract (D-11) and containment', () => {
   it('WR-03: the human path with a null-returning agent audit() resolves with a numeric code (never rejects)', async () => {
     currentAgents = [fakeAgent({ audit: () => null })];
 
-    const result = await audit({});
+    const { logs, result } = await captureLog(() => audit({}));
     assert.ok(result && typeof result.code === 'number', 'the human path must resolve, not reject, on a broken agent module');
     assert.ok([0, 1].includes(result.code));
-    assert.ok(logged.length > 0, 'the human scorecard must still render');
+    assert.ok(logs.length > 0, 'the human scorecard must still render');
   });
 
   it('getMcpInputs: resolving envelope maps to ran:true with correct counts; rejecting maps to ran:false/INCOMPLETE', async () => {
@@ -339,7 +305,7 @@ describe('audit --json frozen contract (D-11) and containment', () => {
     let seenFlags = null;
     currentBuildEnvelope = (flags) => { seenFlags = flags; return Promise.resolve(envelope()); };
 
-    await audit({ json: true, online: true });
+    await captureLog(() => audit({ json: true, online: true }));
     assert.ok(seenFlags, 'buildEnvelope must have been called');
     assert.strictEqual(seenFlags.online, false, 'audit must never allow network on its MCP path (D-01/D-02)');
   });

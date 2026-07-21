@@ -4,6 +4,7 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { parseArgs, run } = require('../lib/cli.js');
+const { captureLog } = require('./helpers/capture-log.js');
 
 describe('parseArgs', () => {
   it('parses --help flag', () => {
@@ -138,32 +139,30 @@ describe('parseArgs', () => {
 
     it('run(["scan","--mpc"]) (typo\'d --mcp) refuses with exit code 2 instead of silently running the env scan', async () => {
       const originalExitCode = process.exitCode;
-      const originalLog = console.log;
-      const loggedStdout = [];
-      console.log = (...a) => loggedStdout.push(a.join(' '));
       try {
-        const { lines } = captureStderr(() => run(['scan', '--mpc']));
-        await new Promise(setImmediate);
+        const { logs, result: lines } = await captureLog(async () => {
+          const { lines: stderrLines } = captureStderr(() => run(['scan', '--mpc']));
+          await new Promise(setImmediate);
+          return stderrLines;
+        });
         assert.strictEqual(process.exitCode, 2, 'a typo\'d security flag must never masquerade as a clean scan');
         assert.ok(lines.some(l => l.includes('Refusing to run scan') && l.includes('--mpc')), `expected a refusal naming the typo on stderr, got: ${lines}`);
-        assert.deepStrictEqual(loggedStdout, [], 'no scan output — the scan must not have run at all');
+        assert.deepStrictEqual(logs, [], 'no scan output — the scan must not have run at all');
       } finally {
-        console.log = originalLog;
         process.exitCode = originalExitCode;
       }
     });
 
     it('run(["scan","--mcp","--onlien"]) (typo\'d --online) refuses with exit code 2 instead of running the wrong scan', async () => {
       const originalExitCode = process.exitCode;
-      const originalLog = console.log;
-      console.log = () => {};
       try {
-        const { lines } = captureStderr(() => run(['scan', '--mcp', '--onlien']));
-        await new Promise(setImmediate);
-        assert.strictEqual(process.exitCode, 2);
-        assert.ok(lines.some(l => l.includes('Refusing to run scan') && l.includes('--onlien')));
+        await captureLog(async () => {
+          const { lines } = captureStderr(() => run(['scan', '--mcp', '--onlien']));
+          await new Promise(setImmediate);
+          assert.strictEqual(process.exitCode, 2);
+          assert.ok(lines.some(l => l.includes('Refusing to run scan') && l.includes('--onlien')));
+        });
       } finally {
-        console.log = originalLog;
         process.exitCode = originalExitCode;
       }
     });
@@ -195,20 +194,20 @@ describe('parseArgs', () => {
       });
 
       const originalExitCode = process.exitCode;
-      const originalLog = console.log;
       const originalError = console.error;
       const stderrLines = [];
-      console.log = () => {}; // suppress the real --json envelope output
       console.error = (msg) => { stderrLines.push(String(msg)); };
       try {
-        run(['scan', '--mcp', '--json', '--quiet']);
-        // Let lib/cli.js's Promise.resolve(result).then(...) chain run —
-        // buildEnvelope()'s awaited detector loop (runAll()) chains
-        // several microtask ticks even when every detector resolves
-        // synchronously, so a single `await Promise.resolve()` is not
-        // enough. setImmediate() only fires after ALL pending microtasks
-        // (including ones enqueued while draining the queue) are drained.
-        await new Promise(setImmediate);
+        await captureLog(async () => {
+          run(['scan', '--mcp', '--json', '--quiet']);
+          // Let lib/cli.js's Promise.resolve(result).then(...) chain run —
+          // buildEnvelope()'s awaited detector loop (runAll()) chains
+          // several microtask ticks even when every detector resolves
+          // synchronously, so a single `await Promise.resolve()` is not
+          // enough. setImmediate() only fires after ALL pending microtasks
+          // (including ones enqueued while draining the queue) are drained.
+          await new Promise(setImmediate);
+        });
         // The scan must actually RUN — a previously self-defeating
         // version of this test passed '--quiet' while parseArgs did not
         // recognize it, so the WR-01 guard refused the scan with exit 2
@@ -224,7 +223,6 @@ describe('parseArgs', () => {
           `exit code must be a scan contract value (0=clean/1=findings/2=incomplete), got ${process.exitCode}`
         );
       } finally {
-        console.log = originalLog;
         console.error = originalError;
         process.exitCode = originalExitCode; // never pollute the real test-runner exit code
         if (originalAgentsEntry === undefined) delete require.cache[agentsPath];
@@ -416,25 +414,24 @@ describe('parseArgs', () => {
       installStub(scanPath, { scanForEnvFiles: () => [] });
 
       const originalExitCode = process.exitCode;
-      const originalLog = console.log;
-      console.log = () => {}; // suppress the real human-readable report
       try {
         // IN-04: an out-of-range sentinel (outside {0,1,2}) so a silently
         // non-executed run fails loudly instead of coincidentally landing
         // on a contract value.
         process.exitCode = 42;
-        run(['audit']);
-        // buildEnvelope()'s awaited detector loop (runAll()) chains several
-        // microtask ticks even when every detector resolves synchronously —
-        // a single `await Promise.resolve()` under-drains it (same gotcha
-        // as the scan --mcp propagation test above).
-        await new Promise(setImmediate);
+        await captureLog(async () => {
+          run(['audit']);
+          // buildEnvelope()'s awaited detector loop (runAll()) chains several
+          // microtask ticks even when every detector resolves synchronously —
+          // a single `await Promise.resolve()` under-drains it (same gotcha
+          // as the scan --mcp propagation test above).
+          await new Promise(setImmediate);
+        });
         assert.ok(
           [0, 1, 2].includes(process.exitCode),
           `audit exit code must be a contract value (0=Level 2+/1=Level<2/2=MCP scan incomplete), got ${process.exitCode}`
         );
       } finally {
-        console.log = originalLog;
         process.exitCode = originalExitCode; // never pollute the real test-runner exit code
         if (originalAgentsEntry === undefined) delete require.cache[agentsPath];
         else require.cache[agentsPath] = originalAgentsEntry;
@@ -468,19 +465,18 @@ describe('parseArgs', () => {
       installStub(scanPath, { scanForEnvFiles: () => [] });
 
       const originalExitCode = process.exitCode;
-      const originalLog = console.log;
-      console.log = () => {}; // suppress the real --json envelope output
       try {
         // IN-04: out-of-range sentinel — see rationale above.
         process.exitCode = 99;
-        run(['audit', '--json']);
-        await new Promise(setImmediate);
+        await captureLog(async () => {
+          run(['audit', '--json']);
+          await new Promise(setImmediate);
+        });
         assert.ok(
           [0, 1, 2].includes(process.exitCode),
           `audit --json exit code must be a contract value (0/1, or 2 when the MCP scan can't complete), got ${process.exitCode}`
         );
       } finally {
-        console.log = originalLog;
         process.exitCode = originalExitCode;
         if (originalAgentsEntry === undefined) delete require.cache[agentsPath];
         else require.cache[agentsPath] = originalAgentsEntry;
@@ -557,19 +553,18 @@ describe('parseArgs', () => {
       installStub(scanPath, { scanForEnvFiles: () => [] });
 
       const originalExitCode = process.exitCode;
-      const originalLog = console.log;
-      console.log = () => {};
       try {
         process.exitCode = 42; // sentinel outside {0,1,2} — a non-run fails loudly
-        run(['audit']);
-        await new Promise(setImmediate);
+        await captureLog(async () => {
+          run(['audit']);
+          await new Promise(setImmediate);
+        });
         assert.strictEqual(stubCalled, true, 'the rejecting buildEnvelope stub must actually execute — otherwise this test proves nothing (WR-01)');
         assert.strictEqual(
           process.exitCode, 2,
           `a contained buildEnvelope throw is an incomplete MCP scan — audit must deliberately exit 2 (never 0/1, never the 42 sentinel), got ${process.exitCode}`
         );
       } finally {
-        console.log = originalLog;
         process.exitCode = originalExitCode;
         if (originalScanMcpEntry === undefined) delete require.cache[scanMcpPath];
         else require.cache[scanMcpPath] = originalScanMcpEntry;

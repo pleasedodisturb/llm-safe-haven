@@ -14,7 +14,8 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { installStub } = require('./helpers/module-stub.js');
+const { stubHomedir } = require('./helpers/module-stub.js');
+const { captureLog } = require('./helpers/capture-log.js');
 
 const osPath = require.resolve('os');
 const updatePath = require.resolve('../lib/update.js');
@@ -24,31 +25,16 @@ const HOOK_FILES = ['bash-firewall.js', 'secret-guard.js', 'audit-logger.js'];
 // tests can only pass as non-root (containers/CI sometimes run as root).
 const runningAsRoot = typeof process.getuid === 'function' && process.getuid() === 0;
 
-function loadUpdateAgainstHome(homeDir) {
-  // Spread the real os module first so unrelated os.* calls (os.tmpdir(),
-  // etc.) keep working — only homedir() is redirected.
-  installStub(osPath, { ...os, homedir: () => homeDir });
-  // Evict update.js so its top-level HOOKS_DIR const rebinds against the
-  // stubbed os.homedir() on next require.
-  delete require.cache[updatePath];
-  return require('../lib/update.js').update;
-}
-
 describe('update()', () => {
   let tmpHome;
   let originalOsEntry;
-  let originalLog;
 
   beforeEach(() => {
     tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-update-test-'));
     originalOsEntry = require.cache[osPath];
-    originalLog = console.log;
-    console.log = () => {}; // suppress update()'s human-readable output
   });
 
   afterEach(() => {
-    console.log = originalLog;
-
     // Restore the real os module and evict the stub-bound update.js so
     // later suites in this process never see the sandboxed HOOKS_DIR.
     if (originalOsEntry === undefined) delete require.cache[osPath];
@@ -65,8 +51,8 @@ describe('update()', () => {
     fs.rmSync(tmpHome, { recursive: true, force: true });
   });
 
-  it('happy path: copies and chmods hook files into a populated sandbox HOOKS_DIR', () => {
-    const update = loadUpdateAgainstHome(tmpHome);
+  it('happy path: copies and chmods hook files into a populated sandbox HOOKS_DIR', async () => {
+    const { update } = stubHomedir(tmpHome, updatePath);
     const hooksDir = path.join(tmpHome, '.claude', 'hooks');
     fs.mkdirSync(hooksDir, { recursive: true });
     // update() only copies over an EXISTING dest file (it skips hooks that
@@ -76,7 +62,7 @@ describe('update()', () => {
       fs.writeFileSync(path.join(hooksDir, hook), '// stale content\n');
     }
 
-    update({});
+    await captureLog(() => update({})); // suppress update()'s human-readable output
 
     const realHooksSource = path.join(__dirname, '..', 'hooks');
     for (const hook of HOOK_FILES) {
@@ -93,16 +79,16 @@ describe('update()', () => {
     }
   });
 
-  it('idempotent re-run: a second update() against an already-populated destination completes without error', () => {
-    const update = loadUpdateAgainstHome(tmpHome);
+  it('idempotent re-run: a second update() against an already-populated destination completes without error', async () => {
+    const { update } = stubHomedir(tmpHome, updatePath);
     const hooksDir = path.join(tmpHome, '.claude', 'hooks');
     fs.mkdirSync(hooksDir, { recursive: true });
     for (const hook of HOOK_FILES) {
       fs.writeFileSync(path.join(hooksDir, hook), '// stale content\n');
     }
 
-    update({}); // first run copies real content over the stale content
-    assert.doesNotThrow(() => update({}), 'a second run against already-synced content must not throw');
+    await captureLog(() => update({})); // first run copies real content over the stale content
+    await captureLog(() => assert.doesNotThrow(() => update({}), 'a second run against already-synced content must not throw'));
 
     const realHooksSource = path.join(__dirname, '..', 'hooks');
     for (const hook of HOOK_FILES) {
@@ -112,8 +98,8 @@ describe('update()', () => {
     }
   });
 
-  it('copy-failure: a read-only destination file makes update() throw synchronously (assert.throws, not assert.rejects)', { skip: runningAsRoot }, () => {
-    const update = loadUpdateAgainstHome(tmpHome);
+  it('copy-failure: a read-only destination file makes update() throw synchronously (assert.throws, not assert.rejects)', { skip: runningAsRoot }, async () => {
+    const { update } = stubHomedir(tmpHome, updatePath);
     const hooksDir = path.join(tmpHome, '.claude', 'hooks');
     fs.mkdirSync(hooksDir, { recursive: true });
     for (const hook of HOOK_FILES) {
@@ -127,7 +113,7 @@ describe('update()', () => {
     const readOnlyTarget = path.join(hooksDir, HOOK_FILES[0]);
     fs.chmodSync(readOnlyTarget, 0o400);
 
-    assert.throws(() => update({}), /EACCES|EPERM/);
+    await captureLog(() => assert.throws(() => update({}), /EACCES|EPERM/));
   });
 
   // hooksSource-missing branch (lib/update.js ~line 18-21) calls the real

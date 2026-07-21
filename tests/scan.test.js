@@ -19,7 +19,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const { installStub } = require('./helpers/module-stub.js');
+const { stubHomedir } = require('./helpers/module-stub.js');
+const { captureLog } = require('./helpers/capture-log.js');
 
 const { findEnvFiles } = require('../lib/scan.js');
 
@@ -176,20 +177,13 @@ describe('scan() dangerous-file block', () => {
 
   let sandboxHome;
   let originalOsEntry;
-  let originalLog;
-  let logged;
 
   beforeEach(() => {
     sandboxHome = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-dangerous-home-'));
     originalOsEntry = require.cache[osPath];
-    originalLog = console.log;
-    logged = [];
-    console.log = (...args) => logged.push(args.join(' '));
   });
 
   afterEach(() => {
-    console.log = originalLog;
-
     // Restore the real os module and evict the stub-bound scan.js so later
     // suites in this process never see the sandboxed homedir.
     if (originalOsEntry === undefined) delete require.cache[osPath];
@@ -199,27 +193,17 @@ describe('scan() dangerous-file block', () => {
     fs.rmSync(sandboxHome, { recursive: true, force: true });
   });
 
-  function loadScanAgainstHome(homeDir) {
-    // Spread the real os module first so unrelated os.* calls (os.tmpdir(),
-    // etc.) keep working — only homedir() is redirected.
-    installStub(osPath, { ...os, homedir: () => homeDir });
-    // Evict scan.js so its top-level SCAN_DIRS const AND scan()'s
-    // os.homedir() calls rebind against the stubbed sandbox on next require.
-    delete require.cache[scanPath];
-    return require('../lib/scan.js').scan;
-  }
+  it('dangerous-file block: zero found (empty sandbox HOME, header absent)', async () => {
+    const { scan } = stubHomedir(sandboxHome, scanPath);
 
-  it('dangerous-file block: zero found (empty sandbox HOME, header absent)', () => {
-    const scan = loadScanAgainstHome(sandboxHome);
+    const { logs } = await captureLog(() => scan({}, {}));
 
-    scan({}, {});
-
-    const output = logged.join('\n');
+    const output = logs.join('\n');
     assert.ok(!output.includes('Credential files accessible to agents:'), 'the dangerous-file header must NOT print when nothing is found');
   });
 
-  it('dangerous-file block: one or more found (seeded sandbox HOME, header + both paths present)', () => {
-    const scan = loadScanAgainstHome(sandboxHome);
+  it('dangerous-file block: one or more found (seeded sandbox HOME, header + both paths present)', async () => {
+    const { scan } = stubHomedir(sandboxHome, scanPath);
 
     const awsDir = path.join(sandboxHome, '.aws');
     fs.mkdirSync(awsDir, { recursive: true });
@@ -229,22 +213,16 @@ describe('scan() dangerous-file block', () => {
     const npmrc = path.join(sandboxHome, '.npmrc');
     fs.writeFileSync(npmrc, '//registry.npmjs.org/:_authToken=FAKE\n');
 
-    scan({}, {});
+    const { logs } = await captureLog(() => scan({}, {}));
 
-    const output = logged.join('\n');
+    const output = logs.join('\n');
     assert.ok(output.includes('Credential files accessible to agents:'), 'the dangerous-file header must print when seeded files are found');
     assert.ok(output.includes(awsCreds), 'the seeded .aws/credentials path must be listed');
     assert.ok(output.includes(npmrc), 'the seeded .npmrc path must be listed');
   });
 
   it('scanForEnvFiles() also resolves deterministically against the sandbox (SCAN_DIRS do not exist there)', () => {
-    const { scanForEnvFiles } = loadScanAgainstHomeModule(sandboxHome);
+    const { scanForEnvFiles } = stubHomedir(sandboxHome, scanPath);
     assert.deepEqual(scanForEnvFiles(), [], 'none of the six SCAN_DIRS exist in an empty sandbox HOME');
   });
-
-  function loadScanAgainstHomeModule(homeDir) {
-    installStub(osPath, { ...os, homedir: () => homeDir });
-    delete require.cache[scanPath];
-    return require('../lib/scan.js');
-  }
 });

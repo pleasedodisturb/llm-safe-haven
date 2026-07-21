@@ -7,6 +7,7 @@ const { buildEnvelope, scanMcp, findingsExitCode } = require('../../lib/scan-mcp
 const { SCHEMA_VERSION, EXIT } = require('../../lib/mcp/base.js');
 const { parseArgs } = require('../../lib/cli.js');
 const { scan } = require('../../lib/scan.js');
+const { captureLog } = require('../helpers/capture-log.js');
 
 const FIXED_NOW = () => '2026-01-01T00:00:00.000Z';
 
@@ -209,15 +210,9 @@ describe('scanMcp', () => {
   });
 
   it('with flags.json, prints JSON.stringify(envelope) via console.log', async () => {
-    const originalLog = console.log;
-    let printed = '';
-    console.log = (msg) => { printed = msg; };
-    try {
-      await scanMcp({ json: true }, { discoverAll: () => [], now: FIXED_NOW });
-    } finally {
-      console.log = originalLog;
-    }
-    const parsed = JSON.parse(printed);
+    const { logs } = await captureLog(() => scanMcp({ json: true }, { discoverAll: () => [], now: FIXED_NOW }));
+    assert.strictEqual(logs.length, 1, 'pure JSON — exactly one stdout write');
+    const parsed = JSON.parse(logs[0]);
     assert.strictEqual(parsed.schemaVersion, SCHEMA_VERSION);
   });
 
@@ -237,15 +232,12 @@ describe('scanMcp', () => {
   // so stderr silence is the observable "no notices" invariant).
   it('default (no --online) scanMcp writes zero stderr', async () => {
     const originalError = console.error;
-    const originalLog = console.log;
     const lines = [];
     console.error = (msg) => { lines.push(String(msg)); };
-    console.log = () => {}; // swallow the --json envelope on stdout
     try {
-      await scanMcp({ quiet: true, json: true }, { discoverAll: () => [], now: FIXED_NOW });
+      await captureLog(() => scanMcp({ quiet: true, json: true }, { discoverAll: () => [], now: FIXED_NOW }));
     } finally {
       console.error = originalError;
-      console.log = originalLog;
     }
     assert.deepStrictEqual(lines, [], 'the default offline scan must emit nothing on stderr');
   });
@@ -270,21 +262,13 @@ describe('scanMcp', () => {
     const THROWING_DISCOVER = () => { throw new Error('boom'); };
 
     it('emits a valid JSON error envelope to stdout (schemaVersion, exitCode 2, error: build-error, frozen keys)', async () => {
-      const originalLog = console.log;
-      const printed = [];
-      console.log = (msg) => { printed.push(msg); };
-      let result;
-      try {
-        result = await scanMcp({ json: true }, { discoverAll: THROWING_DISCOVER, now: FIXED_NOW });
-      } finally {
-        console.log = originalLog;
-      }
+      const { logs, result } = await captureLog(() => scanMcp({ json: true }, { discoverAll: THROWING_DISCOVER, now: FIXED_NOW }));
 
       assert.strictEqual(result.ran, false);
       assert.strictEqual(result.code, EXIT.INCOMPLETE);
 
-      assert.strictEqual(printed.length, 1, 'exactly one stdout write — pure JSON, nothing else');
-      const parsed = JSON.parse(printed[0]); // must not throw — the pure-JSON contract
+      assert.strictEqual(logs.length, 1, 'exactly one stdout write — pure JSON, nothing else');
+      const parsed = JSON.parse(logs[0]); // must not throw — the pure-JSON contract
       assert.strictEqual(parsed.schemaVersion, SCHEMA_VERSION);
       assert.strictEqual(parsed.exitCode, EXIT.INCOMPLETE, 'a build error is INCOMPLETE, never clean');
       assert.strictEqual(parsed.error, 'build-error', 'the additive error field names the failure');
@@ -308,15 +292,8 @@ describe('scanMcp', () => {
       // makeEnvelope() factory exists to prevent), this fails.
       const successEnvelope = await buildEnvelope({}, { discoverAll: () => [], now: FIXED_NOW });
 
-      const originalLog = console.log;
-      const printed = [];
-      console.log = (msg) => { printed.push(msg); };
-      try {
-        await scanMcp({ json: true }, { discoverAll: THROWING_DISCOVER, now: FIXED_NOW });
-      } finally {
-        console.log = originalLog;
-      }
-      const errorEnvelope = JSON.parse(printed[0]);
+      const { logs } = await captureLog(() => scanMcp({ json: true }, { discoverAll: THROWING_DISCOVER, now: FIXED_NOW }));
+      const errorEnvelope = JSON.parse(logs[0]);
 
       assert.deepEqual(
         Object.keys(errorEnvelope).sort(),
@@ -326,30 +303,16 @@ describe('scanMcp', () => {
     });
 
     it('without --json, a build error still prints nothing to stdout and returns code 2', async () => {
-      const originalLog = console.log;
-      const printed = [];
-      console.log = (msg) => { printed.push(msg); };
-      let result;
-      try {
-        result = await scanMcp({ quiet: true }, { discoverAll: THROWING_DISCOVER, now: FIXED_NOW });
-      } finally {
-        console.log = originalLog;
-      }
+      const { logs, result } = await captureLog(() => scanMcp({ quiet: true }, { discoverAll: THROWING_DISCOVER, now: FIXED_NOW }));
       assert.strictEqual(result.code, EXIT.INCOMPLETE);
-      assert.deepStrictEqual(printed, [], 'the human/quiet build-error path stays silent on stdout');
+      assert.deepStrictEqual(logs, [], 'the human/quiet build-error path stays silent on stdout');
     });
   });
 
   it('--online sets envelope.offline to false even with zero servers', async () => {
-    let printed = '';
-    const originalLog = console.log;
-    console.log = (msg) => { printed = msg; };
-    try {
-      await scanMcp({ json: true, online: true }, { discoverAll: () => [], now: FIXED_NOW });
-    } finally {
-      console.log = originalLog;
-    }
-    const parsed = JSON.parse(printed);
+    const { logs } = await captureLog(() => scanMcp({ json: true, online: true }, { discoverAll: () => [], now: FIXED_NOW }));
+    assert.strictEqual(logs.length, 1, 'pure JSON — exactly one stdout write');
+    const parsed = JSON.parse(logs[0]);
     assert.strictEqual(parsed.offline, false);
   });
 });
