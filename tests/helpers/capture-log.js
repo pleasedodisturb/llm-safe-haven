@@ -15,10 +15,14 @@
 // result }. Declared async and awaits fn() so both sync and async callers
 // are supported transparently.
 
+const util = require('util');
+
 async function captureLog(fn) {
   const orig = console.log;
   const logs = [];
-  console.log = (...args) => logs.push(args.join(' '));
+  // util.format matches real console.log semantics ('%d' etc.) — a plain
+  // args.join(' ') would capture format specifiers literally.
+  console.log = (...args) => logs.push(util.format(...args));
   try {
     const result = await fn();
     return { logs, result };

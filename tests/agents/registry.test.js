@@ -90,7 +90,7 @@ describe('detectAll', () => {
     originalFsEntry = require.cache[fsPath];
     installStub(fsPath, {
       ...fs,
-      existsSync: (p) => (appExists ? p.includes('.app') : false),
+      existsSync: (p) => (appExists ? p.endsWith('Cursor.app') : false),
       readdirSync: (p) => {
         if (extDirEntries === undefined) {
           throw Object.assign(new Error('ENOENT — simulate no ~/.vscode/extensions dir'), { code: 'ENOENT' });

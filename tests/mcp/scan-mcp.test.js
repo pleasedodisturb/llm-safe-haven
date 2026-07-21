@@ -211,6 +211,7 @@ describe('scanMcp', () => {
 
   it('with flags.json, prints JSON.stringify(envelope) via console.log', async () => {
     const { logs } = await captureLog(() => scanMcp({ json: true }, { discoverAll: () => [], now: FIXED_NOW }));
+    assert.strictEqual(logs.length, 1, 'pure JSON — exactly one stdout write');
     const parsed = JSON.parse(logs[0]);
     assert.strictEqual(parsed.schemaVersion, SCHEMA_VERSION);
   });
@@ -310,6 +311,7 @@ describe('scanMcp', () => {
 
   it('--online sets envelope.offline to false even with zero servers', async () => {
     const { logs } = await captureLog(() => scanMcp({ json: true, online: true }, { discoverAll: () => [], now: FIXED_NOW }));
+    assert.strictEqual(logs.length, 1, 'pure JSON — exactly one stdout write');
     const parsed = JSON.parse(logs[0]);
     assert.strictEqual(parsed.offline, false);
   });

@@ -68,6 +68,14 @@ installStub(require.resolve('child_process'), {
 // macAppExists('Replit') does not), and readdirSync returns extension-dir
 // entries that match amazon-q and github-copilot's extension IDs but not
 // augment's.
+//
+// Scope note (honest hermeticity): the claim above covers detect()'s found
+// flags only. audit() paths that read file CONTENTS stay live — e.g.
+// github-copilot's audit() readFileSync of the real VS Code settings.json
+// goes through the spread-through real fs — so those branches still vary by
+// machine. The audit-loop assertions below are deliberately shape-only
+// (checks array + numeric level), so this cannot flake; closing the
+// readFileSync seam is follow-up scope, not TESTQ-01.
 const VSCODE_EXT_DIR_SUFFIX = path.join('.vscode', 'extensions');
 installStub(require.resolve('fs'), {
   ...fs,
