@@ -1,0 +1,26 @@
+extensions:
+  developer:
+    type: builtin
+    name: developer
+    enabled: true
+    bundled: true
+    timeout: 300
+  filesystem:
+    type: stdio
+    name: filesystem
+    enabled: true
+    cmd: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+    env_keys: []
+    envs:
+      LOG_LEVEL: debug
+    timeout: 300
+  remote-tools:
+    type: streamable_http
+    name: remote-tools
+    enabled: true
+    uri: "https://example.com/mcp"
+    headers: {}
+    env_keys: []
+    envs: {}
+    timeout: 300

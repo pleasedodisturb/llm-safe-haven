@@ -1,0 +1,6 @@
+name: my-goose-config
+version: 1.0.0
+
+models:
+  - name: gpt-4
+    provider: openai

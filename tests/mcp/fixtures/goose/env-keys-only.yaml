@@ -1,0 +1,9 @@
+extensions:
+  secretive:
+    type: stdio
+    name: secretive
+    enabled: true
+    cmd: npx
+    args: ["-y", "some-secret-server"]
+    env_keys: ["OPENAI_API_KEY"]
+    timeout: 300

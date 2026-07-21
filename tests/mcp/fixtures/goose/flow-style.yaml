@@ -1,0 +1,3 @@
+name: my-goose-config
+
+extensions: {developer: {type: builtin}}

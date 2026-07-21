@@ -1,0 +1,7 @@
+defaults: &defaults
+  cmd: npx
+
+extensions:
+  filesystem:
+    type: stdio
+    <<: *defaults
