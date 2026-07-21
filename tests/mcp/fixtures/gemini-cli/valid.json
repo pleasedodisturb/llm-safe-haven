@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "local-server": {
+      "command": "node",
+      "args": ["server.js", "--flag"],
+      "env": {
+        "API_KEY": "${env:API_KEY}"
+      },
+      "cwd": "/tmp",
+      "trust": false,
+      "includeTools": ["read_file"],
+      "excludeTools": ["write_file"]
+    },
+    "remote-server": {
+      "httpUrl": "https://mcp.example.com/mcp"
+    }
+  }
+}
