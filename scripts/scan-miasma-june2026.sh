@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# Miasma / Mini Shai-Hulud IOC scanner — June 2026 wave
+# Miasma / Mini Shai-Hulud IOC scanner — June-July 2026 waves
 # ============================================================================
 #
 # What this does:
@@ -92,7 +92,7 @@ sha256_of() {
 # ============================================================================
 # Header
 # ============================================================================
-printf "${BOLD}Miasma / Mini Shai-Hulud IOC scanner — June 2026 wave${RESET}\n"
+printf "${BOLD}Miasma / Mini Shai-Hulud IOC scanner — June-July 2026 waves${RESET}\n"
 printf "Host: %s\n" "$(hostname)"
 printf "User: %s\n" "$(whoami)"
 printf "Date: %s\n" "$(date)"
@@ -203,6 +203,42 @@ else
     pass "No binding.gyp files found under code roots"
   elif [ "$FINDINGS" -eq 0 ]; then
     pass "binding.gyp files found but none match Phantom Gyp patterns"
+  fi
+fi
+
+# ============================================================================
+# 1b. Wave J "M-RED-TEAM" (AsyncAPI, July 14 2026) persistence artifacts (NEW)
+# ============================================================================
+section "1b. Wave J 'M-RED-TEAM' persistence artifacts"
+
+# Wave J fires at IMPORT time (require/import), not install time — the
+# binding.gyp and postinstall vectors above do NOT catch it. This section
+# checks the persistence artifacts the second-stage payload drops after a
+# compromised @asyncapi/* package is actually loaded, not just installed.
+WAVE_J_PATHS=(
+  "$HOME/.config/.miasma/run/node.lock|Wave J lock file (node.lock)"
+  "$HOME/.cache/.sys_cache/.diag.enc|Wave J local artifact cache (.diag.enc)"
+  "$HOME/.local/share/NodeJS/sync.js|Wave J Linux drop path (sync.js)"
+  "$HOME/Library/Application Support/NodeJS/sync.js|Wave J macOS drop path (sync.js)"
+  "$HOME/.config/systemd/user/miasma-monitor.service|Wave J systemd unit (miasma-monitor.service)"
+)
+WAVE_J_ANY=0
+for entry in "${WAVE_J_PATHS[@]}"; do
+  path="${entry%%|*}"
+  desc="${entry#*|}"
+  if [ -e "$path" ]; then
+    fail "$desc EXISTS: $path"
+    WAVE_J_ANY=1
+  fi
+done
+[ "$WAVE_J_ANY" -eq 0 ] && pass "No Wave J filesystem persistence artifacts found"
+
+# Windows persistence key (only checkable if running under WSL/Cygwin with reg.exe on PATH)
+if command -v reg.exe >/dev/null 2>&1; then
+  if reg.exe query "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v miasma-monitor >/dev/null 2>&1; then
+    fail "Wave J Windows persistence key found: HKCU...\\Run\\miasma-monitor"
+  else
+    pass "No Wave J Windows persistence key (miasma-monitor)"
   fi
 fi
 
@@ -433,6 +469,11 @@ COMPROMISED_PKGS=(
   "@immobiliarelabs/backstage-plugin-ldap-auth"
   "@immobiliarelabs/backstage-plugin-ldap-auth-backend"
   "hexo-deployer-wrangler" "hexo-shoka-swiper" "prism-silq" "solo-nav"
+  # Wave J / "M-RED-TEAM" — AsyncAPI (July 14, 2026). IMPORT-TIME execution —
+  # presence in a lockfile is lower-signal than for the install-time waves
+  # above; a hit here means the package was pulled in, not that it ran.
+  "@asyncapi/specs" "@asyncapi/generator" "@asyncapi/generator-components"
+  "@asyncapi/generator-helpers"
 )
 
 if command -v npm >/dev/null 2>&1; then
@@ -488,6 +529,10 @@ MARKER_STRINGS=(
   "IfYouInvalidateThisTokenItWillNukeTheComputerOfTheOwner"
   "Miasma: The Spreading Blight"
   "liuende501"
+  "M-RED-TEAM"
+  "miasma-train-p1"
+  "elzotebo999"
+  "miasma-monitor"
 )
 
 MARK_HITS=0
@@ -534,6 +579,7 @@ DEAD_DROP_PATTERNS=(
   "Miasma"
   "Shai-Hulud"
   "Here We Go Again"
+  "M-RED-TEAM"
 )
 
 if [ -n "${LSH_NO_NETWORK:-}" ]; then

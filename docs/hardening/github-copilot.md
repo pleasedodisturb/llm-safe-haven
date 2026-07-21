@@ -130,6 +130,16 @@ Security Review, Gemini CLI Action, and GitHub Copilot Agent simultaneously:
 The pattern applies to any AI agent that ingests untrusted GitHub data with access to
 execution tools and production secrets in the same runtime.
 
+### Recent Security-Relevant Releases
+
+- **`/security-review` slash command (July 14, 2026)** -- The GitHub Copilot app shipped an
+  AI-driven vulnerability scanner over in-flight workstream changes, tuned for injection
+  flaws, XSS, insecure data handling, path traversal, and weak cryptography, with
+  severity/confidence-scored findings and in-app fix-and-reverify. Public preview,
+  continuous SaaS deploy (no version number). This complements, not replaces, the hardening
+  steps below -- an AI reviewer catching AI-introduced bugs is still subject to the same
+  trust-boundary issues documented above.
+
 ## Hardening Steps
 
 ### 1. Enable Workspace Trust
