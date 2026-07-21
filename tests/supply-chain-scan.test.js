@@ -6,15 +6,9 @@ const path = require('path');
 
 const { scan, runSupplyChainScan, SUPPLY_CHAIN_SCANNER } = require('../lib/scan.js');
 const { parseArgs } = require('../lib/cli.js');
+const { captureLog } = require('./helpers/capture-log.js');
 
 const REAL_SCRIPTS_DIR = path.join(__dirname, '..', 'scripts');
-
-// Silence the scanner's header output during tests.
-function quiet(fn) {
-  const orig = console.log;
-  console.log = () => {};
-  try { return fn(); } finally { console.log = orig; }
-}
 
 describe('parseArgs --supply-chain', () => {
   it('sets flags.supplyChain on the scan command', () => {
@@ -29,9 +23,9 @@ describe('parseArgs --supply-chain', () => {
 });
 
 describe('runSupplyChainScan', () => {
-  it('does not spawn on Windows; returns win32 reason with non-zero code (not "clean")', () => {
+  it('does not spawn on Windows; returns win32 reason with non-zero code (not "clean")', async () => {
     let called = false;
-    const r = quiet(() => runSupplyChainScan({}, {
+    const { result: r } = await captureLog(() => runSupplyChainScan({}, {
       platform: 'win32',
       spawnSync: () => { called = true; return {}; },
     }));
@@ -41,9 +35,9 @@ describe('runSupplyChainScan', () => {
     assert.equal(called, false);
   });
 
-  it('returns missing with non-zero code when the scanner script is absent', () => {
+  it('returns missing with non-zero code when the scanner script is absent', async () => {
     let called = false;
-    const r = quiet(() => runSupplyChainScan({}, {
+    const { result: r } = await captureLog(() => runSupplyChainScan({}, {
       platform: 'linux',
       scriptsDir: '/no/such/dir',
       spawnSync: () => { called = true; return {}; },
@@ -54,9 +48,9 @@ describe('runSupplyChainScan', () => {
     assert.equal(called, false);
   });
 
-  it('dispatches from scan() when flags.supplyChain is set (forwards opts)', () => {
+  it('dispatches from scan() when flags.supplyChain is set (forwards opts)', async () => {
     let called = false;
-    const r = quiet(() => scan({ supplyChain: true }, {
+    const { result: r } = await captureLog(() => scan({ supplyChain: true }, {
       platform: 'win32',
       spawnSync: () => { called = true; return {}; },
     }));
@@ -65,8 +59,8 @@ describe('runSupplyChainScan', () => {
     assert.equal(called, false);
   });
 
-  it('treats a signal-killed scan as incomplete (code 2), never clean', () => {
-    const r = quiet(() => runSupplyChainScan({}, {
+  it('treats a signal-killed scan as incomplete (code 2), never clean', async () => {
+    const { result: r } = await captureLog(() => runSupplyChainScan({}, {
       platform: 'linux',
       scriptsDir: REAL_SCRIPTS_DIR,
       spawnSync: () => ({ status: null, signal: 'SIGKILL' }),
@@ -76,9 +70,9 @@ describe('runSupplyChainScan', () => {
     assert.equal(r.code, 2);
   });
 
-  it('spawns bash on the bundled scanner, network-free, and returns its code', () => {
+  it('spawns bash on the bundled scanner, network-free, and returns its code', async () => {
     let captured = null;
-    const r = quiet(() => runSupplyChainScan({}, {
+    const { result: r } = await captureLog(() => runSupplyChainScan({}, {
       platform: 'linux',
       scriptsDir: REAL_SCRIPTS_DIR,
       spawnSync: (cmd, argv, opts) => { captured = { cmd, argv, opts }; return { status: 0 }; },
@@ -91,8 +85,8 @@ describe('runSupplyChainScan', () => {
     assert.equal(captured.opts.stdio, 'inherit');
   });
 
-  it('propagates a non-zero exit code (findings)', () => {
-    const r = quiet(() => runSupplyChainScan({}, {
+  it('propagates a non-zero exit code (findings)', async () => {
+    const { result: r } = await captureLog(() => runSupplyChainScan({}, {
       platform: 'linux',
       scriptsDir: REAL_SCRIPTS_DIR,
       spawnSync: () => ({ status: 1 }),
@@ -101,8 +95,8 @@ describe('runSupplyChainScan', () => {
     assert.equal(r.code, 1);
   });
 
-  it('handles a spawn error (no bash) gracefully', () => {
-    const r = quiet(() => runSupplyChainScan({}, {
+  it('handles a spawn error (no bash) gracefully', async () => {
+    const { result: r } = await captureLog(() => runSupplyChainScan({}, {
       platform: 'linux',
       scriptsDir: REAL_SCRIPTS_DIR,
       spawnSync: () => ({ error: new Error('bash not found') }),
