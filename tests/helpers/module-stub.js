@@ -16,6 +16,8 @@
 // installing the stubs so its next require rebinds against them.
 
 const Module = require('module');
+const os = require('os');
+const osPath = require.resolve('os');
 
 function installStub(resolvedPath, exports) {
   const stub = new Module(resolvedPath);
@@ -25,4 +27,17 @@ function installStub(resolvedPath, exports) {
   require.cache[resolvedPath] = stub;
 }
 
-module.exports = { installStub };
+// stubHomedir (Phase 11 / TESTQ-02, D-04 — generalizes the 5+ near-identical
+// loadXAgainstHome-style loaders duplicated across scan.test.js,
+// update.test.js, and agents/claude-code.test.js). Locked signature:
+// stubHomedir(dir, modulePath). Spreads the real os module first so
+// unrelated os.* calls (os.tmpdir(), etc.) keep working — only homedir()
+// is redirected — then evicts and re-requires modulePath so its top-level
+// bindings rebind against the stub (WR-01 ordering).
+function stubHomedir(dir, modulePath) {
+  installStub(osPath, { ...os, homedir: () => dir });
+  delete require.cache[modulePath];
+  return require(modulePath);
+}
+
+module.exports = { installStub, stubHomedir };
