@@ -13,8 +13,10 @@ means you're NOT getting.
 
 ## 1. What `scan --mcp` covers
 
-`scan --mcp` discovers and parses MCP server configs across **5 agents**: Claude Code,
-Cursor, Windsurf, Cline, and Continue.dev. For Claude Code specifically, it reads all
+`scan --mcp` discovers and parses MCP server configs across **10 agents**: Claude Code,
+Cursor, Windsurf, Cline, Continue.dev, Codex CLI, Gemini CLI, Goose, Google Antigravity,
+and GitHub Copilot (VS Code) (internal agent ids: `codex-cli`, `gemini-cli`, `goose`,
+`antigravity`, `github-copilot`). For Claude Code specifically, it reads all
 **3 config scopes**:
 
 | Scope | Path | Notes |
@@ -25,6 +27,34 @@ Cursor, Windsurf, Cline, and Continue.dev. For Claude Code specifically, it read
 
 Cursor, Windsurf, Cline, and Continue.dev each contribute their own global/project config
 paths through the same discovery layer.
+
+### Supported agents and config paths
+
+Every row below is a source `scan --mcp` actually reads. `Verified?` reflects how
+confident the path is: **established** means it shipped in Wave A and is confirmed
+correct against real installs; **verified** means the path was confirmed against
+official docs (source link in each row); **medium confidence** flags a path inferred
+by convention rather than independently doc-confirmed — the honest caveat, not a
+guess presented as fact.
+
+| Agent | Scope | Path | Format | Verified? |
+|-------|-------|------|--------|-----------|
+| Claude Code | user | `~/.claude.json` (`mcpServers`) | json | Established (Wave A) |
+| Claude Code | local | `~/.claude.json` (`projects[<cwd>].mcpServers`) | json | Established (Wave A) |
+| Claude Code | project | `<project>/.mcp.json` | json | Established (Wave A) |
+| Cursor | global | `~/.cursor/mcp.json` | jsonc | Established (Wave A) |
+| Cursor | project | `<project>/.cursor/mcp.json` | jsonc | Established (Wave A) |
+| Windsurf | global | `~/.codeium/windsurf/mcp_config.json` | jsonc | Established (Wave A) |
+| Cline | global | VS Code globalStorage: `saoudrizwan.claude-dev/settings/cline_mcp_settings.json` | jsonc | Established (Wave A) |
+| Continue.dev | global | `~/.continue/config.yaml` | yaml | Established (Wave A) |
+| Codex CLI | user | `~/.codex/config.toml` | toml | Verified — [official docs](https://developers.openai.com/codex/config-reference) |
+| Gemini CLI | user | `~/.gemini/settings.json` | json | Verified — [official docs](https://google-gemini.github.io/gemini-cli/docs/tools/mcp-server.html) |
+| Gemini CLI | project | `<project>/.gemini/settings.json` | json | Verified — same doc, explicitly names both scopes |
+| Goose | global | macOS/Linux `~/.config/goose/config.yaml`; Windows `%APPDATA%\Block\goose\config\config.yaml` | yaml | Verified — [official docs](https://goose-docs.ai/docs/guides/config-files/) |
+| Google Antigravity | global | `~/.gemini/config/mcp_config.json` | json | Verified (hard gate resolved) — [official docs](https://antigravity.google/docs/mcp) + [migration history](https://github.com/google-antigravity/antigravity-cli/issues/60), two independent sources agree. This is **not** Windsurf's `~/.codeium/windsurf/mcp_config.json` layout — a different path despite the similar filename |
+| Google Antigravity | project | `<project>/.agents/mcp_config.json` | json | Verified per docs, flagged best-effort: a known upstream bug reads a *different* project-local path (`.antigravitycli/mcp_config.json`) on some versions and silently ignores its `mcpServers` key. The global scope above is the higher-confidence target |
+| GitHub Copilot (VS Code) | project | `<project>/.vscode/mcp.json` | jsonc | Verified — [official docs](https://code.visualstudio.com/docs/agents/reference/mcp-configuration) confirm the top-level key is `servers`, not `mcpServers` |
+| GitHub Copilot (VS Code) | user | darwin `~/Library/Application Support/Code/User/mcp.json`; win32 `%APPDATA%\Code\User\mcp.json`; linux `~/.config/Code/User/mcp.json` | jsonc | darwin/win32: verified against official docs + the existing in-repo `clineGlobalStorageBase()` precedent. **Linux path is medium confidence** — no official doc states `~/.config/Code/User/mcp.json` explicitly; it's inferred by directory-sibling convention (the same base VS Code's own `settings.json` uses on Linux), not independently doc-confirmed for `mcp.json` specifically |
 
 **Offline-first by default.** Every detector runs against the parsed config text alone —
 zero network calls unless you pass `--online` (see [Section 4](#4-offline-vs---online)).
@@ -115,6 +145,29 @@ If you need live introspection or semantic classification of a server's actual t
 descriptions, `scan --mcp` is not that tool (yet) — live introspection is on the
 roadmap. If you're tracking it, watch the
 [project issues](https://github.com/pleasedodisturb/llm-safe-haven/issues).
+
+### Assessed and out of scope: Aider, Mistral
+
+Two agents from the original candidate list were researched and are deliberately **not**
+implemented — shipping a wrong or guessed config path would be worse than shipping
+nothing:
+
+- **Aider** — no native MCP client config exists. The full `aider_conf.html` config
+  reference (~120 keys) has zero MCP-related keys, and the upstream RFC
+  ([Aider-AI/aider#4506](https://github.com/Aider-AI/aider/issues/4506)) is still open
+  and unmerged. Aider does ship a `--mcp-server` flag, but that makes Aider itself *act
+  as* an MCP server — the reverse direction from what this scanner discovers, not a
+  config file to read.
+- **Mistral Code** — the VS Code/JetBrains extension is a fork of
+  [Continue.dev](https://mistral.ai/news/mistral-code/), per Mistral's own announcement,
+  but no Mistral-specific config path was found. This is documented as
+  **not-applicable / unverified**, not "covered by `continue-dev.js`" — claiming
+  coverage we haven't confirmed would be exactly the overstatement this section exists
+  to avoid. If a future scan confirms Mistral Code reads `~/.continue/config.yaml`
+  verbatim, it's already covered with zero new code.
+- **Mistral Vibe CLI** — a genuinely different product from Mistral Code, with its own
+  `config.toml` `[[mcp_servers]]` array-of-tables. Out of scope for this phase
+  (candidate follow-up, not implemented here).
 
 ## 6. Scorecard gating
 

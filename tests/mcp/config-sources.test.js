@@ -138,6 +138,135 @@ describe('sourcesFor', () => {
     });
   });
 
+  describe('codex-cli', () => {
+    it('yields a single user-scope TOML source at <homedir>/.codex/config.toml', () => {
+      const sources = sourcesFor('codex-cli', { homedir: FAKE_HOME, cwd: FAKE_CWD, platform: 'darwin' });
+      assert.strictEqual(sources.length, 1);
+      assert.strictEqual(sources[0].scope, 'user');
+      assert.strictEqual(sources[0].path, path.join(FAKE_HOME, '.codex', 'config.toml'));
+      assert.strictEqual(sources[0].format, 'toml');
+      assert.strictEqual(sources[0].agentId, 'codex-cli');
+    });
+  });
+
+  describe('gemini-cli', () => {
+    it('yields user (<homedir>/.gemini/settings.json) and project (<cwd>/.gemini/settings.json) sources', () => {
+      const sources = sourcesFor('gemini-cli', { homedir: FAKE_HOME, cwd: FAKE_CWD, platform: 'darwin' });
+      assert.strictEqual(sources.length, 2);
+      const user = sources.find(s => s.scope === 'user');
+      const project = sources.find(s => s.scope === 'project');
+      assert.strictEqual(user.path, path.join(FAKE_HOME, '.gemini', 'settings.json'));
+      assert.strictEqual(project.path, path.join(FAKE_CWD, '.gemini', 'settings.json'));
+      assert.strictEqual(user.format, 'json');
+      assert.strictEqual(project.format, 'json');
+      for (const s of sources) assert.strictEqual(s.agentId, 'gemini-cli');
+    });
+  });
+
+  describe('goose', () => {
+    it('resolves the macOS/Linux config path (~/.config/goose/config.yaml)', () => {
+      const sources = sourcesFor('goose', { homedir: FAKE_HOME, cwd: FAKE_CWD, platform: 'linux' });
+      assert.strictEqual(sources.length, 1);
+      assert.strictEqual(sources[0].scope, 'global');
+      assert.strictEqual(sources[0].path, path.join(FAKE_HOME, '.config', 'goose', 'config.yaml'));
+      assert.strictEqual(sources[0].format, 'yaml');
+      assert.strictEqual(sources[0].agentId, 'goose');
+    });
+
+    it('resolves the Windows config path using APPDATA (%APPDATA%/Block/goose/config/config.yaml)', () => {
+      const sources = sourcesFor('goose', {
+        homedir: FAKE_HOME,
+        cwd: FAKE_CWD,
+        platform: 'win32',
+        env: { APPDATA: 'C:\\Users\\fake\\AppData\\Roaming' },
+      });
+      assert.strictEqual(sources.length, 1);
+      const expected = path.join(
+        'C:\\Users\\fake\\AppData\\Roaming', 'Block', 'goose', 'config', 'config.yaml'
+      );
+      assert.strictEqual(sources[0].path, expected);
+      assert.strictEqual(sources[0].agentId, 'goose');
+    });
+
+    it('falls back to <homedir>/AppData/Roaming on Windows when APPDATA is unset', () => {
+      const sources = sourcesFor('goose', { homedir: FAKE_HOME, cwd: FAKE_CWD, platform: 'win32', env: {} });
+      assert.strictEqual(sources.length, 1);
+      const expected = path.join(FAKE_HOME, 'AppData', 'Roaming', 'Block', 'goose', 'config', 'config.yaml');
+      assert.strictEqual(sources[0].path, expected);
+    });
+  });
+
+  describe('antigravity', () => {
+    it('yields global (<homedir>/.gemini/config/mcp_config.json) and project (<cwd>/.agents/mcp_config.json) sources', () => {
+      const sources = sourcesFor('antigravity', { homedir: FAKE_HOME, cwd: FAKE_CWD, platform: 'darwin' });
+      assert.strictEqual(sources.length, 2);
+      const global = sources.find(s => s.scope === 'global');
+      const project = sources.find(s => s.scope === 'project');
+      assert.strictEqual(global.path, path.join(FAKE_HOME, '.gemini', 'config', 'mcp_config.json'));
+      assert.strictEqual(project.path, path.join(FAKE_CWD, '.agents', 'mcp_config.json'));
+      assert.strictEqual(global.format, 'json');
+      assert.strictEqual(project.format, 'json');
+      for (const s of sources) assert.strictEqual(s.agentId, 'antigravity');
+      // Pitfall 1 guard: must NOT be modeled on Windsurf's ~/.codeium/windsurf layout
+      assert.ok(!sources.some(s => /codeium|windsurf/.test(s.path)), 'antigravity path must not leak windsurf/codeium layout');
+    });
+  });
+
+  describe('github-copilot', () => {
+    it('yields project (<cwd>/.vscode/mcp.json) and user-profile (darwin) sources', () => {
+      const sources = sourcesFor('github-copilot', { homedir: FAKE_HOME, cwd: FAKE_CWD, platform: 'darwin' });
+      assert.strictEqual(sources.length, 2);
+      const project = sources.find(s => s.scope === 'project');
+      const user = sources.find(s => s.scope === 'user');
+      assert.strictEqual(project.path, path.join(FAKE_CWD, '.vscode', 'mcp.json'));
+      assert.strictEqual(
+        user.path,
+        path.join(FAKE_HOME, 'Library', 'Application Support', 'Code', 'User', 'mcp.json')
+      );
+      assert.strictEqual(project.format, 'jsonc');
+      assert.strictEqual(user.format, 'jsonc');
+      for (const s of sources) assert.strictEqual(s.agentId, 'github-copilot');
+    });
+
+    it('resolves the Linux user-profile path (~/.config/Code/User/mcp.json)', () => {
+      const sources = sourcesFor('github-copilot', { homedir: FAKE_HOME, cwd: FAKE_CWD, platform: 'linux' });
+      const user = sources.find(s => s.scope === 'user');
+      assert.strictEqual(user.path, path.join(FAKE_HOME, '.config', 'Code', 'User', 'mcp.json'));
+    });
+
+    it('resolves the Windows user-profile path using APPDATA', () => {
+      const sources = sourcesFor('github-copilot', {
+        homedir: FAKE_HOME,
+        cwd: FAKE_CWD,
+        platform: 'win32',
+        env: { APPDATA: 'C:\\Users\\fake\\AppData\\Roaming' },
+      });
+      const user = sources.find(s => s.scope === 'user');
+      const expected = path.join('C:\\Users\\fake\\AppData\\Roaming', 'Code', 'User', 'mcp.json');
+      assert.strictEqual(user.path, expected);
+    });
+
+    it('falls back to <homedir>/AppData/Roaming on Windows when APPDATA is unset', () => {
+      const sources = sourcesFor('github-copilot', { homedir: FAKE_HOME, cwd: FAKE_CWD, platform: 'win32', env: {} });
+      const user = sources.find(s => s.scope === 'user');
+      const expected = path.join(FAKE_HOME, 'AppData', 'Roaming', 'Code', 'User', 'mcp.json');
+      assert.strictEqual(user.path, expected);
+    });
+  });
+
+  describe('every new agent descriptor carries the correct agentId (Pitfall 5 guard)', () => {
+    it('asserts source.agentId matches the requested agentId for all 5 new agents', () => {
+      const opts = { homedir: FAKE_HOME, cwd: FAKE_CWD, platform: 'darwin', env: { APPDATA: 'C:\\AD' } };
+      for (const id of ['codex-cli', 'gemini-cli', 'goose', 'antigravity', 'github-copilot']) {
+        const sources = sourcesFor(id, opts);
+        assert.ok(sources.length > 0, `${id} should resolve at least one source`);
+        for (const s of sources) {
+          assert.strictEqual(s.agentId, id, `every descriptor from sourcesFor('${id}') must carry agentId==='${id}'`);
+        }
+      }
+    });
+  });
+
   describe('unknown agent id', () => {
     it('returns an empty array', () => {
       const sources = sourcesFor('does-not-exist', { homedir: FAKE_HOME, cwd: FAKE_CWD, platform: 'darwin' });
@@ -224,7 +353,7 @@ describe('discover', () => {
 });
 
 describe('discoverAll', () => {
-  it('iterates the 5 known agent ids and aggregates their discovered sources', () => {
+  it('iterates all 10 known agent ids and aggregates their discovered sources', () => {
     const result = discoverAll({
       homedir: FAKE_HOME,
       cwd: FAKE_CWD,
@@ -233,7 +362,10 @@ describe('discoverAll', () => {
       existsSync: () => true,
     });
     const agentIds = new Set(result.map(s => s.agentId));
-    assert.deepEqual([...agentIds].sort(), ['claude-code', 'cline', 'continue-dev', 'cursor', 'windsurf']);
+    assert.deepEqual([...agentIds].sort(), [
+      'antigravity', 'claude-code', 'cline', 'codex-cli', 'continue-dev',
+      'cursor', 'gemini-cli', 'github-copilot', 'goose', 'windsurf',
+    ]);
     // All returned as 'found' since existsSync always true
     assert.ok(result.every(s => s.status === 'found'));
   });
@@ -248,5 +380,73 @@ describe('discoverAll', () => {
     });
     assert.ok(!result.some(s => s.agentId === 'cursor'));
     assert.ok(result.some(s => s.agentId === 'windsurf'));
+  });
+});
+
+describe('end-to-end discovery + parse smoke (5 new agents, D-10 additive-only)', () => {
+  // Hermetic integration test: drives lib/scan-mcp.js's buildEnvelope()
+  // with a fabricated discoverAll() that points the 5 new agents' sources
+  // directly at their Wave-1 fixture files (opts-injection — never touches
+  // the real filesystem/homedir), and the REAL parser modules from
+  // lib/mcp/parsers/ (not stubs) so a copy-paste agentId mismatch (Pitfall
+  // 5) would surface as 'parser-mismatch', not a silently-wrong parse.
+  const { buildEnvelope } = require('../../lib/scan-mcp.js');
+  const FIXTURES = path.join(__dirname, 'fixtures');
+  const FIXED_NOW = () => '2026-01-01T00:00:00.000Z';
+
+  const NEW_AGENT_FIXTURES = [
+    { agentId: 'codex-cli', scope: 'user', format: 'toml', fixture: 'codex-cli/valid.toml' },
+    { agentId: 'gemini-cli', scope: 'user', format: 'json', fixture: 'gemini-cli/valid.json' },
+    { agentId: 'goose', scope: 'global', format: 'yaml', fixture: 'goose/valid.yaml' },
+    { agentId: 'antigravity', scope: 'global', format: 'json', fixture: 'antigravity/valid.json' },
+    { agentId: 'github-copilot', scope: 'project', format: 'jsonc', fixture: 'github-copilot/valid.jsonc' },
+  ];
+
+  function fabricatedSources() {
+    return NEW_AGENT_FIXTURES.map(({ agentId, scope, format, fixture }) => ({
+      agentId, scope, format, path: path.join(FIXTURES, fixture), status: 'found',
+    }));
+  }
+
+  function realParsersForNewAgents() {
+    return {
+      'codex-cli': require('../../lib/mcp/parsers/codex-cli.js'),
+      'gemini-cli': require('../../lib/mcp/parsers/gemini-cli.js'),
+      goose: require('../../lib/mcp/parsers/goose.js'),
+      antigravity: require('../../lib/mcp/parsers/antigravity.js'),
+      'github-copilot': require('../../lib/mcp/parsers/github-copilot.js'),
+    };
+  }
+
+  it('all 5 new agents route to the correct parser and parse their valid fixture without parser-mismatch', async () => {
+    const envelope = await buildEnvelope({}, {
+      discoverAll: fabricatedSources,
+      parsers: realParsersForNewAgents(),
+      now: FIXED_NOW,
+    });
+
+    for (const { agentId } of NEW_AGENT_FIXTURES) {
+      const src = envelope.sources.find(s => s.agentId === agentId);
+      assert.ok(src, `expected a source entry for ${agentId}`);
+      assert.notStrictEqual(src.status, 'parser-mismatch', `${agentId} must not hit the parser-mismatch guard`);
+      assert.strictEqual(src.status, 'parsed', `${agentId}'s valid fixture should parse cleanly (got status=${src.status})`);
+    }
+  });
+
+  it('keeps the frozen envelope shape additive-only: schemaVersion unchanged, no new top-level keys', async () => {
+    const envelope = await buildEnvelope({}, {
+      discoverAll: fabricatedSources,
+      parsers: realParsersForNewAgents(),
+      now: FIXED_NOW,
+    });
+    const { SCHEMA_VERSION } = require('../../lib/mcp/base.js');
+    assert.strictEqual(envelope.schemaVersion, SCHEMA_VERSION);
+    assert.deepEqual(Object.keys(envelope).sort(), [
+      'exitCode', 'findings', 'generatedAt', 'offline', 'schemaVersion', 'servers', 'sources', 'summary',
+    ]);
+    // New agentId values are additive data within the existing `sources`
+    // array shape — no structural change to how a source descriptor looks.
+    const newAgentIds = new Set(NEW_AGENT_FIXTURES.map(f => f.agentId));
+    assert.ok(envelope.sources.some(s => newAgentIds.has(s.agentId)));
   });
 });

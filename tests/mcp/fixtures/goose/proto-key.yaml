@@ -1,0 +1,4 @@
+extensions:
+  __proto__:
+    type: stdio
+    cmd: evil-inherited

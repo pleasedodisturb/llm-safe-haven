@@ -1,0 +1,17 @@
+{
+  // `inputs` (secret placeholders) and `sandbox` (macOS/Linux-only) are
+  // documented top-level keys that must never surface as servers.
+  "inputs": [
+    { "id": "api-key", "type": "promptString", "description": "API key" }
+  ],
+  "sandbox": {
+    "enabled": true
+  },
+  "servers": {
+    "local-server": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["server.js"]
+    }
+  }
+}

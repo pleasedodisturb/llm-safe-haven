@@ -273,10 +273,11 @@ test('loadAgents includes all 7 Tier 3 modules', () => {
   assert.strictEqual(tier3.length, 7, `Expected 7 Tier 3 agents, got ${tier3.length}`);
 });
 
-test('loadAgents returns 14 total agents', () => {
+test('loadAgents returns 16 total agents', () => {
+  // 14 (pre-Phase-12) + goose + antigravity (Phase 12 Tier 2 registry modules)
   const { loadAgents } = require(path.join(__dirname, '..', 'lib', 'agents', 'index.js'));
   const agents = loadAgents();
-  assert.strictEqual(agents.length, 14, `Expected 14 total agents, got ${agents.length}`);
+  assert.strictEqual(agents.length, 16, `Expected 16 total agents, got ${agents.length}`);
 });
 
 test('loadAgents sorts Tier 3 after Tier 1 and Tier 2', () => {

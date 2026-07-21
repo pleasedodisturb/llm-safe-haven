@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "broken": {
+      "type": "stdio"
+      "command": "node"
+    }
+  }
+}

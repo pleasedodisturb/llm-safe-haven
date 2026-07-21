@@ -1,0 +1,6 @@
+{
+  "servers": {
+    "__proto__": { "polluted": true },
+    "constructor": "bad"
+  }
+}

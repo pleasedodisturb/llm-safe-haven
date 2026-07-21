@@ -1,0 +1,6 @@
+[mcp_servers.fs]
+command = "node"
+env = { API_KEY = "secret" }
+
+[mcp_servers.fs.env]
+API_KEY = "secret-again"

@@ -1,0 +1,21 @@
+{
+  // GitHub Copilot (VS Code) MCP config, well-formed JSONC with comments.
+  // Top-level key is `servers`, NOT `mcpServers` (D-07).
+  "servers": {
+    "local-server": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["server.js", "--flag"], /* trailing comma below is intentional */
+      "env": {
+        "API_KEY": "${input:api-key}",
+      },
+      "envFile": "${workspaceFolder}/.env",
+    },
+    "remote-server": {
+      // url must survive JSONC stripping — the // inside https:// must
+      // never be mistaken for a line comment (Pitfall 5).
+      "type": "http",
+      "url": "https://mcp.example.com/mcp",
+    },
+  },
+}
