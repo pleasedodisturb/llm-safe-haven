@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const { installStub } = require('../helpers/module-stub.js');
+const { installStub, stubHomedir } = require('../helpers/module-stub.js');
 
 // Root portability: mode bits do not block uid 0, so permission-denied
 // tests can only pass as non-root (containers/CI sometimes run as root).
@@ -45,9 +45,6 @@ describe('claude-code agent', () => {
     originalChildProcessEntry = require.cache[childProcessPath];
     originalClaudeCodeEntry = require.cache[claudeCodePath];
 
-    // Spread the real os module so unrelated os.* calls keep working —
-    // only homedir() is redirected into the sandbox.
-    installStub(osPath, { ...os, homedir: () => tmpHome });
     // base.js's commandExists/getVersion and audit()'s `node -c` syntax
     // check all require('child_process') lazily with a bare specifier, so
     // the stub reaches them with no ordering constraint. Throwing
@@ -57,10 +54,10 @@ describe('claude-code agent', () => {
       execFileSync: () => { throw new Error('stubbed — unit tests must never spawn a real subprocess'); },
     });
 
-    // Evict claude-code.js so HOOKS_DIR/SETTINGS_PATH/AUDIT_DIR rebind
-    // against the stubbed os.homedir() on the next require.
-    delete require.cache[claudeCodePath];
-    claudeCode = require('../../lib/agents/claude-code.js');
+    // Redirect os.homedir() into the sandbox and evict+re-require
+    // claude-code.js so HOOKS_DIR/SETTINGS_PATH/AUDIT_DIR rebind against
+    // it (WR-01 ordering, shared helper — D-04).
+    claudeCode = stubHomedir(tmpHome, claudeCodePath);
   });
 
   afterEach(() => {
@@ -166,16 +163,10 @@ describe('claude-code agent — real-fs harden/_mergeSettings/_backupFile (exten
     originalOsEntry = require.cache[osPath];
     originalClaudeCodeEntry = require.cache[claudeCodePath];
 
-    // Spread the real os module first so unrelated os.* calls (used
-    // transitively by lib/agents/base.js's macAppExists etc.) keep
-    // working — only homedir() is redirected.
-    installStub(osPath, { ...os, homedir: () => tmpHome });
-
-    // Evict claude-code.js so its top-level HOOKS_DIR/SETTINGS_PATH/
-    // AUDIT_DIR consts rebind against the stubbed os.homedir() on the
-    // next require.
-    delete require.cache[claudeCodePath];
-    claudeCodeReal = require('../../lib/agents/claude-code.js');
+    // Redirect os.homedir() into the sandbox and evict+re-require
+    // claude-code.js so its top-level HOOKS_DIR/SETTINGS_PATH/AUDIT_DIR
+    // consts rebind against it (WR-01 ordering, shared helper — D-04).
+    claudeCodeReal = stubHomedir(tmpHome, claudeCodePath);
   });
 
   afterEach(() => {
