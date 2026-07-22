@@ -1,7 +1,5 @@
 # We scanned the top 100 public MCP servers' own install instructions. 90 fail the first check.
 
-_(Draft — G-1372. Not published. Publishing/HN timing is a separate ticket, G-386.)_
-
 ## The install snippet is the attack surface
 
 On June 9, 2026, StepSecurity and BleepingComputer disclosed "Hades MCP-targeting" — the
@@ -61,12 +59,14 @@ Full methodology, the exact commands to reproduce this, and every source consult
 avoidable: pin a version or a full git SHA (both count as pinned as of v0.3.1 — a floating
 `@latest`/`@next`/`@canary` tag, or nothing at all, does not).
 
-**`provenance` — 38/89 npm-resolvable servers lack an attestation** (11 servers in the
-dataset don't resolve to an npm package at all — Docker-only or remote-URL-only
-recommended installs, PyPI-only reference servers — and provenance is `not-applicable`
-for those). Remember what this number does and doesn't mean: `has-attestation` means the
-package was published through npm's own provenance pipeline. It is *not* a claim that the
-code inside was audited or is safe — see the fidelity-limits section below.
+**`provenance` — 38/89 npm-resolvable servers lack an attestation** (11 servers' recommended
+snippets don't use a directly-resolvable npx/uvx package spec — Docker, absolute binary
+paths, wrapped shell invocations, or remote-URL-only transports — so provenance is
+`not-applicable` for those; each still has an associated npm package, the *install
+command* just isn't the kind this detector can evaluate). Remember what this number does
+and doesn't mean: `has-attestation` means the package was published through npm's own
+provenance pipeline. It is *not* a claim that the code inside was audited or is safe —
+see the fidelity-limits section below.
 
 **`insecure-endpoint` — 1/100.** Both hits come from a single server's recommended
 multi-server example: two HTTPS endpoints (the server's own remote transport, plus a
@@ -98,17 +98,29 @@ construction, not a measurement. Read both alongside the fidelity limits below �
 detector is a static heuristic over config text, not a live `tools/list` inspection, so a
 clean result here says nothing about a server's actual runtime tool descriptions.
 
-**`typosquat` — 5/100, and all five are a confirmed detector false positive**, not five
+**`typosquat` — 5/100, and all five were a confirmed detector false positive**, not five
 real typosquats. `@ui5/mcp-server`, `@cap-js/mcp-server`, `@launchdarkly/mcp-server`,
 `@hubspot/mcp-server`, and `@browserstack/mcp-server` were each flagged
-`scope-confusion` because the allowlist's one `@sentry/mcp-server` entry seeds `mcp-server`
+`scope-confusion` because the allowlist's one `@sentry/mcp-server` entry seeded `mcp-server`
 as a "known" name half — and `mcp-server` turns out to be a generic leaf name that SAP,
 LaunchDarkly, HubSpot, and BrowserStack all independently and legitimately chose for their
-own official package. We're naming this as a detector bug, not a finding about any of
-those five vendors — every one of them is a real, official, first-party integration. Full
-repro filed for ticketing in `FINDINGS-FOR-TICKETS.md`. This is exactly the kind of thing
-running your own detector at 25x the normal dogfood scale is supposed to surface (see
-G-1368, caught the same way one scale-order down).
+own official package. We named this as a detector bug, not a finding about any of those
+five vendors — every one of them is a real, official, first-party integration.
+
+**This one is found-and-fixed, not just filed.** [G-1376](https://github.com/pleasedodisturb/llm-safe-haven/pull/86)
+shipped a token-composition filter in `lib/mcp/detectors/typosquat.js`: a full-spec
+allowlist entry's name half (like `@sentry/mcp-server`'s `mcp-server`) now only seeds the
+exact-match scope-confusion pool when it is *not* composed entirely of the generic tokens
+`mcp`/`server`. `@ui5/mcp-server` and the other four stop being flagged as squats of
+Sentry's package, while a genuinely distinctive half like `context7-mcp` stays eligible —
+the fix is a token-composition rule, not a stoplist, so it doesn't quietly blind the
+detector to real squats that happen to contain those words. The regression tests are
+non-vacuous: a data-driven RED baseline confirmed all 5 known false positives failed
+against the unmodified detector before the fix landed, and true-positive coverage was
+checked to still hold after. This is exactly the kind of thing running your own detector
+at 25x the normal dogfood scale is supposed to surface — [G-1368](https://github.com/pleasedodisturb/llm-safe-haven/pull/81)
+caught a different false positive the same way one scale-order down, on our own machines,
+the day of a release.
 
 ## Cross-set tool-shadowing
 
@@ -159,11 +171,19 @@ because this research ran the exact same static analysis with the exact same bli
 
 ## Check your own setup
 
-Everything above comes from the same tool you can run against your own machine right now:
+Everything above comes from the same tool you can run against your own machine right now.
+Pin the version — that's the same lesson the headline number teaches, applied to the
+scanner itself:
 
 ```bash
-npx llm-safe-haven scan --mcp
+npx llm-safe-haven@0.4.0 scan --mcp
 ```
+
+`scan --mcp` now discovers configs across 10 agents — Claude Code, Cursor, Windsurf,
+Cline, Continue.dev, Codex CLI, Gemini CLI, Goose, Google Antigravity, and GitHub Copilot
+(VS Code) — not just the 5 this dataset's own scan used. See
+[`docs/mcp-security.md`](https://github.com/pleasedodisturb/llm-safe-haven/blob/main/docs/mcp-security.md)
+for the full per-agent path table.
 
 Add `--online` to also check provenance attestations for any npx/uvx-resolvable servers you
 have configured, and `--json` for a CI-friendly machine-readable report.
