@@ -67,6 +67,52 @@ describe('scan-chaindrop-aug2026.sh — functional: each IOC path', { skip: !has
     assert.match(r.stdout, /Poisoned ChainDrop version keyv@6\.0\.0/);
   });
 
+  // Lockfile-format matrix — a poisoned keyv@6.0.0 must be caught in EVERY
+  // common lockfile shape, and a safe keyv@5.6.0 must be caught in NONE.
+  // (Regression guard: yarn Berry poisoned versions were originally missed,
+  // silently reporting a compromised tree as ALL CLEAR.)
+  const LOCKFILES = {
+    'npm v3 (package-lock.json)': {
+      file: 'package-lock.json',
+      poisoned: JSON.stringify({ lockfileVersion: 3, packages: { 'node_modules/keyv': { version: '6.0.0' } } }, null, 2),
+      safe: JSON.stringify({ lockfileVersion: 3, packages: { 'node_modules/keyv': { version: '5.6.0' } } }, null, 2),
+    },
+    'npm v1 (package-lock.json)': {
+      file: 'package-lock.json',
+      poisoned: JSON.stringify({ lockfileVersion: 1, dependencies: { keyv: { version: '6.0.0' } } }, null, 2),
+      safe: JSON.stringify({ lockfileVersion: 1, dependencies: { keyv: { version: '5.6.0' } } }, null, 2),
+    },
+    'yarn classic (yarn.lock)': {
+      file: 'yarn.lock',
+      poisoned: '"keyv@^6.0.0":\n  version "6.0.0"\n  resolved "https://registry.yarnpkg.com/keyv/-/keyv-6.0.0.tgz"\n',
+      safe: '"keyv@^5.6.0":\n  version "5.6.0"\n  resolved "https://registry.yarnpkg.com/keyv/-/keyv-5.6.0.tgz"\n',
+    },
+    'yarn berry (yarn.lock)': {
+      file: 'yarn.lock',
+      poisoned: '"keyv@npm:^6.0.0":\n  version: 6.0.0\n  resolution: "keyv@npm:6.0.0"\n  languageName: node\n',
+      safe: '"keyv@npm:^5.6.0":\n  version: 5.6.0\n  resolution: "keyv@npm:5.6.0"\n  languageName: node\n',
+    },
+    'pnpm (pnpm-lock.yaml)': {
+      file: 'pnpm-lock.yaml',
+      poisoned: "packages:\n  'keyv@6.0.0':\n    resolution: {integrity: sha512-x}\n",
+      safe: "packages:\n  'keyv@5.6.0':\n    resolution: {integrity: sha512-x}\n",
+    },
+  };
+  for (const [label, lf] of Object.entries(LOCKFILES)) {
+    it(`FAILs on poisoned keyv@6.0.0 in ${label}`, () => {
+      const home = newHome(built, (h, p) => write(p(`Projects/a/${lf.file}`), lf.poisoned));
+      const r = runScanner(home);
+      assert.equal(r.status, 1, `${label} poisoned tree must FAIL\n${r.stdout}`);
+      assert.match(r.stdout, /Poisoned ChainDrop version keyv@6\.0\.0/);
+    });
+    it(`is CLEAN on safe keyv@5.6.0 in ${label} (no false positive)`, () => {
+      const home = newHome(built, (h, p) => write(p(`Projects/a/${lf.file}`), lf.safe));
+      const r = runScanner(home);
+      assert.equal(r.status, 0, `${label} safe tree must be clean\n${r.stdout}`);
+      assert.doesNotMatch(r.stdout, /\[FAIL\]/);
+    });
+  }
+
   it('FAILs on a poisoned version installed on disk (node_modules)', () => {
     const home = newHome(built, (h, p) => {
       write(p('Projects/app/node_modules/@keyv/redis/package.json'),

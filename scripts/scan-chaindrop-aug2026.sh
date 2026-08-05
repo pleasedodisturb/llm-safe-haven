@@ -270,12 +270,17 @@ section "3. Poisoned keyv/cacheable-family versions"
 # version is expected (ubiquitous transitive deps) and not reported.
 poisoned_hit_in_file() {
   # $1 = file. Prints matching "name@version" lines for poisoned combos.
-  # Handles every common lockfile shape:
-  #   - yarn classic / npm ls / pnpm:  a bare "<name>@<ver>" token
-  #   - npm v1 lockfile:               "<name>": { ... "version": "<ver>" }
-  #   - npm v2/v3 lockfile:            "node_modules/<name>": { "version": "<ver>" }
-  # The awk pass ties the version to the package KEY (within a few lines) so a
-  # poisoned version of package A isn't mismatched against an innocent package B.
+  # Handles every common lockfile shape by anchoring on a package-section HEADER
+  # that names the package, then confirming the poisoned version on a nearby
+  # "version" line — so a poisoned version of package A is never mismatched
+  # against an innocent package B:
+  #   - pnpm / npm ls:        a bare "<name>@<ver>" token (fast path)
+  #   - npm v1 lockfile:      "<name>": { ... "version": "<ver>" }
+  #   - npm v2/v3 lockfile:   "node_modules/<name>": { "version": "<ver>" }
+  #   - yarn classic (v1):    <name>@<range>:  \n  version "<ver>"
+  #   - yarn berry (v2+):     "<name>@npm:<range>":  \n  version: <ver>
+  # All matching is literal (awk index()) to avoid regex-escaping the name/
+  # version, which contain '.', '@' and '/'.
   local file="$1" pv name ver
   for pv in "${POISONED_PKG_VERSIONS[@]}"; do
     name="${pv%@*}"; ver="${pv##*@}"
@@ -284,9 +289,14 @@ poisoned_hit_in_file() {
       continue
     fi
     awk -v n="$name" -v v="$ver" -v pv="$pv" '
-      index($0, "\"" n "\":") || index($0, "node_modules/" n "\"") { hot = 5; next }
+      # Package-section header referencing this exact name: npm json key,
+      # npm path key, or a yarn "<name>@..." dependency header. The trailing
+      # "@" (or "\":) prevents keyv from matching @keyv/redis and vice-versa.
+      (index($0, "\"" n "\":") || index($0, "node_modules/" n "\"") || index($0, n "@")) { hot = 6; next }
+      # Version line within the window: works for "version": "x" (npm),
+      # version "x" (yarn v1), and version: x (yarn berry).
       hot > 0 {
-        if (index($0, "\"version\"") && index($0, "\"" v "\"")) { print pv; exit }
+        if (index($0, "version") && index($0, v)) { print pv; exit }
         hot--
       }
     ' "$file" 2>/dev/null
