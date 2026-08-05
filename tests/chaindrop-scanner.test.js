@@ -123,6 +123,40 @@ describe('scan-chaindrop-aug2026.sh — functional: each IOC path', { skip: !has
     assert.match(r.stdout, /Installed poisoned version on disk: @keyv\/redis@6\.0\.0/);
   });
 
+  it('FAILs on npm-shrinkwrap.json with a poisoned version', () => {
+    // npm always pretty-prints lockfiles (2-space); the matcher uses precise
+    // line-window matching, so the fixture reflects the real on-disk format.
+    const home = newHome(built, (h, p) => write(p('Projects/a/npm-shrinkwrap.json'),
+      JSON.stringify({ lockfileVersion: 3, packages: { 'node_modules/keyv': { version: '6.0.0' } } }, null, 2)));
+    const r = runScanner(home);
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stdout, /Poisoned ChainDrop version keyv@6\.0\.0/);
+  });
+
+  it('FAILs on bun.lock with a poisoned version (Bun is the worm runtime)', () => {
+    const home = newHome(built, (h, p) => write(p('Projects/a/bun.lock'),
+      '{\n  "lockfileVersion": 1,\n  "packages": {\n    "keyv": ["keyv@6.0.0", "", {}, "sha512-x"]\n  }\n}\n'));
+    const r = runScanner(home);
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stdout, /keyv@6\.0\.0/);
+  });
+
+  it('FAILs on a large stage-2 payload under a VARIANT name (math_<x>.js)', () => {
+    const home = newHome(built, (h, p) => write(p('Projects/a/node_modules/keyv/math_9f2c.js'),
+      '/*' + 'x'.repeat(210 * 1024) + '*/\n'));
+    const r = runScanner(home);
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stdout, /Stage-2 payload variant/);
+  });
+
+  it('WARNs (not FAIL) on a small Math_*.js variant — surfaces without false-positive', () => {
+    const home = newHome(built, (h, p) => write(p('Projects/a/Math_Helper.js'), 'export const add = (a,b) => a+b;\n'));
+    const r = runScanner(home);
+    assert.equal(r.status, 0, r.stdout);
+    assert.doesNotMatch(r.stdout, /\[FAIL\]/);
+    assert.match(r.stdout, /stage-2 naming pattern/);
+  });
+
   it('FAILs on the Math_Symbol.js file marker', () => {
     const home = newHome(built, (h, p) => write(p('Projects/x/node_modules/keyv/Math_Symbol.js'), '/* stub */\n'));
     const r = runScanner(home);

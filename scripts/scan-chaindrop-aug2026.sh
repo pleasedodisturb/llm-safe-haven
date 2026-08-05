@@ -188,16 +188,43 @@ if [ ${#SEARCH_ROOTS[@]} -eq 0 ]; then
   info "No common code directories found — skipping file-marker scan"
 else
   info "Scanning under: ${SEARCH_ROOTS[*]}"
-  # (a) Strong filename markers — FAIL on presence.
+  # (a) Strong filename markers — FAIL on presence. One traversal with a -name
+  #     alternation built from FAIL_FILENAMES (was one find per name).
   MARKER_ANY=0
+  FN_ARGS=()
   for name in "${FAIL_FILENAMES[@]}"; do
-    while IFS= read -r hit; do
-      [ -z "$hit" ] && continue
-      case "$hit" in "$SELF_ROOT"/*) continue;; esac
-      fail "ChainDrop file marker '$name' present — $hit"
-      MARKER_ANY=1
-    done < <(find "${SEARCH_ROOTS[@]}" \( \( "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f -name "$name" -print \) 2>/dev/null)
+    [ ${#FN_ARGS[@]} -gt 0 ] && FN_ARGS+=( -o )
+    FN_ARGS+=( -name "$name" )
   done
+  while IFS= read -r hit; do
+    [ -z "$hit" ] && continue
+    case "$hit" in "$SELF_ROOT"/*) continue;; esac
+    fail "ChainDrop file marker '$(basename "$hit")' present — $hit"
+    MARKER_ANY=1
+  done < <(find "${SEARCH_ROOTS[@]}" \( \( "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( "${FN_ARGS[@]}" \) -print \) 2>/dev/null)
+
+  # (a2) Stage-2 payload VARIANT naming — the harvester ships as Math_Symbol.js
+  #      but is also seen as Math_<guid>.js / math_init.js / math_<x>.js. Catch
+  #      the pattern (not just the exact names): FAIL if it carries a known-bad
+  #      hash or is payload-sized (the real stage-2 is ~727 KB, so anything
+  #      >=200 KB under this name is high-signal); otherwise WARN so a renamed
+  #      variant surfaces instead of silently passing. Exact names already
+  #      FAILed above are skipped to avoid a double report.
+  while IFS= read -r mv; do
+    [ -z "$mv" ] && continue
+    case "$mv" in "$SELF_ROOT"/*) continue;; esac
+    base=$(basename "$mv")
+    case "$base" in Math_Symbol.js|math_init.js) continue;; esac  # exact -> handled above
+    mv_sha=$(sha256_of "$mv"); hashbad=0
+    for h in "${KNOWN_BAD_HASHES[@]}"; do [ -n "$mv_sha" ] && [ "$mv_sha" = "$h" ] && hashbad=1 && break; done
+    sz=$(wc -c < "$mv" 2>/dev/null | tr -d ' '); [ -z "$sz" ] && sz=0
+    if [ "$hashbad" -eq 1 ] || [ "$sz" -ge 204800 ]; then
+      fail "Stage-2 payload variant (Math_/math_ name, $( [ "$hashbad" -eq 1 ] && echo 'known hash' || echo "${sz}B" )) — $mv"
+      MARKER_ANY=1
+    else
+      warn "File matches the ChainDrop stage-2 naming pattern (Math_*/math_*) — review: $mv"
+    fi
+  done < <(find "${SEARCH_ROOTS[@]}" \( \( "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -name 'Math_*.js' -o -name 'math_*.js' \) -print \) 2>/dev/null)
 
   # (b) setup.mjs — WARN alone (a common legit filename, e.g. motion-dom's
   #     gesture helper), FAIL when it carries a known-bad hash OR sits next to a
@@ -318,7 +345,7 @@ else
         POISON_ANY=1
       done <<< "$hits"
     fi
-  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -name 'package-lock.json' -o -name 'yarn.lock' -o -name 'pnpm-lock.yaml' \) -print \) 2>/dev/null)
+  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -name 'package-lock.json' -o -name 'npm-shrinkwrap.json' -o -name 'yarn.lock' -o -name 'pnpm-lock.yaml' -o -name 'bun.lock' \) -print \) 2>/dev/null)
 
   # Installed compromised-family packages whose on-disk package.json is a
   # poisoned version. We read the EXACT version and check it against the

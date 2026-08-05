@@ -77,8 +77,10 @@
   },
   "fileMarkers": {
     "fail": ["Math_Symbol.js", "math_init.js", "router_runtime.js", "gh-token-monitor.sh", "gh-token-monitor.service", "com.user.gh-token-monitor.plist"],
-    "warnOnly": ["setup.mjs"]
+    "warnOnly": ["setup.mjs"],
+    "variantPattern": "Math_*.js / math_*.js — the stage-2 harvester is also seen under generated names (Math_<guid>.js). The scanner WARNs on the pattern and escalates to FAIL when the file carries a known-bad hash or is payload-sized (>=200KB; the real stage-2 is ~727KB)."
   },
+  "lockfilesScanned": ["package-lock.json", "npm-shrinkwrap.json", "yarn.lock (classic + berry)", "pnpm-lock.yaml", "bun.lock"],
   "fileHashes": {
     "9fc2570b7cef51c1b8df116d144d11ff4096357be7d2c4c6367cfc2509cf1bcc": "Math_Symbol.js / math_init.js — stage-2 Bun-bundled harvester (727680 B)",
     "54dc7ea54a1317cca0e890a2770630cf7fa6c97813e0cb9d2caa93012b350668": "setup.mjs — wave-1 loader (29918 B, always exits 0)",
