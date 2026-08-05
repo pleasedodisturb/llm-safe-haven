@@ -1,0 +1,102 @@
+{
+  "manifestVersion": 1,
+  "wave": "chaindrop-aug2026",
+  "updated": "2026-08-05",
+  "attackStart": "2026-08-04",
+  "description": "ChainDrop (Mini Shai-Hulud) npm worm detection data. Poisoned releases carry VALID GitHub-Actions/SLSA provenance, so `npm audit signatures` PASSES them — detection must be IOC-based. FAIL only on a version listed in `poisoned`; family presence at a pre-attack version is NOT an IOC (these are ubiquitous eslint transitive deps). See docs/supply-chain-defense.md.",
+  "sources": [
+    "https://www.kodemsecurity.com/resources/keyv-supply-chain-attack-shai-hulud-npm-worm-affected-versions-iocs-and-first-hour-response-runbook",
+    "https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/",
+    "https://www.stepsecurity.io/blog/chaindrop-npm-worm",
+    "https://www.wiz.io/blog/keyv-and-cacheable-npm-supply-chain-attack",
+    "https://github.com/ossf/malicious-packages (Apache-2.0 — bundling source)",
+    "https://osv.dev/vulnerability/MAL-2026-11524 (keyv; live query api.osv.dev/v1/query)"
+  ],
+  "note": "Core-family table (incl. @keyv/* scoped packages) is the confirmed, cross-verified subset (Wiz CSV + OSV MAL- records + GitHub Advisory DB + live npm registry `time` map). The worm self-propagated to 443-1,381 versions across 400-868+ packages; the full downstream list is NOT bundled here — pull it at scan time. Full set: `npx osv-scanner --lockfile=package-lock.json` (cross-references OSV MAL- records), or the Wiz CSV `https://raw.githubusercontent.com/wiz-sec-public/wiz-research-iocs/main/reports/keyv-packages.csv`. This manifest bundles the core family so offline detection is precise without a network call.",
+  "publishWindowStart": "2026-08-04T09:30:00Z",
+  "publishWindowNote": "Earliest poisoned publish: @keyv/test-suite@6.0.0 at 09:30:01Z (keyv@6.0.0 at 09:35:00Z). Heuristic: a compromised-family version published >= 2026-08-04T09:30:00Z is suspect. Registry `time` maps still retain poisoned entries as of 2026-08-05, but this is not guaranteed to persist — lockfile version match + on-disk artifact IOCs are the robust detections. Also scan the npm/bun cache, not just node_modules (versions were unpublished AFTER being installed).",
+  "stillLiveAsOf_2026-08-05": ["@ornikar/intl-config@10.0.10", "@ornikar/react-native-svg-transformer@1.0.13"],
+  "coreFamily": [
+    "keyv", "cacheable", "cacheable-request", "cache-manager", "flat-cache",
+    "file-entry-cache", "ecto",
+    "@cacheable/utils", "@cacheable/memory", "@cacheable/node-cache", "@cacheable/net",
+    "@keyv/redis", "@keyv/sqlite", "@keyv/mongo", "@keyv/postgres", "@keyv/mysql",
+    "@keyv/memcache", "@keyv/etcd", "@keyv/dynamo", "@keyv/valkey",
+    "@keyv/compress-brotli", "@keyv/compress-gzip", "@keyv/test-suite"
+  ],
+  "poisoned": {
+    "keyv": ["6.0.0"],
+    "flat-cache": ["6.1.24"],
+    "file-entry-cache": ["11.1.6", "11.1.7"],
+    "cacheable-request": ["13.0.20"],
+    "cacheable": ["2.5.1"],
+    "cache-manager": ["7.2.10"],
+    "ecto": ["5.0.1"],
+    "@cacheable/utils": ["2.5.1"],
+    "@cacheable/memory": ["2.2.1"],
+    "@cacheable/node-cache": ["3.1.2"],
+    "@cacheable/net": ["2.1.1"],
+    "@keyv/redis": ["6.0.0"],
+    "@keyv/sqlite": ["6.0.0"],
+    "@keyv/mongo": ["6.0.0"],
+    "@keyv/postgres": ["6.0.0"],
+    "@keyv/mysql": ["6.0.0"],
+    "@keyv/memcache": ["6.0.0"],
+    "@keyv/etcd": ["6.0.0"],
+    "@keyv/dynamo": ["6.0.0"],
+    "@keyv/valkey": ["6.0.0"],
+    "@keyv/compress-brotli": ["6.0.0"],
+    "@keyv/compress-gzip": ["6.0.0"],
+    "@keyv/test-suite": ["6.0.0"]
+  },
+  "osvIds": {
+    "keyv": "MAL-2026-11524", "flat-cache": "MAL-2026-11971", "file-entry-cache": "MAL-2026-11970",
+    "cacheable-request": "MAL-2026-11964", "cacheable": "MAL-2026-11963", "cache-manager": "MAL-2026-11523",
+    "ecto": "MAL-2026-11966", "@cacheable/utils": "MAL-2026-11561", "@cacheable/memory": "MAL-2026-11558",
+    "@cacheable/node-cache": "MAL-2026-11560", "@cacheable/net": "MAL-2026-11559"
+  },
+  "lastKnownGood": {
+    "keyv": "5.6.0",
+    "flat-cache": "6.1.23",
+    "file-entry-cache": "11.1.5",
+    "cacheable-request": "13.0.19",
+    "cacheable": "2.5.0",
+    "cache-manager": "7.2.9",
+    "ecto": "5.0.0",
+    "@cacheable/utils": "2.5.0",
+    "@cacheable/memory": "2.2.0",
+    "@cacheable/node-cache": "3.1.1",
+    "@cacheable/net": "2.1.0",
+    "@keyv/redis": "5.1.6",
+    "@keyv/valkey": "1.0.11",
+    "@keyv/memcache": "2.0.2",
+    "@keyv/sqlite": "4.0.8",
+    "@keyv/postgres": "2.2.3",
+    "@keyv/mongo": "3.1.0",
+    "@keyv/mysql": "2.1.10"
+  },
+  "fileMarkers": {
+    "fail": ["Math_Symbol.js", "math_init.js", "router_runtime.js", "gh-token-monitor.sh", "gh-token-monitor.service", "com.user.gh-token-monitor.plist"],
+    "warnOnly": ["setup.mjs"]
+  },
+  "fileHashes": {
+    "9fc2570b7cef51c1b8df116d144d11ff4096357be7d2c4c6367cfc2509cf1bcc": "Math_Symbol.js / math_init.js — stage-2 Bun-bundled harvester (727680 B)",
+    "54dc7ea54a1317cca0e890a2770630cf7fa6c97813e0cb9d2caa93012b350668": "setup.mjs — wave-1 loader (29918 B, always exits 0)",
+    "fd3ca4007b225fdf8de7af4345a19179d5efa8c4bb9205f88cda806e5684b1eb": "setup.mjs — later-wave loader (11017 B, exits non-zero on error)"
+  },
+  "installMarker": "\"preinstall\": \"node setup.mjs\"",
+  "network": {
+    "domains": ["npm-cache.com", "pypi-get.com", "js-mirror.com"],
+    "ips": ["104.21.35.216"],
+    "paths": ["/router"],
+    "ethContract": "0xE1f2395ee43e45A1556EC6438a88c31B83493103",
+    "tmpGlob": "bun-dl-*",
+    "exfilRepoDescription": "Shai-Hulud: Here We Go Again",
+    "spoofedCommitter": "claude@users.noreply.github.com"
+  },
+  "persistence": {
+    "claudeSettings": ".claude/settings.json — injected SessionStart hook executing the loader",
+    "vscodeTasks": ".vscode/tasks.json — task runOn:folderOpen named \"Environment Setup\""
+  },
+  "remediationOrder": "CRITICAL: ChainDrop plants a gh-token-monitor watcher that detonates a destructive payload when a stolen token is revoked. Remove the watcher (and its systemd unit / macOS LaunchAgent) BEFORE rotating any credentials."
+}
