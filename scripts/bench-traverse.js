@@ -1,0 +1,415 @@
+#!/usr/bin/env node
+// ============================================================================
+// bench-traverse — local, read-only traversal benchmark (G-1482 / plan 17-02)
+// ============================================================================
+//
+// MANUAL, LOCAL-ONLY TOOL. No CI runner has access to the private 373k-file
+// monorepo this script exists to measure — it is never wired into `npm test`
+// or any CI job. Run it by hand against a real tree when you need numbers.
+//
+// Exact invocation:
+//   node scripts/bench-traverse.js --root <abs path> [--mode baseline|engine] [--json]
+//
+// Examples:
+//   node scripts/bench-traverse.js --root ~/Projects --mode baseline
+//   node scripts/bench-traverse.js --root ~/Projects --mode baseline --json | tee /tmp/bench.json
+//
+// What it measures (--mode baseline, the only mode this plan implements):
+//   1. enumerate            — bare recursive fs.readdirSync walk, lstat-free
+//   2. enumerate+lstat-dirs — the same walk plus one fs.lstatSync per directory
+//   3. git-repos            — one `git ls-files` per discovered repo boundary
+//   4. old-scanner          — scripts/scan-chaindrop-aug2026.sh end to end
+//
+// --mode engine is a documented, not-yet-implemented dispatch point. Plan
+// 17-15 fills it in with the actual traversal engine's own instrumentation;
+// this plan intentionally does NOT stub it with fake numbers.
+//
+// Stdout discipline. With --json, stdout carries EXACTLY ONE JSON object and
+// nothing else — every human-readable line, every warning, and every byte of
+// any child process's output goes to stderr instead. The whole point of
+// --json is to be pipeable into `tee`/`jq`; a single stray line on stdout
+// (e.g. the old scanner's own multi-page report) would silently break that
+// for the caller, so the old scanner's stdio is always piped and forwarded
+// to OUR stderr in --json mode, and 'inherit' only in human mode.
+//
+// Information disclosure discipline. Output reports counts and timings only.
+// No file path from the scanned tree is ever printed beyond the root the
+// operator supplied on the command line (T-17-02-03) — this applies to error
+// messages too: fs/git error text is deliberately NOT included verbatim,
+// because it can embed the offending path (e.g. git's "dubious ownership in
+// repository at '<path>'" message).
+//
+// Zero dependencies — Node.js built-ins only (fs, path, os, child_process).
+// Read-only: the script never writes into the scanned tree, only to its own
+// stdout/stderr.
+
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const { spawnSync } = require('child_process');
+
+const GIT_LS_FILES_ARGS = ['ls-files', '--cached', '--others', '--exclude-standard', '--full-name', '-z'];
+const GIT_ENV_OVERRIDES = { GIT_OPTIONAL_LOCKS: '0', GIT_PAGER: '', GIT_TERMINAL_PROMPT: '0' };
+const MAX_BUFFER = 256 * 1024 * 1024; // 256 MiB — a large repo's NUL-delimited ls-files output, or a long scanner report, can run to tens of MB; Node's ~1 MiB default would silently truncate and make the measurement wrong.
+
+function msFrom(startNs, endNs) {
+  return Number(endNs - startNs) / 1e6;
+}
+
+function logErr(msg) {
+  process.stderr.write(`bench-traverse: ${msg}\n`);
+}
+
+function printUsage() {
+  logErr('Usage: node scripts/bench-traverse.js --root <abs path> [--mode baseline|engine] [--json]');
+}
+
+function parseArgs(argv) {
+  const out = { root: undefined, mode: 'baseline', json: false };
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === '--root') {
+      out.root = argv[++i];
+    } else if (arg === '--mode') {
+      out.mode = argv[++i];
+    } else if (arg === '--json') {
+      out.json = true;
+    }
+  }
+  return out;
+}
+
+// ----------------------------------------------------------------------------
+// Shared recursive walk. Never follows symlinks (T-17-02-01: an entry whose
+// Dirent.isSymbolicLink() is true is counted and never recursed into, which
+// is what makes a symlink cycle in the scanned tree structurally unable to
+// hang this script). Directories named `.git` are treated as repo boundaries
+// when findGitRepos is set (both the normal isDirectory() shape and the
+// linked-worktree isFile() shape count, per RESEARCH.md B2) and are not
+// descended into — VCS internals are not code the engine this bench feeds
+// into would walk either.
+// ----------------------------------------------------------------------------
+function walkTree(root, options) {
+  const state = {
+    files: 0,
+    dirs: 0,
+    symlinks: 0,
+    unknown: 0,
+    maxDepth: 0,
+    maxDirEntries: 0,
+    readErrorCount: 0,
+    lstatErrorCount: 0,
+    devices: new Set(),
+    gitRepoDirs: [], // absolute paths — in-memory only, NEVER included in output (T-17-02-03)
+  };
+
+  visit(root, 0);
+  return state;
+
+  function visit(dir, depth) {
+    if (depth > state.maxDepth) state.maxDepth = depth;
+
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      state.readErrorCount++;
+      return;
+    }
+
+    if (entries.length > state.maxDirEntries) state.maxDirEntries = entries.length;
+
+    if (options.findGitRepos) {
+      const hasGit = entries.some((e) => e.name === '.git' && (e.isDirectory() || e.isFile()));
+      if (hasGit) state.gitRepoDirs.push(dir);
+    }
+
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) {
+        state.symlinks++;
+        continue; // never follow (T-17-02-01)
+      }
+
+      if (entry.isDirectory()) {
+        state.dirs++;
+        const full = path.join(dir, entry.name);
+
+        if (options.lstatDirs) {
+          try {
+            const st = fs.lstatSync(full);
+            state.devices.add(st.dev);
+          } catch {
+            state.lstatErrorCount++;
+          }
+        }
+
+        if (options.findGitRepos && entry.name === '.git') {
+          continue; // repo boundary already recorded above; don't descend into VCS internals
+        }
+
+        visit(full, depth + 1);
+        continue;
+      }
+
+      if (entry.isFile()) {
+        state.files++;
+        continue;
+      }
+
+      // Dirent type unknown on this filesystem (DT_UNKNOWN) — the bare
+      // baseline walk is lstat-free by design, so an unknown entry is
+      // counted, not classified further, and never recursed into.
+      state.unknown++;
+    }
+  }
+}
+
+function measureEnumerate(root) {
+  const start = process.hrtime.bigint();
+  const state = walkTree(root, { lstatDirs: false, findGitRepos: false });
+  const end = process.hrtime.bigint();
+  return {
+    wallClockMs: msFrom(start, end),
+    totalEntries: state.files + state.dirs + state.symlinks + state.unknown,
+    files: state.files,
+    dirs: state.dirs,
+    symlinks: state.symlinks,
+    unknown: state.unknown,
+    maxDepth: state.maxDepth,
+    maxDirEntries: state.maxDirEntries,
+    readErrorCount: state.readErrorCount,
+  };
+}
+
+function measureEnumerateLstatDirs(root) {
+  const start = process.hrtime.bigint();
+  const state = walkTree(root, { lstatDirs: true, findGitRepos: false });
+  try {
+    const st = fs.lstatSync(root);
+    state.devices.add(st.dev);
+  } catch {
+    state.lstatErrorCount++;
+  }
+  const end = process.hrtime.bigint();
+  return {
+    wallClockMs: msFrom(start, end),
+    totalEntries: state.files + state.dirs + state.symlinks + state.unknown,
+    files: state.files,
+    dirs: state.dirs,
+    symlinks: state.symlinks,
+    unknown: state.unknown,
+    maxDepth: state.maxDepth,
+    maxDirEntries: state.maxDirEntries,
+    distinctDeviceCount: state.devices.size,
+    lstatErrorCount: state.lstatErrorCount,
+  };
+}
+
+// Buckets a failed `git ls-files` invocation into a named reason WITHOUT ever
+// including raw stderr text — git's own error messages can embed the
+// offending path (e.g. "dubious ownership in repository at '<path>'"), which
+// would violate the no-path-disclosure rule (T-17-02-03).
+function classifyGitFailure(status, stderrBuf) {
+  const text = stderrBuf ? stderrBuf.toString('utf8') : '';
+  if (/dubious ownership/i.test(text)) return 'dubious-ownership (safe.directory)';
+  if (/not a git repository/i.test(text)) return 'not-a-git-repository';
+  if (/must be run in a work tree/i.test(text)) return 'bare-repo';
+  return `exit ${status}`;
+}
+
+function measureGitRepos(root) {
+  const start = process.hrtime.bigint();
+  const state = walkTree(root, { lstatDirs: false, findGitRepos: true });
+
+  let gitLsFilesWallClockMs = 0;
+  let slowestRepoMs = 0;
+  let erroredRepoCount = 0;
+  const erroredRepos = [];
+
+  for (const repoDir of state.gitRepoDirs) {
+    const repoStart = process.hrtime.bigint();
+    const result = spawnSync('git', ['-C', repoDir, ...GIT_LS_FILES_ARGS], {
+      maxBuffer: MAX_BUFFER,
+      env: { ...process.env, ...GIT_ENV_OVERRIDES },
+    });
+    const repoEnd = process.hrtime.bigint();
+    const repoMs = msFrom(repoStart, repoEnd);
+    gitLsFilesWallClockMs += repoMs;
+    if (repoMs > slowestRepoMs) slowestRepoMs = repoMs;
+
+    if (result.error) {
+      erroredRepoCount++;
+      erroredRepos.push({ reason: `spawn-error:${result.error.code || 'UNKNOWN'}` });
+    } else if (result.status !== 0) {
+      erroredRepoCount++;
+      erroredRepos.push({ reason: classifyGitFailure(result.status, result.stderr) });
+    }
+  }
+
+  const end = process.hrtime.bigint();
+  return {
+    wallClockMs: msFrom(start, end),
+    reposFound: state.gitRepoDirs.length,
+    gitLsFilesWallClockMs,
+    slowestRepoMs,
+    erroredRepoCount,
+    erroredRepos,
+  };
+}
+
+function runOldScanner(root, jsonMode) {
+  const scriptPath = path.join(__dirname, 'scan-chaindrop-aug2026.sh');
+
+  if (!fs.existsSync(scriptPath)) {
+    logErr(`old scanner not found at ${scriptPath} — skipping old-scanner phase`);
+    return { wallClockMs: 0, exitCode: null, skipped: true, skipReason: 'script-not-found' };
+  }
+
+  const env = { ...process.env, LSH_ROOTS: root, LSH_NO_NETWORK: '1' };
+  const start = process.hrtime.bigint();
+
+  let result;
+  if (jsonMode) {
+    // --json mode: never inherit — the old scanner's multi-page report must
+    // not reach OUR stdout. Pipe it and forward to stderr instead.
+    result = spawnSync('bash', [scriptPath], { env, stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: MAX_BUFFER });
+  } else {
+    // Human mode: inheriting stdio is the more useful behaviour — the
+    // operator watches the old scanner's report live.
+    result = spawnSync('bash', [scriptPath], { env, stdio: 'inherit', maxBuffer: MAX_BUFFER });
+  }
+
+  const end = process.hrtime.bigint();
+  const wallClockMs = msFrom(start, end);
+
+  if (result.error) {
+    if (result.error.code === 'ENOENT') {
+      logErr('bash not found on PATH — skipping old-scanner phase');
+      return { wallClockMs, exitCode: null, skipped: true, skipReason: 'bash-unavailable' };
+    }
+    logErr(`old scanner spawn failed (${result.error.code || 'UNKNOWN'}) — skipping old-scanner phase`);
+    return { wallClockMs, exitCode: null, skipped: true, skipReason: `spawn-error:${result.error.code || 'UNKNOWN'}` };
+  }
+
+  if (jsonMode) {
+    if (result.stdout && result.stdout.length) process.stderr.write(result.stdout);
+    if (result.stderr && result.stderr.length) process.stderr.write(result.stderr);
+  }
+
+  return { wallClockMs, exitCode: result.status, skipped: false, skipReason: null };
+}
+
+function runBaseline(root, jsonMode) {
+  logErr(`baseline mode starting for root ${root}`);
+
+  logErr('phase 1/4 — enumerate');
+  const enumerate = measureEnumerate(root);
+  logErr(`enumerate done in ${enumerate.wallClockMs.toFixed(1)}ms (${enumerate.totalEntries} entries)`);
+
+  logErr('phase 2/4 — enumerate+lstat-dirs');
+  const enumerateLstatDirs = measureEnumerateLstatDirs(root);
+  logErr(`enumerate+lstat-dirs done in ${enumerateLstatDirs.wallClockMs.toFixed(1)}ms (${enumerateLstatDirs.distinctDeviceCount} device(s))`);
+
+  logErr('phase 3/4 — git-repos');
+  const gitRepos = measureGitRepos(root);
+  logErr(`git-repos done in ${gitRepos.wallClockMs.toFixed(1)}ms (${gitRepos.reposFound} repo(s), ${gitRepos.erroredRepoCount} errored)`);
+
+  logErr('phase 4/4 — old-scanner');
+  const oldScanner = runOldScanner(root, jsonMode);
+  logErr(`old-scanner done in ${oldScanner.wallClockMs.toFixed(1)}ms (exit ${oldScanner.exitCode})`);
+
+  return {
+    meta: {
+      root,
+      mode: 'baseline',
+      node: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      cpus: os.cpus().length,
+      timestamp: new Date().toISOString(),
+    },
+    enumerate,
+    enumerateLstatDirs,
+    gitRepos,
+    oldScanner,
+  };
+}
+
+function printHumanReport(result) {
+  const { meta, enumerate, enumerateLstatDirs, gitRepos, oldScanner } = result;
+  console.log(`\nbench-traverse baseline report`);
+  console.log(`  root:     ${meta.root}`);
+  console.log(`  node:     ${meta.node}  platform: ${meta.platform}/${meta.arch}  cpus: ${meta.cpus}`);
+  console.log(`  time:     ${meta.timestamp}`);
+  console.log(`\n  enumerate (bare readdirSync walk)`);
+  console.log(`    wall clock:        ${enumerate.wallClockMs.toFixed(1)}ms`);
+  console.log(`    total entries:     ${enumerate.totalEntries}`);
+  console.log(`    files/dirs/links:  ${enumerate.files}/${enumerate.dirs}/${enumerate.symlinks}`);
+  console.log(`    unknown-type:      ${enumerate.unknown}`);
+  console.log(`    max depth:         ${enumerate.maxDepth}`);
+  console.log(`    largest dir:       ${enumerate.maxDirEntries} entries`);
+  console.log(`    read errors:       ${enumerate.readErrorCount}`);
+  console.log(`\n  enumerate+lstat-dirs`);
+  console.log(`    wall clock:        ${enumerateLstatDirs.wallClockMs.toFixed(1)}ms`);
+  console.log(`    distinct devices:  ${enumerateLstatDirs.distinctDeviceCount}`);
+  console.log(`    lstat errors:      ${enumerateLstatDirs.lstatErrorCount}`);
+  console.log(`\n  git-repos`);
+  console.log(`    wall clock:              ${gitRepos.wallClockMs.toFixed(1)}ms`);
+  console.log(`    repos found:              ${gitRepos.reposFound}`);
+  console.log(`    total ls-files wall time: ${gitRepos.gitLsFilesWallClockMs.toFixed(1)}ms`);
+  console.log(`    slowest single repo:      ${gitRepos.slowestRepoMs.toFixed(1)}ms`);
+  console.log(`    errored repos:            ${gitRepos.erroredRepoCount}`);
+  console.log(`\n  old-scanner`);
+  console.log(`    wall clock: ${oldScanner.wallClockMs.toFixed(1)}ms`);
+  console.log(`    exit code:  ${oldScanner.exitCode}`);
+  console.log(`    skipped:    ${oldScanner.skipped}${oldScanner.skipReason ? ` (${oldScanner.skipReason})` : ''}`);
+  console.log('');
+}
+
+function main() {
+  const args = parseArgs(process.argv.slice(2));
+
+  if (!args.root) {
+    printUsage();
+    process.exit(2);
+  }
+
+  // Single documented dispatch point for --mode. `baseline` is implemented
+  // here; `engine` is intentionally NOT stubbed with fake numbers — plan
+  // 17-15 fills it in once the traversal engine itself exists.
+  if (args.mode === 'engine') {
+    logErr('--mode engine is not implemented by this plan. It is owned by plan 17-15, which instruments the traversal engine directly. Use --mode baseline.');
+    process.exit(2);
+  }
+  if (args.mode !== 'baseline') {
+    logErr(`unknown --mode "${args.mode}". Valid modes: baseline, engine.`);
+    process.exit(2);
+  }
+
+  let rootStat;
+  try {
+    rootStat = fs.statSync(args.root);
+  } catch (err) {
+    logErr(`--root "${args.root}" does not exist or is not readable (${err.code || 'UNKNOWN'})`);
+    process.exit(2);
+  }
+  if (!rootStat.isDirectory()) {
+    logErr(`--root "${args.root}" is not a directory`);
+    process.exit(2);
+  }
+
+  const resolvedRoot = path.resolve(args.root);
+  const result = runBaseline(resolvedRoot, args.json);
+
+  if (args.json) {
+    process.stdout.write(JSON.stringify(result) + '\n');
+  } else {
+    printHumanReport(result);
+  }
+
+  process.exit(0);
+}
+
+main();
