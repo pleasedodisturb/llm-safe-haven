@@ -8,21 +8,36 @@
 // or any CI job. Run it by hand against a real tree when you need numbers.
 //
 // Exact invocation:
-//   node scripts/bench-traverse.js --root <abs path> [--mode baseline|engine] [--json]
+//   node scripts/bench-traverse.js --root <abs path> [--mode baseline|engine]
+//     [--baseline <path-to-baseline-json>] [--json]
 //
 // Examples:
 //   node scripts/bench-traverse.js --root ~/Projects --mode baseline
 //   node scripts/bench-traverse.js --root ~/Projects --mode baseline --json | tee /tmp/bench.json
+//   node scripts/bench-traverse.js --root ~/Projects --mode engine --baseline /tmp/bench.json --json
 //
-// What it measures (--mode baseline, the only mode this plan implements):
+// What it measures (--mode baseline):
 //   1. enumerate            — bare recursive fs.readdirSync walk, lstat-free
 //   2. enumerate+lstat-dirs — the same walk plus one fs.lstatSync per directory
 //   3. git-repos            — one `git ls-files` per discovered repo boundary
 //   4. old-scanner          — scripts/scan-chaindrop-aug2026.sh end to end
 //
-// --mode engine is a documented, not-yet-implemented dispatch point. Plan
-// 17-15 fills it in with the actual traversal engine's own instrumentation;
-// this plan intentionally does NOT stub it with fake numbers.
+// What it measures (--mode engine, plan 17-15):
+//   1. engineRun            — a single direct `node lib/traverse/run.js` invocation
+//                             against the wave spec, timed end to end, with the
+//                             counts/skip totals read back from the results dir's
+//                             findings.json (the results dir is created and removed
+//                             by this script -- nothing is left behind)
+//   2. engineScanner        — scripts/scan-chaindrop-aug2026.sh end to end, same as
+//                             baseline's old-scanner phase, but the script itself has
+//                             been retrofitted onto the traversal engine (zero `find`
+//                             passes as of 2026-08-07) -- this number is what
+//                             directly compares against a recorded baseline's
+//                             oldScanner figure
+//   3. comparison           — only present with --baseline <path>: old vs new
+//                             scanner wall-clock, the speedup ratio, and whether the
+//                             60s budget fired on this run (engineRun.incomplete or
+//                             tiers.targeted.complete === false)
 //
 // Stdout discipline. With --json, stdout carries EXACTLY ONE JSON object and
 // nothing else — every human-readable line, every warning, and every byte of
@@ -63,17 +78,22 @@ function logErr(msg) {
 }
 
 function printUsage() {
-  logErr('Usage: node scripts/bench-traverse.js --root <abs path> [--mode baseline|engine] [--json]');
+  logErr(
+    'Usage: node scripts/bench-traverse.js --root <abs path> [--mode baseline|engine] ' +
+      '[--baseline <path-to-baseline-json>] [--json]'
+  );
 }
 
 function parseArgs(argv) {
-  const out = { root: undefined, mode: 'baseline', json: false };
+  const out = { root: undefined, mode: 'baseline', baseline: undefined, json: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--root') {
       out.root = argv[++i];
     } else if (arg === '--mode') {
       out.mode = argv[++i];
+    } else if (arg === '--baseline') {
+      out.baseline = argv[++i];
     } else if (arg === '--json') {
       out.json = true;
     }
@@ -301,6 +321,176 @@ function runOldScanner(root, jsonMode) {
   return { wallClockMs, exitCode: result.status, skipped: false, skipReason: null };
 }
 
+// ----------------------------------------------------------------------------
+// --mode engine (plan 17-15). Measures the actual traversal engine's own
+// instrumentation rather than this script's independent walkTree() -- the
+// two are deliberately different code paths (baseline mode exists to
+// measure the FILESYSTEM, engine mode exists to measure THE PRODUCT).
+// ----------------------------------------------------------------------------
+
+/**
+ * A single direct `node lib/traverse/run.js` invocation against the real
+ * wave spec, timed end to end. Creates its own temp results dir and removes
+ * it before returning -- this script leaves nothing behind regardless of
+ * outcome. No file path from the scanned tree is ever surfaced here beyond
+ * aggregate counts and skip totals (T-17-02-03), matching baseline mode's
+ * own information-disclosure discipline.
+ */
+function runEngineRunPhase(root, jsonMode) {
+  const specPath = path.join(__dirname, '..', 'manifests', 'waves', 'chaindrop-aug2026.json');
+  const runJsPath = path.join(__dirname, '..', 'lib', 'traverse', 'run.js');
+  const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bench-traverse-engine-run-'));
+
+  try {
+    const start = process.hrtime.bigint();
+    const result = spawnSync('node', [runJsPath, '--spec', specPath, '--results-dir', resultsDir, '--roots', root], {
+      maxBuffer: MAX_BUFFER,
+      env: process.env,
+      stdio: jsonMode ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+    });
+    const end = process.hrtime.bigint();
+    const wallClockMs = msFrom(start, end);
+
+    if (jsonMode) {
+      if (result.stdout && result.stdout.length) process.stderr.write(result.stdout);
+      if (result.stderr && result.stderr.length) process.stderr.write(result.stderr);
+    }
+
+    if (result.error) {
+      return {
+        wallClockMs,
+        exitCode: null,
+        spawnError: result.error.code || 'UNKNOWN',
+        findingsRead: false,
+      };
+    }
+
+    let findings = null;
+    let readError = null;
+    try {
+      findings = JSON.parse(fs.readFileSync(path.join(resultsDir, 'findings.json'), 'utf8'));
+    } catch (err) {
+      readError = (err && err.code) || 'PARSE_ERROR';
+    }
+
+    return {
+      wallClockMs,
+      exitCode: result.status,
+      findingsRead: Boolean(findings),
+      readError: findings ? null : readError,
+      counts: findings ? findings.counts : null,
+      severityCounts: findings ? findings.severityCounts : null,
+      skips: findings ? findings.skips : null,
+      incomplete: findings ? findings.incomplete : null,
+      tiers: findings ? findings.tiers : null,
+    };
+  } finally {
+    // Own the temp dir end to end -- created above, removed here, no matter
+    // which return path was taken.
+    fs.rmSync(resultsDir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Loads a previously-recorded baseline JSON (this script's own --mode
+ * baseline --json output) and reports the engine-backed scanner's speedup
+ * against its `oldScanner.wallClockMs` figure, plus whether the 60s budget
+ * fired on THIS run (`engineRun.incomplete`, or an explicit
+ * `tiers.targeted.complete === false` -- the enumeration-phase-exhaustion
+ * case documented in lib/traverse/engine.js's module header, which sets
+ * `incomplete` too, but is named explicitly here for readability of the
+ * comparison object). Never throws -- an unreadable/malformed baseline
+ * degrades to an `{ error }` field rather than crashing the whole run.
+ */
+function buildComparison(baselinePath, engineScanner, engineRun) {
+  let baseline;
+  try {
+    baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
+  } catch (err) {
+    logErr(`--baseline "${baselinePath}" could not be read/parsed (${(err && err.code) || (err && err.message) || 'UNKNOWN'}) — comparison omitted`);
+    return { error: `baseline-unreadable:${(err && err.code) || 'UNKNOWN'}` };
+  }
+
+  const oldScannerWallClockMs = baseline && baseline.oldScanner ? baseline.oldScanner.wallClockMs : undefined;
+  if (typeof oldScannerWallClockMs !== 'number') {
+    logErr(`--baseline "${baselinePath}" is missing oldScanner.wallClockMs — comparison omitted`);
+    return { error: 'baseline-missing-oldScanner-wallClockMs' };
+  }
+
+  const newScannerWallClockMs = engineScanner.wallClockMs;
+  const speedupRatio = newScannerWallClockMs > 0 ? oldScannerWallClockMs / newScannerWallClockMs : null;
+  const budgetFired = Boolean(engineRun.incomplete) || Boolean(engineRun.tiers && engineRun.tiers.targeted && engineRun.tiers.targeted.complete === false);
+
+  return { oldScannerWallClockMs, newScannerWallClockMs, speedupRatio, budgetFired };
+}
+
+function runEngine(root, jsonMode, baselinePath) {
+  logErr(`engine mode starting for root ${root}`);
+
+  logErr('phase 1/2 — engineRun (direct lib/traverse/run.js invocation)');
+  const engineRun = runEngineRunPhase(root, jsonMode);
+  logErr(`engineRun done in ${engineRun.wallClockMs.toFixed(1)}ms (exit ${engineRun.exitCode})`);
+
+  logErr('phase 2/2 — engineScanner (scripts/scan-chaindrop-aug2026.sh, engine-backed)');
+  const engineScanner = runOldScanner(root, jsonMode);
+  logErr(`engineScanner done in ${engineScanner.wallClockMs.toFixed(1)}ms (exit ${engineScanner.exitCode})`);
+
+  const result = {
+    meta: {
+      root,
+      mode: 'engine',
+      node: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      cpus: os.cpus().length,
+      timestamp: new Date().toISOString(),
+    },
+    engineRun,
+    engineScanner,
+  };
+
+  if (baselinePath) {
+    result.comparison = buildComparison(baselinePath, engineScanner, engineRun);
+  }
+
+  return result;
+}
+
+function printEngineReport(result) {
+  const { meta, engineRun, engineScanner, comparison } = result;
+  console.log(`\nbench-traverse engine report`);
+  console.log(`  root:     ${meta.root}`);
+  console.log(`  node:     ${meta.node}  platform: ${meta.platform}/${meta.arch}  cpus: ${meta.cpus}`);
+  console.log(`  time:     ${meta.timestamp}`);
+  console.log(`\n  engineRun (direct lib/traverse/run.js invocation)`);
+  console.log(`    wall clock: ${engineRun.wallClockMs.toFixed(1)}ms`);
+  console.log(`    exit code:  ${engineRun.exitCode}`);
+  console.log(`    incomplete: ${engineRun.incomplete}`);
+  if (engineRun.counts) {
+    console.log(`    files walked: ${engineRun.counts.filesWalked}`);
+    console.log(`    dirs walked:  ${engineRun.counts.dirsWalked}`);
+  }
+  if (engineRun.skips) {
+    console.log(`    skip totals:  ${JSON.stringify(engineRun.skips)}`);
+  }
+  console.log(`\n  engineScanner (scripts/scan-chaindrop-aug2026.sh, retrofitted -- engine-backed)`);
+  console.log(`    wall clock: ${engineScanner.wallClockMs.toFixed(1)}ms`);
+  console.log(`    exit code:  ${engineScanner.exitCode}`);
+  console.log(`    skipped:    ${engineScanner.skipped}${engineScanner.skipReason ? ` (${engineScanner.skipReason})` : ''}`);
+  if (comparison) {
+    console.log(`\n  comparison vs --baseline`);
+    if (comparison.error) {
+      console.log(`    error: ${comparison.error}`);
+    } else {
+      console.log(`    old scanner wall clock: ${comparison.oldScannerWallClockMs.toFixed(1)}ms`);
+      console.log(`    new scanner wall clock: ${comparison.newScannerWallClockMs.toFixed(1)}ms`);
+      console.log(`    speedup ratio:          ${comparison.speedupRatio !== null ? comparison.speedupRatio.toFixed(2) : 'n/a'}x`);
+      console.log(`    60s budget fired:       ${comparison.budgetFired}`);
+    }
+  }
+  console.log('');
+}
+
 function runBaseline(root, jsonMode) {
   logErr(`baseline mode starting for root ${root}`);
 
@@ -376,14 +566,9 @@ function main() {
     process.exit(2);
   }
 
-  // Single documented dispatch point for --mode. `baseline` is implemented
-  // here; `engine` is intentionally NOT stubbed with fake numbers — plan
-  // 17-15 fills it in once the traversal engine itself exists.
-  if (args.mode === 'engine') {
-    logErr('--mode engine is not implemented by this plan. It is owned by plan 17-15, which instruments the traversal engine directly. Use --mode baseline.');
-    process.exit(2);
-  }
-  if (args.mode !== 'baseline') {
+  // Single documented dispatch point for --mode. Both `baseline` and
+  // `engine` are implemented; any other value is refused with exit 2.
+  if (args.mode !== 'baseline' && args.mode !== 'engine') {
     logErr(`unknown --mode "${args.mode}". Valid modes: baseline, engine.`);
     process.exit(2);
   }
@@ -401,10 +586,18 @@ function main() {
   }
 
   const resolvedRoot = path.resolve(args.root);
-  const result = runBaseline(resolvedRoot, args.json);
+
+  let baselinePath = null;
+  if (args.baseline) {
+    baselinePath = path.resolve(args.baseline);
+  }
+
+  const result = args.mode === 'engine' ? runEngine(resolvedRoot, args.json, baselinePath) : runBaseline(resolvedRoot, args.json);
 
   if (args.json) {
     process.stdout.write(JSON.stringify(result) + '\n');
+  } else if (result.meta.mode === 'engine') {
+    printEngineReport(result);
   } else {
     printHumanReport(result);
   }
