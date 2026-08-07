@@ -1,12 +1,19 @@
 'use strict';
 
 // Engine integration tests (G-1482, TRAV-01/TRAV-04/TRAV-05, plan 17-11).
-// Proves the assembled Traversal (walk + classify + git-ignore + read-pool +
-// budget) on real fixtures: detector ownership (T-17-15), exact finding
-// multiplicity (never "at least one"), tier semantics (D-20) and exit
-// precedence (D-18). Reuses the shared detection-parity corpus builders
+// Proves the assembled Traversal (walk + classify + read-pool + budget) on
+// real fixtures: detector ownership (T-17-15), exact finding multiplicity
+// (never "at least one"), tier semantics (D-20) and exit precedence
+// (D-18). Reuses the shared detection-parity corpus builders
 // (tests/helpers/chaindrop-corpus.js) so this suite cannot silently drift
-// from the frozen oracle plan 17-14 will retrofit the bash scanner against.
+// from the frozen oracle plan 17-14 retrofit the bash scanner against.
+//
+// 2026-08-07: `lib/traverse/git-ignore.js` no longer exists -- it consulted
+// `.gitignore` for the now-removed `bulk-content` class, and was deleted
+// once nothing consumed its decisions any more (see classify.js's module
+// header for the full tiering-trade-off-reversal history).
+// tests/traverse/zero-git-subprocess.test.js is the committed proof that a
+// real engine run spawns no `child_process.spawnSync` call at all any more.
 
 const { describe, it, after } = require('node:test');
 const assert = require('node:assert/strict');
@@ -16,7 +23,6 @@ const path = require('path');
 const crypto = require('crypto');
 
 const { Traversal, traverse, DETECTOR_OWNERSHIP } = require('../../lib/traverse/engine.js');
-const { createIgnoreResolver } = require('../../lib/traverse/git-ignore.js');
 const { CASES, buildCase } = require('../helpers/chaindrop-corpus.js');
 const { write } = require('../helpers/chaindrop-fixtures.js');
 
@@ -387,30 +393,37 @@ describe('engine — exit precedence end to end', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Git degradation is not incompleteness (D-14).
+// Degradation reporting (D-14) -- retired 2026-08-07.
 // ---------------------------------------------------------------------------
+//
+// This describe block previously simulated a no-git environment (a stubbed
+// `spawnSync` returning ENOENT) and asserted the D-14 fail-open contract:
+// a missing git binary degrades gitignore-based pruning without ever
+// setting `incomplete`. That entire mechanism is gone -- `degradations`
+// was populated exclusively through `isBulkEligible()` -> `indexFor()`
+// (`lib/traverse/git-ignore.js`, now deleted), whose only caller was the
+// now-removed `bulk-content` classification branch (see classify.js's
+// module header for the 2026-08-07 tiering-trade-off-reversal history).
+// Simulating "no git" via a `spawnSync` stub is provably vacuous now: `run()`
+// never constructs a resolver, so nothing ever reads the stub. This is the
+// correct consequence, not a regression -- the OLD bash scanner's
+// marker-string scan (section 6b) never consulted git either.
+//
+// The no-git SIMULATION is deleted, not rewritten -- there is nothing left
+// to simulate. What survives below is a much smaller, honest replacement:
+// a plain assertion that `degradations` is a stable, empty array on an
+// ordinary run (the results-directory protocol, `lib/traverse/results.js`,
+// still writes `scalars/degradation-count` and `findings.json.degradations`
+// for shape stability -- see the field's own doc comment in `engine.js`'s
+// `run()`).
 
-describe('engine — git degradation fails open, never sets incomplete', () => {
-  // 2026-08-07 tiering-trade-off reversal: `degradations` is populated
-  // exclusively through `isBulkEligible()` -> `indexFor()` (git-ignore.js;
-  // `indexFor` has no other caller anywhere in lib/). Widening
-  // `marker-config` made `isBulkEligible` unreachable (see the "repo
-  // attribution agreement" describe block above), so `indexFor` -- and
-  // therefore ANY degradation -- can no longer be recorded at all: there is
-  // nothing left in this engine that ever consults git. This is the correct
-  // consequence, not a regression -- the OLD bash scanner's marker-string
-  // scan (section 6b) never consulted git either. The assertion below
-  // proves that even when git is entirely absent, a real repo boundary
-  // still scans cleanly with ZERO degradations recorded (rather than the
-  // previous non-empty expectation, which described the now-retired
-  // bulk-content code path).
-  it('a no-git environment on a real repo boundary -> exitCode 0, incomplete false, ZERO degradations (git is never consulted any more)', async () => {
+describe('engine — degradations field is a stable, empty array (git is never consulted)', () => {
+  it('an ordinary run over a real repo boundary has degradations: []', async () => {
     const home = mkFixture();
     fs.mkdirSync(path.join(home, '.git')); // walk.js attributes repoRoot from the LITERAL name, no real git needed
     write(path.join(home, 'loader.js'), 'console.log("hello");\n');
 
-    const stubSpawnSync = () => ({ error: { code: 'ENOENT' } });
-    const t = new Traversal({ roots: [home], spec: SPEC, spawnSync: stubSpawnSync });
+    const t = new Traversal({ roots: [home], spec: SPEC });
     const result = await t.run();
 
     assert.equal(result.exitCode, 0);
@@ -477,51 +490,25 @@ describe('engine — wave-driver guard', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Repo attribution agreement -- the walk's repoRoot and the ignore
-// resolver's indexFor/isBulkEligible repoRoot must always agree.
+// Repo attribution agreement -- DELETED 2026-08-07, not rewritten.
 // ---------------------------------------------------------------------------
-
-describe('engine — repo attribution agreement', () => {
-  // 2026-08-07 tiering-trade-off reversal: this test used to prove that
-  // `ctx.ignore.isBulkEligible` is called with the SAME repoRoot the walk
-  // attributed to each path (D-26), using ordinary .js files as bait
-  // because .js was the ONE class (`bulk-content`) that consulted the
-  // resolver at all. Widening `marker-config` to cover every
-  // bulk-content-allowlisted name (classify.js) made `isBulkEligible`
-  // unreachable from real classify() calls entirely -- there is no longer
-  // ANY filename that reaches it (see classify.test.js's "bulk-content
-  // class (now unreachable)" block and gitignore-tiering.test.js's
-  // "the ignore resolver is never consulted" case, which prove this from
-  // the classify()-unit and gitignore-integration angles respectively).
-  // This test now proves the same fact end to end through the real
-  // Traversal/engine wiring: even over a NESTED-repo fixture (the exact
-  // shape that would have exercised D-26's per-path repoRoot forwarding),
-  // `isBulkEligible` is never invoked at all.
-  it('over a nested-repo fixture with ordinary .js files, isBulkEligible is never invoked at all (bulk-content is unreachable end to end)', async () => {
-    const home = mkFixture();
-    fs.mkdirSync(path.join(home, '.git'));
-    fs.mkdirSync(path.join(home, 'sub', 'inner', '.git'), { recursive: true });
-    write(path.join(home, 'outer.js'), 'console.log(1);\n');
-    write(path.join(home, 'sub', 'inner', 'nested.js'), 'console.log(2);\n');
-
-    const calls = [];
-    const realIgnore = createIgnoreResolver({ spawnSync: () => ({ error: { code: 'ENOENT' } }) });
-    const wrappingIgnore = {
-      isBulkEligible: (absPath, repoRoot) => {
-        calls.push({ absPath, repoRoot });
-        return realIgnore.isBulkEligible(absPath, repoRoot);
-      },
-      indexFor: (repoRoot) => realIgnore.indexFor(repoRoot),
-      degradations: () => realIgnore.degradations(),
-      stats: () => realIgnore.stats(),
-    };
-
-    const t = new Traversal({ roots: [home], spec: SPEC, ignore: wrappingIgnore });
-    await t.run();
-
-    assert.deepEqual(calls, []);
-  });
-});
+//
+// This describe block used to prove that `ctx.ignore.isBulkEligible` was
+// called with the SAME `repoRoot` the walk attributed to each path (D-26),
+// over a nested-repo fixture, using ordinary .js files as bait because
+// .js was the one class (`bulk-content`) that ever consulted the
+// resolver. `Traversal` no longer reads a `rawOptions.ignore` option AT
+// ALL (see `lib/traverse/engine.js`'s `run()`/`enumerateSync()`), so
+// wrapping and passing one is now a complete no-op -- there is no
+// parameter left to intercept, which makes a call-counting test of it
+// vacuous by construction, not merely passing. The property this used to
+// guard -- nothing in a real engine run ever calls into a gitignore
+// resolver, over ANY fixture shape, nested repos included -- is now
+// proven strictly more generally (every `child_process.spawnSync` call of
+// any kind, not just one specific dead method) by
+// tests/traverse/zero-git-subprocess.test.js, a real `run()` exercised
+// against a synthetic nested-repo-shaped fixture with a counting
+// `spawnSync` stub installed at the `child_process` module level.
 
 // ---------------------------------------------------------------------------
 // Self-root exclusion.

@@ -293,11 +293,11 @@ describe('index.js -- createSkipInventory', () => {
     const inv = createSkipInventory();
     inv.add('symlink', '/a/b/link');
     inv.add('symlink', '/a/b/link2');
-    inv.add('gitignored', '/a/b/ignored');
+    inv.add('other-device', '/a/b/ignored');
     const counts = inv.counts();
     assert.equal(counts.symlink, 2);
-    assert.equal(counts.gitignored, 1);
-    assert.equal(counts.media, 0);
+    assert.equal(counts['other-device'], 1);
+    assert.equal(counts.oversized, 0);
     assert.equal(inv.total(), 3);
     assert.deepEqual(inv.paths('symlink'), ['/a/b/link', '/a/b/link2']);
   });

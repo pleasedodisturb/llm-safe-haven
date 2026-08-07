@@ -192,7 +192,7 @@ describe('results.js — scalars', () => {
     const dir = mkResultsDir();
     const result = buildResult({
       findings: [{ id: 'file-marker', class: 'all-files', absPath: '/a.js', detail: 'd', severity: 'fail' }],
-      skipEntries: [['gitignored', '/x/ignored.js']],
+      skipEntries: [['symlink', '/x/ignored.js']],
     });
 
     writeResults(dir, result, cloneSpec(), { elapsedMs: 123 });
@@ -214,7 +214,7 @@ describe('results.js — scalars', () => {
       const filePath = path.join(dir, 'scalars', `skip-${reason}`);
       assert.ok(fs.existsSync(filePath), `scalars/skip-${reason} missing`);
       const value = Number(fs.readFileSync(filePath, 'utf8').trim());
-      if (reason === 'gitignored') {
+      if (reason === 'symlink') {
         assert.equal(value, 1);
       } else {
         assert.equal(value, 0, `scalars/skip-${reason} should be zero-filled when unused`);

@@ -9,22 +9,24 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
 
-const { classify, isTargetedClass, PRUNE_COMMON_NAMES, MEDIA_EXTENSIONS } = require('../../lib/traverse/classify.js');
+const { classify, isTargetedClass, PRUNE_COMMON_NAMES } = require('../../lib/traverse/classify.js');
 
 const SPEC = require('../../manifests/waves/chaindrop-aug2026.json');
 
 // ---------------------------------------------------------------------------
 // Fixture helpers
 // ---------------------------------------------------------------------------
+//
+// 2026-08-07: `ctx` no longer carries an `ignore` field -- classify() never
+// consults a gitignore resolver for any class (see classify.js's module
+// header for the full tiering-trade-off-reversal history). `ctxWith()`
+// previously defaulted one in; there is nothing left to default.
 
 const SELF_ROOT = '/self/root';
 
 function ctxWith(overrides = {}) {
   return {
     selfRoot: SELF_ROOT,
-    ignore: {
-      isBulkEligible: () => ({ eligible: true, reason: null }),
-    },
     skips: { add() {} },
     ...overrides,
   };
@@ -50,12 +52,15 @@ describe('classify.js — exported constants', () => {
     }
   });
 
-  it('MEDIA_EXTENSIONS contains binary/media extensions, not source extensions', () => {
-    assert.equal(MEDIA_EXTENSIONS.has('.png'), true);
-    assert.equal(MEDIA_EXTENSIONS.has('.js'), false);
-  });
+  // 2026-08-07: MEDIA_EXTENSIONS was D-15's bulk-tier-only "first layer"
+  // (skip known media/binary extensions before ever opening them) -- it
+  // existed exclusively to protect the now-removed bulk-content read path
+  // and was deleted along with it, not merely renamed or hidden. Nothing
+  // replaces it: a payload renamed to a media extension is still caught by
+  // name/hash (all-files) and was never eligible for the marker-string
+  // scan's allowlist to begin with, media or not.
 
-  it('isTargetedClass: true for every class except bulk-content (both branches)', () => {
+  it('isTargetedClass: true for every class except bulk-content (both branches) -- bulk-content\'s branch is presently unreachable through real classify() output, see classify.js\'s module header', () => {
     assert.equal(isTargetedClass('bulk-content'), false);
     for (const cls of ['all-files', 'no-prune', 'lockfiles', 'family-packages', 'agent-config', 'marker-config', 'env-secrets']) {
       assert.equal(isTargetedClass(cls), true, cls);
@@ -280,12 +285,13 @@ describe('classify.js — marker-config class', () => {
   // OLD bash scanner's section 6b, which never consulted gitignore for ANY
   // of its allow-listed extensions. See docs/wave-spec.md and
   // tests/helpers/chaindrop-corpus.js's removal of KNOWN_TIERING_TRADEOFFS[0].
-  it('an ordinary source extension (.js) is ALSO marker-config now -- the ignore resolver is never consulted for it', () => {
-    let called = false;
-    const ctx = ctxWith({ ignore: { isBulkEligible: () => { called = true; return { eligible: false, reason: 'gitignored' }; } } });
-    const classes = classesOf('/elsewhere/proj/notes.js', ctx);
+  it('an ordinary source extension (.js) is ALSO marker-config now', () => {
+    // No `ignore` field exists on `ctx` any more to even attempt to
+    // consult -- classify() no longer accepts one (see classify.js's
+    // module header) -- so there is nothing left to wrap or count calls
+    // on here; this is a plain membership assertion.
+    const classes = classesOf('/elsewhere/proj/notes.js');
     assert.ok(classes.includes('marker-config'));
-    assert.equal(called, false, 'the (now-vestigial) ignore resolver must never be consulted for a marker-config member');
   });
 
   it('every other bulk-content fileGlobs member (.mjs/.cjs/.ts/.json/.sh/.zsh/.bash/.yml/.yaml/.md/.lock) is also marker-config', () => {
@@ -328,12 +334,13 @@ describe('classify.js — bulk-content class (now unreachable)', () => {
     assert.equal(classesOf('/elsewhere/proj/binary.xyz').includes('bulk-content'), false);
   });
 
-  it('the ignore resolver (isBulkEligible) is never invoked by classify() any more, for any input', () => {
-    let called = false;
-    const ctx = ctxWith({ ignore: { isBulkEligible: () => { called = true; return { eligible: true, reason: null }; } } });
-    for (const name of ['notes.js', 'photo.png', 'binary.xyz', '.env', '.npmrc']) {
-      classesOf(`/elsewhere/proj/${name}`, ctx);
-    }
-    assert.equal(called, false);
-  });
+  // The previous "the ignore resolver (isBulkEligible) is never invoked"
+  // test (wrapping a fake `ctx.ignore` and counting calls) is DELETED, not
+  // rewritten: `ctx` no longer has an `ignore` field in classify()'s real
+  // contract at all (see classify.js's module header), so there is
+  // nothing left to wrap -- a runtime call-counting test would be vacuous
+  // by construction, proving only that a value nobody reads was not read.
+  // The property this used to guard (no gitignore consultation happens
+  // anywhere in a real scan) is now proven end to end, through a real
+  // engine run, by tests/traverse/zero-git-subprocess.test.js.
 });

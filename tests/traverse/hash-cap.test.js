@@ -48,9 +48,11 @@ function independentSha256(file) {
 }
 
 function readOnlyCtx() {
+  // No `ignore` field -- classify() no longer accepts one (2026-08-07
+  // tiering-trade-off reversal; see lib/traverse/classify.js's module
+  // header).
   return {
     selfRoot: null,
-    ignore: { isBulkEligible: () => ({ eligible: true, reason: null }) },
     skips: { add() {} },
   };
 }
