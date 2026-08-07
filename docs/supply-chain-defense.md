@@ -1082,6 +1082,126 @@ On macOS, you can use Little Snitch or LuLu to monitor and restrict network acce
 
 ---
 
+## Operating the Traversal-Engine Scanner
+
+`npx llm-safe-haven scan --supply-chain` and the bundled wave scanners run on a shared,
+bounded traversal engine (`lib/traverse/`, G-1482). This section documents the environment
+variables that control it, its exit-code contract, and the one place its coverage
+deliberately differs from the older, unbounded bash scanners it replaces. If you're
+authoring a new wave rather than operating an existing one, see
+[`docs/wave-spec.md`](./wave-spec.md) instead.
+
+### Environment variables
+
+- **`LSH_ROOTS`** — colon-separated (`:`) list of absolute paths. **Replaces, does not
+  extend,** the default six code roots (`~/Projects`, `~/Developer`, `~/Code`, `~/src`,
+  `~/repos`, `~/workspace`). This is the only way to opt an external volume or network
+  mount into the scan, e.g. `LSH_ROOTS=/Volumes/backup:/mnt/nas/code`. The `:` separator
+  is a Unix-only convention — a Windows-style path list such as `C:\x;D:\y` is **not**
+  supported and is out of scope for this project.
+- **`LSH_BUDGET_SECONDS`** — global wall-clock budget in seconds. Default: `60` seconds
+  (`DEFAULTS.budgetSeconds` in `lib/traverse/index.js`). A negative, non-numeric, or
+  infinite value falls back to the default rather than disabling the bound — the bound can
+  never be turned off, only tightened. `0` is accepted and means "already exhausted": the
+  scan reports incomplete immediately, before enumerating anything. That is deliberate — a
+  zero budget is the most conservative value expressible (it can only make a scan report
+  LESS than it otherwise would, never more), and it is the only deterministic way to
+  exercise the incomplete-exit code paths from a script or a test, since no clock can be
+  injected across a process boundary.
+- **`LSH_MAX_FILES`** — entry-count backstop. Default: `1000000` entries
+  (`DEFAULTS.maxFiles`). Same value rules as `LSH_BUDGET_SECONDS` above (negative/
+  non-numeric/infinite falls back to the default with a warning; `0` is accepted and means
+  the scan is already at its limit).
+- **`LSH_WAVE_SPEC`** — absolute path to an alternative wave-spec JSON file. Defaults to
+  the bundled `manifests/waves/chaindrop-aug2026.json`. Use this to test a spec before
+  merging it (`LSH_WAVE_SPEC=/tmp/my-new-wave.json npx llm-safe-haven scan --supply-chain`)
+  or to run a newly authored wave without editing the scanner itself.
+- **`LSH_NO_NETWORK`** — existing, unchanged. Disables the optional GitHub dead-drop repo
+  audit (the only network call any scanner in this project makes, and only when `gh` is
+  present and authenticated).
+
+### Exit-code contract
+
+The engine reuses this project's existing 0/1/2 exit-code convention
+(`lib/mcp/base.js`), refined by an explicit severity/completeness precedence rule:
+
+- **`0`** — clean **AND** complete. No FAIL-severity findings, and the scan finished
+  within its budget.
+- **`1`** — FAIL-severity findings exist. This is returned **even if the scan was cut
+  short** — the printed report says `incomplete`, but the exit code stays `1`, because a
+  real compromise indicator is never masked by an unfinished scan.
+- **`2`** — the scan did not finish **and** found nothing. **This is the code an operator
+  must never read as "clean."** It means the traversal ran out of budget or hit the
+  file-count backstop before it could rule anything out — the honest report is "we don't
+  know," not "you're safe."
+
+`WARN` and `INFO` severity lines never change the exit code — only `FAIL` does. This is
+why a scan can print warnings (e.g. a renamed-variant file under the size threshold) and
+still exit `0`.
+
+**Worked example — an incomplete run** (`LSH_BUDGET_SECONDS=0` against an otherwise clean
+tree):
+
+```
+$ LSH_BUDGET_SECONDS=0 npx llm-safe-haven scan --supply-chain
+== ChainDrop IOC scan (wave-spec engine) ==
+  [WARN] scan incomplete: budget exhausted before enumeration completed
+  [INFO] 0 findings across 0 files examined (0 skipped: budget)
+Result: INCOMPLETE — the scan did not finish. This is NOT a clean bill of health.
+Results retained at: /tmp/lsh-scan-results-a1b2c3/  (skip inventory, per-reason path lists)
+$ echo $?
+2
+```
+
+Compare a normal, complete, clean run of the same tree (no `LSH_BUDGET_SECONDS` override):
+exit `0`, and no results directory is left behind.
+
+### The skip inventory and results directory
+
+Every entry the walk declines to fully process is counted and path-attributed by SKIP
+reason (`gitignored`, `media`, `oversized`, `symlink`, `other-device`, `unreadable`,
+`budget`, and the five git-degradation reasons below). On a run that exits `1` or `2`, the
+full per-reason path lists are written to a results directory whose path is printed in the
+final report line — this is what lets you answer "which files did the scan skip and why"
+after the fact. On a clean (`0`) exit, or on Ctrl-C, the results directory is removed; keep
+your terminal's scrollback if you need the summary counts from a clean run.
+
+### Git-ignore degradation (fails open, does not set `incomplete`)
+
+The bulk tier's `.gitignore`-aware pruning depends on `git ls-files` succeeding. When it
+can't — six named degradation shapes: `no-git` (binary missing), `not-a-repo` (outside any
+git work tree), `bare-repo`, `git-refused` (the `safe.directory` dubious-ownership
+refusal), and two `git-timeout` shapes (subprocess killed or timed out) — the bulk tier
+**fails open**: MORE files get scanned, not fewer, because the gitignore-based prune
+simply doesn't apply. This is recorded in the report's `degradations` list but does
+**not** set `incomplete` and does **not** affect the exit code. Marking a missing `git`
+binary as "incomplete" would make every machine without git installed exit `2` on every
+scan, training operators to ignore the one exit code that must never be ignored.
+
+### What changed in coverage
+
+Bulk marker-string scanning is now `.gitignore`-aware: a marker string inside a file a
+repository's own `.gitignore` excludes is no longer reported by the bulk tier — **except**
+in `.env`, `.env.*`, and `.npmrc` files, which stay in the always-scanned targeted tier
+(the `marker-config` class — see the Tiering rules in `docs/wave-spec.md`), and **except**
+in the six directories the old bash scanner already pruned (`.git`, `target`, `dist`,
+`build`, `.next`, `.nuxt`). Every targeted IOC check — filenames, hashes, poisoned
+versions, persistence hooks, `.env` discovery — still runs regardless of `.gitignore`,
+because in a compromised repository `.gitignore` is attacker-controlled input, not a
+trust boundary.
+
+This is a real, deliberate coverage change, not a rounding error: a marker string
+committed inside a gitignored bulk-content file (say, a gitignored `notes.md`, outside the
+credential-file carve-out above) will no longer be flagged where it previously was. It was
+accepted because the alternative — walking every gitignored file in every scanned tree on
+every run, including large gitignored build output and generated artifacts the old bash
+scanner's `PRUNE_COMMON` list didn't anticipate — reintroduces exactly the kind of
+unbounded, slow scan (TRAV-01/TRAV-04) this engine exists to bound, for content that is by
+definition not part of the tracked, reviewed codebase. Do not describe this refactor as
+zero coverage change; this is the one place it narrowed, and it narrowed on purpose.
+
+---
+
 ## How We Protect llm-safe-haven's Supply Chain
 
 This project follows the defenses described above. Here is our current posture:
