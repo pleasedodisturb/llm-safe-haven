@@ -33,6 +33,9 @@ const path = require('path');
 const { newHome, runScanner, hasBash } = require('./helpers/chaindrop-fixtures.js');
 const { CASES, KNOWN_TIERING_TRADEOFFS, buildCase, EXPECTATION_FINGERPRINT } = require('./helpers/chaindrop-corpus.js');
 
+const REPO_ROOT = path.join(__dirname, '..');
+const SPEC_RELATIVE = 'manifests/waves/chaindrop-aug2026.json';
+
 // This constant must be updated in the SAME commit as any expect-value edit
 // in tests/helpers/chaindrop-corpus.js. It is a review aid, not a security
 // control: a determined executor can update both, but an accidental or
@@ -129,3 +132,64 @@ describe(
     }
   }
 );
+
+// ============================================================================
+// False-positive / self-root guards (Q-03) — must stay green across the
+// retrofit exactly like the detection-parity cases above.
+// ============================================================================
+describe('ChainDrop false-positive guards (Q-03) — stay clean across the retrofit', { skip: !hasBash ? 'bash unavailable' : false }, () => {
+  const built = [];
+  after(() => built.forEach((h) => fs.rmSync(h, { recursive: true, force: true })));
+
+  it('self-root: scanning this repo (LSH_ROOTS=repo root) is ALL CLEAR, and cannot pass vacuously (the wave spec must actually exist)', () => {
+    // Non-vacuity guard: this case must not pass because the repo happens not
+    // to contain the IOC data yet — assert the spec file exists FIRST.
+    assert.ok(
+      fs.existsSync(path.join(REPO_ROOT, SPEC_RELATIVE)),
+      `${SPEC_RELATIVE} must exist for this self-root case to be a meaningful proof — it is this repo's own bundled IOC data`
+    );
+    const home = newHome(built, () => {});
+    const r = runScanner(home, { LSH_ROOTS: REPO_ROOT });
+    assert.equal(r.status, 0, `scanner flagged its own detection data:\n${r.stdout}`);
+    assert.doesNotMatch(r.stdout, /\[FAIL\]/);
+  });
+
+  it('clean tree at scale: 600 files across 30 directories terminates and stays ALL CLEAR', () => {
+    const home = newHome(built, (h, p) => {
+      for (let i = 0; i < 600; i++) fs.mkdirSync(path.dirname(p(`Projects/big/pkg${i % 30}/file${i}.js`)), { recursive: true });
+      for (let i = 0; i < 600; i++) fs.writeFileSync(p(`Projects/big/pkg${i % 30}/file${i}.js`), `// file ${i}\n`);
+    });
+    const r = runScanner(home);
+    assert.notEqual(r.status, null, 'scanner timed out / was killed — traversal is not bounded');
+    assert.equal(r.status, 0, r.stdout);
+  });
+
+  it('idempotency: the same corpus case run twice returns the same status AND the same findingCount', () => {
+    const fnExact = CASES.find((c) => c.id === 'fn-exact');
+    const home = newHome(built, (h) => buildCase(h, fnExact));
+    const a = runScanner(home);
+    const b = runScanner(home);
+    assert.equal(a.status, b.status, 'status must be idempotent on an unchanged tree');
+    assert.equal(findingCountOf(a.stdout), findingCountOf(b.stdout), 'findingCount must be idempotent on an unchanged tree');
+  });
+
+  it('LSH_ROOTS is honoured: an IOC inside an explicit LSH_ROOTS entry is found; the same IOC outside both HOME defaults and LSH_ROOTS is not', () => {
+    const codeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-cd-root-'));
+    built.push(codeDir);
+    fs.mkdirSync(path.join(codeDir, 'app', 'node_modules', 'keyv'), { recursive: true });
+    fs.writeFileSync(path.join(codeDir, 'app', 'node_modules', 'keyv', 'math_init.js'), '//\n');
+
+    const homeIn = newHome(built, () => {});
+    const rIn = runScanner(homeIn, { LSH_ROOTS: codeDir });
+    assert.equal(rIn.status, 1, `IOC inside LSH_ROOTS must be found\n${rIn.stdout}`);
+    assert.match(rIn.stdout, /math_init\.js/);
+
+    // The same fixture directory, scanned WITHOUT LSH_ROOTS pointing at it and
+    // WITHOUT it being under any HOME-default root, must NOT be found — proves
+    // the negative (out-of-scope roots are truly not walked), not just that
+    // LSH_ROOTS exists.
+    const homeOut = newHome(built, () => {});
+    const rOut = runScanner(homeOut); // no LSH_ROOTS override; codeDir is outside HOME entirely
+    assert.equal(rOut.status, 0, `IOC outside both HOME defaults and LSH_ROOTS must not be found\n${rOut.stdout}`);
+  });
+});
