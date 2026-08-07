@@ -19,10 +19,10 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const { stubHomedir } = require('./helpers/module-stub.js');
+const { stubHomedir, installStub } = require('./helpers/module-stub.js');
 const { captureLog } = require('./helpers/capture-log.js');
 
-const { findEnvFiles } = require('../lib/scan.js');
+const { findEnvFiles, findEnvFilesDetailed, scanForEnvFiles } = require('../lib/scan.js');
 
 function mkFixture() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'scan-fixture-'));
@@ -224,5 +224,70 @@ describe('scan() dangerous-file block', () => {
   it('scanForEnvFiles() also resolves deterministically against the sandbox (SCAN_DIRS do not exist there)', () => {
     const { scanForEnvFiles } = stubHomedir(sandboxHome, scanPath);
     assert.deepEqual(scanForEnvFiles(), [], 'none of the six SCAN_DIRS exist in an empty sandbox HOME');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Engine adoption (plan 17-13, D-23) — findEnvFiles/scanForEnvFiles are now
+// thin wrappers over the shared traversal engine's `env-secrets` class
+// instead of a hand-rolled recursive fs.readdirSync walk. These tests are
+// ADDITIVE — every describe block above this comment is unmodified from the
+// pre-adoption implementation and is the semantic oracle these prove against.
+// ---------------------------------------------------------------------------
+describe('findEnvFilesDetailed — additive export (D-23 engine adoption)', () => {
+  let fixtureDir;
+
+  beforeEach(() => {
+    fixtureDir = mkFixture();
+  });
+
+  afterEach(() => {
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
+  });
+
+  it('is exported as a function, additive to findEnvFiles (same shape it always returned)', () => {
+    assert.equal(typeof findEnvFilesDetailed, 'function');
+  });
+
+  it('returns { files, skips } — files matches findEnvFiles() exactly for the same inputs', () => {
+    fs.writeFileSync(path.join(fixtureDir, '.env'), 'SECRET=1\n');
+    const detailed = findEnvFilesDetailed(fixtureDir, 4);
+    assert.deepEqual(detailed.files, [path.join(fixtureDir, '.env')]);
+    assert.deepEqual(detailed.files, findEnvFiles(fixtureDir, 4));
+    assert.equal(typeof detailed.skips.total, 'function', 'skips is a SkipInventory (add/counts/paths/total)');
+  });
+});
+
+describe('scan.js spawns zero subprocesses (env-secrets is TARGETED tier — T-17-02)', () => {
+  const cpPath = require.resolve('child_process');
+  const scanPath = require.resolve('../lib/scan.js');
+  const realChildProcess = require('child_process');
+
+  let callCount;
+  let preStubEntry;
+
+  beforeEach(() => {
+    callCount = 0;
+    preStubEntry = Object.prototype.hasOwnProperty.call(require.cache, cpPath) ? require.cache[cpPath] : undefined;
+    installStub(cpPath, {
+      ...realChildProcess,
+      spawnSync: (...args) => {
+        callCount += 1;
+        return realChildProcess.spawnSync(...args);
+      },
+    });
+  });
+
+  afterEach(() => {
+    if (preStubEntry === undefined) delete require.cache[cpPath];
+    else require.cache[cpPath] = preStubEntry;
+  });
+
+  it('scanForEnvFiles() never calls spawnSync — count is exactly 0', () => {
+    // lib/traverse/index.js's normalizeOptions() calls require('child_process')
+    // lazily, per Traversal call, so the stub installed above is picked up
+    // without needing to evict/re-require lib/scan.js itself.
+    scanForEnvFiles();
+    assert.equal(callCount, 0, 'the env-secrets class must never consult git — no subprocess should be spawned');
   });
 });
