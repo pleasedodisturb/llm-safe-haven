@@ -13,7 +13,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { walk } = require('../../lib/traverse/walk.js');
+const { walk, walkRoot } = require('../../lib/traverse/walk.js');
 const { hasGit, initRepo } = require('../helpers/git-fixture.js');
 
 // ---------------------------------------------------------------------------
@@ -536,6 +536,161 @@ describe('walk.js -- a .git FILE (linked worktree) is recognised as a repo bound
       const siblingEvent = events.find((e) => e.absPath === sibling);
       assert.ok(siblingEvent);
       assert.equal(siblingEvent.repoRoot, root, 'a .git FILE must be recognised as a repo boundary, same as a .git directory');
+    } finally {
+      cleanup(root);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// walkRoot() -- the single-root convenience wrapper
+// ---------------------------------------------------------------------------
+
+describe('walkRoot() -- single-root convenience wrapper', () => {
+  it('walkRoot(root, options, visit) behaves identically to walk([root], options, visit)', () => {
+    const root = mkFixture();
+    try {
+      const file = path.join(root, 'a.txt');
+      writeFile(file, 'x');
+
+      const events = [];
+      const result = walkRoot(root, {}, (e) => events.push(e));
+      assert.ok(has(events, file));
+      assert.equal(result.counts.rootsWalked, 1);
+      assert.equal(result.stopped, false);
+    } finally {
+      cleanup(root);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Additional error-path coverage: unreadable at every lstat call site, and
+// a real symlink discovered via the DT_UNKNOWN fallback (not just the fast
+// Dirent-typed path already covered above).
+// ---------------------------------------------------------------------------
+
+describe('walk.js -- additional lstat error-path coverage', () => {
+  it('an inaccessible ROOT itself is recorded unreadable, never thrown', () => {
+    const root = mkFixture();
+    try {
+      const stubFs = {
+        readdirSync: (p, opts) => fs.readdirSync(p, opts),
+        lstatSync: (p) => {
+          if (p === root) {
+            const err = new Error('ENOENT: no such file or directory');
+            err.code = 'ENOENT';
+            throw err;
+          }
+          return fs.lstatSync(p);
+        },
+      };
+
+      const { events, result } = runWalk([root], { fs: stubFs });
+      assert.equal(events.length, 0);
+      assert.equal(result.skips.counts().unreadable, 1);
+      assert.deepEqual(result.skips.paths('unreadable'), [root]);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it('a DT_UNKNOWN entry whose fallback lstatSync throws is recorded unreadable, walk continues', () => {
+    const root = mkFixture();
+    try {
+      const targetName = 'mystery.txt';
+      const targetAbsPath = path.join(root, targetName);
+      writeFile(targetAbsPath, 'x');
+      const siblingFile = path.join(root, 'sibling.txt');
+      writeFile(siblingFile, 'x');
+
+      const stubFs = {
+        readdirSync: (p, opts) => {
+          const real = fs.readdirSync(p, opts);
+          if (p !== root) return real;
+          return real.map((e) => (e.name !== targetName ? e : {
+            name: e.name,
+            isDirectory: () => false,
+            isFile: () => false,
+            isSymbolicLink: () => false,
+          }));
+        },
+        lstatSync: (p) => {
+          if (p === targetAbsPath) {
+            const err = new Error('EIO: i/o error');
+            err.code = 'EIO';
+            throw err;
+          }
+          return fs.lstatSync(p);
+        },
+      };
+
+      const { events, result } = runWalk([root], { fs: stubFs });
+      assert.equal(has(events, targetAbsPath), false);
+      assert.ok(has(events, siblingFile), 'the walk must continue past the unreadable DT_UNKNOWN entry');
+      assert.equal(result.skips.counts().unreadable, 1);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it('a real symlink discovered only via the DT_UNKNOWN fallback (Dirent reports all-false) is skipped and counted', () => {
+    const root = mkFixture();
+    try {
+      const realFile = path.join(root, 'real.txt');
+      writeFile(realFile, 'x');
+      const linkName = 'mystery-link';
+      const linkAbsPath = path.join(root, linkName);
+      fs.symlinkSync(realFile, linkAbsPath);
+
+      const stubFs = {
+        readdirSync: (p, opts) => {
+          const real = fs.readdirSync(p, opts);
+          if (p !== root) return real;
+          return real.map((e) => (e.name !== linkName ? e : {
+            name: e.name,
+            isDirectory: () => false,
+            isFile: () => false,
+            isSymbolicLink: () => false,
+          }));
+        },
+        lstatSync: (p) => fs.lstatSync(p),
+      };
+
+      const { events, result } = runWalk([root], { fs: stubFs });
+      assert.equal(has(events, linkAbsPath), false, 'a symlink discovered via the fallback lstat must never be emitted');
+      assert.ok(has(events, realFile));
+      assert.equal(result.skips.counts().symlink, 1);
+      assert.deepEqual(result.skips.paths('symlink'), [linkAbsPath]);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it('a device-check lstatSync throw on a directory (Dirent type already known) is recorded unreadable, walk continues', () => {
+    const root = mkFixture();
+    try {
+      const lockedDir = path.join(root, 'locked-dev-check');
+      fs.mkdirSync(lockedDir);
+      const siblingFile = path.join(root, 'sibling.txt');
+      writeFile(siblingFile, 'x');
+
+      const stubFs = {
+        readdirSync: (p, opts) => fs.readdirSync(p, opts),
+        lstatSync: (p) => {
+          if (p === lockedDir) {
+            const err = new Error('EIO: i/o error');
+            err.code = 'EIO';
+            throw err;
+          }
+          return fs.lstatSync(p);
+        },
+      };
+
+      const { events, result } = runWalk([root], { fs: stubFs });
+      assert.ok(has(events, siblingFile));
+      assert.equal(result.skips.counts().unreadable, 1);
+      assert.deepEqual(result.skips.paths('unreadable'), [lockedDir]);
     } finally {
       cleanup(root);
     }
