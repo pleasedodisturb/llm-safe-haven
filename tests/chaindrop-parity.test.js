@@ -9,9 +9,18 @@
 // any `expect` value in tests/helpers/chaindrop-corpus.js AND WITHOUT
 // changing EXPECTATION_FINGERPRINT below. If a detection behaviour genuinely
 // has to change, that is a product decision requiring explicit human
-// sign-off recorded in the 17-14 plan summary — not a test edit. The single
-// pre-approved exception is KNOWN_TIERING_TRADEOFFS[0] (the D-13 gitignore
-// bulk-tier trade-off), asserted separately below.
+// sign-off recorded in the 17-14 plan summary — not a test edit.
+//
+// 2026-08-07 REVISION: this file previously carried a
+// KNOWN_TIERING_TRADEOFFS[0] describe block for the ONE pre-approved
+// exception (the D-13 gitignore bulk-tier trade-off). Vitalik's review
+// rejected that trade-off as a real regression, not an acceptable one (see
+// the "widen the targeted marker-config class" fix in
+// lib/traverse/classify.js), so KNOWN_TIERING_TRADEOFFS is now gone
+// entirely and its one case (id: marker-gitignored-source) is an ORDINARY
+// frozen CASES entry below, like every other. There is no longer any
+// exception to this file's own "must pass with zero expect-value edits"
+// rule.
 // ============================================================================
 //
 // Every case in tests/helpers/chaindrop-corpus.js CASES was frozen by
@@ -31,7 +40,7 @@ const os = require('os');
 const path = require('path');
 
 const { newHome, runScanner, hasBash } = require('./helpers/chaindrop-fixtures.js');
-const { CASES, KNOWN_TIERING_TRADEOFFS, buildCase, EXPECTATION_FINGERPRINT } = require('./helpers/chaindrop-corpus.js');
+const { CASES, buildCase, EXPECTATION_FINGERPRINT } = require('./helpers/chaindrop-corpus.js');
 
 const REPO_ROOT = path.join(__dirname, '..');
 const SPEC_RELATIVE = 'manifests/waves/chaindrop-aug2026.json';
@@ -40,7 +49,11 @@ const SPEC_RELATIVE = 'manifests/waves/chaindrop-aug2026.json';
 // in tests/helpers/chaindrop-corpus.js. It is a review aid, not a security
 // control: a determined executor can update both, but an accidental or
 // unreviewed expectation drift cannot silently pass a diff.
-const FROZEN_FINGERPRINT = '7d72bdadf6a7a59a5e4fd472742ac8b3ffbf77f80725a5e9c0b5bbbaddfffa2b';
+// Updated 2026-08-07 in the SAME commit as tests/helpers/chaindrop-corpus.js's
+// addition of the `marker-gitignored-source` case (the former
+// KNOWN_TIERING_TRADEOFFS[0], now an ordinary frozen CASE per Vitalik's
+// rejection of the tiering trade-off — see the file header above).
+const FROZEN_FINGERPRINT = '764fd4a67acb410a35d814f1c1ddc866f532f55b3f6739ad6b46757301c17253';
 
 function findingCountOf(stdout) {
   const m = stdout.match(/(\d+) FINDING\(S\)/);
@@ -110,39 +123,13 @@ describe(
   }
 );
 
-describe(
-  'ChainDrop tiering trade-off (D-13/D-14) — the ONE case plan 17-14 is expected to flip',
-  { skip: !hasBash ? 'bash unavailable' : false },
-  () => {
-    const built = [];
-    after(() => built.forEach((h) => fs.rmSync(h, { recursive: true, force: true })));
-
-    // Plan 17-14 landed and the tiering trade-off was reviewed and approved
-    // in that plan's summary (Task 4 checkpoint, D-13/D-14): a marker string
-    // inside a git-repo-gitignored path outside PRUNE_COMMON is now
-    // bulk-tier-pruned rather than FAILed, because bulk-content scanning
-    // moved to the gitignore-prunable tier. This assertion target flips
-    // from `oldExpect` (the pre-refactor scanner's behaviour) to
-    // `newExpect` (the retrofitted scanner's declared, signed-off
-    // behaviour) — `t.oldExpect`/`t.newExpect` themselves are untouched,
-    // frozen data in tests/helpers/chaindrop-corpus.js; only WHICH one this
-    // test asserts against changes, which is not the forbidden "edit an
-    // expect value" this file's header guards against.
-    for (const t of KNOWN_TIERING_TRADEOFFS) {
-      it(`[${t.id}] asserts newExpect against the retrofitted scanner (plan 17-14's declared, human-signed-off flip — see the 17-14 SUMMARY)`, () => {
-        const home = newHome(built, (h) => buildCase(h, t));
-        const r = runScanner(home);
-        const findingCount = findingCountOf(r.stdout);
-
-        assert.equal(r.status, t.newExpect.status, `[${t.id}] newExpect.status mismatch\n${r.stdout}`);
-        assert.equal(findingCount, t.newExpect.findingCount, `[${t.id}] newExpect.findingCount mismatch\n${r.stdout}`);
-        for (const re of t.newExpect.mustMatch || []) {
-          assert.match(r.stdout, re, `[${t.id}] expected newExpect stdout to match ${re}\n${r.stdout}`);
-        }
-      });
-    }
-  }
-);
+// The "ChainDrop tiering trade-off" describe block that used to live here
+// (asserting KNOWN_TIERING_TRADEOFFS[0]'s newExpect) is REMOVED: Vitalik's
+// review rejected that trade-off, lib/traverse/classify.js's
+// isMarkerConfigMember was widened to close the gap, and the one case that
+// exercised it (id: marker-gitignored-source) is now an ordinary CASES
+// entry, covered by the main detection-parity loop above like every other
+// case — there is no longer a separate exception to assert.
 
 // ============================================================================
 // False-positive / self-root guards (Q-03) — must stay green across the

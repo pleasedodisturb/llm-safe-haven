@@ -35,7 +35,6 @@ const crypto = require('crypto');
 const { spawnSync } = require('child_process');
 
 const { write, newHome, runScanner, hasBash } = require('./helpers/chaindrop-fixtures.js');
-const { KNOWN_TIERING_TRADEOFFS } = require('./helpers/chaindrop-corpus.js');
 const { initRepo } = require('./helpers/git-fixture.js');
 
 const SCRIPT = path.join(__dirname, '..', 'scripts', 'scan-chaindrop-aug2026.sh');
@@ -354,18 +353,18 @@ describe('scan-chaindrop-aug2026.sh — non-functional contract', { skip: !hasBa
     assert.match(r.stdout, /setup\.mjs present with no worm markers/);
   });
 
-  it('the declared tiering trade-off (D-13/D-14): KNOWN_TIERING_TRADEOFFS[0] asserts its newExpect (status 0) against the retrofitted scanner', () => {
-    // plan 17-05 recorded oldExpect: status 1 against the pre-refactor
-    // scanner (a marker string in a git-repo-gitignored path outside
-    // PRUNE_COMMON used to FAIL unconditionally — section 6b had no
-    // gitignore awareness at all). D-13 assigns bulk-content scanning to
-    // the gitignore-prunable tier, so this is the ONE declared, pre-
-    // recorded, human-signed-off verdict change this retrofit makes (see
-    // the 17-14 plan summary's checkpoint sign-off). `.env`/`.npmrc` are
-    // exempt via the targeted `marker-config` class — the marker-npmrc and
-    // marker-env corpus cases in tests/chaindrop-parity.test.js pin that
-    // this trade-off does NOT widen to swallow credential files.
-    const trade = KNOWN_TIERING_TRADEOFFS[0];
+  it('a marker string in a git-ignored path outside PRUNE_COMMON still FAILs — no gitignore tiering trade-off (2026-08-07 review)', () => {
+    // A D-13 gitignore-tiering trade-off for this exact scenario was
+    // proposed, reviewed, and REJECTED as a real detection regression (the
+    // old bash scanner's section 6b never consulted gitignore for ANY of
+    // its marker-string allowlist, not just credential files). The fix
+    // (lib/traverse/classify.js's isMarkerConfigMember widened to cover
+    // every spec.classes['bulk-content'].fileGlobs member, not just
+    // .env/.env.*/.npmrc) restores bash parity exactly, so this case is
+    // now an ordinary frozen CASES entry (id: marker-gitignored-source) in
+    // tests/helpers/chaindrop-corpus.js, covered end to end by
+    // tests/chaindrop-parity.test.js's main detection-parity loop. This
+    // test pins the same property directly in this file too.
     const home = newHome(built, (h, p) => {
       initRepo(p('Projects/repo'), {
         gitignore: 'notes/\n',
@@ -373,9 +372,8 @@ describe('scan-chaindrop-aug2026.sh — non-functional contract', { skip: !hasBa
       });
     });
     const r = runScanner(home);
-    assert.equal(r.status, trade.newExpect.status, r.stdout);
-    const findingCount = (r.stdout.match(/(\d+) FINDING\(S\)/) || [])[1];
-    assert.equal(findingCount === undefined ? 0 : Number(findingCount), trade.newExpect.findingCount, r.stdout);
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stdout, /marker string/i);
   });
 
   it('engine crash (non-writing, non-2 exit): a "node" shim exiting 7 without writing anything makes the scanner exit 2, never 0 or 1', () => {

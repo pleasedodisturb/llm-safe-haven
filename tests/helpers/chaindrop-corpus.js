@@ -508,35 +508,37 @@ CASES.push(
 );
 
 // -----------------------------------------------------------------------
-// KNOWN_TIERING_TRADEOFFS — kept OUT of CASES so the frozen table above
-// stays absolutely frozen. This is the ONE place the retrofit (plan 17-14)
-// is expected to change a verdict, and both the old and the intended new
-// verdict are written down here, in advance, before any engine code
-// touches the scanner (T-17-05-05).
-// -----------------------------------------------------------------------
-const KNOWN_TIERING_TRADEOFFS = [
-  {
-    id: 'tradeoff-gitignored-source',
-    ioc: 'markerStrings (bulk-content) inside a git-repo-gitignored path, outside PRUNE_COMMON',
-    build: (h, p) => {
-      initRepo(p('Projects/repo'), {
-        gitignore: 'notes/\n',
-        untracked: { 'notes/loader.js': `const c2 = "${MARKER}";\n` },
-      });
-    },
-    oldExpect: {
-      status: 1,
-      findingCount: 1,
-      mustMatch: [/marker string/i],
-    },
-    newExpect: {
-      status: 0,
-      findingCount: 0,
-    },
-    note:
-      'D-13/D-14 declared trade-off, NOT a bug and NOT a silent regression. oldExpect: the CURRENT section 6b (script:475-508) has no gitignore awareness at all, so a marker string in a git-ignored, non-PRUNE_COMMON path FAILs today (verified against the real scanner, 2026-08-07). newExpect: D-13 assigns bulk-content scanning to the gitignore-prunable tier, so the retrofitted engine intentionally stops reporting this after plan 17-14 lands, with explicit human sign-off recorded in that plan\'s summary and its manual checkpoint (see 17-VALIDATION.md Manual-Only Verifications). The credential-bearing members of section 6b\'s allowlist (.env, .npmrc) are EXEMPTED from this trade-off by the targeted `marker-config` class — that is exactly what the marker-npmrc and marker-env cases above pin, so this trade-off cannot silently widen to swallow credential files too.',
+// This corpus case used to live in a separate KNOWN_TIERING_TRADEOFFS table
+// (kept out of CASES, asserting a DECLARED coverage trade-off: oldExpect
+// FAIL, newExpect CLEAN) pending human sign-off on plan 17-14's tiering
+// design. 2026-08-07 Vitalik review REJECTED that trade-off as a real
+// regression, not an acceptable one -- the OLD bash scanner's section 6b
+// never consulted gitignore for ANY of its marker-string allowlist, not
+// just credential files, so losing this FAIL was a genuine detection loss.
+// The fix (lib/traverse/classify.js's `isMarkerConfigMember`, widened to
+// cover every `spec.classes['bulk-content'].fileGlobs` name/extension, not
+// just `.env`/`.env.*`/`.npmrc`) restores the old FAIL verdict exactly, so
+// this is now an ORDINARY frozen CASE like every other -- the corpus is
+// made STRICTER by this change (an exemption removed), never weaker; every
+// other frozen expectation in this file is untouched.
+CASES.push({
+  id: 'marker-gitignored-source',
+  ioc: 'markerStrings (ordinary source file) inside a git-repo-gitignored path, outside PRUNE_COMMON',
+  build: (h, p) => {
+    initRepo(p('Projects/repo'), {
+      gitignore: 'notes/\n',
+      untracked: { 'notes/loader.js': `const c2 = "${MARKER}";\n` },
+    });
   },
-];
+  expect: {
+    status: 1,
+    findingCount: 1,
+    mustMatch: [/marker string/i],
+    matchCounts: { [/\[FAIL\].*marker string/i.source]: 1 },
+  },
+  note:
+    'Section 6b parity: the old bash scanner never consulted gitignore for its marker-string scan at all, so a marker string in a git-ignored, non-PRUNE_COMMON path FAILs both before AND after the plan 17-14 retrofit -- this is no longer a declared trade-off, it is ordinary parity. The credential-bearing members of section 6b\'s allowlist (.env, .npmrc) were ALREADY exempt from any gitignore consultation via the targeted `marker-config` class before this widening (see the marker-npmrc / marker-env cases above); the widening extends that same targeted-tier treatment to every other allow-listed extension too.',
+});
 
 // -----------------------------------------------------------------------
 // EXPECTATION_FINGERPRINT — sha256 over a canonical serialisation of every
@@ -564,4 +566,4 @@ const EXPECTATION_FINGERPRINT = crypto
   .update(JSON.stringify(CASES.map(canonicalCase)))
   .digest('hex');
 
-module.exports = { CASES, KNOWN_TIERING_TRADEOFFS, buildCase, EXPECTATION_FINGERPRINT, SPEC_PATH };
+module.exports = { CASES, buildCase, EXPECTATION_FINGERPRINT, SPEC_PATH };

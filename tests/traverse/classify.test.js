@@ -273,53 +273,67 @@ describe('classify.js — marker-config class', () => {
     assert.ok(classes.includes('marker-config'));
     assert.equal(classes.includes('bulk-content'), false);
   });
+
+  // 2026-08-07 tiering-trade-off reversal (Vitalik review of plan 17-14):
+  // marker-config now ALSO covers every name/extension spec.classes['bulk-
+  // content'].fileGlobs lists, not just .env/.env.*/.npmrc -- matching the
+  // OLD bash scanner's section 6b, which never consulted gitignore for ANY
+  // of its allow-listed extensions. See docs/wave-spec.md and
+  // tests/helpers/chaindrop-corpus.js's removal of KNOWN_TIERING_TRADEOFFS[0].
+  it('an ordinary source extension (.js) is ALSO marker-config now -- the ignore resolver is never consulted for it', () => {
+    let called = false;
+    const ctx = ctxWith({ ignore: { isBulkEligible: () => { called = true; return { eligible: false, reason: 'gitignored' }; } } });
+    const classes = classesOf('/elsewhere/proj/notes.js', ctx);
+    assert.ok(classes.includes('marker-config'));
+    assert.equal(called, false, 'the (now-vestigial) ignore resolver must never be consulted for a marker-config member');
+  });
+
+  it('every other bulk-content fileGlobs member (.mjs/.cjs/.ts/.json/.sh/.zsh/.bash/.yml/.yaml/.md/.lock) is also marker-config', () => {
+    for (const name of ['a.mjs', 'a.cjs', 'a.ts', 'a.json', 'a.sh', 'a.zsh', 'a.bash', 'a.yml', 'a.yaml', 'a.md', 'a.lock']) {
+      assert.ok(classesOf(`/elsewhere/proj/${name}`).includes('marker-config'), name);
+    }
+  });
+
+  it('a media extension is still excluded (unaffected by the widening -- media extensions were never in bulk-content\'s allowlist)', () => {
+    const classes = classesOf('/elsewhere/proj/photo.png');
+    assert.equal(classes.includes('marker-config'), false);
+    assert.equal(classes.includes('bulk-content'), false);
+  });
+
+  it('a non-allow-listed, non-media, non-marker-config extension is simply not a candidate for either class', () => {
+    const classes = classesOf('/elsewhere/proj/binary.xyz');
+    assert.equal(classes.includes('marker-config'), false);
+    assert.equal(classes.includes('bulk-content'), false);
+  });
+
+  it('node_modules and .cache are STILL excluded for the widened marker-config (same prune scope bulk-content always used)', () => {
+    assert.equal(classesOf('/elsewhere/proj/node_modules/foo/index.js').includes('marker-config'), false);
+    assert.equal(classesOf('/elsewhere/proj/.cache/index.js').includes('marker-config'), false);
+  });
 });
 
 // ---------------------------------------------------------------------------
-// bulk-content — the ONE class consulting the ignore resolver
+// bulk-content class (now unreachable, kept as documented dead code)
 // ---------------------------------------------------------------------------
 
-describe('classify.js — bulk-content class', () => {
-  it('an allow-listed extension, bulk-eligible per the ignore resolver, is classified with bulkEligible true', () => {
-    const ctx = ctxWith({ ignore: { isBulkEligible: () => ({ eligible: true, reason: null }) } });
-    const result = classify(ev('/elsewhere/proj/notes.js'), SPEC, ctx);
-    assert.ok(result.classes.includes('bulk-content'));
-    assert.equal(result.bulkEligible, true);
-    assert.equal(result.skipReason, null);
+describe('classify.js — bulk-content class (now unreachable)', () => {
+  it('nothing classifies into bulk-content any more -- marker-config\'s widened predicate is a strict superset of bulk-content\'s own allowlist', () => {
+    for (const name of ['notes.js', 'a.mjs', 'a.cjs', 'a.ts', 'a.json', 'a.sh', 'a.zsh', 'a.bash', 'a.yml', 'a.yaml', 'a.md', 'a.lock', '.npmrc', '.env']) {
+      assert.equal(classesOf(`/elsewhere/proj/${name}`).includes('bulk-content'), false, name);
+    }
   });
 
-  it('the SAME file, NOT eligible per the ignore resolver, is excluded with skipReason gitignored (proves the resolver is actually consulted)', () => {
-    const ctx = ctxWith({ ignore: { isBulkEligible: () => ({ eligible: false, reason: 'gitignored' }) } });
-    const result = classify(ev('/elsewhere/proj/notes.js'), SPEC, ctx);
-    assert.equal(result.classes.includes('bulk-content'), false);
-    assert.equal(result.skipReason, 'gitignored');
+  it('a media extension and an unmatched extension both stay unclassified for bulk-content too (they never matched its allowlist either)', () => {
+    assert.equal(classesOf('/elsewhere/proj/photo.png').includes('bulk-content'), false);
+    assert.equal(classesOf('/elsewhere/proj/binary.xyz').includes('bulk-content'), false);
   });
 
-  it('a media extension short-circuits to skipReason media without consulting the ignore resolver', () => {
+  it('the ignore resolver (isBulkEligible) is never invoked by classify() any more, for any input', () => {
     let called = false;
     const ctx = ctxWith({ ignore: { isBulkEligible: () => { called = true; return { eligible: true, reason: null }; } } });
-    const result = classify(ev('/elsewhere/proj/photo.png'), SPEC, ctx);
-    assert.equal(result.classes.includes('bulk-content'), false);
-    assert.equal(result.skipReason, 'media');
-    assert.equal(called, false);
-  });
-
-  it('a non-allow-listed, non-media extension is simply not a candidate (no skipReason)', () => {
-    const result = classify(ev('/elsewhere/proj/binary.xyz'), SPEC, ctxWith());
-    assert.equal(result.classes.includes('bulk-content'), false);
-    assert.equal(result.skipReason, null);
-  });
-
-  it('node_modules and .cache are excluded from bulk-content', () => {
-    assert.equal(classesOf('/elsewhere/proj/node_modules/foo/index.js').includes('bulk-content'), false);
-    assert.equal(classesOf('/elsewhere/proj/.cache/index.js').includes('bulk-content'), false);
-  });
-
-  it('a file with no known repo (repoRoot null) is bulk-eligible without invoking the ignore resolver', () => {
-    let called = false;
-    const ctx = ctxWith({ ignore: { isBulkEligible: () => { called = true; return { eligible: true, reason: null }; } } });
-    const result = classify(ev('/elsewhere/proj/notes.js', { repoRoot: null }), SPEC, ctx);
-    assert.ok(result.classes.includes('bulk-content'));
+    for (const name of ['notes.js', 'photo.png', 'binary.xyz', '.env', '.npmrc']) {
+      classesOf(`/elsewhere/proj/${name}`, ctx);
+    }
     assert.equal(called, false);
   });
 });

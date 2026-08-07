@@ -187,11 +187,16 @@ describe('engine — corpus-driven detector coverage (exact multiplicity)', () =
     COVERED_IDS.add('vscode-task-info');
   });
 
-  it('marker-source (bulk-content) -> marker-string (exactly 1)', async () => {
+  it('marker-source (ordinary .js file) -> marker-string (exactly 1)', async () => {
+    // 2026-08-07 tiering-trade-off reversal: marker-config now covers every
+    // bulk-content-allowlisted name too (see classify.js's widened
+    // isMarkerConfigMember), so an ordinary .js file's marker-string
+    // finding reports class 'marker-config', not 'bulk-content' -- proven
+    // unreachable in tests/traverse/classify.test.js.
     const result = await runCorpusCase('marker-source');
     const matches = findingsOfId(result, 'marker-string');
     assert.equal(matches.length, 1);
-    assert.equal(matches[0].class, 'bulk-content');
+    assert.equal(matches[0].class, 'marker-config');
     COVERED_IDS.add('marker-string');
   });
 
@@ -386,7 +391,20 @@ describe('engine — exit precedence end to end', () => {
 // ---------------------------------------------------------------------------
 
 describe('engine — git degradation fails open, never sets incomplete', () => {
-  it('a no-git degradation on a real repo boundary -> exitCode 0, incomplete false, non-empty degradations', async () => {
+  // 2026-08-07 tiering-trade-off reversal: `degradations` is populated
+  // exclusively through `isBulkEligible()` -> `indexFor()` (git-ignore.js;
+  // `indexFor` has no other caller anywhere in lib/). Widening
+  // `marker-config` made `isBulkEligible` unreachable (see the "repo
+  // attribution agreement" describe block above), so `indexFor` -- and
+  // therefore ANY degradation -- can no longer be recorded at all: there is
+  // nothing left in this engine that ever consults git. This is the correct
+  // consequence, not a regression -- the OLD bash scanner's marker-string
+  // scan (section 6b) never consulted git either. The assertion below
+  // proves that even when git is entirely absent, a real repo boundary
+  // still scans cleanly with ZERO degradations recorded (rather than the
+  // previous non-empty expectation, which described the now-retired
+  // bulk-content code path).
+  it('a no-git environment on a real repo boundary -> exitCode 0, incomplete false, ZERO degradations (git is never consulted any more)', async () => {
     const home = mkFixture();
     fs.mkdirSync(path.join(home, '.git')); // walk.js attributes repoRoot from the LITERAL name, no real git needed
     write(path.join(home, 'loader.js'), 'console.log("hello");\n');
@@ -397,8 +415,7 @@ describe('engine — git degradation fails open, never sets incomplete', () => {
 
     assert.equal(result.exitCode, 0);
     assert.equal(result.incomplete, false);
-    assert.ok(result.degradations.length > 0);
-    assert.ok(result.degradations.includes('no-git'));
+    assert.deepEqual(result.degradations, []);
   });
 });
 
@@ -407,10 +424,10 @@ describe('engine — git degradation fails open, never sets incomplete', () => {
 // ---------------------------------------------------------------------------
 
 describe('engine — single-open contract (D-02)', () => {
-  it('a file needing BOTH hash and bulk-content, plus a bulk-only file, open exactly once each (2 total)', async () => {
+  it('a file needing BOTH hash and content, plus a content-only file, open exactly once each (2 total)', async () => {
     const home = mkFixture();
-    write(path.join(home, 'setup.mjs'), 'export const setup = () => {};\n'); // all-files (hash) AND bulk-content (.mjs allowlisted)
-    write(path.join(home, 'loader.js'), 'console.log(1);\n'); // bulk-content only
+    write(path.join(home, 'setup.mjs'), 'export const setup = () => {};\n'); // all-files (hash) AND marker-config (.mjs allowlisted)
+    write(path.join(home, 'loader.js'), 'console.log(1);\n'); // marker-config content only
 
     const realFs = require('fs');
     let opens = 0;
@@ -465,7 +482,22 @@ describe('engine — wave-driver guard', () => {
 // ---------------------------------------------------------------------------
 
 describe('engine — repo attribution agreement', () => {
-  it('over a nested-repo fixture, every isBulkEligible call uses the SAME repoRoot the walk attributed to that path', async () => {
+  // 2026-08-07 tiering-trade-off reversal: this test used to prove that
+  // `ctx.ignore.isBulkEligible` is called with the SAME repoRoot the walk
+  // attributed to each path (D-26), using ordinary .js files as bait
+  // because .js was the ONE class (`bulk-content`) that consulted the
+  // resolver at all. Widening `marker-config` to cover every
+  // bulk-content-allowlisted name (classify.js) made `isBulkEligible`
+  // unreachable from real classify() calls entirely -- there is no longer
+  // ANY filename that reaches it (see classify.test.js's "bulk-content
+  // class (now unreachable)" block and gitignore-tiering.test.js's
+  // "the ignore resolver is never consulted" case, which prove this from
+  // the classify()-unit and gitignore-integration angles respectively).
+  // This test now proves the same fact end to end through the real
+  // Traversal/engine wiring: even over a NESTED-repo fixture (the exact
+  // shape that would have exercised D-26's per-path repoRoot forwarding),
+  // `isBulkEligible` is never invoked at all.
+  it('over a nested-repo fixture with ordinary .js files, isBulkEligible is never invoked at all (bulk-content is unreachable end to end)', async () => {
     const home = mkFixture();
     fs.mkdirSync(path.join(home, '.git'));
     fs.mkdirSync(path.join(home, 'sub', 'inner', '.git'), { recursive: true });
@@ -487,12 +519,7 @@ describe('engine — repo attribution agreement', () => {
     const t = new Traversal({ roots: [home], spec: SPEC, ignore: wrappingIgnore });
     await t.run();
 
-    const outerCall = calls.find((c) => c.absPath === path.join(home, 'outer.js'));
-    const nestedCall = calls.find((c) => c.absPath === path.join(home, 'sub', 'inner', 'nested.js'));
-    assert.ok(outerCall, 'outer.js never reached the ignore resolver');
-    assert.ok(nestedCall, 'sub/inner/nested.js never reached the ignore resolver');
-    assert.equal(outerCall.repoRoot, home);
-    assert.equal(nestedCall.repoRoot, path.join(home, 'sub', 'inner'));
+    assert.deepEqual(calls, []);
   });
 });
 

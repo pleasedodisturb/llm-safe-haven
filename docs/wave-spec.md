@@ -45,7 +45,7 @@ required by the validator, but every bundled spec carries them, and you should t
 | `knownBadHashes` | array of `{ sha256, description, sizeBytes }` | **required** | Definitive hash matches, checked by the targeted hash-candidate tier — see the `hashCandidateMaxBytes` bound below for why this tier is not capped at the bulk-scan size. `sha256` must be a 64-character hex string or the spec fails validation. |
 | `poisonedVersions` | object mapping package name → version string[] | **required** | Cross-checked against lockfiles (`lockfiles` class) and installed `node_modules` (`family-packages` class). FAIL only fires on a listed version — mere presence of the package at a pre-attack version is not an IOC. |
 | `compromisedFamily` | string[] | **required** | The package names the `family-packages` class walks `node_modules` looking for, cross-referenced against `poisonedVersions` for the actual FAIL condition. Family presence alone is informational, not a finding. |
-| `markerStrings` | string[] | **required** | Literal strings (C2 domains, IPs, wallet addresses, dead-drop description text) grepped for by the `bulk-content` class (size- and extension-capped) and, per the tiering rule below, also by the `marker-config` class against `.env`/`.env.*`/`.npmrc` regardless of size or `.gitignore`. |
+| `markerStrings` | string[] | **required** | Literal strings (C2 domains, IPs, wallet addresses, dead-drop description text) grepped for by the `marker-config` class (extension-allowlisted per `spec.classes['bulk-content'].fileGlobs`, size-capped by `bulkReadCapBytes`, and — per the tiering rule below — never `.gitignore`-pruned, for every allow-listed name, not just `.env`/`.env.*`/`.npmrc`). |
 | `installMarker` | object with `filename`, `pattern`, `jsPattern`, `prune`, `note` | **required** | Drives the `no-prune` class — a regex (POSIX `pattern` for the bash-era ground truth, `jsPattern` for the engine) matched against `filename` (typically `package.json`) with **no directory prune at all**, including inside `node_modules`. This is deliberately the widest-scoped check in the taxonomy. |
 | `persistence` | object with `claudeSettings`, `vscodeTasks` sub-objects | **required** | Drives the `agent-config` class: glob-matched `.claude/settings*.json` / `.vscode/tasks.json` files checked against `commandPattern` / `triggerPattern` + `failPattern`. This is the AI-agent persistence-hook detection — the vector most of the 2026 waves actually use for re-execution (see `docs/supply-chain-defense.md`). |
 | `lockfiles` | string[] | **required** | Filenames the `lockfiles` class matches (`package-lock.json`, `yarn.lock`, etc.), scanned for `poisonedVersions` entries. |
@@ -86,27 +86,45 @@ same physical filesystem walk but apply different pruning:
 
 - **Targeted tier — always runs, NEVER pruned by `.gitignore`:** `all-files`, `no-prune`,
   `lockfiles`, `family-packages`, `agent-config`, `marker-config`, `env-secrets`.
-- **Bulk tier — prunable, `.gitignore`-aware:** `bulk-content` only.
-
-`marker-config` is a targeted class carrying `.env` / `.env.*` / `.npmrc` marker-string
-scanning specifically — it is *not* folded into `bulk-content` — because those files are
-near-universally gitignored. If credential-file marker scanning rode in the prunable bulk
-tier, a gitignored `.env` carrying a ChainDrop marker string would silently stop being
-detected the moment `.gitignore`-aware pruning landed. Keeping it in the targeted tier is
-what closes that gap: the check that most needs to see a "hidden" file is the one that
-never gets hidden from.
+- **Bulk tier — prunable, `.gitignore`-aware:** `bulk-content`.
 
 **`.gitignore` is attacker-controlled input.** In a compromised repository, nothing stops
 an attacker from adding a line to `.gitignore` that hides their own payload from a
 gitignore-aware scanner. That is precisely why every targeted-tier check — filenames,
-hashes, poisoned versions, persistence hooks, `.env` discovery — runs regardless of
-`.gitignore`, and why only the bulk marker-string sweep (already the widest, noisiest, and
-least differentiated check in the taxonomy) is allowed to skip gitignored files.
+hashes, poisoned versions, persistence hooks, `.env` discovery, and (as of 2026-08-07,
+below) marker-string scanning — runs regardless of `.gitignore`.
 
-**Moving a check from the targeted tier into the bulk tier is a security downgrade and
-requires explicit review**, not a routine refactor. If you're tempted to do this to speed
-up a scan, widen `bulk-content`'s size cap or extension allowlist instead — never move a
-targeted class's consumers into it.
+**2026-08-07 revision — marker-string scanning is entirely targeted-tier now, and
+`bulk-content` is consequently unreachable.** The original design put ordinary source-file
+marker-string scanning (`.js`/`.mjs`/`.ts`/`.json`/`.sh`/`.yml`/`.md`/`.lock`/etc — the
+`bulk-content` allowlist) in the gitignore-prunable bulk tier, with only the
+credential-bearing subset (`.env`/`.env.*`/`.npmrc`, `marker-config`) kept targeted. Human
+review of the retrofit (plan 17-14, G-1482) found that this silently regressed detection
+relative to the pre-retrofit bash scanner, which never consulted `.gitignore` for *any* of
+its marker-string allowlist, not just credential files — a marker string in a
+`.gitignore`d, non-`PRUNE_COMMON` path used to FAIL and, under the original bulk-tier
+design, silently stopped. `lib/traverse/classify.js`'s `isMarkerConfigMember` was widened
+to cover every name `spec.classes['bulk-content'].fileGlobs` lists, not just the
+credential-file subset, restoring exact bash parity. Every `bulk-content`-eligible name is
+therefore now ALSO a `marker-config` member, and since `classify()` checks `marker-config`
+membership first, the `bulk-content` branch (and the gitignore consultation it drove via
+`ctx.ignore.isBulkEligible`) can no longer be reached by any input at all — see
+`tests/traverse/classify.test.js`'s "bulk-content class (now unreachable)" block and
+`tests/traverse/gitignore-tiering.test.js` for the proof both directions. The `bulk-content`
+class, its prune-scope definition, and the `spec.classes['bulk-content']` schema field are
+all kept (not deleted) as the data source `marker-config`'s widened predicate reads from,
+and in case a future wave genuinely needs a gitignore-prunable tier again — but today,
+`bulkReadCapBytes` still applies uniformly to every marker-string candidate (targeted reads
+share the exact same size-cap code path as bulk reads in `lib/traverse/read-pool.js`), so
+raising or lowering that one bound still controls the marker-string scan's read cost either
+way.
+
+**Moving a check into a gitignore-prunable tier is a security downgrade and requires
+explicit review**, not a routine refactor — this is exactly what the 2026-08-07 revision
+above reverted. If a scan needs to run faster, widen `bulk-content`'s size cap instead
+(the marker-string scan's per-file cost is bounded per-file by `bulkReadCapBytes`
+regardless of tier) — never move a targeted class's consumers into a gitignore-consulting
+one.
 
 ---
 
@@ -118,7 +136,7 @@ targeted class's consumers into it.
 
 | Bound | Value | What it excludes |
 |-------|-------|-------------------|
-| `bulkReadCapBytes` | `262144` (256 KiB) | Files at or above this size are excluded from the `bulk-content` marker-string scan. |
+| `bulkReadCapBytes` | `262144` (256 KiB) | Files at or above this size are excluded from the marker-string scan (`marker-config`; applies uniformly regardless of tier — see the 2026-08-07 tiering revision above). |
 | `hashCandidateMaxBytes` | `1048576` (1 MiB) | Files at or above this size are excluded from the targeted known-bad-hash candidate selection. |
 | `variantSizeThresholdBytes` | `204800` (200 KiB) | Not a scan-eligibility bound — controls the `fileMarkers.variantPattern` FAIL-vs-WARN split (`>=` this size and unmatched by a known hash → WARN, not FAIL). |
 
