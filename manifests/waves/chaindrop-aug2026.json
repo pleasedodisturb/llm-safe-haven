@@ -1,0 +1,168 @@
+{
+  "specVersion": 1,
+  "wave": "chaindrop-aug2026",
+  "updated": "2026-08-07",
+  "description": "ChainDrop (Mini Shai-Hulud) npm worm detection data (G-1482 wave-spec engine, TRAV-02) — the same IOC set scripts/scan-chaindrop-aug2026.sh hardcodes in bash arrays and manifests/chaindrop-poisoned-versions.json documents, now expressed as one versioned, validated spec so the traversal engine's NEXT live wave is 'a spec plus tests', not a fifth standalone scanner. Poisoned releases carry VALID GitHub-Actions/SLSA provenance, so `npm audit signatures` PASSES them — detection must be IOC-based. FAIL only on a version listed in poisonedVersions; family presence at a pre-attack version is NOT an IOC (these are ubiquitous eslint transitive deps). See docs/supply-chain-defense.md and manifests/chaindrop-poisoned-versions.json (parity-tested against this file, never generated-from — D-10).",
+  "sources": [
+    "https://www.kodemsecurity.com/resources/keyv-supply-chain-attack-shai-hulud-npm-worm-affected-versions-iocs-and-first-hour-response-runbook",
+    "https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/",
+    "https://www.stepsecurity.io/blog/chaindrop-npm-worm",
+    "https://www.wiz.io/blog/keyv-and-cacheable-npm-supply-chain-attack",
+    "https://github.com/ossf/malicious-packages (Apache-2.0 — bundling source)",
+    "https://osv.dev/vulnerability/MAL-2026-11524 (keyv; live query api.osv.dev/v1/query)"
+  ],
+  "fileMarkers": {
+    "fail": [
+      "Math_Symbol.js",
+      "math_init.js",
+      "router_runtime.js",
+      "gh-token-monitor.sh",
+      "gh-token-monitor.service",
+      "com.user.gh-token-monitor.plist"
+    ],
+    "warnOnly": ["setup.mjs"],
+    "variantPattern": {
+      "globs": ["Math_*.js", "math_*.js"],
+      "sizeThresholdBytes": 204800,
+      "excludeExactNames": ["Math_Symbol.js", "math_init.js"],
+      "note": "The stage-2 harvester also ships under generated variant names (Math_<guid>.js). FAIL when the file carries a knownBadHashes match or is >= sizeThresholdBytes (the real stage-2 is ~727KB); otherwise WARN so a renamed variant surfaces instead of silently passing. Exact names already covered by fileMarkers.fail are excluded here to avoid a double report (script:206-227)."
+    }
+  },
+  "knownBadHashes": [
+    {
+      "sha256": "9fc2570b7cef51c1b8df116d144d11ff4096357be7d2c4c6367cfc2509cf1bcc",
+      "description": "Math_Symbol.js / math_init.js — stage-2 Bun-bundled harvester. This is the reason the targeted hash-candidate tier is NOT capped at the 256k bulk-content-scan size (D-24): the real payload is 727,680 bytes, well over that cap, and hashing it with the bulk cap would silently stop detecting the actual ChainDrop stage-2 payload.",
+      "sizeBytes": 727680
+    },
+    {
+      "sha256": "54dc7ea54a1317cca0e890a2770630cf7fa6c97813e0cb9d2caa93012b350668",
+      "description": "setup.mjs — wave-1 loader (always exits 0)",
+      "sizeBytes": 29918
+    },
+    {
+      "sha256": "fd3ca4007b225fdf8de7af4345a19179d5efa8c4bb9205f88cda806e5684b1eb",
+      "description": "setup.mjs — later-wave loader (exits non-zero on error)",
+      "sizeBytes": 11017
+    }
+  ],
+  "poisonedVersions": {
+    "keyv": ["6.0.0"],
+    "flat-cache": ["6.1.24"],
+    "file-entry-cache": ["11.1.6", "11.1.7"],
+    "cacheable-request": ["13.0.20"],
+    "cacheable": ["2.5.1"],
+    "cache-manager": ["7.2.10"],
+    "ecto": ["5.0.1"],
+    "@cacheable/utils": ["2.5.1"],
+    "@cacheable/memory": ["2.2.1"],
+    "@cacheable/node-cache": ["3.1.2"],
+    "@cacheable/net": ["2.1.1"],
+    "@keyv/redis": ["6.0.0"],
+    "@keyv/sqlite": ["6.0.0"],
+    "@keyv/mongo": ["6.0.0"],
+    "@keyv/postgres": ["6.0.0"],
+    "@keyv/mysql": ["6.0.0"],
+    "@keyv/memcache": ["6.0.0"],
+    "@keyv/etcd": ["6.0.0"],
+    "@keyv/dynamo": ["6.0.0"],
+    "@keyv/valkey": ["6.0.0"],
+    "@keyv/compress-brotli": ["6.0.0"],
+    "@keyv/compress-gzip": ["6.0.0"],
+    "@keyv/test-suite": ["6.0.0"]
+  },
+  "compromisedFamily": [
+    "keyv", "cacheable", "cacheable-request", "cache-manager",
+    "flat-cache", "file-entry-cache", "ecto", "@cacheable/utils", "@cacheable/memory",
+    "@cacheable/node-cache", "@cacheable/net",
+    "@keyv/redis", "@keyv/sqlite", "@keyv/mongo", "@keyv/postgres", "@keyv/mysql",
+    "@keyv/memcache", "@keyv/etcd", "@keyv/dynamo", "@keyv/valkey",
+    "@keyv/compress-brotli", "@keyv/compress-gzip", "@keyv/test-suite"
+  ],
+  "markerStrings": [
+    "npm-cache.com",
+    "pypi-get.com",
+    "js-mirror.com",
+    "104.21.35.216",
+    "0xE1f2395ee43e45A1556EC6438a88c31B83493103",
+    "Shai-Hulud: Here We Go Again"
+  ],
+  "installMarker": {
+    "filename": "package.json",
+    "pattern": "\"preinstall\"[[:space:]]*:[[:space:]]*\"node[[:space:]]+setup\\.mjs\"",
+    "jsPattern": "\"preinstall\"\\s*:\\s*\"node\\s+setup\\.mjs\"",
+    "prune": "none",
+    "note": "D-25: bash section 2 (script:277-289) scans package.json via `grep -rlE` with NO directory prune at all — not even PRUNE_COMMON applies. This check must run inside node_modules (and every other directory) too, or it silently loses coverage the bash scanner has today."
+  },
+  "persistence": {
+    "claudeSettings": {
+      "paths": ["*/.claude/settings.json", "*/.claude/settings.local.json"],
+      "commandPattern": "setup\\.mjs|Math_Symbol|math_init|gh-token-monitor|node[[:space:]]+-e|curl[[:space:]].*\\|[[:space:]]*(sh|bash)|npm-cache\\.com|bun-dl-",
+      "note": "Glob patterns matched during the walk (agent-config class), covering any project's .claude/settings.json — in addition to the two static $HOME paths listed in staticPaths (script:399/402-423, HOOK_SUS_RE)."
+    },
+    "vscodeTasks": {
+      "path": "*/.vscode/tasks.json",
+      "triggerPattern": "\"runOn\"\\s*:\\s*\"folderOpen\"",
+      "failPattern": "setup\\.mjs|Math_Symbol|math_init|Environment Setup|node[[:space:]]+-e|npm-cache\\.com"
+    }
+  },
+  "lockfiles": [
+    "package-lock.json",
+    "npm-shrinkwrap.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "bun.lock"
+  ],
+  "staticPaths": [
+    "$HOME/.local/bin/gh-token-monitor.sh",
+    "$HOME/Library/LaunchAgents/com.user.gh-token-monitor.plist",
+    "$HOME/.config/systemd/user/gh-token-monitor.service",
+    "/etc/systemd/system/gh-token-monitor.service",
+    "$HOME/.claude/settings.json",
+    "$HOME/.claude/settings.local.json"
+  ],
+  "classes": {
+    "pruneCommon": [".git", "target", "dist", "build", ".next", ".nuxt", "*/.claude/worktrees"],
+    "all-files": {
+      "prune": "pruneCommon",
+      "includesNodeModules": true,
+      "note": "Bash sections 1a/1a2/1b/5 (filename markers, variant pattern, setup.mjs triage, known-bad-hash candidates) — PRUNE_COMMON only, node_modules IS walked."
+    },
+    "no-prune": {
+      "prune": [],
+      "includesNodeModules": true,
+      "note": "Bash section 2 (installMarker/preinstall grep) — no directory prune at all, per D-25. Consumes: installMarker."
+    },
+    "lockfiles": {
+      "prune": "pruneCommon",
+      "includesNodeModules": false,
+      "note": "Bash section 3a — lockfile scan, PRUNE_COMMON + node_modules excluded. Consumes: lockfiles + poisonedVersions."
+    },
+    "family-packages": {
+      "prune": ["*/.claude/worktrees"],
+      "includesNodeModules": true,
+      "note": "Bash section 3b — deliberately walks INTO node_modules to find installed compromised-family package.json files; only worktrees are pruned, PRUNE_COMMON does not apply. Consumes: compromisedFamily + poisonedVersions."
+    },
+    "agent-config": {
+      "prune": "pruneCommon",
+      "includesNodeModules": false,
+      "note": "Bash sections 4a/4b — .claude/settings*.json + .vscode/tasks.json scans, PRUNE_COMMON + node_modules excluded. Consumes: persistence."
+    },
+    "bulk-content": {
+      "prune": "pruneCommon",
+      "includesNodeModules": false,
+      "excludeCache": true,
+      "fileGlobs": [
+        "*.js", "*.mjs", "*.cjs", "*.ts", "*.json", "*.sh", "*.zsh", "*.bash",
+        "*.yml", "*.yaml", "*.md", "*.lock", ".npmrc", ".env"
+      ],
+      "sizeCapBytes": 262144,
+      "note": "Bash section 6b — marker-string content scan. PRUNE_COMMON + node_modules + .cache excluded, extension/name allowlist (script:491-493), size cap = bounds.bulkReadCapBytes. Consumes: markerStrings."
+    }
+  },
+  "bounds": {
+    "bulkReadCapBytes": 262144,
+    "hashCandidateMaxBytes": 1048576,
+    "variantSizeThresholdBytes": 204800,
+    "note": "`find -size -256k` and `-size -1024k` are block-rounded bounds, so 262144 and 1048576 are chosen as the smallest values that are a SUPERSET of what bash reads today — the engine may read slightly more than the old scanner did, never less, because losing coverage is the one unacceptable outcome of this refactor."
+  }
+}
