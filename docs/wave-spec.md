@@ -81,50 +81,60 @@ path.
 
 ## Tiering rules
 
-The engine's `FILE_CLASSES` (`lib/traverse/index.js`) splits into two tiers that share the
-same physical filesystem walk but apply different pruning:
+There is no gitignore-consulting tier. Every class `FILE_CLASSES` (`lib/traverse/index.js`)
+lists is targeted — always runs, NEVER pruned by `.gitignore`: `all-files`, `no-prune`,
+`lockfiles`, `family-packages`, `agent-config`, `marker-config`, `env-secrets`, and (as data
+only, see below) `bulk-content`.
 
-- **Targeted tier — always runs, NEVER pruned by `.gitignore`:** `all-files`, `no-prune`,
-  `lockfiles`, `family-packages`, `agent-config`, `marker-config`, `env-secrets`.
-- **Bulk tier — prunable, `.gitignore`-aware:** `bulk-content`.
+**`.gitignore` is attacker-controlled input.** In a compromised repository, nothing stops an
+attacker from adding a line to `.gitignore` that hides their own payload from a
+gitignore-aware scanner. That is precisely why every check this engine runs — filenames,
+hashes, poisoned versions, persistence hooks, `.env` discovery, and marker-string scanning
+— runs regardless of `.gitignore`.
 
-**`.gitignore` is attacker-controlled input.** In a compromised repository, nothing stops
-an attacker from adding a line to `.gitignore` that hides their own payload from a
-gitignore-aware scanner. That is precisely why every targeted-tier check — filenames,
-hashes, poisoned versions, persistence hooks, `.env` discovery, and (as of 2026-08-07,
-below) marker-string scanning — runs regardless of `.gitignore`.
-
-**2026-08-07 revision — marker-string scanning is entirely targeted-tier now, and
-`bulk-content` is consequently unreachable.** The original design put ordinary source-file
+**2026-08-07 revision — the gitignore-delegated bulk tier is retired, and
+`lib/traverse/git-ignore.js` is deleted.** The original design put ordinary source-file
 marker-string scanning (`.js`/`.mjs`/`.ts`/`.json`/`.sh`/`.yml`/`.md`/`.lock`/etc — the
-`bulk-content` allowlist) in the gitignore-prunable bulk tier, with only the
+`bulk-content` allowlist) behind a gitignore-prunable `bulk-content` class, consulting
+`lib/traverse/git-ignore.js`'s `isBulkEligible()` to decide what to skip, with only the
 credential-bearing subset (`.env`/`.env.*`/`.npmrc`, `marker-config`) kept targeted. Human
-review of the retrofit (plan 17-14, G-1482) found that this silently regressed detection
-relative to the pre-retrofit bash scanner, which never consulted `.gitignore` for *any* of
-its marker-string allowlist, not just credential files — a marker string in a
-`.gitignore`d, non-`PRUNE_COMMON` path used to FAIL and, under the original bulk-tier
-design, silently stopped. `lib/traverse/classify.js`'s `isMarkerConfigMember` was widened
-to cover every name `spec.classes['bulk-content'].fileGlobs` lists, not just the
-credential-file subset, restoring exact bash parity. Every `bulk-content`-eligible name is
-therefore now ALSO a `marker-config` member, and since `classify()` checks `marker-config`
-membership first, the `bulk-content` branch (and the gitignore consultation it drove via
-`ctx.ignore.isBulkEligible`) can no longer be reached by any input at all — see
-`tests/traverse/classify.test.js`'s "bulk-content class (now unreachable)" block and
-`tests/traverse/gitignore-tiering.test.js` for the proof both directions. The `bulk-content`
-class, its prune-scope definition, and the `spec.classes['bulk-content']` schema field are
-all kept (not deleted) as the data source `marker-config`'s widened predicate reads from,
-and in case a future wave genuinely needs a gitignore-prunable tier again — but today,
-`bulkReadCapBytes` still applies uniformly to every marker-string candidate (targeted reads
-share the exact same size-cap code path as bulk reads in `lib/traverse/read-pool.js`), so
-raising or lowering that one bound still controls the marker-string scan's read cost either
-way.
+review of the retrofit (plan 17-14, G-1482) rejected this as a real detection regression,
+not an acceptable trade-off — the pre-retrofit bash scanner never consulted `.gitignore`
+for *any* of its marker-string allowlist, not just credential files, and deciding what a
+supply-chain scanner does NOT read by consulting a file inside the repository being
+scanned is an attacker-addressable blind spot in its own right. Measured cost of removing
+the tier: nothing (a full `$HOME` scan went from 11,040 ms to 7,862-10,714 ms afterward,
+because `bulk-content`'s allowlist was narrow to begin with); the tier was never the
+scanner's worst-case protection anyway — the locked 60s / 1,000,000-file budget backstop
+provides that independently, and when it bites the scan exits 2, visibly incomplete,
+rather than silently narrowing what was read.
+
+The fix: `lib/traverse/classify.js`'s `isMarkerConfigMember` was widened to cover every
+name `spec.classes['bulk-content'].fileGlobs` lists, not just the credential-file subset,
+restoring exact bash parity. `classify()` can no longer assign the `bulk-content` class to
+anything, so `git-ignore.js` — the module that supplied the gitignore resolver, and its
+only consumer — was deleted entirely, along with its two `lib/traverse/engine.js` call
+sites and `tests/traverse/git-ignore-source.test.js`. `classify()`'s `ctx` parameter no
+longer accepts an `ignore` field at all. `tests/traverse/zero-git-subprocess.test.js` is
+the committed proof, against a real engine run, that no `child_process.spawnSync` call
+happens anywhere in this engine any more.
+
+`spec.classes['bulk-content'].fileGlobs` is KEPT (not deleted, not renamed) as the data
+source `marker-config`'s widened predicate reads from — renaming or removing it is a wave
+spec schema change requiring a `specVersion` bump (17-04's validator is fail-closed with a
+versioned `specVersion` plus a three-way drift guard), and the field's role changed from
+"the bulk-tier allowlist" to "the full marker-string allowlist, all of it targeted" without
+any change to its shape. `bulkReadCapBytes` still applies uniformly to every marker-string
+candidate (targeted reads share the exact same size-cap code path bulk reads used to, in
+`lib/traverse/read-pool.js`), so it continues to control the marker-string scan's read cost.
+See `lib/traverse/classify.js`'s module header, `.planning/phases/17-.../17-08-SUMMARY.md`
+and `17-10-SUMMARY.md`'s superseded notes, and the 17-14 plan summary for the full history.
 
 **Moving a check into a gitignore-prunable tier is a security downgrade and requires
 explicit review**, not a routine refactor — this is exactly what the 2026-08-07 revision
-above reverted. If a scan needs to run faster, widen `bulk-content`'s size cap instead
-(the marker-string scan's per-file cost is bounded per-file by `bulkReadCapBytes`
-regardless of tier) — never move a targeted class's consumers into a gitignore-consulting
-one.
+above reverted, and there is no longer a gitignore-prunable tier to move a check into at
+all. If a scan needs to run faster, lower `bulkReadCapBytes` instead (it bounds the
+marker-string scan's per-file read cost directly).
 
 ---
 

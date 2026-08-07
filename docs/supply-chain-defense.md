@@ -1159,46 +1159,38 @@ exit `0`, and no results directory is left behind.
 ### The skip inventory and results directory
 
 Every entry the walk declines to fully process is counted and path-attributed by SKIP
-reason (`gitignored`, `media`, `oversized`, `symlink`, `other-device`, `unreadable`,
-`budget`, and the five git-degradation reasons below). On a run that exits `1` or `2`, the
-full per-reason path lists are written to a results directory whose path is printed in the
-final report line — this is what lets you answer "which files did the scan skip and why"
-after the fact. On a clean (`0`) exit, or on Ctrl-C, the results directory is removed; keep
-your terminal's scrollback if you need the summary counts from a clean run.
+reason (`oversized`, `symlink`, `other-device`, `unreadable`, `budget`). On a run that
+exits `1` or `2`, the full per-reason path lists are written to a results directory whose
+path is printed in the final report line — this is what lets you answer "which files did
+the scan skip and why" after the fact. On a clean (`0`) exit, or on Ctrl-C, the results
+directory is removed; keep your terminal's scrollback if you need the summary counts from
+a clean run.
 
-### Git-ignore degradation (fails open, does not set `incomplete`)
+### `.gitignore` is never consulted (2026-08-07)
 
-The bulk tier's `.gitignore`-aware pruning depends on `git ls-files` succeeding. When it
-can't — six named degradation shapes: `no-git` (binary missing), `not-a-repo` (outside any
-git work tree), `bare-repo`, `git-refused` (the `safe.directory` dubious-ownership
-refusal), and two `git-timeout` shapes (subprocess killed or timed out) — the bulk tier
-**fails open**: MORE files get scanned, not fewer, because the gitignore-based prune
-simply doesn't apply. This is recorded in the report's `degradations` list but does
-**not** set `incomplete` and does **not** affect the exit code. Marking a missing `git`
-binary as "incomplete" would make every machine without git installed exit `2` on every
-scan, training operators to ignore the one exit code that must never be ignored.
+Nothing in this engine reads `.gitignore`, and no `git` subprocess is ever spawned —
+`tests/traverse/zero-git-subprocess.test.js` proves this against a real scan. This was not
+always true: an earlier design consulted `git ls-files` to decide which files a
+gitignore-prunable "bulk" tier could skip, with six named degradation shapes for when git
+was unavailable or refused. That design was reviewed and rejected before it shipped
+publicly — see "What changed in coverage" below — and the module that implemented it
+(`lib/traverse/git-ignore.js`) was deleted. There is no degradation to report and no
+`git`-related skip reason left in the vocabulary above.
 
 ### What changed in coverage
 
-Bulk marker-string scanning is now `.gitignore`-aware: a marker string inside a file a
-repository's own `.gitignore` excludes is no longer reported by the bulk tier — **except**
-in `.env`, `.env.*`, and `.npmrc` files, which stay in the always-scanned targeted tier
-(the `marker-config` class — see the Tiering rules in `docs/wave-spec.md`), and **except**
-in the six directories the old bash scanner already pruned (`.git`, `target`, `dist`,
-`build`, `.next`, `.nuxt`). Every targeted IOC check — filenames, hashes, poisoned
-versions, persistence hooks, `.env` discovery — still runs regardless of `.gitignore`,
-because in a compromised repository `.gitignore` is attacker-controlled input, not a
-trust boundary.
-
-This is a real, deliberate coverage change, not a rounding error: a marker string
-committed inside a gitignored bulk-content file (say, a gitignored `notes.md`, outside the
-credential-file carve-out above) will no longer be flagged where it previously was. It was
-accepted because the alternative — walking every gitignored file in every scanned tree on
-every run, including large gitignored build output and generated artifacts the old bash
-scanner's `PRUNE_COMMON` list didn't anticipate — reintroduces exactly the kind of
-unbounded, slow scan (TRAV-01/TRAV-04) this engine exists to bound, for content that is by
-definition not part of the tracked, reviewed codebase. Do not describe this refactor as
-zero coverage change; this is the one place it narrowed, and it narrowed on purpose.
+Nothing narrowed. Marker-string scanning (C2 domains, IPs, wallet addresses, dead-drop
+description text — every string in the wave spec's `markerStrings` array) runs regardless
+of `.gitignore`, for every allow-listed file name and extension, exactly like every other
+check this engine runs (filenames, hashes, poisoned versions, persistence hooks, `.env`
+discovery) — because in a compromised repository `.gitignore` is attacker-controlled
+input, not a trust boundary. A marker string committed inside a gitignored file (say, a
+gitignored `notes.md` outside `.git`/`target`/`dist`/`build`/`.next`/`.nuxt`) is flagged
+exactly as it always was by the original bash scanner this engine replaced. An earlier
+draft of this retrofit briefly moved ordinary source-file marker-string scanning behind a
+gitignore-prunable tier (with only `.env`/`.env.*`/`.npmrc` staying always-scanned) —
+reviewed and rejected as a real detection regression before it shipped, not accepted as a
+trade-off. See `docs/wave-spec.md`'s Tiering rules section for the full account.
 
 ---
 

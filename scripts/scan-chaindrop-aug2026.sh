@@ -616,17 +616,23 @@ section "Summary"
 # lib/traverse/index.js's SKIP_REASONS vocabulary — structural metadata
 # about the results-dir SCHEMA, not per-wave IOC data, so it is the one
 # reason-name list this script does name directly rather than read from spec/.
-_SKIP_REASONS="gitignored media oversized symlink other-device unreadable budget no-git not-a-repo bare-repo git-refused git-timeout"
+# 2026-08-07: gitignore/git-degradation-related reasons ('gitignored',
+# 'media', and the five git-status names) are REMOVED from this list --
+# lib/traverse/git-ignore.js (their only producer) is deleted, and nothing
+# in the engine consults git any more (proven by
+# tests/traverse/zero-git-subprocess.test.js), so those scalar files no
+# longer exist. Degradation reporting is retired with it: the engine's
+# `degradations` field is now permanently `[]` (kept for results-directory
+# protocol shape stability, not as a live mechanism -- see
+# lib/traverse/engine.js's run()), so scalars/degradation-count always
+# reads 0 and there is no longer a report line to print for it.
+_SKIP_REASONS="oversized symlink other-device unreadable budget"
 for _r in $_SKIP_REASONS; do
   _n=$(_read_scalar "skip-$_r")
   if [ "$_n" -gt 0 ] 2>/dev/null; then
     printf "  ${YELLOW}[skip]${RESET} %s: %s\n" "$_r" "$_n"
   fi
 done
-_DEG_COUNT=$(_read_scalar "degradation-count")
-if [ "$_DEG_COUNT" -gt 0 ] 2>/dev/null; then
-  printf "  ${YELLOW}[git]${RESET} %s git degradation(s) encountered — bulk-content scanning fell back to unfiltered for the affected repo(s) (fails OPEN, never incomplete; details in the retained results dir: %s)\n" "$_DEG_COUNT" "$RESULTS_DIR"
-fi
 
 if [ "$FINDINGS" -eq 0 ] && [ "$INCOMPLETE" -eq 0 ]; then
   printf "${GREEN}${BOLD}ALL CLEAR${RESET} — no ChainDrop (Aug 2026) IOCs detected on this host.\n"
