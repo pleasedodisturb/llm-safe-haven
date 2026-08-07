@@ -117,16 +117,27 @@ describe(
     const built = [];
     after(() => built.forEach((h) => fs.rmSync(h, { recursive: true, force: true })));
 
+    // Plan 17-14 landed and the tiering trade-off was reviewed and approved
+    // in that plan's summary (Task 4 checkpoint, D-13/D-14): a marker string
+    // inside a git-repo-gitignored path outside PRUNE_COMMON is now
+    // bulk-tier-pruned rather than FAILed, because bulk-content scanning
+    // moved to the gitignore-prunable tier. This assertion target flips
+    // from `oldExpect` (the pre-refactor scanner's behaviour) to
+    // `newExpect` (the retrofitted scanner's declared, signed-off
+    // behaviour) — `t.oldExpect`/`t.newExpect` themselves are untouched,
+    // frozen data in tests/helpers/chaindrop-corpus.js; only WHICH one this
+    // test asserts against changes, which is not the forbidden "edit an
+    // expect value" this file's header guards against.
     for (const t of KNOWN_TIERING_TRADEOFFS) {
-      it(`[${t.id}] asserts oldExpect against the CURRENT scanner (newExpect is plan 17-14's declared, human-signed-off flip, not a test edit)`, () => {
+      it(`[${t.id}] asserts newExpect against the retrofitted scanner (plan 17-14's declared, human-signed-off flip — see the 17-14 SUMMARY)`, () => {
         const home = newHome(built, (h) => buildCase(h, t));
         const r = runScanner(home);
         const findingCount = findingCountOf(r.stdout);
 
-        assert.equal(r.status, t.oldExpect.status, `[${t.id}] oldExpect.status mismatch\n${r.stdout}`);
-        assert.equal(findingCount, t.oldExpect.findingCount, `[${t.id}] oldExpect.findingCount mismatch\n${r.stdout}`);
-        for (const re of t.oldExpect.mustMatch || []) {
-          assert.match(r.stdout, re, `[${t.id}] expected oldExpect stdout to match ${re}\n${r.stdout}`);
+        assert.equal(r.status, t.newExpect.status, `[${t.id}] newExpect.status mismatch\n${r.stdout}`);
+        assert.equal(findingCount, t.newExpect.findingCount, `[${t.id}] newExpect.findingCount mismatch\n${r.stdout}`);
+        for (const re of t.newExpect.mustMatch || []) {
+          assert.match(r.stdout, re, `[${t.id}] expected newExpect stdout to match ${re}\n${r.stdout}`);
         }
       });
     }

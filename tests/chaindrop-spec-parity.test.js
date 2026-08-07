@@ -20,7 +20,6 @@ const path = require('path');
 
 const SPEC_PATH = path.join(__dirname, '..', 'manifests', 'waves', 'chaindrop-aug2026.json');
 const MANIFEST_PATH = path.join(__dirname, '..', 'manifests', 'chaindrop-poisoned-versions.json');
-const SCRIPT_PATH = path.join(__dirname, '..', 'scripts', 'scan-chaindrop-aug2026.sh');
 
 const spec = JSON.parse(fs.readFileSync(SPEC_PATH, 'utf8'));
 const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
@@ -78,32 +77,10 @@ describe('wave spec <-> manifests/chaindrop-poisoned-versions.json drift guard (
   // left/right diff — the guard is not a vacuous deepEqual([], []).
 });
 
-describe('wave spec <-> scripts/scan-chaindrop-aug2026.sh bash-array drift guard (temporary — removed by plan 17-14)', () => {
-  const script = fs.readFileSync(SCRIPT_PATH, 'utf8');
-  const poisonedBlock = script.match(/POISONED_PKG_VERSIONS=\(([\s\S]*?)\n\)/);
-  const familyBlock = script.match(/COMPROMISED_FAMILY=\(([\s\S]*?)\)/);
-  const arraysStillPresent = Boolean(poisonedBlock && familyBlock);
-
-  it('POISONED_PKG_VERSIONS / COMPROMISED_FAMILY bash arrays are still present in the script (guard precondition)', () => {
-    // Plan 17-14 removes both bash arrays (the scanner is retrofitted onto
-    // the wave spec) AND this entire describe block — spec-vs-manifest
-    // parity above is the permanent guard once that lands. Until then,
-    // this precondition keeps the sub-assertions below meaningful: if the
-    // arrays are ever removed without this test file being updated in the
-    // same change, this assertion fails loudly instead of the two checks
-    // below silently vacuously passing on empty regex matches.
-    assert.ok(arraysStillPresent, 'POISONED_PKG_VERSIONS/COMPROMISED_FAMILY arrays not found — this describe block is now obsolete and plan 17-14 should have removed it');
-  });
-
-  it('spec poisonedVersions matches the live POISONED_PKG_VERSIONS bash array exactly', { skip: !arraysStillPresent }, () => {
-    const scriptSet = new Set([...poisonedBlock[1].matchAll(/"([^"]+@[^"]+)"/g)].map((m) => m[1]));
-    const specFlat = flattenPoisoned(spec.poisonedVersions);
-    assert.deepEqual([...scriptSet].sort(), [...specFlat].sort(), 'bash POISONED_PKG_VERSIONS and wave spec poisonedVersions have drifted — update both');
-  });
-
-  it('spec compromisedFamily matches the live COMPROMISED_FAMILY bash array exactly', { skip: !arraysStillPresent }, () => {
-    const scriptFam = new Set([...familyBlock[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]));
-    const specFam = new Set(spec.compromisedFamily);
-    assert.deepEqual([...scriptFam].sort(), [...specFam].sort(), 'bash COMPROMISED_FAMILY and wave spec compromisedFamily have drifted — update both');
-  });
-});
+// The "wave spec <-> scripts/scan-chaindrop-aug2026.sh bash-array drift
+// guard" describe block that used to live here is REMOVED by plan 17-14:
+// the scanner no longer hardcodes POISONED_PKG_VERSIONS / COMPROMISED_FAMILY
+// bash arrays at all (scripts/scan-chaindrop-aug2026.sh now reads its IOC
+// data from the wave spec via the traversal engine's results directory —
+// see tests/chaindrop-scanner.test.js's rewritten manifest-parity block).
+// The spec-vs-manifest parity asserted above is the PERMANENT guard.
