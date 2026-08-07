@@ -291,3 +291,127 @@ describe('scan.js spawns zero subprocesses (env-secrets is TARGETED tier — T-1
     assert.equal(callCount, 0, 'the env-secrets class must never consult git — no subprocess should be spawned');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Semantic identity (plan 17-13 Task 3, T-17-05) — one fixture tree exercising
+// every suffix/skip/symlink/depth branch at once, asserted with an EXACT
+// expected array (not a subset or a length). This is the oracle: the
+// pre-adoption implementation, exercised branch-by-branch in every describe
+// block above, produced exactly this same array for this same tree.
+// ---------------------------------------------------------------------------
+describe('semantic identity — engine-backed findEnvFiles matches pre-adoption byte-for-byte (T-17-05)', () => {
+  let fixtureDir;
+
+  beforeEach(() => {
+    fixtureDir = mkFixture();
+  });
+
+  afterEach(() => {
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
+  });
+
+  it('exact expected array across suffix/skip/symlink/depth cases combined, including sorted+deduplicated', () => {
+    // exact .env and dotted-suffix variants -- must be found.
+    fs.writeFileSync(path.join(fixtureDir, '.env'), 'A=1\n');
+    fs.writeFileSync(path.join(fixtureDir, '.env.local'), 'A=1\n');
+    fs.writeFileSync(path.join(fixtureDir, '.env.production'), 'A=1\n');
+
+    // allowlisted suffixes -- must NOT be found.
+    fs.writeFileSync(path.join(fixtureDir, '.env.example'), 'A=1\n');
+    fs.writeFileSync(path.join(fixtureDir, '.env.template'), 'A=1\n');
+    fs.writeFileSync(path.join(fixtureDir, '.env.sample'), 'A=1\n');
+
+    // node_modules -- SKIP_DIRS, must NOT be found.
+    const nodeModules = path.join(fixtureDir, 'node_modules');
+    fs.mkdirSync(nodeModules);
+    fs.writeFileSync(path.join(nodeModules, '.env'), 'HIDDEN=1\n');
+
+    // dot-directory -- blanket skip, must NOT be found.
+    const hiddenDir = path.join(fixtureDir, '.hidden');
+    fs.mkdirSync(hiddenDir);
+    fs.writeFileSync(path.join(hiddenDir, '.env'), 'HIDDEN=1\n');
+
+    // a symlinked .env -- never followed, must NOT be found.
+    const symDir = path.join(fixtureDir, 'symdir');
+    fs.mkdirSync(symDir);
+    const symTarget = path.join(symDir, 'real.env.target');
+    fs.writeFileSync(symTarget, 'SECRET=1\n');
+    fs.symlinkSync(symTarget, path.join(symDir, '.env'));
+
+    // within the default maxDepth(4) bound (3 nested dirs -- same shape as
+    // the pre-existing depth-boundary pin) -- must be found.
+    let withinDir = fixtureDir;
+    for (let i = 1; i <= 3; i++) {
+      withinDir = path.join(withinDir, `d${i}`);
+      fs.mkdirSync(withinDir);
+    }
+    fs.writeFileSync(path.join(withinDir, '.env'), 'DEEP=1\n');
+
+    // five levels deep -- exceeds the default maxDepth(4) bound, must NOT be
+    // found (the 5th-level directory itself is never readdir'd).
+    let tooDeepDir = fixtureDir;
+    for (let i = 1; i <= 5; i++) {
+      tooDeepDir = path.join(tooDeepDir, `x${i}`);
+      fs.mkdirSync(tooDeepDir);
+    }
+    fs.writeFileSync(path.join(tooDeepDir, '.env'), 'TOO_DEEP=1\n');
+
+    const expected = [
+      path.join(fixtureDir, '.env'),
+      path.join(fixtureDir, '.env.local'),
+      path.join(fixtureDir, '.env.production'),
+      path.join(withinDir, '.env'),
+    ].sort();
+
+    const found = findEnvFiles(fixtureDir, 4).sort();
+    assert.deepEqual(found, expected);
+
+    // Sorted-and-deduplicated property: seed a duplicate path through two
+    // roots (the same fixture directory used twice, mirroring
+    // scanForEnvFiles()'s own combine-then-dedupe-then-sort step over
+    // multiple SCAN_DIRS/getRoots() entries).
+    const combined = [...findEnvFiles(fixtureDir, 4), ...findEnvFiles(fixtureDir, 4)];
+    const deduped = [...new Set(combined)].sort();
+    assert.deepEqual(deduped, expected, 'duplicate discovery across two roots collapses to one sorted, deduplicated entry per path');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Skip accounting (new capability, T-17-11) — findEnvFilesDetailed() now
+// counts skips the pre-adoption walk silently swallowed.
+// ---------------------------------------------------------------------------
+describe('skip accounting (new capability) — findEnvFilesDetailed counts symlink/unreadable skips', () => {
+  let fixtureDir;
+
+  beforeEach(() => {
+    fixtureDir = mkFixture();
+  });
+
+  afterEach(() => {
+    try {
+      fs.chmodSync(path.join(fixtureDir, 'locked'), 0o755);
+    } catch {
+      // Directory may not exist in every test — fine.
+    }
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
+  });
+
+  it('counts at least one symlink skip', () => {
+    const realTarget = path.join(fixtureDir, 'real.env.target');
+    fs.writeFileSync(realTarget, 'SECRET=1\n');
+    fs.symlinkSync(realTarget, path.join(fixtureDir, '.env'));
+
+    const { files, skips } = findEnvFilesDetailed(fixtureDir, 4);
+    assert.deepEqual(files, [], 'the symlinked .env must not be reported as found');
+    assert.ok(skips.counts().symlink >= 1, 'the symlinked .env must be counted as a symlink skip');
+  });
+
+  it('counts one unreadable skip on a permission-denied subdirectory', { skip: runningAsRoot }, () => {
+    const locked = path.join(fixtureDir, 'locked');
+    fs.mkdirSync(locked);
+    fs.chmodSync(locked, 0o000);
+
+    const { skips } = findEnvFilesDetailed(fixtureDir, 4);
+    assert.ok(skips.counts().unreadable >= 1, 'the permission-denied subdirectory must be counted as an unreadable skip');
+  });
+});

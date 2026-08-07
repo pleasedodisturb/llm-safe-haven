@@ -190,11 +190,15 @@ describe('getRoots — symlinked root', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Pre-change pin (RESEARCH A3): lib/scan.js today IGNORES LSH_ROOTS.
-// Plan 17-13 flips this assertion when scan.js adopts lib/roots.js — the
-// flip is an intentional capability addition, not a regression.
+// FLIPPED 2026-08-07 by plan 17-13 (D-08): lib/scan.js now honours
+// LSH_ROOTS, since scanForEnvFiles() sources its root list from THIS
+// module's getRoots() instead of a hand-synced, LSH_ROOTS-blind SCAN_DIRS
+// array. This is an INTENTIONAL CAPABILITY ADDITION, not a regression — the
+// previous version of this describe block (RESEARCH.md A3) pinned the OLD
+// LSH_ROOTS-blind behaviour; a future reader must not mistake this flip for
+// a silent behaviour change.
 // ---------------------------------------------------------------------------
-describe('pre-change pin — lib/scan.js ignores LSH_ROOTS (retired by plan 17-13)', () => {
+describe('LSH_ROOTS override — lib/scan.js now honours LSH_ROOTS (D-08, flipped by plan 17-13)', () => {
   const scanPath = require.resolve('../lib/scan.js');
 
   let sandboxHome;
@@ -210,19 +214,32 @@ describe('pre-change pin — lib/scan.js ignores LSH_ROOTS (retired by plan 17-1
     sandboxHome = lshDir = undefined;
   });
 
-  it('pre-change pin: scanForEnvFiles() returns [] while LSH_ROOTS points at a directory containing a .env', () => {
+  it('scanForEnvFiles() finds a .env inside an LSH_ROOTS directory AND does not scan the six default roots', () => {
     originalLshRoots = process.env.LSH_ROOTS;
 
-    sandboxHome = mkTmp('roots-pin-home-'); // empty — none of the six SCAN_DIRS exist here
-    lshDir = mkTmp('roots-pin-lsh-');
+    // Seed every DEFAULT_ROOT_NAMES directory with its own .env — if
+    // LSH_ROOTS merged instead of overrode, these would leak into the
+    // result.
+    sandboxHome = mkTmp('roots-flip-home-');
+    for (const name of DEFAULT_ROOT_NAMES) {
+      const dir = path.join(sandboxHome, name);
+      fs.mkdirSync(dir);
+      fs.writeFileSync(path.join(dir, '.env'), `DEFAULT_${name}=1\n`);
+    }
+
+    lshDir = mkTmp('roots-flip-lsh-');
     fs.writeFileSync(path.join(lshDir, '.env'), 'SECRET=1\n');
     process.env.LSH_ROOTS = lshDir;
 
     const { scanForEnvFiles } = stubHomedir(sandboxHome, scanPath);
-    assert.deepEqual(
-      scanForEnvFiles(),
-      [],
-      'lib/scan.js does not yet consume LSH_ROOTS — this assertion flips in plan 17-13'
-    );
+    const found = scanForEnvFiles();
+
+    assert.deepEqual(found, [path.join(lshDir, '.env')], 'the LSH_ROOTS directory must be scanned and only its .env reported');
+    for (const name of DEFAULT_ROOT_NAMES) {
+      assert.ok(
+        !found.some((f) => f.startsWith(path.join(sandboxHome, name) + path.sep) || f === path.join(sandboxHome, name)),
+        `default root ${name} must NOT be scanned when LSH_ROOTS is set`
+      );
+    }
   });
 });
