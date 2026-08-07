@@ -45,9 +45,15 @@ function newHome(built, build) {
 // Run the real bash scanner against an isolated HOME (+ clean TMPDIR),
 // network disabled. extraEnv lets a test flip LSH_NO_NETWORK off or set
 // LSH_ROOTS. `scriptPath` defaults to the bundled ChainDrop scanner but can
-// be overridden so parity tests can name the script explicitly.
-function runScanner(home, extraEnv = {}, scriptPath = DEFAULT_SCRIPT) {
+// be overridden so parity tests can name the script explicitly. `opts.tmpSeed`
+// (Phase 17 / TRAV-05, plan 17-05, the bun-staging corpus case) is an
+// optional `(tmpDir) => void` callback invoked AFTER the isolated TMPDIR is
+// created but BEFORE the scanner runs, so a case can seed TMPDIR content
+// (e.g. a bun-dl-* staging directory) that the scanner's own mkdtemp'd
+// TMPDIR would otherwise make unreachable from the case's `build(home, p)`.
+function runScanner(home, extraEnv = {}, scriptPath = DEFAULT_SCRIPT, opts = {}) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-cd-tmp-'));
+  if (typeof opts.tmpSeed === 'function') opts.tmpSeed(tmp);
   const res = spawnSync('bash', [scriptPath], {
     encoding: 'utf8',
     timeout: 60_000, // non-functional: a run must terminate well within this
