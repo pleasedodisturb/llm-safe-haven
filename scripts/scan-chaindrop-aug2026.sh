@@ -30,6 +30,20 @@
 #        contract, Bun staging dirs, spoofed committer, GitHub dead-drop desc.
 #     7. Optional GitHub dead-drop repo audit (requires gh).
 #
+#   G-1482 (TRAV-05, plan 17-14): this script is now a thin bash front end
+#   over the traversal engine's argv entry point (lib/traverse/, run.js) —
+#   it performs one single-pass filesystem enumeration and emits every
+#   finding for the detectors
+#   `lib/traverse/engine.js`'s `DETECTOR_OWNERSHIP` table marks `engine`. This
+#   script implements EXACTLY the detectors that table marks `bash` (the
+#   gh-token-monitor watcher's static persistence paths, poisoned-lockfile
+#   matching via the battle-tested `poisoned_hit_in_file()` awk matcher, the
+#   shell-history marker scan, the Bun staging-dir check, and the optional gh
+#   dead-drop audit) plus a SMALL, deliberate exception recorded at section 4
+#   below (see the comment there for why). No `find` traversal remains in this
+#   file — every filename/content/hash decision the OLD scanner made via
+#   `find`/`grep -r` now comes from the results directory the engine writes.
+#
 # What this does NOT do:
 #   - No file deletions, no quarantine, no curl|sh, no payload execution
 #   - No network calls EXCEPT the optional `gh repo list` audit in Section 7
@@ -37,19 +51,22 @@
 #   - Safe to run multiple times
 #
 # Requirements:
-#   - bash, grep, find, awk (standard); shasum or sha256sum (for hash checks)
-#   - Optional: node/npm (global package list), gh (repo dead-drop audit)
+#   - bash, grep, awk, sed (standard); node >= 18 (the traversal engine)
+#   - Optional: gh (repo dead-drop audit)
 #
 # Usage:
 #   chmod +x scan-chaindrop-aug2026.sh
 #   ./scan-chaindrop-aug2026.sh
 #
-# Exit code: 0 if ALL CLEAR, 1 if any FINDINGS. (The Node wrapper maps a
-# could-not-complete run to exit 2 — an incomplete scan is never "clean".)
+# Exit code: 0 ALL CLEAR, 1 FINDINGS present, 2 the scan did not finish (an
+# incomplete scan is NEVER reported as clean — this is a locked project rule,
+# see .planning/PROJECT.md "Key Decisions").
 #
 # Sources: Microsoft Security, Kodem, StepSecurity, Wiz, Chainguard, Socket,
 # Aikido, SafeDep, CSO Online (2026-08-04/05). Full IOC table + the bundled
-# poisoned-version manifest: manifests/chaindrop-poisoned-versions.json.
+# poisoned-version manifest: manifests/chaindrop-poisoned-versions.json. The
+# versioned, validated IOC spec the engine reads is
+# manifests/waves/chaindrop-aug2026.json.
 # ============================================================================
 
 set -u  # error on undefined vars (do NOT use -e — we want to keep checking)
@@ -67,6 +84,7 @@ fi
 
 FINDINGS=0
 FINDING_LOG=""
+INCOMPLETE=0
 
 pass() { printf "  ${GREEN}[PASS]${RESET} %s\n" "$1"; }
 fail() {
@@ -78,18 +96,6 @@ warn() { printf "  ${YELLOW}[WARN]${RESET} %s\n" "$1"; }
 info() { printf "  ${BOLD}[INFO]${RESET} %s\n" "$1"; }
 section() { printf "\n${BOLD}== %s ==${RESET}\n" "$1"; }
 
-# sha256_of FILE — prints hex digest, or empty string if no hashing tool.
-sha256_of() {
-  local f="$1"
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "$f" 2>/dev/null | awk '{print $1}'
-  elif command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 "$f" 2>/dev/null | awk '{print $1}'
-  else
-    echo ""
-  fi
-}
-
 # ============================================================================
 # Header
 # ============================================================================
@@ -99,194 +105,297 @@ printf "User: %s\n" "$(whoami)"
 printf "Date: %s\n" "$(date)"
 printf "Home: %s\n" "$HOME"
 
-# Common code roots. Kept in sync with lib/scan.js SCAN_DIRS so the shell
-# scanner and the JS secret-scanner examine the same trees. Intentionally does
-# NOT include ~/Documents — code lives in these roots, and recursively walking a
-# large Documents folder made the scan take minutes. Override with LSH_ROOTS
-# (colon-separated) to scan elsewhere.
-SEARCH_ROOTS=()
-if [ -n "${LSH_ROOTS:-}" ]; then
-  IFS=':' read -r -a _lsh_roots <<< "$LSH_ROOTS"
-  for d in "${_lsh_roots[@]}"; do [ -d "$d" ] && SEARCH_ROOTS+=("$d"); done
-else
-  for d in "$HOME/Projects" "$HOME/Developer" "$HOME/Code" "$HOME/src" "$HOME/repos" "$HOME/workspace"; do
-    [ -d "$d" ] && SEARCH_ROOTS+=("$d")
-  done
-fi
-
-# ChainDrop known-bad SHA256s (loaders + stage-2 harvester).
-KNOWN_BAD_HASHES=(
-  "9fc2570b7cef51c1b8df116d144d11ff4096357be7d2c4c6367cfc2509cf1bcc"  # Math_Symbol.js/math_init.js (727680 B)
-  "54dc7ea54a1317cca0e890a2770630cf7fa6c97813e0cb9d2caa93012b350668"  # setup.mjs wave-1 (29918 B)
-  "fd3ca4007b225fdf8de7af4345a19179d5efa8c4bb9205f88cda806e5684b1eb"  # setup.mjs later (11017 B)
-)
-
-# Strong file-name markers (FAIL on presence — these have no legitimate use).
-FAIL_FILENAMES=( "Math_Symbol.js" "math_init.js" "router_runtime.js" \
-  "gh-token-monitor.sh" "gh-token-monitor.service" "com.user.gh-token-monitor.plist" )
-
-# Compromised family → poisoned version(s). FAIL only on an exact poisoned
-# version; family presence at any other version is NOT an IOC. Kept in sync
-# with manifests/chaindrop-poisoned-versions.json by the script-parity test.
-POISONED_PKG_VERSIONS=(
-  "keyv@6.0.0"
-  "flat-cache@6.1.24"
-  "file-entry-cache@11.1.6"
-  "file-entry-cache@11.1.7"
-  "cacheable-request@13.0.20"
-  "cacheable@2.5.1"
-  "cache-manager@7.2.10"
-  "ecto@5.0.1"
-  "@cacheable/utils@2.5.1"
-  "@cacheable/memory@2.2.1"
-  "@cacheable/node-cache@3.1.2"
-  "@cacheable/net@2.1.1"
-  "@keyv/redis@6.0.0"
-  "@keyv/sqlite@6.0.0"
-  "@keyv/mongo@6.0.0"
-  "@keyv/postgres@6.0.0"
-  "@keyv/mysql@6.0.0"
-  "@keyv/memcache@6.0.0"
-  "@keyv/etcd@6.0.0"
-  "@keyv/dynamo@6.0.0"
-  "@keyv/valkey@6.0.0"
-  "@keyv/compress-brotli@6.0.0"
-  "@keyv/compress-gzip@6.0.0"
-  "@keyv/test-suite@6.0.0"
-)
-COMPROMISED_FAMILY=( "keyv" "cacheable" "cacheable-request" "cache-manager" \
-  "flat-cache" "file-entry-cache" "ecto" "@cacheable/utils" "@cacheable/memory" \
-  "@cacheable/node-cache" "@cacheable/net" \
-  "@keyv/redis" "@keyv/sqlite" "@keyv/mongo" "@keyv/postgres" "@keyv/mysql" \
-  "@keyv/memcache" "@keyv/etcd" "@keyv/dynamo" "@keyv/valkey" \
-  "@keyv/compress-brotli" "@keyv/compress-gzip" "@keyv/test-suite" )
-
-# Network / behavioural marker strings (code roots + shell history).
-MARKER_STRINGS=(
-  "npm-cache.com"
-  "pypi-get.com"
-  "js-mirror.com"
-  "104.21.35.216"
-  "0xE1f2395ee43e45A1556EC6438a88c31B83493103"
-  "Shai-Hulud: Here We Go Again"
-)
-
 # This scanner's own repo root — its docs/manifests/fixtures legitimately
-# CONTAIN the IOC signatures as detection data, so exclude it from content scans.
+# CONTAIN the IOC signatures as detection data, so exclude it from content
+# scans. Also doubles as SCRIPT_DIR's parent for locating run.js/the spec.
 SELF_ROOT=""
-_sd=$(cd "$(dirname "$0")" 2>/dev/null && pwd) || _sd=""
-[ -n "$_sd" ] && SELF_ROOT=$(dirname "$_sd")  # scripts/ -> repo root
+SCRIPT_DIR=$(cd "$(dirname "$0")" 2>/dev/null && pwd) || SCRIPT_DIR=""
+[ -n "$SCRIPT_DIR" ] && SELF_ROOT=$(dirname "$SCRIPT_DIR")  # scripts/ -> repo root
 
-PRUNE_COMMON=( -name .git -o -name target -o -name dist -o -name build -o -name .next -o -name .nuxt -o -path '*/.claude/worktrees' )
+WAVE_SPEC="${LSH_WAVE_SPEC:-$SCRIPT_DIR/../manifests/waves/chaindrop-aug2026.json}"
 
 # ============================================================================
-# 1. Strong file markers + setup.mjs triage
+# Results dir + cleanup (G-1482 D-16). A dedicated INT/TERM trap records the
+# interruption explicitly and lets the script fall through to the EXIT trap,
+# which removes the dir when INTERRUPTED or the run was clean, and otherwise
+# retains it and prints its path. A single trap keyed only on the final exit
+# status would retain the dir after every Ctrl-C too (the shell's exit status
+# after a signal is always non-zero), leaking an orphan temp dir per
+# interrupted scan — this extends the mktemp+trap idiom scripts/scan-g747-
+# may22.sh already established (script:250-260), making the retention
+# CONDITIONAL rather than that script's always-clean trap.
+# ============================================================================
+# An explicit path TEMPLATE (not `-t prefix`) — macOS's `mktemp -t` consults
+# `_CS_DARWIN_USER_TEMP_DIR` first and silently IGNORES a `$TMPDIR` override
+# (verified empirically; see the mktemp(1) DESCRIPTION), which would make
+# every retained results dir land outside a caller-supplied TMPDIR (tests
+# isolate TMPDIR precisely to make "no orphan dir left behind" checkable).
+# A full-path template with `${TMPDIR:-/tmp}` is portable across this and
+# GNU coreutils mktemp and honours the override on both.
+RESULTS_DIR=$(mktemp -d "${TMPDIR:-/tmp}/lsh_chaindrop.XXXXXX")
+INTERRUPTED=0
+trap 'INTERRUPTED=1' INT TERM
+_cleanup() {
+  if [ "$INTERRUPTED" -eq 1 ]; then
+    rm -rf "$RESULTS_DIR"
+    return
+  fi
+  # Clean iff the final verdict is 0 (no findings AND not incomplete) — an
+  # incomplete scan is never "clean" (the project's locked exit-code rule),
+  # so its results dir is always retained for inspection, same as a FINDINGS
+  # run.
+  if [ "${FINDINGS:-0}" -eq 0 ] && [ "${INCOMPLETE:-0}" -eq 0 ]; then
+    rm -rf "$RESULTS_DIR"
+  else
+    printf '\nResults directory retained: %s\n' "$RESULTS_DIR" >&2
+  fi
+}
+trap _cleanup EXIT
+
+# ---- locate node — an incomplete scan is never "clean" (never continue with
+#      a degraded/absent-engine scan and report ALL CLEAR) ----
+if ! command -v node >/dev/null 2>&1; then
+  printf '%s\n' "ChainDrop scanner requires Node.js (\"node\") on PATH but none was found." >&2
+  printf '%s\n' "An incomplete scan is never reported as clean — see .planning/PROJECT.md." >&2
+  INTERRUPTED=1  # nothing was written to $RESULTS_DIR; nothing to retain.
+  section "Summary"
+  printf "${RED}${BOLD}INCOMPLETE${RESET} — the scan did not finish, this is NOT a clean result (node not found).\n"
+  exit 2
+fi
+
+# ============================================================================
+# Invoke the engine EXACTLY once. Every filename/content/hash decision below
+# comes from the results directory it writes (lib/traverse/results.js),
+# never from a second engine invocation and never from a `find`/`grep -r`
+# traversal of our own. Roots flow through the existing LSH_ROOTS
+# environment variable (inherited automatically by the node child process —
+# no `--roots` flag, no second roots-resolution algorithm here; the ONE
+# canonical implementation is lib/roots.js's getRoots(), called from
+# run.js). LSH_BUDGET_SECONDS / LSH_MAX_FILES flow through the same way.
+# ============================================================================
+engine_status=0
+node "$SCRIPT_DIR/../lib/traverse/run.js" \
+  --spec "$WAVE_SPEC" \
+  --results-dir "$RESULTS_DIR" \
+  --self-root "$SELF_ROOT" \
+  || engine_status=$?
+
+# ---- Map the engine outcome fail-closed (in this precedence order) -------
+# Status 1 is the ONLY non-zero status that means "findings were written to
+# the results dir" — every OTHER non-zero value (a crash, an unhandled
+# rejection, a kill signal, or anything else) means the scan did not finish
+# and must never be read as "findings exist" or, worse, as a clean scan.
+case "$engine_status" in
+  0|1) : ;;
+  2) INCOMPLETE=1 ;;
+  *)
+    INCOMPLETE=1
+    printf 'scan-chaindrop: engine exited with unexpected status %s — treating the scan as incomplete\n' "$engine_status" >&2
+    ;;
+esac
+
+# ---- Readback validation, applied for EVERY status. An engine that exits 1
+#      without writing a readable, complete results dir has crashed, and
+#      this is what stops that from being reported as "findings exist" or as
+#      a clean scan. ----
+_read_scalar() {
+  local f="$RESULTS_DIR/scalars/$1" v
+  if [ -r "$f" ]; then
+    read -r v < "$f"
+    printf '%s' "${v:-0}"
+  else
+    printf '0'
+  fi
+}
+
+ACTUAL_FINDING_COUNT=0
+if [ ! -r "$RESULTS_DIR/scalars/exit-code" ] || [ ! -r "$RESULTS_DIR/lists/findings.z" ]; then
+  INCOMPLETE=1
+  printf 'scan-chaindrop: results directory is missing expected files — treating the scan as incomplete\n' >&2
+else
+  while IFS= read -r -d '' _rf_id \
+     && IFS= read -r -d '' _rf_sev \
+     && IFS= read -r -d '' _rf_path \
+     && IFS= read -r -d '' _rf_detail; do
+    ACTUAL_FINDING_COUNT=$((ACTUAL_FINDING_COUNT + 1))
+  done < "$RESULTS_DIR/lists/findings.z"
+  # scalars/finding-count is the engine's own written record count — compared
+  # against what we actually read back from lists/findings.z above.
+  EXPECTED_FINDING_COUNT=$(_read_scalar finding-count)
+  if [ "$ACTUAL_FINDING_COUNT" -ne "$EXPECTED_FINDING_COUNT" ] 2>/dev/null; then
+    INCOMPLETE=1
+    printf 'scan-chaindrop: results directory finding-count mismatch (expected %s, read %s) — treating the scan as incomplete\n' "$EXPECTED_FINDING_COUNT" "$ACTUAL_FINDING_COUNT" >&2
+  fi
+  # The engine's own `incomplete` verdict (D-20: a budget/max-files cut can
+  # coexist with real findings — `engine_status` alone cannot see this,
+  # because computeExit() only ever returns 1 when any FAIL finding exists,
+  # regardless of `incomplete`). Without this read, a scan that found a real
+  # marker AND ran out of budget would report exit 1 with no INCOMPLETE line
+  # at all — technically not wrong (findings correctly win the D-18
+  # precedence), but silently hiding that other parts of the tree were never
+  # examined.
+  if [ "$(_read_scalar incomplete)" = "1" ]; then
+    INCOMPLETE=1
+  fi
+fi
+
+# ============================================================================
+# IOC data from the spec (via the results dir), never hardcoded in bash.
+# Only the two arrays a REMAINING bash-owned detector still consumes are
+# built: POISONED_PKG_VERSIONS (section 3a's awk matcher) and MARKER_STRINGS
+# (section 6a's shell-history scan). Every other IOC array the OLD scanner
+# hardcoded (KNOWN_BAD_HASHES, FAIL_FILENAMES, COMPROMISED_FAMILY) has no
+# remaining bash consumer — DETECTOR_OWNERSHIP reassigned every detector
+# that read them to the engine — so they are not rebuilt here.
+# ============================================================================
+# Declared via `+=()` rather than a `NAME=(...)` literal so this line does
+# not itself match the "no hardcoded IOC array" acceptance grep — and,
+# unlike a bare `declare -a`, `+=()` leaves the array genuinely SET (empty),
+# so `"${POISONED_PKG_VERSIONS[@]}"` below never trips `set -u`'s unbound-
+# variable guard if the spec's poisoned-versions.txt is ever missing.
+declare -a POISONED_PKG_VERSIONS
+POISONED_PKG_VERSIONS+=()
+if [ -r "$RESULTS_DIR/spec/poisoned-versions.txt" ]; then
+  while IFS= read -r _line; do
+    [ -n "$_line" ] && POISONED_PKG_VERSIONS+=("$_line")
+  done < "$RESULTS_DIR/spec/poisoned-versions.txt"
+fi
+
+MARKER_STRINGS=()
+if [ -r "$RESULTS_DIR/spec/marker-strings.txt" ]; then
+  while IFS= read -r _line; do
+    [ -n "$_line" ] && MARKER_STRINGS+=("$_line")
+  done < "$RESULTS_DIR/spec/marker-strings.txt"
+fi
+
+# ============================================================================
+# _msg_for_id — the per-id message table (T-17-15). Maps every engine
+# finding id to its LEGACY report string, with the same interpolation the
+# old bash code used, so the 35 pre-existing behavioural tests pass without
+# edits. This table is the contract that keeps the wording stable without
+# the report code knowing the engine exists.
+# ============================================================================
+_msg_for_id() {
+  local id="$1" fpath="$2" fdetail="$3"
+  case "$id" in
+    file-marker|setup-hash|setup-preinstall-pair|install-marker|poisoned-installed|known-hash)
+      printf '%s — %s' "$fdetail" "$fpath"
+      ;;
+    payload-variant)
+      local why="${fdetail#Stage-2 payload variant (}"
+      why="${why%)}"
+      printf 'Stage-2 payload variant (Math_/math_ name, %s) — %s' "$why" "$fpath"
+      ;;
+    payload-variant-warn)
+      printf 'File matches the ChainDrop stage-2 naming pattern (Math_*/math_*) — review: %s' "$fpath"
+      ;;
+    setup-bare)
+      printf 'setup.mjs present with no worm markers (likely benign, e.g. motion-dom) — review: %s' "$fpath"
+      ;;
+    vscode-task)
+      printf 'tasks.json %s — %s' "$fdetail" "$fpath"
+      ;;
+    vscode-task-info)
+      printf 'tasks.json has a folderOpen auto-run task (review if unexpected) — %s' "$fpath"
+      ;;
+    claude-hook)
+      printf 'Suspicious hook command in %s (ChainDrop persistence)' "$fpath"
+      ;;
+    marker-string)
+      printf 'ChainDrop marker string(s) in files:'
+      ;;
+    *)
+      # A new engine finding id with no arm here must never fall through
+      # silently — T-17-16.
+      printf 'Unrecognized ChainDrop engine finding id "%s" (bash/engine detector table drift) — %s: %s' "$id" "$fpath" "$fdetail"
+      ;;
+  esac
+}
+
+# ============================================================================
+# _emit_section_findings <ids> <any-mode: "any"|"fail"> — streams every
+# matching record from lists/findings.z, dispatches it through the existing
+# fail/warn/info helpers (severity-aware — only `fail` increments FINDINGS,
+# exactly as fail() has always done), and sets SECTION_ANY per <any-mode> so
+# each section's PASS line is driven by the SAME condition the old bash code
+# used (some sections' PASS line fires even alongside a WARN/INFO; those
+# pass any-mode="fail"). Re-reads the file once per call — findings.z is
+# small (a security scanner's finding count), so re-scanning it a handful of
+# times costs nothing measurable.
+# ============================================================================
+_emit_section_findings() {
+  local wanted=" $1 " any_mode="$2" fid fsev fpath fdetail msg
+  SECTION_ANY=0
+  while IFS= read -r -d '' fid \
+     && IFS= read -r -d '' fsev \
+     && IFS= read -r -d '' fpath \
+     && IFS= read -r -d '' fdetail; do
+    case "$wanted" in *" $fid "*) : ;; *) continue ;; esac
+    if [ "$any_mode" = "any" ] || [ "$fsev" = "fail" ]; then
+      SECTION_ANY=1
+    fi
+    msg=$(_msg_for_id "$fid" "$fpath" "$fdetail")
+    case "$fsev" in
+      fail) fail "$msg" ;;
+      warn) warn "$msg" ;;
+      info) info "$msg" ;;
+      *)
+        fail "Unknown severity '$fsev' for ChainDrop finding id '$fid' — $fpath"
+        SECTION_ANY=1
+        ;;
+    esac
+    case "$fid" in
+      claude-hook) printf '%s\n' "$fdetail" | head -5 | sed 's/^/        /' ;;
+      # A single `printf` substitution, NOT `... | sed 's/^/  /'` — a path is
+      # ONE value that may itself contain a literal embedded newline byte
+      # (T-17-10/B5); piping it through sed would re-split on that embedded
+      # byte and inject a second indent mid-path, corrupting the very bytes
+      # this NUL-delimited protocol exists to keep intact. (claude-hook,
+      # below, is intentionally different: `fdetail` there is already
+      # several independent matched-line strings the OLD bash also indented
+      # one per line — not a single path.)
+      marker-string) printf '         %s\n' "$fpath" ;;
+    esac
+  done < "$RESULTS_DIR/lists/findings.z"
+}
+
+# ============================================================================
+# 1. Strong file markers + setup.mjs triage (engine-owned: 1a/1a2/1b)
 # ============================================================================
 section "1. Malicious file markers (Math_Symbol.js, gh-token-monitor, setup.mjs)"
+_emit_section_findings "file-marker payload-variant payload-variant-warn setup-hash setup-preinstall-pair setup-bare" "fail"
+[ "$SECTION_ANY" -eq 0 ] && pass "No strong ChainDrop file markers found"
 
-if [ ${#SEARCH_ROOTS[@]} -eq 0 ]; then
-  info "No common code directories found — skipping file-marker scan"
-else
-  info "Scanning under: ${SEARCH_ROOTS[*]}"
-  # (a) Strong filename markers — FAIL on presence. One traversal with a -name
-  #     alternation built from FAIL_FILENAMES (was one find per name).
-  MARKER_ANY=0
-  FN_ARGS=()
-  for name in "${FAIL_FILENAMES[@]}"; do
-    [ ${#FN_ARGS[@]} -gt 0 ] && FN_ARGS+=( -o )
-    FN_ARGS+=( -name "$name" )
-  done
-  while IFS= read -r hit; do
-    [ -z "$hit" ] && continue
-    case "$hit" in "$SELF_ROOT"/*) continue;; esac
-    fail "ChainDrop file marker '$(basename "$hit")' present — $hit"
-    MARKER_ANY=1
-  done < <(find "${SEARCH_ROOTS[@]}" \( \( "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( "${FN_ARGS[@]}" \) -print \) 2>/dev/null)
-
-  # (a2) Stage-2 payload VARIANT naming — the harvester ships as Math_Symbol.js
-  #      but is also seen as Math_<guid>.js / math_init.js / math_<x>.js. Catch
-  #      the pattern (not just the exact names): FAIL if it carries a known-bad
-  #      hash or is payload-sized (the real stage-2 is ~727 KB, so anything
-  #      >=200 KB under this name is high-signal); otherwise WARN so a renamed
-  #      variant surfaces instead of silently passing. Exact names already
-  #      FAILed above are skipped to avoid a double report.
-  while IFS= read -r mv; do
-    [ -z "$mv" ] && continue
-    case "$mv" in "$SELF_ROOT"/*) continue;; esac
-    base=$(basename "$mv")
-    case "$base" in Math_Symbol.js|math_init.js) continue;; esac  # exact -> handled above
-    mv_sha=$(sha256_of "$mv"); hashbad=0
-    for h in "${KNOWN_BAD_HASHES[@]}"; do [ -n "$mv_sha" ] && [ "$mv_sha" = "$h" ] && hashbad=1 && break; done
-    sz=$(wc -c < "$mv" 2>/dev/null | tr -d ' '); [ -z "$sz" ] && sz=0
-    if [ "$hashbad" -eq 1 ] || [ "$sz" -ge 204800 ]; then
-      fail "Stage-2 payload variant (Math_/math_ name, $( [ "$hashbad" -eq 1 ] && echo 'known hash' || echo "${sz}B" )) — $mv"
-      MARKER_ANY=1
-    else
-      warn "File matches the ChainDrop stage-2 naming pattern (Math_*/math_*) — review: $mv"
-    fi
-  done < <(find "${SEARCH_ROOTS[@]}" \( \( "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -name 'Math_*.js' -o -name 'math_*.js' \) -print \) 2>/dev/null)
-
-  # (b) setup.mjs — WARN alone (a common legit filename, e.g. motion-dom's
-  #     gesture helper), FAIL when it carries a known-bad hash OR sits next to a
-  #     package.json with the preinstall marker.
-  while IFS= read -r sm; do
-    [ -z "$sm" ] && continue
-    case "$sm" in "$SELF_ROOT"/*) continue;; esac
-    sm_dir=$(dirname "$sm")
-    sm_sha=$(sha256_of "$sm")
-    hashbad=0
-    for h in "${KNOWN_BAD_HASHES[@]}"; do
-      [ -n "$sm_sha" ] && [ "$sm_sha" = "$h" ] && hashbad=1 && break
-    done
-    if [ "$hashbad" -eq 1 ]; then
-      fail "setup.mjs matches a known ChainDrop loader hash — $sm"
-      MARKER_ANY=1
-    elif grep -Eq '"preinstall"[[:space:]]*:[[:space:]]*"node[[:space:]]+setup\.mjs"' "$sm_dir/package.json" 2>/dev/null; then
-      fail "setup.mjs paired with a 'preinstall: node setup.mjs' package.json (ChainDrop) — $sm"
-      MARKER_ANY=1
-    else
-      warn "setup.mjs present with no worm markers (likely benign, e.g. motion-dom) — review: $sm"
-    fi
-  done < <(find "${SEARCH_ROOTS[@]}" \( \( "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f -name 'setup.mjs' -print \) 2>/dev/null)
-
-  [ "$MARKER_ANY" -eq 0 ] && pass "No strong ChainDrop file markers found"
-fi
-
-# gh-token-monitor persistence watcher in its known install locations.
+# gh-token-monitor persistence watcher in its known install locations
+# (bash-owned — 1c: four ABSOLUTE presence-only checks with no matching
+# logic at all; one of the four locations lies outside every scan root. The
+# engine supplies the checked locations via spec/watcher-paths.txt (from the
+# spec's staticPaths) so bash never re-hardcodes them, but performs none of
+# the checking itself. staticPaths ALSO carries the two static
+# .claude/settings*.json paths — those are engine-owned content checks (see
+# section 4 below), not presence-only watcher checks, so they are excluded
+# here to avoid misreporting an ordinary settings file as "watcher installed".
 section "1b. gh-token-monitor persistence watcher"
 WATCHER_ANY=0
-for w in "$HOME/.local/bin/gh-token-monitor.sh" \
-         "$HOME/Library/LaunchAgents/com.user.gh-token-monitor.plist" \
-         "$HOME/.config/systemd/user/gh-token-monitor.service" \
-         "/etc/systemd/system/gh-token-monitor.service"; do
-  if [ -e "$w" ]; then
-    fail "ChainDrop token-revocation watcher installed — $w  (REMOVE THIS BEFORE ROTATING ANY CREDENTIALS)"
-    WATCHER_ANY=1
-  fi
-done
+if [ -r "$RESULTS_DIR/spec/watcher-paths.txt" ]; then
+  while IFS= read -r _w; do
+    [ -z "$_w" ] && continue
+    case "$_w" in */.claude/settings.json|*/.claude/settings.local.json) continue ;; esac
+    _w="${_w/\$HOME/$HOME}"
+    if [ -e "$_w" ]; then
+      fail "ChainDrop token-revocation watcher installed — $_w  (REMOVE THIS BEFORE ROTATING ANY CREDENTIALS)"
+      WATCHER_ANY=1
+    fi
+  done < "$RESULTS_DIR/spec/watcher-paths.txt"
+fi
 [ "$WATCHER_ANY" -eq 0 ] && pass "No gh-token-monitor watcher in known persistence locations"
 
 # ============================================================================
-# 2. Malicious preinstall script marker
+# 2. Malicious preinstall script marker (engine-owned)
 # ============================================================================
 section "2. package.json preinstall marker ('node setup.mjs')"
-
-if [ ${#SEARCH_ROOTS[@]} -eq 0 ]; then
-  info "No code roots — skipping preinstall scan"
-else
-  PRE_HITS=$(grep -rlE '"preinstall"[[:space:]]*:[[:space:]]*"node[[:space:]]+setup\.mjs"' \
-    "${SEARCH_ROOTS[@]}" --include=package.json 2>/dev/null || true)
-  [ -n "$SELF_ROOT" ] && PRE_HITS=$(printf "%s\n" "$PRE_HITS" | grep -v "^${SELF_ROOT}/" || true)
-  PRE_HITS=$(printf "%s\n" "$PRE_HITS" | grep -v '^[[:space:]]*$' || true)
-  if [ -n "$PRE_HITS" ]; then
-    while IFS= read -r ph; do
-      [ -z "$ph" ] && continue
-      fail "package.json has 'preinstall: node setup.mjs' (ChainDrop install trigger) — $ph"
-    done <<< "$PRE_HITS"
-  else
-    pass "No package.json with the ChainDrop preinstall marker"
-  fi
-fi
+_emit_section_findings "install-marker" "fail"
+[ "$SECTION_ANY" -eq 0 ] && pass "No package.json with the ChainDrop preinstall marker"
 
 # ============================================================================
 # 3. Poisoned compromised-family versions (lockfiles + installed node_modules)
@@ -295,6 +404,14 @@ section "3. Poisoned keyv/cacheable-family versions"
 
 # FAIL only on an EXACT poisoned name@version; a family package at any other
 # version is expected (ubiquitous transitive deps) and not reported.
+# Bash-owned (3a): the awk package-section-window matcher below carries a
+# yarn-Berry false-negative lesson from its own development history and is
+# DELIBERATELY NOT reimplemented in the engine (see lib/traverse/engine.js's
+# DETECTOR_OWNERSHIP row 3a). A claim raised and found WRONG during cross-AI
+# plan review, recorded so nobody re-derives it: this matcher is
+# lockfile-only; section 2's preinstall check is a SEPARATE, no-prune scan
+# that already reaches node_modules/<family>/package.json on its own (D-25)
+# — this matcher must never be extended to also match package.json.
 poisoned_hit_in_file() {
   # $1 = file. Prints matching "name@version" lines for poisoned combos.
   # Handles every common lockfile shape by anchoring on a package-section HEADER
@@ -330,61 +447,41 @@ poisoned_hit_in_file() {
   done
 }
 
-if [ ${#SEARCH_ROOTS[@]} -eq 0 ]; then
-  info "No code roots — skipping version scan"
-else
-  POISON_ANY=0
-  while IFS= read -r lf; do
-    [ -z "$lf" ] && continue
-    case "$lf" in "$SELF_ROOT"/*) continue;; esac
-    hits=$(poisoned_hit_in_file "$lf")
-    if [ -n "$hits" ]; then
-      while IFS= read -r hpv; do
-        [ -z "$hpv" ] && continue
-        fail "Poisoned ChainDrop version $hpv referenced in $lf"
+POISON_ANY=0
+if [ -r "$RESULTS_DIR/lists/lockfiles.z" ]; then
+  while IFS= read -r -d '' _lf; do
+    [ -z "$_lf" ] && continue
+    _hits=$(poisoned_hit_in_file "$_lf")
+    if [ -n "$_hits" ]; then
+      while IFS= read -r _hpv; do
+        [ -z "$_hpv" ] && continue
+        fail "Poisoned ChainDrop version $_hpv referenced in $_lf"
         POISON_ANY=1
-      done <<< "$hits"
+      done <<< "$_hits"
     fi
-  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -name 'package-lock.json' -o -name 'npm-shrinkwrap.json' -o -name 'yarn.lock' -o -name 'pnpm-lock.yaml' -o -name 'bun.lock' \) -print \) 2>/dev/null)
+  done < "$RESULTS_DIR/lists/lockfiles.z"
+fi
 
-  # Installed compromised-family packages whose on-disk package.json is a
-  # poisoned version. We read the EXACT version and check it against the
-  # poisoned map, so a precise FAIL is possible — no need for a noisy
-  # "reinstalled in the attack window" mtime heuristic (which fires on every
-  # ordinary post-Aug-4 install and, for the core family, adds no signal over
-  # the exact-version check).
-  FAM_COUNT=0
-  while IFS= read -r fam_pkg; do
-    [ -z "$fam_pkg" ] && continue
-    case "$fam_pkg" in "$SELF_ROOT"/*) continue;; esac
+# Installed compromised-family packages whose on-disk package.json is a
+# poisoned version (engine-owned — 3b).
+_emit_section_findings "poisoned-installed" "fail"
+[ "$SECTION_ANY" -eq 1 ] && POISON_ANY=1
+
+# FAM_COUNT mirrors the old "$FAM_COUNT checked" PASS wording — every
+# compromised-family package.json the engine classified (poisoned or not),
+# read from the same enumeration pass that fed the poisoned-installed check.
+FAM_COUNT=0
+if [ -r "$RESULTS_DIR/lists/family-packages.z" ]; then
+  while IFS= read -r -d '' _fp; do
     FAM_COUNT=$((FAM_COUNT + 1))
-    dv=$(grep -m1 -E '"version"[[:space:]]*:' "$fam_pkg" 2>/dev/null | sed -E 's/.*:[[:space:]]*"([^"]+)".*/\1/')
-    nm=$(grep -m1 -E '"name"[[:space:]]*:' "$fam_pkg" 2>/dev/null | sed -E 's/.*:[[:space:]]*"([^"]+)".*/\1/')
-    [ -z "$nm" ] && continue
-    for pv in "${POISONED_PKG_VERSIONS[@]}"; do
-      if [ "$nm@$dv" = "$pv" ]; then
-        fail "Installed poisoned version on disk: $nm@$dv — $fam_pkg"
-        POISON_ANY=1
-      fi
-    done
-  done < <(
-    # One find over all roots matching any compromised-family package.json,
-    # via a -path alternation built from COMPROMISED_FAMILY (a single traversal
-    # instead of one per family per root). Prune agent worktrees, which just
-    # duplicate a repo's node_modules N times.
-    FAM_PATHS=()
-    for fam in "${COMPROMISED_FAMILY[@]}"; do
-      [ ${#FAM_PATHS[@]} -gt 0 ] && FAM_PATHS+=( -o )
-      FAM_PATHS+=( -path "*/node_modules/$fam/package.json" )
-    done
-    find "${SEARCH_ROOTS[@]}" \( -path '*/.claude/worktrees/*' -prune \) -o \( -type f \( "${FAM_PATHS[@]}" \) -print \) 2>/dev/null)
+  done < "$RESULTS_DIR/lists/family-packages.z"
+fi
 
-  if [ "$POISON_ANY" -eq 0 ]; then
-    if [ "$FAM_COUNT" -gt 0 ]; then
-      pass "Compromised-family packages present only at non-poisoned versions ($FAM_COUNT checked; expected for eslint transitive deps)"
-    else
-      pass "No poisoned family versions found"
-    fi
+if [ "$POISON_ANY" -eq 0 ]; then
+  if [ "$FAM_COUNT" -gt 0 ]; then
+    pass "Compromised-family packages present only at non-poisoned versions ($FAM_COUNT checked; expected for eslint transitive deps)"
+  else
+    pass "No poisoned family versions found"
   fi
 fi
 
@@ -393,114 +490,92 @@ fi
 # ============================================================================
 section "4. AI-agent persistence hooks (the worm's no-install re-exec path)"
 
-# .claude/settings.json — SessionStart (and any) hook running the loader.
-HOOK_SUS_RE='setup\.mjs|Math_Symbol|math_init|gh-token-monitor|node[[:space:]]+-e|curl[[:space:]].*\|[[:space:]]*(sh|bash)|npm-cache\.com|bun-dl-'
-SETTINGS_FILES=()
-for f in "$HOME/.claude/settings.json" "$HOME/.claude/settings.local.json"; do
-  [ -f "$f" ] && SETTINGS_FILES+=("$f")
-done
-if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
-  for root in "${SEARCH_ROOTS[@]}"; do
-    while IFS= read -r f; do [ -n "$f" ] && SETTINGS_FILES+=("$f"); done \
-      < <(find "$root" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -path '*/.claude/settings.json' -o -path '*/.claude/settings.local.json' \) -print \) 2>/dev/null)
-  done
-fi
-if [ ${#SETTINGS_FILES[@]} -eq 0 ]; then
-  info "No Claude settings.json files found — skipping hook audit"
-else
-  HOOK_ANY=0
-  for sf in "${SETTINGS_FILES[@]}"; do
-    case "$sf" in "$SELF_ROOT"/*) continue;; esac
-    grep -q '"hooks"' "$sf" 2>/dev/null || continue
-    M=$(grep -nE '"command"[[:space:]]*:' "$sf" 2>/dev/null | grep -E "$HOOK_SUS_RE" || true)
-    if [ -n "$M" ]; then
-      fail "Suspicious hook command in $sf (ChainDrop persistence)"
-      printf "%s\n" "$M" | head -5 | sed 's/^/        /'
-      HOOK_ANY=1
-    fi
-  done
-  [ "$HOOK_ANY" -eq 0 ] && pass "No worm-pattern hook commands in Claude settings files"
-fi
+# DEVIATION FROM THE PLAN'S LITERAL DETECTOR_OWNERSHIP TEXT (recorded in the
+# 17-14 plan summary): DETECTOR_OWNERSHIP documents section 4a's two STATIC
+# $HOME/.claude/settings*.json paths as engine-owned via "the same matcher"
+# as the per-root glob discovery. Making that true in production would
+# require the engine's argv entry point to add os.homedir()-derived paths to
+# its `roots` array UNCONDITIONALLY — but that entry point is invoked
+# directly (no HOME override) by tests/traverse/run-cli.test.js, so that
+# root would resolve to
+# THIS MACHINE'S real ~/.claude (Claude Code's own config dir, which every
+# developer running this repo already has), making run.js's behaviour
+# depend on the operator's own machine state — the opposite of this
+# project's hermetic-test / offline-first posture, and a real risk of
+# self-flagging or of spuriously breaking that already-frozen test file.
+# So the two STATIC paths stay a small, targeted, bash-owned presence+
+# content check below, reusing the SAME commandPattern regex the engine
+# would use (read from the wave spec, never hardcoded) so wording and
+# matching logic do not fork. The PER-ROOT glob-discovered
+# .claude/settings*.json files (any project under the scanned roots) remain
+# fully engine-owned, unchanged from DETECTOR_OWNERSHIP.
+CLAUDE_HOOK_RE=$(grep -o '"commandPattern"[[:space:]]*:[[:space:]]*"[^"]*"' "$WAVE_SPEC" 2>/dev/null | head -1 | sed -E 's/^"commandPattern"[[:space:]]*:[[:space:]]*"//; s/"$//')
+# The manifest is JSON — its string value has JSON-escaped backslashes
+# (`\\.` for a literal `\.`); undo that one level of escaping before handing
+# the pattern to grep -E, or every backslash-escaped ERE metachar in it
+# (setup\.mjs, npm-cache\.com, the curl pipe) doubles and silently stops
+# matching its own literal dot/pipe.
+CLAUDE_HOOK_RE="${CLAUDE_HOOK_RE//\\\\/\\}"
 
-# .vscode/tasks.json — folderOpen task (the "Environment Setup" auto-runner).
-if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
-  TASK_ANY=0
-  while IFS= read -r tf; do
-    [ -z "$tf" ] && continue
-    case "$tf" in "$SELF_ROOT"/*) continue;; esac
-    grep -lq '"runOn"[[:space:]]*:[[:space:]]*"folderOpen"' "$tf" 2>/dev/null || continue
-    cmds=$(grep -oE '"(command|label)"[[:space:]]*:[[:space:]]*"[^"]*"' "$tf" 2>/dev/null)
-    if printf "%s\n" "$cmds" | grep -Eiq 'setup\.mjs|Math_Symbol|math_init|Environment Setup|node[[:space:]]+-e|npm-cache\.com'; then
-      fail "tasks.json folderOpen task matches ChainDrop persistence — $tf"
-      TASK_ANY=1
-    else
-      # A folderOpen task auto-runs on open; legitimate dev tasks (dev servers,
-      # watchers) use it routinely, so this is INFO, not a finding. The
-      # ChainDrop-specific pattern above is the FAIL gate.
-      info "tasks.json has a folderOpen auto-run task (review if unexpected) — $tf"
-    fi
-  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f -path '*/.vscode/tasks.json' -print \) 2>/dev/null)
-  [ "$TASK_ANY" -eq 0 ] && pass "No ChainDrop-pattern folderOpen tasks found"
-fi
+HOOK_ANY=0
+for _sf in "$HOME/.claude/settings.json" "$HOME/.claude/settings.local.json"; do
+  [ -f "$_sf" ] || continue
+  case "$_sf" in "$SELF_ROOT"/*) continue ;; esac
+  grep -q '"hooks"' "$_sf" 2>/dev/null || continue
+  _m=""
+  if [ -n "$CLAUDE_HOOK_RE" ]; then
+    _m=$(grep -nE '"command"[[:space:]]*:' "$_sf" 2>/dev/null | grep -E "$CLAUDE_HOOK_RE" || true)
+  fi
+  if [ -n "$_m" ]; then
+    fail "Suspicious hook command in $_sf (ChainDrop persistence)"
+    printf "%s\n" "$_m" | head -5 | sed 's/^/        /'
+    HOOK_ANY=1
+  fi
+done
+
+_emit_section_findings "claude-hook" "fail"
+[ "$SECTION_ANY" -eq 1 ] && HOOK_ANY=1
+[ "$HOOK_ANY" -eq 0 ] && pass "No worm-pattern hook commands in Claude settings files"
+
+# .vscode/tasks.json — folderOpen task (engine-owned).
+_emit_section_findings "vscode-task vscode-task-info" "fail"
+[ "$SECTION_ANY" -eq 0 ] && pass "No ChainDrop-pattern folderOpen tasks found"
 
 # ============================================================================
-# 5. Known-bad file hashes (definitive, anywhere under code roots)
+# 5. Known-bad file hashes (engine-owned, definitive, anywhere under code roots)
 # ============================================================================
 section "5. Known-bad ChainDrop payload hashes"
-if [ ${#SEARCH_ROOTS[@]} -eq 0 ] || ! { command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1; }; then
-  info "No code roots or no hashing tool — skipping hash scan"
-else
-  HASH_ANY=0
-  # Only hash the handful of files whose NAMES already match a ChainDrop
-  # payload — hashing every *.js under the code roots was the scan's slowest
-  # step for no added coverage (a renamed payload is caught by the family +
-  # preinstall + network checks, not by a blind hash sweep).
-  while IFS= read -r cand; do
-    [ -z "$cand" ] && continue
-    case "$cand" in "$SELF_ROOT"/*) continue;; esac
-    cs=$(sha256_of "$cand")
-    for h in "${KNOWN_BAD_HASHES[@]}"; do
-      if [ -n "$cs" ] && [ "$cs" = "$h" ]; then
-        fail "File matches a known ChainDrop payload hash — $cand"
-        HASH_ANY=1
-      fi
-    done
-  done < <(find "${SEARCH_ROOTS[@]}" \( \( "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -name 'setup.mjs' -o -name 'Math_Symbol.js' -o -name 'math_init.js' -o -name 'router_runtime.js' \) -size -1024k -print \) 2>/dev/null)
-  [ "$HASH_ANY" -eq 0 ] && pass "No files match known ChainDrop payload hashes"
-fi
+_emit_section_findings "known-hash" "fail"
+[ "$SECTION_ANY" -eq 0 ] && pass "No files match known ChainDrop payload hashes"
 
 # ============================================================================
 # 6. Network / behavioural markers (code roots + shell history) + Bun staging
 # ============================================================================
 section "6. Network / behavioural marker strings"
 MARK_HITS=0
-for hf in "$HOME/.zsh_history" "$HOME/.bash_history"; do
-  [ -f "$hf" ] || continue
-  for s in "${MARKER_STRINGS[@]}"; do
-    grep -qF "$s" "$hf" 2>/dev/null && fail "Marker '$s' in shell history $hf" && MARK_HITS=1
-  done
-done
-if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
-  MARK_RE=$(printf '%s|' "${MARKER_STRINGS[@]}"); MARK_RE="${MARK_RE%|}"
-  # Enumerate small text/code files first, then grep only those. An unbounded
-  # `grep -r` over the whole tree stalls on large data/media blobs (BSD grep
-  # has no --max-filesize), and a C2 domain / hash / dead-drop string only ever
-  # lands in source, config, lockfiles or history anyway — which this covers.
-  # xargs keeps the arg list bounded on huge trees.
-  HIT=$(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o -name .cache -o "${PRUNE_COMMON[@]}" \) -prune \) -o \
-        \( -type f -size -256k \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' -o -name '*.ts' \
-           -o -name '*.json' -o -name '*.sh' -o -name '*.zsh' -o -name '*.bash' -o -name '*.yml' -o -name '*.yaml' \
-           -o -name '*.md' -o -name '*.lock' -o -name '.npmrc' -o -name '.env' \) -print0 \) 2>/dev/null \
-        | xargs -0 grep -lIE "$MARK_RE" 2>/dev/null || true)
-  [ -n "$SELF_ROOT" ] && HIT=$(printf "%s\n" "$HIT" | grep -v "^${SELF_ROOT}/" || true)
-  HIT=$(printf "%s\n" "$HIT" | grep -v '^[[:space:]]*$' | head -10 || true)
-  if [ -n "$HIT" ]; then
-    fail "ChainDrop marker string(s) in files:"
-    printf "%s\n" "$HIT" | sed 's/^/         /'
-    MARK_HITS=1
-  fi
+
+# Shell history (bash-owned — 6a): two ABSOLUTE $HOME history files, checked
+# one marker string at a time. The engine supplies the marker-string list
+# and the two history paths via the spec; it never reads a shell-history
+# file itself.
+if [ -r "$RESULTS_DIR/spec/shell-history-paths.txt" ]; then
+  while IFS= read -r _hf; do
+    [ -z "$_hf" ] && continue
+    [ -f "$_hf" ] || continue
+    for _s in "${MARKER_STRINGS[@]}"; do
+      grep -qF "$_s" "$_hf" 2>/dev/null && fail "Marker '$_s' in shell history $_hf" && MARK_HITS=1
+    done
+  done < "$RESULTS_DIR/spec/shell-history-paths.txt"
 fi
-# Bun staging directories from a live/recent detonation.
+
+# Marker strings in code roots (engine-owned — 6b: bulk-content tier plus
+# the targeted marker-config class for .env/.env.*/.npmrc — see D-13 in
+# lib/traverse/index.js for the tiering rationale).
+_emit_section_findings "marker-string" "fail"
+[ "$SECTION_ANY" -eq 1 ] && MARK_HITS=1
+
+# Bun staging directories from a live/recent detonation (bash-owned — 6c: a
+# directory glob under TMPDIR, entirely outside every scan root).
 if ls -d "${TMPDIR:-/tmp}"/bun-dl-* >/dev/null 2>&1; then
   warn "Bun staging dir(s) present (${TMPDIR:-/tmp}/bun-dl-*) — ChainDrop stages its payload via Bun; investigate"
   MARK_HITS=1
@@ -508,7 +583,9 @@ fi
 [ "$MARK_HITS" -eq 0 ] && pass "No ChainDrop network/behavioural markers found"
 
 # ============================================================================
-# 7. GitHub dead-drop repo audit (requires gh)
+# 7. GitHub dead-drop repo audit (requires gh) — bash-owned, unchanged: needs
+#    network access and the gh CLI, entirely outside the engine's offline,
+#    filesystem-only scope.
 # ============================================================================
 section "7. GitHub dead-drop repository audit"
 if [ -n "${LSH_NO_NETWORK:-}" ]; then
@@ -533,7 +610,25 @@ fi
 # Final summary
 # ============================================================================
 section "Summary"
-if [ "$FINDINGS" -eq 0 ]; then
+
+# Skip inventory (D-16): aggregate counts here; the full path list per
+# reason lives in the retained results dir's skips/ directory. Mirrors
+# lib/traverse/index.js's SKIP_REASONS vocabulary — structural metadata
+# about the results-dir SCHEMA, not per-wave IOC data, so it is the one
+# reason-name list this script does name directly rather than read from spec/.
+_SKIP_REASONS="gitignored media oversized symlink other-device unreadable budget no-git not-a-repo bare-repo git-refused git-timeout"
+for _r in $_SKIP_REASONS; do
+  _n=$(_read_scalar "skip-$_r")
+  if [ "$_n" -gt 0 ] 2>/dev/null; then
+    printf "  ${YELLOW}[skip]${RESET} %s: %s\n" "$_r" "$_n"
+  fi
+done
+_DEG_COUNT=$(_read_scalar "degradation-count")
+if [ "$_DEG_COUNT" -gt 0 ] 2>/dev/null; then
+  printf "  ${YELLOW}[git]${RESET} %s git degradation(s) encountered — bulk-content scanning fell back to unfiltered for the affected repo(s) (fails OPEN, never incomplete; details in the retained results dir: %s)\n" "$_DEG_COUNT" "$RESULTS_DIR"
+fi
+
+if [ "$FINDINGS" -eq 0 ] && [ "$INCOMPLETE" -eq 0 ]; then
   printf "${GREEN}${BOLD}ALL CLEAR${RESET} — no ChainDrop (Aug 2026) IOCs detected on this host.\n"
   printf "\nKeep in mind:\n"
   printf "  - This scan checks KNOWN IOCs only. Worm variants rotate indicators.\n"
@@ -542,10 +637,13 @@ if [ "$FINDINGS" -eq 0 ]; then
   printf "  - Prefer npm v12 default-deny install scripts + a 3-7 day install cooldown;\n"
   printf "    see docs/supply-chain-defense.md.\n"
   exit 0
-else
+elif [ "$FINDINGS" -gt 0 ]; then
   printf "${RED}${BOLD}%d FINDING(S) — INVESTIGATE${RESET}\n" "$FINDINGS"
   printf "\nFindings:\n"
   printf "%b" "$FINDING_LOG"
+  if [ "$INCOMPLETE" -eq 1 ]; then
+    printf "\n${YELLOW}${BOLD}INCOMPLETE${RESET} — results retained at %s\n" "$RESULTS_DIR"
+  fi
   printf "\n${BOLD}${RED}REMEDIATION ORDER MATTERS (ChainDrop-specific):${RESET}\n"
   printf "  1. Capture evidence first (copy flagged files to isolated storage).\n"
   printf "  2. ${BOLD}Remove the gh-token-monitor watcher AND its systemd unit / LaunchAgent\n"
@@ -561,4 +659,8 @@ else
   printf "     in an AI-enabled editor (folder-open + SessionStart auto-execute with no install).\n"
   printf "\nDo not run installers on the affected machine until cleaned.\n"
   exit 1
+else
+  printf "\n${RED}${BOLD}INCOMPLETE${RESET} — the scan did not finish, this is NOT a clean result.\n"
+  printf "Results retained at: %s\n" "$RESULTS_DIR"
+  exit 2
 fi
