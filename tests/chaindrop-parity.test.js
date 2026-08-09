@@ -49,11 +49,16 @@ const SPEC_RELATIVE = 'manifests/waves/chaindrop-aug2026.json';
 // in tests/helpers/chaindrop-corpus.js. It is a review aid, not a security
 // control: a determined executor can update both, but an accidental or
 // unreviewed expectation drift cannot silently pass a diff.
-// Updated 2026-08-07 in the SAME commit as tests/helpers/chaindrop-corpus.js's
-// addition of the `marker-gitignored-source` case (the former
-// KNOWN_TIERING_TRADEOFFS[0], now an ordinary frozen CASE per Vitalik's
-// rejection of the tiering trade-off — see the file header above).
-const FROZEN_FINGERPRINT = '764fd4a67acb410a35d814f1c1ddc866f532f55b3f6739ad6b46757301c17253';
+// Updated 2026-08-10 in the SAME commit as tests/helpers/chaindrop-corpus.js's
+// `marker-oversized` case change: G-1512/TRAV-15 (17.1-CONTEXT.md decision
+// D-02, operator-approved) folds `skips.counts().oversized > 0` into
+// `incomplete`, so a marker string past the bulk-content size cap now exits
+// 2 (INCOMPLETE) instead of falsely reporting 0 (ALL CLEAR). findingCount
+// stays 0 -- the evidence found is unchanged; only the scan's honesty about
+// what it could not examine changed. See 17.1-01-SUMMARY.md for the human
+// sign-off record (17.1-CONTEXT.md D-01/D-02, already operator-approved
+// before this plan executed).
+const FROZEN_FINGERPRINT = 'ded1020ef13d6aebbcdac5abb7bd9b893cadd0020b0bad761f38e073e7e9dfc0';
 
 function findingCountOf(stdout) {
   const m = stdout.match(/(\d+) FINDING\(S\)/);

@@ -545,6 +545,136 @@ describe('engine — exit precedence end to end', () => {
 });
 
 // ---------------------------------------------------------------------------
+// An unreadable or oversized path makes the scan incomplete (G-1501,
+// G-1512 / TRAV-15, decisions D-01/D-02). `symlink`/`other-device` are
+// DELIBERATELY excluded (Guard 4) -- this is what stops a future agent from
+// "completing the set" and folding all five SKIP_REASONS into `incomplete`.
+// ---------------------------------------------------------------------------
+
+describe('engine — an unreadable or oversized path makes the scan incomplete (G-1501/G-1512, D-01/D-02)', () => {
+  it('Guard 1: a chmod 000 subdirectory holding a real marker -> incomplete, exit 2, zero findings (the marker is invisible)', async (t) => {
+    if (process.platform === 'win32' || !process.getuid || process.getuid() === 0) {
+      t.skip('POSIX permission bits only meaningfully deny access as a non-root, non-Windows user');
+      return;
+    }
+    const home = mkFixture();
+    const subdir = path.join(home, 'locked');
+    write(path.join(subdir, 'Math_Symbol.js'), '/* stub */\n');
+    fs.chmodSync(subdir, 0o000);
+    try {
+      const t2 = new Traversal({ roots: [home], spec: SPEC });
+      const result = await t2.run();
+
+      assert.equal(result.incomplete, true);
+      assert.equal(result.exitCode, 2);
+      assert.ok(result.skips.counts().unreadable >= 1);
+      assert.equal(result.findings.length, 0);
+    } finally {
+      fs.chmodSync(subdir, 0o755);
+    }
+  });
+
+  it('Guard 1 paired control: identical fixture shape, permissions left at 0o755 -> incomplete false, exit 1, the marker IS found', async () => {
+    const home = mkFixture();
+    const subdir = path.join(home, 'unlocked');
+    write(path.join(subdir, 'Math_Symbol.js'), '/* stub */\n');
+    fs.chmodSync(subdir, 0o755);
+
+    const t2 = new Traversal({ roots: [home], spec: SPEC });
+    const result = await t2.run();
+
+    assert.equal(result.incomplete, false);
+    assert.equal(result.exitCode, 1);
+    assert.equal(result.skips.counts().unreadable, 0);
+    assert.equal(findingsOfId(result, 'file-marker').length, 1);
+  });
+
+  it('Guard 2: an fs.promises.open() rejecting EACCES for one file -> incomplete, exit 2, even with ZERO findings', async () => {
+    const home = mkFixture();
+    const target = path.join(home, 'setup.mjs');
+    write(target, 'export const setup = () => {};\n');
+    const realFs = require('fs');
+    const denyingFs = {
+      ...realFs,
+      promises: {
+        ...realFs.promises,
+        open: (p, ...rest) => {
+          if (p === target) {
+            const err = new Error('EACCES: permission denied');
+            err.code = 'EACCES';
+            return Promise.reject(err);
+          }
+          return realFs.promises.open(p, ...rest);
+        },
+      },
+    };
+
+    const t2 = new Traversal({ roots: [home], spec: SPEC, fs: denyingFs });
+    const result = await t2.run();
+
+    assert.equal(result.incomplete, true);
+    assert.equal(result.exitCode, 2);
+    assert.equal(result.findings.filter((f) => f.severity === 'fail').length, 0);
+    assert.equal(result.findings.filter((f) => f.severity === 'warn').length, 0);
+    assert.equal(result.findings.filter((f) => f.severity === 'info').length, 0);
+    assert.equal(result.skips.counts().unreadable, 1);
+  });
+
+  it('Guard 2 paired control: the same fixture with the unwrapped fs -> incomplete false, exit 0', async () => {
+    const home = mkFixture();
+    write(path.join(home, 'setup.mjs'), 'export const setup = () => {};\n');
+
+    const t2 = new Traversal({ roots: [home], spec: SPEC });
+    const result = await t2.run();
+
+    assert.equal(result.incomplete, false);
+    assert.equal(result.exitCode, 0);
+  });
+
+  it('Guard 3 (TRAV-15): a marker-config file AT/OVER bulkReadCapBytes -> incomplete, exit 2, skips.counts().oversized >= 1', async () => {
+    const home = mkFixture();
+    const cap = normalizeOptions({}).bulkReadCapBytes;
+    // .env is a marker-config (targeted-content) member -- benign content
+    // (no marker string, no known pattern) padded past the cap, so the
+    // read-pool's oversized exclusion fires rather than a content match.
+    write(path.join(home, '.env'), `BENIGN=1\n${'#'.repeat(cap)}`);
+
+    const t2 = new Traversal({ roots: [home], spec: SPEC });
+    const result = await t2.run();
+
+    assert.equal(result.incomplete, true);
+    assert.equal(result.exitCode, 2);
+    assert.ok(result.skips.counts().oversized >= 1);
+  });
+
+  it('Guard 3 paired control: the identical fixture with the file just UNDER the cap -> incomplete false, exit 0, skips.counts().oversized === 0', async () => {
+    const home = mkFixture();
+    const cap = normalizeOptions({}).bulkReadCapBytes;
+    write(path.join(home, '.env'), `BENIGN=1\n${'#'.repeat(cap - 200)}`);
+
+    const t2 = new Traversal({ roots: [home], spec: SPEC });
+    const result = await t2.run();
+
+    assert.equal(result.incomplete, false);
+    assert.equal(result.exitCode, 0);
+    assert.equal(result.skips.counts().oversized, 0);
+  });
+
+  it('Guard 4: symlink stays a deliberately NON-propagated skip reason -- incomplete stays false despite a recorded symlink skip', async () => {
+    const home = mkFixture();
+    write(path.join(home, 'real.js'), 'console.log(1);\n');
+    fs.symlinkSync(path.join(home, 'real.js'), path.join(home, 'link.js'));
+
+    const t2 = new Traversal({ roots: [home], spec: SPEC });
+    const result = await t2.run();
+
+    assert.ok(result.skips.counts().symlink >= 1);
+    assert.equal(result.incomplete, false);
+    assert.equal(result.exitCode, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Degradation reporting (D-14) -- retired 2026-08-07.
 // ---------------------------------------------------------------------------
 //

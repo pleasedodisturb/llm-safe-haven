@@ -447,3 +447,53 @@ describe('read-pool — handles are always closed', () => {
     assert.ok(skipped.some((s) => s.r === 'unreadable'));
   });
 });
+
+// ---------------------------------------------------------------------------
+// Unreadable / oversized accounting (G-1501/G-1512, Guard 5) -- pins the
+// `recordSkip()` wrapper contract that tests/traverse/engine.test.js's
+// Guards 2 and 3 depend on: `skips.add()` is called with the right reason
+// AND `stats().skipped` is incremented together, for both an open()-time
+// rejection and an over-cap size.
+// ---------------------------------------------------------------------------
+
+describe('read-pool — unreadable / oversized accounting (G-1501/G-1512)', () => {
+  it('a rejecting open() produces exactly one "unreadable" skip entry AND increments stats().skipped', async () => {
+    const dir = mkFixture();
+    const file = writeFile(dir, 'denied.js', 'x');
+    const realFs = require('fs');
+    const denyingFs = {
+      ...realFs,
+      promises: {
+        ...realFs.promises,
+        open: () => {
+          const err = new Error('EACCES: permission denied');
+          err.code = 'EACCES';
+          return Promise.reject(err);
+        },
+      },
+    };
+    const skips = createSkipInventory();
+    const pool = createReadPool({ fs: denyingFs, skips });
+    pool.submit({ absPath: file, needBulk: true });
+    await pool.drain();
+
+    assert.equal(skips.counts().unreadable, 1);
+    assert.deepEqual(skips.paths('unreadable'), [file]);
+    assert.equal(pool.stats().skipped, 1);
+  });
+
+  it('a file at/over bulkReadCapBytes produces exactly one "oversized" skip entry AND increments stats().skipped', async () => {
+    const dir = mkFixture();
+    const cap = normalizeOptions({}).bulkReadCapBytes;
+    const file = writeFile(dir, 'huge.js', 'x'.repeat(cap));
+    const skips = createSkipInventory();
+    const pool = createReadPool({ skips });
+    pool.submit({ absPath: file, needBulk: true });
+    const [record] = await pool.drain();
+
+    assert.equal(skips.counts().oversized, 1);
+    assert.deepEqual(skips.paths('oversized'), [file]);
+    assert.equal(pool.stats().skipped, 1);
+    assert.equal(record.bulkSkipped, 'oversized-bulk');
+  });
+});

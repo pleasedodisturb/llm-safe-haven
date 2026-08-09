@@ -475,11 +475,22 @@ CASES.push(
     ioc: 'markerStrings (bulk-content size cap, no false positive)',
     build: (h, p) => write(p('Projects/x/huge.js'), 'x'.repeat(BULK_CAP + 40 * 1024) + `\n${MARKER}\n`),
     expect: {
-      status: 0,
+      // 17.1-01 (G-1512, TRAV-15, decision D-02): a marker string past the
+      // bulk-content cap is still never READ (no false positive -- pinned
+      // by findingCount: 0 and the mustNotMatch FAIL guard below,
+      // unchanged), but the scan can no longer claim ALL CLEAR about a file
+      // it never examined. `skips.counts().oversized > 0` now folds into
+      // `incomplete`, so this exits 2 (INCOMPLETE), not 0. This is a
+      // deliberate, operator-approved widening of the exit contract
+      // (17.1-CONTEXT.md decisions D-01/D-02), not a detection-parity
+      // regression -- the evidence found (zero) is identical; only the
+      // scan's own honesty about what it could not examine changed.
+      status: 2,
       findingCount: 0,
       mustNotMatch: [/\[FAIL\]/],
+      mustMatch: [/INCOMPLETE/],
     },
-    note: `Pins the bulk-content size bound (${BULK_CAP} bytes, script's \`-size -256k\`): a marker string past the cap is never read, so it does not FAIL. This is the bound D-24's hash-candidate tier is deliberately EXEMPT from (see manifests/waves/chaindrop-aug2026.json knownBadHashes[0].description) — the marker-string bulk scan and the hash-candidate scan use different caps on purpose.`,
+    note: `Pins the bulk-content size bound (${BULK_CAP} bytes, script's \`-size -256k\`): a marker string past the cap is never read, so it does not FAIL. This is the bound D-24's hash-candidate tier is deliberately EXEMPT from (see manifests/waves/chaindrop-aug2026.json knownBadHashes[0].description) — the marker-string bulk scan and the hash-candidate scan use different caps on purpose. As of 17.1-01 (G-1512/D-02), the skipped-oversized file also makes the scan report INCOMPLETE (exit 2) rather than falsely claiming ALL CLEAR.`,
   },
   {
     id: 'bun-staging',

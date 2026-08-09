@@ -266,17 +266,22 @@ describe('scan-chaindrop-aug2026.sh — non-functional contract', { skip: !hasBa
     assert.match(r.stdout, /Network checks disabled/);
   });
 
-  it('does NOT flag a marker hidden in a file over the 256k size cap (bounded read)', () => {
+  it('does NOT flag a marker hidden in a file over the 256k size cap (bounded read), but reports INCOMPLETE (G-1512/D-02) rather than falsely claiming ALL CLEAR', () => {
     // A marker inside a large data/blob file is intentionally skipped: the
     // whole-tree content read is size-capped so the scan cannot stall on big
     // files. This pins that bound so a regression that removes it is caught.
+    // 17.1-01 (G-1512/TRAV-15, decision D-02, operator-approved): the
+    // skipped-oversized file now folds into `incomplete`, so this exits 2,
+    // not 0 -- the scan never examined this file and must not claim it did.
     const home = newHome(built, (h, p) => {
       const big = 'x'.repeat(300 * 1024) + '\nnpm-cache.com\n';
       write(p('Projects/x/huge.js'), big);
     });
     const r = runScanner(home);
-    assert.equal(r.status, 0, r.stdout);
+    assert.equal(r.status, 2, r.stdout);
     assert.doesNotMatch(r.stdout, /\[FAIL\]/);
+    assert.match(r.stdout, /INCOMPLETE/);
+    assert.match(r.stdout, /\[skip\] oversized: 1/);
   });
 
   it('excludes its own repo (SELF_ROOT) so bundled IOC data does not self-flag', () => {
@@ -339,18 +344,28 @@ describe('scan-chaindrop-aug2026.sh — non-functional contract', { skip: !hasBa
     assert.match(r.stdout, /setup\.mjs matches a known ChainDrop loader hash/);
   });
 
-  it('paired negative: the SAME setup.mjs fixture with the UNMODIFIED bundled spec exits 0 (WARN, not FAIL)', () => {
+  it('paired negative: the SAME setup.mjs fixture with the UNMODIFIED bundled spec never FAILs (WARN only) -- but exits 2 (INCOMPLETE) because the same >256KiB size also trips the oversized bulk-content skip (G-1512/D-02)', () => {
     // Proves the FAIL above is not caused by some unrelated marker in the
     // fixture — only the temporary spec's added hash makes it FAIL.
+    // 17.1-01 (G-1512/TRAV-15, decision D-02, operator-approved): setup.mjs
+    // is BOTH a hash candidate (1 MiB cap, D-24 -- unaffected, still
+    // produces the setup-bare WARN below) AND a marker-config bulk-content
+    // candidate (256 KiB cap) -- this fixture is well past the smaller cap,
+    // so it is also recorded as an `oversized` skip, which now folds into
+    // `incomplete`. The scan is honestly reporting it could not examine
+    // this file for marker strings, even though its hash-based check did
+    // run and found nothing.
     const home = newHome(built, () => {});
     const dir = path.join(home, 'Projects', 'x');
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'setup.mjs'), crypto.randomBytes(400 * 1024));
 
     const r = runScanner(home);
-    assert.equal(r.status, 0, r.stdout);
+    assert.equal(r.status, 2, r.stdout);
     assert.doesNotMatch(r.stdout, /\[FAIL\]/);
     assert.match(r.stdout, /setup\.mjs present with no worm markers/);
+    assert.match(r.stdout, /INCOMPLETE/);
+    assert.match(r.stdout, /\[skip\] oversized: 1/);
   });
 
   it('a marker string in a git-ignored path outside PRUNE_COMMON still FAILs — no gitignore tiering trade-off (2026-08-07 review)', () => {
@@ -404,7 +419,7 @@ describe('scan-chaindrop-aug2026.sh — non-functional contract', { skip: !hasBa
     assert.match(r.stdout, /did not finish, this is NOT a clean result/);
   });
 
-  it('skip counts appear in the report: a symlink and an oversized file produce non-zero named skip-reason lines', () => {
+  it('skip counts appear in the report: a symlink and an oversized file produce non-zero named skip-reason lines -- exits 2 (INCOMPLETE) because the oversized skip folds into incomplete (G-1512/D-02); symlink deliberately does not (D-06/D-12 -- Guard 4 in tests/traverse/engine.test.js pins this directly)', () => {
     const home = newHome(built, (h, p) => {
       const dir = p('Projects/x');
       fs.mkdirSync(dir, { recursive: true });
@@ -413,9 +428,10 @@ describe('scan-chaindrop-aug2026.sh — non-functional contract', { skip: !hasBa
       fs.writeFileSync(path.join(dir, 'huge.js'), 'x'.repeat(300 * 1024));
     });
     const r = runScanner(home);
-    assert.equal(r.status, 0, r.stdout);
+    assert.equal(r.status, 2, r.stdout);
     assert.match(r.stdout, /\[skip\] symlink: \d+/);
     assert.match(r.stdout, /\[skip\] oversized: \d+/);
+    assert.match(r.stdout, /INCOMPLETE/);
   });
 
   it('LSH_BUDGET_SECONDS=0 on a clean tree exits 2, prints the not-clean message, and the retained results dir exists', () => {
