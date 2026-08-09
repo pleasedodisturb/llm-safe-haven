@@ -11,6 +11,8 @@ const os = require('os');
 const path = require('path');
 
 const { createReadPool } = require('../../lib/traverse/read-pool.js');
+const { createBudget } = require('../../lib/traverse/budget.js');
+const { normalizeOptions, createSkipInventory } = require('../../lib/traverse/index.js');
 
 const dirs = [];
 function mkFixture() {
@@ -228,41 +230,135 @@ describe('read-pool — binary bail', () => {
 // Budget cancellation
 // ---------------------------------------------------------------------------
 
-describe('read-pool — budget cancellation', () => {
-  it('a budget exhausted after the 10th record stops opening NEW records; remaining ones are recorded as budget skips', async () => {
-    const dir = mkFixture();
-    let noted = 0;
-    const budget = {
-      exhausted: () => noted >= 10,
-    };
-    const skipped = [];
-    const skips = { add: (reason, absPath) => skipped.push({ reason, absPath }) };
+describe('read-pool — budget cancellation (G-1506: real createBudget(), not a one-member stub)', () => {
+  // The stub this block used to use (`{ exhausted: () => noted >= 10 }`) has
+  // exactly ONE of createBudget()'s ten members. It could never exercise the
+  // interval-cadence recheck this file's `runWorker()` now performs (it
+  // would throw `budget.noteDirectory is not a function` the instant that
+  // code runs) and it advanced its own fake "clock" from a side effect
+  // smuggled into the counting `fs.promises.open` stub, which is a
+  // characterization of the OLD synchronous-latch behaviour, not a
+  // regression guard for the live clock. Every case below drives a REAL
+  // `createBudget()` instead.
+
+  function buildFixture(dir, n, prefix) {
+    const files = [];
+    for (let i = 0; i < n; i += 1) files.push(writeFile(dir, `${prefix}${i}.js`, 'x'));
+    return files;
+  }
+
+  function countingOpenFs() {
     let opens = 0;
     const realFs = require('fs');
-    const countingFs = {
+    const fsImpl = {
       ...realFs,
       promises: {
         ...realFs.promises,
         open: (...args) => {
           opens += 1;
-          noted += 1;
           return realFs.promises.open(...args);
         },
       },
     };
-    const pool = createReadPool({ fs: countingFs, budget, skips, readPool: 1 });
-    for (let i = 0; i < 30; i += 1) {
-      const file = writeFile(dir, `budget${i}.js`, 'x');
-      pool.submit({ absPath: file, needBulk: true });
-    }
+    return { fsImpl, getOpens: () => opens };
+  }
+
+  it('a real createBudget() whose clock crosses budgetSeconds mid-drain of 30 records (readPool: 1) stops opening NEW records; the rest are recorded as budget skips', async () => {
+    const dir = mkFixture();
+    const files = buildFixture(dir, 30, 'cross30-');
+    const { fsImpl, getOpens } = countingOpenFs();
+
+    // `now()` returns 0n for the construction-time `startNs` read (call 1),
+    // then a value past `budgetSeconds * 1000` for every call after that --
+    // which is the FIRST in-drain `noteDirectory()` recheck the pool
+    // performs, at the 16th (READ_POOL_CLOCK_INTERVAL) completed record of
+    // this readPool:1 serial drain. The crossing therefore lands mid-drain
+    // deterministically, not by reading an integer off a failing run.
+    const budgetSeconds = 5;
+    let calls = 0;
+    const now = () => {
+      calls += 1;
+      return calls <= 1 ? 0n : BigInt((budgetSeconds * 1000 + 1000) * 1e6);
+    };
+    const budget = createBudget(normalizeOptions({ budgetSeconds, now }));
+    const skips = createSkipInventory();
+    const pool = createReadPool({ fs: fsImpl, budget, skips, readPool: 1 });
+    for (const file of files) pool.submit({ absPath: file, needBulk: true });
+    const results = await pool.drain();
+
+    const opens = getOpens();
+    assert.equal(results.length, 30);
+    assert.ok(opens > 0 && opens < 30, `opens ${opens} must be strictly between 0 and 30 -- the pool must both do SOME real work and stop before the end`);
+    assert.equal(skips.counts().budget, 30 - opens);
+    assert.equal(results.filter((r) => r.skipped === 'budget').length, 30 - opens);
+    assert.equal(budget.reason(), 'budget');
+  });
+
+  it('paired within-budget control: identical 30-record fixture, ample budget -- zero budget skips, all 30 opened', async () => {
+    const dir = mkFixture();
+    const files = buildFixture(dir, 30, 'cross30ctrl-');
+    const { fsImpl, getOpens } = countingOpenFs();
+
+    const budget = createBudget(normalizeOptions({ budgetSeconds: 3600, now: () => 0n }));
+    const skips = createSkipInventory();
+    const pool = createReadPool({ fs: fsImpl, budget, skips, readPool: 1 });
+    for (const file of files) pool.submit({ absPath: file, needBulk: true });
     const results = await pool.drain();
 
     assert.equal(results.length, 30);
-    assert.equal(opens, 10, 'no additional open() should occur once the budget is exhausted');
-    const budgetSkips = skipped.filter((s) => s.reason === 'budget');
-    assert.equal(budgetSkips.length, 20);
-    const skippedResults = results.filter((r) => r.skipped === 'budget');
-    assert.equal(skippedResults.length, 20);
+    assert.equal(getOpens(), 30);
+    assert.equal(skips.counts().budget, 0);
+    assert.equal(results.filter((r) => r.skipped === 'budget').length, 0);
+    assert.equal(budget.exhausted(), false);
+  });
+
+  it('15-record blind spot (documented limit, not a passing guard): a drain shorter than READ_POOL_CLOCK_INTERVAL (16) never triggers the in-drain recheck, so an over-budget clock is invisible to the pool alone', async () => {
+    const dir = mkFixture();
+    const files = buildFixture(dir, 15, 'short15-');
+    const { fsImpl, getOpens } = countingOpenFs();
+
+    // Over budget from the very first call AFTER construction -- but with
+    // only 15 records and READ_POOL_CLOCK_INTERVAL = 16, `processed %
+    // READ_POOL_CLOCK_INTERVAL === 0` is never true, so `noteDirectory()` is
+    // never called inside this drain at all, and the pre-record
+    // `budget.exhausted()` check only ever reads the flag `noteDirectory()`
+    // would have latched -- which never ran.
+    const budgetSeconds = 5;
+    let calls = 0;
+    const now = () => {
+      calls += 1;
+      return calls <= 1 ? 0n : BigInt((budgetSeconds * 1000 + 1000) * 1e6);
+    };
+    const budget = createBudget(normalizeOptions({ budgetSeconds, now }));
+    const skips = createSkipInventory();
+    const pool = createReadPool({ fs: fsImpl, budget, skips, readPool: 1 });
+    for (const file of files) pool.submit({ absPath: file, needBulk: true });
+    const results = await pool.drain();
+
+    assert.equal(results.length, 15);
+    assert.equal(getOpens(), 15);
+    assert.equal(
+      skips.counts().budget,
+      0,
+      'the read pool ALONE cannot see a budget that expires during a drain shorter than READ_POOL_CLOCK_INTERVAL -- ' +
+        "tests/traverse/engine.test.js's targeted-tier 15-record case (Task 2, decision D-06) is the guard that backstops this via the engine's pre-gate recheck"
+    );
+  });
+
+  it('paired within-budget control for the 15-record case: identical fixture, ample budget -- same observable outcome, proving the 15-record case above is not passing because the pool is inert', async () => {
+    const dir = mkFixture();
+    const files = buildFixture(dir, 15, 'short15ctrl-');
+    const { fsImpl, getOpens } = countingOpenFs();
+
+    const budget = createBudget(normalizeOptions({ budgetSeconds: 3600, now: () => 0n }));
+    const skips = createSkipInventory();
+    const pool = createReadPool({ fs: fsImpl, budget, skips, readPool: 1 });
+    for (const file of files) pool.submit({ absPath: file, needBulk: true });
+    const results = await pool.drain();
+
+    assert.equal(results.length, 15);
+    assert.equal(getOpens(), 15);
+    assert.equal(skips.counts().budget, 0);
   });
 
   it('with NO budget supplied, all records complete without any budget skip (proves the guard is not vacuous)', async () => {
