@@ -7,9 +7,11 @@
 // scripts/scan-chaindrop-aug2026.sh's eight `find` passes with one
 // traversal-engine invocation and MUST keep this file green WITHOUT editing
 // any `expect` value in tests/helpers/chaindrop-corpus.js AND WITHOUT
-// changing EXPECTATION_FINGERPRINT below. If a detection behaviour genuinely
-// has to change, that is a product decision requiring explicit human
-// sign-off recorded in the 17-14 plan summary — not a test edit.
+// changing FROZEN_FINGERPRINT below (computed from
+// computeExpectationFingerprint(), see tests/helpers/chaindrop-corpus.js —
+// TRAV-13/G-1505/D-04). If a detection behaviour genuinely has to change,
+// that is a product decision requiring explicit human sign-off recorded in
+// the 17-14 plan summary — not a test edit.
 //
 // 2026-08-07 REVISION: this file previously carried a
 // KNOWN_TIERING_TRADEOFFS[0] describe block for the ONE pre-approved
@@ -35,30 +37,46 @@
 
 const { describe, it, after } = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { newHome, runScanner, hasBash } = require('./helpers/chaindrop-fixtures.js');
-const { CASES, buildCase, EXPECTATION_FINGERPRINT } = require('./helpers/chaindrop-corpus.js');
+const { newHome, runScanner, hasBash, write } = require('./helpers/chaindrop-fixtures.js');
+const { CASES, buildCase, computeExpectationFingerprint, canonicalCase } = require('./helpers/chaindrop-corpus.js');
+const { hasGit } = require('./helpers/git-fixture.js');
 
 const REPO_ROOT = path.join(__dirname, '..');
 const SPEC_RELATIVE = 'manifests/waves/chaindrop-aug2026.json';
 
 // This constant must be updated in the SAME commit as any expect-value edit
-// in tests/helpers/chaindrop-corpus.js. It is a review aid, not a security
+// in tests/helpers/chaindrop-corpus.js OR any change to what a case's
+// `build`/`tmpSeed` writes to disk. It is a review aid, not a security
 // control: a determined executor can update both, but an accidental or
-// unreviewed expectation drift cannot silently pass a diff.
-// Updated 2026-08-10 in the SAME commit as tests/helpers/chaindrop-corpus.js's
-// `marker-oversized` case change: G-1512/TRAV-15 (17.1-CONTEXT.md decision
-// D-02, operator-approved) folds `skips.counts().oversized > 0` into
-// `incomplete`, so a marker string past the bulk-content size cap now exits
-// 2 (INCOMPLETE) instead of falsely reporting 0 (ALL CLEAR). findingCount
-// stays 0 -- the evidence found is unchanged; only the scan's honesty about
-// what it could not examine changed. See 17.1-01-SUMMARY.md for the human
-// sign-off record (17.1-CONTEXT.md D-01/D-02, already operator-approved
-// before this plan executed).
-const FROZEN_FINGERPRINT = 'ded1020ef13d6aebbcdac5abb7bd9b893cadd0020b0bad761f38e073e7e9dfc0';
+// unreviewed expectation/fixture drift cannot silently pass a diff.
+//
+// Updated 2026-08-10 (TRAV-13/G-1505/D-04, plan 17.1-02): the fingerprint
+// now covers the BUILT FIXTURE TREE (computeExpectationFingerprint(),
+// tests/helpers/chaindrop-corpus.js), not just the five canonicalCase()
+// expectation fields — an earlier `String(c.build)` approach was rejected
+// because it is blind to closure-captured module constants (27 of 40 cases
+// close over one). This value therefore moved even though no `expect` field
+// in the corpus changed. Depends on `hasGit` (tests/helpers/git-fixture.js):
+// the `marker-gitignored-source` case's on-disk tree depends on the `git`
+// binary being present, so both this test and the non-vacuity guard below
+// are skipped when git is unavailable.
+//
+// Previously updated 2026-08-10 in the SAME commit as tests/helpers/
+// chaindrop-corpus.js's `marker-oversized` case change: G-1512/TRAV-15
+// (17.1-CONTEXT.md decision D-02, operator-approved) folds
+// `skips.counts().oversized > 0` into `incomplete`, so a marker string past
+// the bulk-content size cap now exits 2 (INCOMPLETE) instead of falsely
+// reporting 0 (ALL CLEAR). findingCount stays 0 -- the evidence found is
+// unchanged; only the scan's honesty about what it could not examine
+// changed. See 17.1-01-SUMMARY.md for the human sign-off record
+// (17.1-CONTEXT.md D-01/D-02, already operator-approved before this plan
+// executed).
+const FROZEN_FINGERPRINT = '5974f0a169396d8c1b8e5c1dfb71ce7c419eae247f943ad9197474c0d4ea2909';
 
 function findingCountOf(stdout) {
   const m = stdout.match(/(\d+) FINDING\(S\)/);
@@ -85,13 +103,130 @@ describe(
       console.error(`[chaindrop-parity] verdict snapshot written to ${snapshotPath} (for manual before/after diffing during the plan 17-14 retrofit)`);
     });
 
-    it('EXPECTATION_FINGERPRINT matches the frozen constant (tamper-evidence check)', () => {
-      assert.equal(
-        EXPECTATION_FINGERPRINT,
-        FROZEN_FINGERPRINT,
-        'tests/helpers/chaindrop-corpus.js expectations changed without updating FROZEN_FINGERPRINT in this file — if this is an intentional detection-behaviour change, it needs explicit human sign-off, not just a constant edit'
-      );
-    });
+    it(
+      'computeExpectationFingerprint() matches the frozen constant (tamper-evidence check)',
+      { skip: !hasGit ? 'git unavailable — marker-gitignored-source\'s on-disk tree depends on it' : false },
+      () => {
+        assert.equal(
+          computeExpectationFingerprint(),
+          FROZEN_FINGERPRINT,
+          'tests/helpers/chaindrop-corpus.js expectations OR fixtures changed without updating FROZEN_FINGERPRINT in this file — if this is an intentional detection-behaviour change, it needs explicit human sign-off, not just a constant edit'
+        );
+      }
+    );
+
+    // ------------------------------------------------------------------
+    // Non-vacuity guard (TRAV-13 / G-1505 / D-04): proves the fingerprint
+    // actually sees a fixture edit driven by a CLOSED-OVER CONSTANT, not
+    // just a `build` function BODY edit. This is the exact defect (B8) the
+    // rejected `String(c.build)` fix could not detect: 27 of 40 corpus
+    // cases close over ALL_CAPS module constants, and `Function.prototype.
+    // toString()` returns source text, not closure values.
+    //
+    // This guard does NOT mutate the real corpus. It recomputes a
+    // fingerprint locally over a shallow copy of CASES in which exactly one
+    // case's `build` is replaced by a wrapper that calls the ORIGINAL build
+    // and then overwrites the same file with DIFFERENT content — exactly
+    // what editing a closed-over constant (e.g. SAFE_KEYV) would produce on
+    // disk, without touching chaindrop-corpus.js at all. It uses the same
+    // sha256/JSON.stringify(map(...)) shape as computeExpectationFingerprint,
+    // built from the exported `canonicalCase` plus a locally rebuilt fixture
+    // digest (hashTree/fixtureDigest are module-private in chaindrop-corpus.js
+    // by design — this file's own small reimplementation is deliberate, not
+    // an oversight).
+    // ------------------------------------------------------------------
+    it(
+      'non-vacuity: mutating a case fixture via a closed-over-constant-shaped edit changes the fingerprint; an unmutated recomputation matches (TRAV-13 / D-04 guard)',
+      { skip: !hasGit ? 'git unavailable — marker-gitignored-source\'s on-disk tree depends on it' : false },
+      () => {
+        function hashTreeLocal(dir) {
+          const hash = crypto.createHash('sha256');
+          function walk(current) {
+            const entries = fs
+              .readdirSync(current, { withFileTypes: true })
+              .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+            for (const entry of entries) {
+              if (entry.name === '.git') continue;
+              const abs = path.join(current, entry.name);
+              const rel = path.relative(dir, abs).split(path.sep).join('/');
+              if (entry.isSymbolicLink()) {
+                hash.update(`l\0${rel}\0${fs.readlinkSync(abs)}\0`);
+              } else if (entry.isDirectory()) {
+                hash.update(`d\0${rel}\0`);
+                walk(abs);
+              } else {
+                const fileHash = crypto.createHash('sha256').update(fs.readFileSync(abs)).digest('hex');
+                hash.update(`f\0${rel}\0${fileHash}\0`);
+              }
+            }
+          }
+          walk(dir);
+          return hash.digest('hex');
+        }
+
+        function fixtureDigestLocal(c) {
+          const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'corpus-fp-nonvacuity-'));
+          let tmpDir;
+          try {
+            const p = (rel) => path.join(homeDir, rel);
+            c.build(homeDir, p);
+            const homeDigest = hashTreeLocal(homeDir);
+            if (c.tmpSeed) {
+              tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'corpus-fp-nonvacuity-'));
+              c.tmpSeed(tmpDir);
+              return `${homeDigest}:${hashTreeLocal(tmpDir)}`;
+            }
+            return homeDigest;
+          } finally {
+            fs.rmSync(homeDir, { recursive: true, force: true });
+            if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
+          }
+        }
+
+        function recompute(caseList) {
+          return crypto
+            .createHash('sha256')
+            .update(JSON.stringify(caseList.map((c) => ({ ...canonicalCase(c), fixture: fixtureDigestLocal(c) }))))
+            .digest('hex');
+        }
+
+        const unmutatedRecomputation = recompute(CASES);
+        assert.equal(
+          unmutatedRecomputation,
+          computeExpectationFingerprint(),
+          'a faithful local recomputation over the real, unmutated CASES must match computeExpectationFingerprint() exactly — if it does not, this guard\'s own recomputation is broken, not the fingerprint under test'
+        );
+
+        const targetId = 'installed-safe';
+        const target = CASES.find((c) => c.id === targetId);
+        assert.ok(target, `fixture case '${targetId}' must exist for this guard to mean anything`);
+
+        const mutatedCases = CASES.map((c) => {
+          if (c.id !== targetId) return c;
+          return {
+            ...c,
+            build: (h, p) => {
+              // Call the REAL build first (so every OTHER file it writes is
+              // untouched), then overwrite the one file whose content is
+              // driven by the closed-over SAFE_KEYV constant with a
+              // different version string — the exact on-disk effect an edit
+              // to `const SAFE_KEYV = ...;` in chaindrop-corpus.js would
+              // have, without editing that constant or this case's `build`
+              // BODY (source text) at all.
+              c.build(h, p);
+              write(p('Projects/g/node_modules/keyv/package.json'), JSON.stringify({ name: 'keyv', version: '999.999.999' }));
+            },
+          };
+        });
+
+        const mutatedRecomputation = recompute(mutatedCases);
+        assert.notEqual(
+          mutatedRecomputation,
+          computeExpectationFingerprint(),
+          `TRAV-13 / D-04 guard: mutating what case '${targetId}' writes to disk (a closed-over-constant-shaped edit) must change the fingerprint — if it does not, the fingerprint is blind to fixture content and has regressed to the rejected String(c.build) design`
+        );
+      }
+    );
 
     for (const c of CASES) {
       it(`[${c.id}] ${c.ioc}`, () => {

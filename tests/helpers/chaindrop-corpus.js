@@ -51,6 +51,7 @@
 const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs');
+const os = require('os');
 const { write } = require('./chaindrop-fixtures.js');
 const { initRepo } = require('./git-fixture.js');
 
@@ -552,14 +553,48 @@ CASES.push({
 });
 
 // -----------------------------------------------------------------------
-// EXPECTATION_FINGERPRINT — sha256 over a canonical serialisation of every
-// CASES entry's id, expect.status, expect.findingCount, expect.matchCounts,
-// and the .source of every mustMatch/mustNotMatch regex. tests/chaindrop-
+// computeExpectationFingerprint() — sha256 over a canonical serialisation of
+// every CASES entry's id, expect.status, expect.findingCount,
+// expect.matchCounts, the .source of every mustMatch/mustNotMatch regex, AND
+// (TRAV-13/G-1505/D-04) a digest of the FIXTURE TREE that entry's `build`
+// (and, where present, `tmpSeed`) actually WRITES TO DISK. tests/chaindrop-
 // parity.test.js asserts this against a hard-coded constant; editing any
-// expected verdict without updating that constant in the SAME commit makes
-// the tampering conspicuous in review. This is a review aid, not a security
-// control — a determined executor can update both — its purpose is to
-// guarantee an expectation change is never invisible in a diff.
+// expected verdict, OR any fixture that a case writes, without updating that
+// constant in the SAME commit makes the tampering conspicuous in review.
+// This is a review aid, not a security control — a determined executor can
+// update both — its purpose is to guarantee an expectation OR fixture change
+// is never invisible in a diff.
+//
+// WHY THE FIXTURE IS HASHED, NOT THE BUILDER'S SOURCE TEXT (D-04 / B8): a
+// rejected earlier design stringified each case's `build` function directly
+// (i.e. called Function.prototype.toString() on it), which captures SOURCE
+// TEXT, not the closure's captured values. 27 of 40 corpus cases close over
+// ALL_CAPS module constants (e.g. `fn-exact`'s build is
+// `(h, p) => write(p(\`...${FN_MATH_SYMBOL}\`), ...)`) — editing
+// `const FN_MATH_SYMBOL = ...` changes what lands on disk while that
+// stringified source text stays byte-identical. That is the exact
+// reproduction ROADMAP criterion 6 exists to kill, and it survived the
+// source-text-stringification fix. Hashing the BUILT tree instead closes
+// it: a constant edit, a helper edit,
+// a `tmpSeed` edit, and a `build` body edit are all visible, because all of
+// them change what actually lands on disk. This also removes the
+// whitespace-sensitivity caveat source-text hashing would have introduced
+// (reformatting a `build` with the same bytes written no longer moves the
+// fingerprint).
+//
+// `.git` is excluded at any depth, and no file metadata (mtime, mode, size,
+// inode) is hashed. Rationale: git's object store embeds commit hashes and
+// timestamps, so it is not byte-reproducible across runs; the corpus's only
+// git-dependent property is which files are tracked versus ignored, and
+// that is fully captured by the `.gitignore` contents and the file set,
+// both of which ARE hashed. An mtime would make the digest nondeterministic
+// on its own and would train reviewers to expect (and therefore ignore)
+// spurious mismatches — so no metadata beyond entry TYPE is ever hashed.
+//
+// A future agent must NOT resolve a FROZEN_FINGERPRINT mismatch by
+// reflexively regenerating the constant without reading the diff that moved
+// it — the whole point of this fingerprint is to make such a change
+// conspicuous, not to be a rubber stamp.
 // -----------------------------------------------------------------------
 function canonicalCase(c) {
   return {
@@ -572,9 +607,84 @@ function canonicalCase(c) {
   };
 }
 
-const EXPECTATION_FINGERPRINT = crypto
-  .createHash('sha256')
-  .update(JSON.stringify(CASES.map(canonicalCase)))
-  .digest('hex');
+// hashTree(dir) — a deterministic sha256 digest of a directory tree's SHAPE
+// and CONTENT: path names, entry types, file bytes, and symlink targets.
+// Never follows symlinks. Skips any entry named `.git` at any depth (see the
+// rationale above). Hashes no mtime/mode/size/inode — type only.
+function hashTree(dir) {
+  const hash = crypto.createHash('sha256');
 
-module.exports = { CASES, buildCase, EXPECTATION_FINGERPRINT, SPEC_PATH };
+  function walk(current) {
+    const entries = fs
+      .readdirSync(current, { withFileTypes: true })
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    for (const entry of entries) {
+      if (entry.name === '.git') continue;
+      const abs = path.join(current, entry.name);
+      const rel = path.relative(dir, abs).split(path.sep).join('/');
+      if (entry.isSymbolicLink()) {
+        const target = fs.readlinkSync(abs);
+        hash.update(`l\0${rel}\0${target}\0`);
+      } else if (entry.isDirectory()) {
+        // Emit the directory's own record BEFORE recursing, so an EMPTY
+        // directory (e.g. the `bun-staging` case's tmpSeed-created
+        // `bun-dl-abc123`) is visible in the digest even though it has no
+        // file entries of its own.
+        hash.update(`d\0${rel}\0`);
+        walk(abs);
+      } else {
+        const contents = fs.readFileSync(abs);
+        const fileHash = crypto.createHash('sha256').update(contents).digest('hex');
+        hash.update(`f\0${rel}\0${fileHash}\0`);
+      }
+    }
+  }
+
+  walk(dir);
+  return hash.digest('hex');
+}
+
+// fixtureDigest(c) — builds case `c`'s fixture into a throwaway temp HOME
+// (and, if present, a second throwaway temp dir for `tmpSeed`, mirroring the
+// real fixture protocol where tmpSeed seeds the scanner's own TMPDIR rather
+// than HOME), hashes each with hashTree, and always cleans up — even if the
+// builder throws — so a broken case cannot leak fixtures into os.tmpdir().
+function fixtureDigest(c) {
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'corpus-fp-'));
+  let tmpDir;
+  try {
+    buildCase(homeDir, c);
+    const homeDigest = hashTree(homeDir);
+    if (c.tmpSeed) {
+      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'corpus-fp-'));
+      c.tmpSeed(tmpDir);
+      const tmpDigest = hashTree(tmpDir);
+      return `${homeDigest}:${tmpDigest}`;
+    }
+    return homeDigest;
+  } finally {
+    fs.rmSync(homeDir, { recursive: true, force: true });
+    if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+// computeExpectationFingerprint() is memoised: building 40 fixtures (one of
+// which shells out to real `git init`/`git commit` via initRepo) is too
+// expensive to pay at module load, and this file is required by several
+// test files that never touch the fingerprint at all. Lazy + memoised
+// computation does not weaken the guard (decision D-04 leaves this timing
+// choice to the executor's discretion, provided the guard is not weakened)
+// because the parity suite calls it unconditionally, exactly once per
+// process, in its tamper-evidence check.
+let _fingerprintCache = null;
+function computeExpectationFingerprint() {
+  if (_fingerprintCache === null) {
+    _fingerprintCache = crypto
+      .createHash('sha256')
+      .update(JSON.stringify(CASES.map((c) => ({ ...canonicalCase(c), fixture: fixtureDigest(c) }))))
+      .digest('hex');
+  }
+  return _fingerprintCache;
+}
+
+module.exports = { CASES, buildCase, computeExpectationFingerprint, canonicalCase, SPEC_PATH };
