@@ -23,6 +23,8 @@ const path = require('path');
 const crypto = require('crypto');
 
 const { Traversal, traverse, DETECTOR_OWNERSHIP } = require('../../lib/traverse/engine.js');
+const { createBudget } = require('../../lib/traverse/budget.js');
+const { normalizeOptions } = require('../../lib/traverse/index.js');
 const { CASES, buildCase } = require('../helpers/chaindrop-corpus.js');
 const { write } = require('../helpers/chaindrop-fixtures.js');
 
@@ -59,25 +61,95 @@ async function runCorpusCase(id, extraOpts = {}) {
   return t.run();
 }
 
-// A deterministic, injectable clock that survives exactly the SHARED
-// budget's `noteDirectory()` calls made during a single-flat-directory walk
-// (one call for the root itself) plus this file's engine.js phase-boundary
-// recheck (the next call, immediately after phase 1 drains) -- see
-// engine.js's "D-20 phase-boundary recheck" comment. The THIRD call (and
-// every call after) reports a huge elapsed time, latching the shared
-// budget exactly at the phase 1 / phase 2 boundary. Every test that uses
-// this therefore needs a FLAT fixture root (no subdirectories) so the walk
-// itself calls `noteDirectory()` exactly once.
-function phaseBoundaryClock() {
-  let calls = 0;
-  return {
-    now: () => {
-      calls += 1;
-      return calls <= 2 ? 0n : 60_000_000_000n; // 0 while walking, 60s once past the phase boundary
+// A phase-tagged budget harness (G-1506, decision D-05) -- replaces the
+// former count-coupled clock (`calls <= 2 ? 0n : ...`), which five of nine
+// cross-AI reviewers independently flagged: it asserted a call COUNT, which
+// silently retunes the instant a clock read is added or removed anywhere in
+// the engine or the read pool, and it required every caller to use a FLAT
+// fixture root so the walk's own `noteDirectory()` calls stayed at exactly
+// one. This harness arms on a PHASE TRANSITION instead, so it survives any
+// number of clock reads made anywhere before the armed phase is entered --
+// the previous FLAT-fixture requirement is GONE, because arming at
+// `'targeted'`/`'bulk'` happens only after `engine.js`'s `run()` calls
+// `budget.enterTier(armAt)`, which itself happens only after the walk has
+// already finished; no walk-phase clock read can ever trip it.
+//
+// `armAt` names the tier whose `enterTier()` call should arm the injected
+// clock to report far-past-budget from that point on: `'targeted'` arms
+// immediately when the targeted tier begins (used by the mandatory 1/15
+// -record over-budget cases below, which need the latch to land WHILE the
+// targeted tier is current); `'bulk'` (the default) arms only when the bulk
+// tier begins, so the targeted tier finishes normally and the latch lands at
+// the phase-1/phase-2 boundary (used by the pre-existing D-20/D-18 cases).
+function phaseBoundaryClock({ armAt = 'bulk', budgetSeconds = 5 } = {}) {
+  let phase = 'walk';
+  let armed = armAt === 'walk';
+  let latchedDuring = null;
+  const phaseLog = [];
+
+  const now = () => (armed ? 60_000_000_000n : 0n);
+  const real = createBudget(normalizeOptions({ budgetSeconds, now }));
+
+  // Wraps a real clock-reading checkpoint (`noteDirectory`/`noteFile`),
+  // recording the CURRENT phase the first time a call flips the real
+  // budget from not-exhausted to exhausted. First write wins -- a later
+  // checkpoint call in a different phase must never overwrite which phase
+  // actually latched it.
+  function wrapCheckpoint(fnName) {
+    return (...args) => {
+      const before = real.exhausted();
+      const result = real[fnName](...args);
+      if (!before && real.exhausted()) {
+        if (latchedDuring === null) latchedDuring = phase;
+        phaseLog.push(phase);
+      }
+      return result;
+    };
+  }
+
+  const budget = {
+    noteDirectory: wrapCheckpoint('noteDirectory'),
+    noteFile: wrapCheckpoint('noteFile'),
+    noteFiles: (...args) => real.noteFiles(...args),
+    exhausted: (...args) => real.exhausted(...args),
+    reason: (...args) => real.reason(...args),
+    elapsedMs: (...args) => real.elapsedMs(...args),
+    remainingMs: (...args) => real.remainingMs(...args),
+    snapshot: (...args) => real.snapshot(...args),
+    enterTier: (name) => {
+      phase = name;
+      if (name === armAt) armed = true;
+      real.enterTier(name);
     },
-    budgetSeconds: 5,
+    tierComplete: (name) => {
+      phase = `${name}-complete`;
+      real.tierComplete(name);
+    },
+  };
+
+  return {
+    budget,
+    latchedDuring: () => latchedDuring,
+    phaseLog,
   };
 }
+
+// ---------------------------------------------------------------------------
+// phaseBoundaryClock() harness self-check -- a partial budget object is
+// exactly the vacuity this phase exists to remove (T-17.1-01-05).
+// ---------------------------------------------------------------------------
+
+describe('engine.test.js — phaseBoundaryClock() harness self-check', () => {
+  it('returns exactly { budget, latchedDuring, phaseLog }, and budget exposes all ten createBudget() members', () => {
+    const clock = phaseBoundaryClock();
+    assert.deepEqual(Object.keys(clock).sort(), ['budget', 'latchedDuring', 'phaseLog']);
+    for (const k of ['noteDirectory', 'noteFile', 'noteFiles', 'exhausted', 'reason', 'elapsedMs', 'remainingMs', 'snapshot', 'enterTier', 'tierComplete']) {
+      assert.equal(typeof clock.budget[k], 'function', `budget.${k} must be a function`);
+    }
+    assert.equal(clock.latchedDuring(), null, 'a freshly-built clock has not latched yet');
+    assert.deepEqual(clock.phaseLog, []);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Corpus-driven detector coverage -- one it() per corpus case whose
@@ -286,14 +358,15 @@ describe('engine — tier ordering (D-20)', () => {
   it('budget exhausts at the phase boundary -> targeted tier complete (findings survive), bulk tier incomplete', async () => {
     const home = mkFixture();
     write(path.join(home, 'package.json'), JSON.stringify({ name: 'x', scripts: { preinstall: 'node setup.mjs' } }));
-    const { now, budgetSeconds } = phaseBoundaryClock();
-    const t = new Traversal({ roots: [home], spec: SPEC, now, budgetSeconds });
+    const clock = phaseBoundaryClock({ armAt: 'bulk' });
+    const t = new Traversal({ roots: [home], spec: SPEC, budget: clock.budget });
     const result = await t.run();
 
     assert.equal(result.tiers.targeted.complete, true);
     assert.equal(result.tiers.bulk.complete, false);
     assert.equal(result.incomplete, true);
     assert.equal(findingsOfId(result, 'install-marker').length, 1);
+    assert.equal(clock.latchedDuring(), 'bulk', 'the budget must latch while the BULK tier is current -- a latch recorded in any other phase means the engine\'s clock recheck moved relative to the tierComplete gates (defect B1)');
   });
 
   it('paired opposite: with a generous (default) budget, both tiers are complete', async () => {
@@ -305,6 +378,82 @@ describe('engine — tier ordering (D-20)', () => {
     assert.equal(result.tiers.targeted.complete, true);
     assert.equal(result.tiers.bulk.complete, true);
     assert.equal(result.incomplete, false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A targeted drain that runs past the budget reports its OWN tier
+// incomplete (G-1506, decision D-06) -- the mandatory 1-record and
+// 15-record cases the previous version of this plan could not see, because
+// its 30-record test only proved the read pool's OWN in-drain recheck
+// (READ_POOL_CLOCK_INTERVAL = 16), never the engine's pre-gate recheck that
+// backstops a drain BELOW that interval. Both cases here arm the clock at
+// `armAt: 'targeted'`, so the latch must occur while the targeted tier
+// itself is current -- proving the reorder in engine.js's run() (Task 2
+// Part A), not the read pool's own in-drain cadence.
+// ---------------------------------------------------------------------------
+
+describe('engine — a targeted drain that runs past the budget reports its own tier incomplete (G-1506, D-06)', () => {
+  it('1 record, over budget: targeted tier reports incomplete even though the record was fully read', async () => {
+    const home = mkFixture();
+    write(path.join(home, 'package.json'), JSON.stringify({ name: 'x', scripts: { preinstall: 'node setup.mjs' } }));
+    const clock = phaseBoundaryClock({ armAt: 'targeted' });
+    const t = new Traversal({ roots: [home], spec: SPEC, budget: clock.budget });
+    const result = await t.run();
+
+    assert.equal(result.tiers.targeted.complete, false);
+    assert.equal(result.tiers.bulk.complete, false);
+    assert.equal(result.incomplete, true);
+    assert.equal(result.exitCode, 1, 'D-18: a FAIL finding beats incompleteness');
+    assert.equal(findingsOfId(result, 'install-marker').length, 1, 'the single record was read before the latch');
+    assert.equal(clock.latchedDuring(), 'targeted');
+  });
+
+  it('1 record, within budget (paired control): both tiers complete', async () => {
+    const home = mkFixture();
+    write(path.join(home, 'package.json'), JSON.stringify({ name: 'x', scripts: { preinstall: 'node setup.mjs' } }));
+    const t = new Traversal({ roots: [home], spec: SPEC });
+    const result = await t.run();
+
+    assert.equal(result.tiers.targeted.complete, true);
+    assert.equal(result.tiers.bulk.complete, true);
+    assert.equal(result.incomplete, false);
+    assert.equal(result.exitCode, 1);
+    assert.equal(findingsOfId(result, 'install-marker').length, 1);
+  });
+
+  it('15 records, over budget: below READ_POOL_CLOCK_INTERVAL (16) -- the read pool\'s own in-drain recheck fires ZERO times, so this can only pass via the engine\'s pre-gate recheck (Task 2 Part A)', async () => {
+    const home = mkFixture();
+    const pkg = JSON.stringify({ name: 'x', scripts: { preinstall: 'node setup.mjs' } });
+    for (let i = 0; i < 15; i += 1) {
+      write(path.join(home, `d${i}`, 'package.json'), pkg);
+    }
+    const clock = phaseBoundaryClock({ armAt: 'targeted' });
+    const t = new Traversal({ roots: [home], spec: SPEC, budget: clock.budget });
+    const result = await t.run();
+
+    assert.equal(result.tiers.targeted.complete, false);
+    assert.equal(result.tiers.bulk.complete, false);
+    assert.equal(result.incomplete, true);
+    assert.equal(result.exitCode, 1, 'D-18: a FAIL finding beats incompleteness');
+    assert.equal(findingsOfId(result, 'install-marker').length, 15, 'all 15 records were read before the latch -- a lower count would be a separate, missing-findings defect');
+    assert.equal(clock.latchedDuring(), 'targeted');
+  });
+
+  it('15 records, within budget (paired control): both tiers complete, and result.counts.dirsWalked matches the real directory count (proves noteDirectory() calls made by the engine/read-pool never leak into the reported counts)', async () => {
+    const home = mkFixture();
+    const pkg = JSON.stringify({ name: 'x', scripts: { preinstall: 'node setup.mjs' } });
+    for (let i = 0; i < 15; i += 1) {
+      write(path.join(home, `d${i}`, 'package.json'), pkg);
+    }
+    const t = new Traversal({ roots: [home], spec: SPEC });
+    const result = await t.run();
+
+    assert.equal(result.tiers.targeted.complete, true);
+    assert.equal(result.tiers.bulk.complete, true);
+    assert.equal(result.incomplete, false);
+    assert.equal(findingsOfId(result, 'install-marker').length, 15);
+    assert.equal(result.counts.dirsWalked, 16, '15 subdirectories plus the root');
   });
 });
 
@@ -348,24 +497,26 @@ describe('engine — exit precedence end to end', () => {
   it('fail findings AND an exhausted budget -> exitCode 1, incomplete true', async () => {
     const home = mkFixture();
     write(path.join(home, 'Math_Symbol.js'), '/* stub */\n');
-    const { now, budgetSeconds } = phaseBoundaryClock();
-    const t = new Traversal({ roots: [home], spec: SPEC, now, budgetSeconds });
+    const clock = phaseBoundaryClock({ armAt: 'bulk' });
+    const t = new Traversal({ roots: [home], spec: SPEC, budget: clock.budget });
     const result = await t.run();
 
     assert.equal(result.exitCode, 1);
     assert.equal(result.incomplete, true);
     assert.ok(result.findings.some((f) => f.severity === 'fail'));
+    assert.equal(clock.latchedDuring(), 'bulk', 'the budget must latch while the BULK tier is current -- a latch recorded in any other phase means the engine\'s clock recheck moved relative to the tierComplete gates (defect B1)');
   });
 
   it('a clean fixture with an exhausted budget -> exitCode 2, incomplete true', async () => {
     const home = mkFixture();
-    const { now, budgetSeconds } = phaseBoundaryClock();
-    const t = new Traversal({ roots: [home], spec: SPEC, now, budgetSeconds });
+    const clock = phaseBoundaryClock({ armAt: 'bulk' });
+    const t = new Traversal({ roots: [home], spec: SPEC, budget: clock.budget });
     const result = await t.run();
 
     assert.equal(result.findings.length, 0);
     assert.equal(result.incomplete, true);
     assert.equal(result.exitCode, 2);
+    assert.equal(clock.latchedDuring(), 'bulk', 'the budget must latch while the BULK tier is current -- a latch recorded in any other phase means the engine\'s clock recheck moved relative to the tierComplete gates (defect B1)');
   });
 
   it('a clean, complete fixture -> exitCode 0, incomplete false', async () => {
@@ -381,14 +532,15 @@ describe('engine — exit precedence end to end', () => {
   it('a warn-only fixture with an exhausted budget -> exitCode 2 (no fail findings), incomplete true', async () => {
     const home = mkFixture();
     write(path.join(home, 'Math_Helper.js'), 'export const add = (a, b) => a + b;\n');
-    const { now, budgetSeconds } = phaseBoundaryClock();
-    const t = new Traversal({ roots: [home], spec: SPEC, now, budgetSeconds });
+    const clock = phaseBoundaryClock({ armAt: 'bulk' });
+    const t = new Traversal({ roots: [home], spec: SPEC, budget: clock.budget });
     const result = await t.run();
 
     assert.equal(findingsOfId(result, 'payload-variant-warn').length, 1);
     assert.equal(result.findings.filter((f) => f.severity === 'fail').length, 0);
     assert.equal(result.incomplete, true);
     assert.equal(result.exitCode, 2);
+    assert.equal(clock.latchedDuring(), 'bulk', 'the budget must latch while the BULK tier is current -- a latch recorded in any other phase means the engine\'s clock recheck moved relative to the tierComplete gates (defect B1)');
   });
 });
 
