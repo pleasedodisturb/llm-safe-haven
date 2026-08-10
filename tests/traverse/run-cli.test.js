@@ -245,6 +245,91 @@ describe('run.js — budget exhaustion at the process boundary (D-18, D-20)', ()
 });
 
 // ---------------------------------------------------------------------------
+describe('run.js — a configured-but-missing root is surfaced and makes the run incomplete (G-1504, D-03)', () => {
+  it('--roots real:missing -> stderr names the missing path, stdout empty, the real root is still scanned, exit 2 on an otherwise-clean scan', () => {
+    const resultsDir = mkDir('run-cli-results-');
+    const realRoot = mkDir('run-cli-root-');
+    writeFile(path.join(realRoot, 'clean.txt'), 'nothing interesting\n');
+    const missing = path.join(os.tmpdir(), `run-cli-missing-root-${Date.now()}`);
+
+    const res = runCli(['--spec', SPEC_PATH, '--results-dir', resultsDir, '--roots', `${realRoot}:${missing}`]);
+    assert.equal(res.status, 2);
+    assert.equal(res.stdout, '');
+    assert.match(res.stderr, new RegExp(missing.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.ok(readScalar(resultsDir, 'files-walked') >= 1, 'the real root must still have been scanned, not skipped entirely');
+    const envelope = readFindingsJson(resultsDir);
+    assert.equal(envelope.incomplete, true);
+    assert.equal(envelope.exitCode, 2);
+  });
+
+  it('the same missing root supplied via LSH_ROOTS in the environment (not --roots) produces the same warning and the same exit code', () => {
+    const resultsDir = mkDir('run-cli-results-');
+    const realRoot = mkDir('run-cli-root-');
+    writeFile(path.join(realRoot, 'clean.txt'), 'nothing interesting\n');
+    const missing = path.join(os.tmpdir(), `run-cli-missing-root-env-${Date.now()}`);
+
+    const res = runCli(['--spec', SPEC_PATH, '--results-dir', resultsDir], { LSH_ROOTS: `${realRoot}:${missing}` });
+    assert.equal(res.status, 2);
+    assert.equal(res.stdout, '');
+    assert.match(res.stderr, new RegExp(missing.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    const envelope = readFindingsJson(resultsDir);
+    assert.equal(envelope.incomplete, true);
+    assert.equal(envelope.exitCode, 2);
+  });
+
+  it('LSH_ROOTS=/definitely/missing alone (every configured root missing) exits 2, never 0 -- the exact reproduction cross-AI review filed', () => {
+    const resultsDir = mkDir('run-cli-results-');
+    const missing = path.join(os.tmpdir(), `run-cli-all-missing-${Date.now()}`);
+
+    const res = runCli(['--spec', SPEC_PATH, '--results-dir', resultsDir], { LSH_ROOTS: missing });
+    assert.equal(res.status, 2);
+    assert.equal(res.stdout, '');
+    const envelope = readFindingsJson(resultsDir);
+    assert.equal(envelope.incomplete, true);
+    assert.equal(envelope.findings.length, 0);
+    assert.equal(readScalar(resultsDir, 'incomplete'), 1);
+    assert.equal(readScalar(resultsDir, 'exit-code'), 2);
+  });
+
+  it('negative control: the same invocation with every configured root real writes no missing-root line and exits 0 on a clean tree', () => {
+    const resultsDir = mkDir('run-cli-results-');
+    const realRoot = mkDir('run-cli-root-');
+    writeFile(path.join(realRoot, 'clean.txt'), 'nothing interesting\n');
+
+    const res = runCli(['--spec', SPEC_PATH, '--results-dir', resultsDir, '--roots', realRoot]);
+    assert.equal(res.status, 0);
+    assert.equal(res.stdout, '');
+    assert.equal(res.stderr.includes('configured scan root does not exist'), false);
+    assert.equal(readFindingsJson(resultsDir).incomplete, false);
+  });
+
+  it('D-18 precedence survives: a missing configured root PLUS a real FAIL finding in a surviving root still exits 1, not 2', () => {
+    const resultsDir = mkDir('run-cli-results-');
+    const realRoot = mkDir('run-cli-root-');
+    writeFile(path.join(realRoot, 'Math_Symbol.js'), '/* stub */\n');
+    const missing = path.join(os.tmpdir(), `run-cli-missing-root-precedence-${Date.now()}`);
+
+    const res = runCli(['--spec', SPEC_PATH, '--results-dir', resultsDir, '--roots', `${realRoot}:${missing}`]);
+    assert.equal(res.status, 1);
+    assert.equal(res.stdout, '');
+    const envelope = readFindingsJson(resultsDir);
+    assert.equal(envelope.incomplete, true, 'the missing root must still be recorded as incomplete even though findings won the exit code');
+    assert.equal(envelope.findings.length, 1);
+    assert.equal(readScalar(resultsDir, 'incomplete'), 1);
+  });
+
+  it('a duplicated missing root produces exactly ONE stderr line for that path', () => {
+    const resultsDir = mkDir('run-cli-results-');
+    const missing = path.join(os.tmpdir(), `run-cli-dup-missing-${Date.now()}`);
+
+    const res = runCli(['--spec', SPEC_PATH, '--results-dir', resultsDir, '--roots', `${missing}:${missing}`]);
+    assert.equal(res.status, 2);
+    const occurrences = res.stderr.split('\n').filter((line) => line.includes(missing));
+    assert.equal(occurrences.length, 1, `expected exactly one stderr line naming ${missing}, got: ${JSON.stringify(occurrences)}`);
+  });
+});
+
+// ---------------------------------------------------------------------------
 describe('run.js — progress silence when piped (T-17-04b)', () => {
   it('stderr contains no carriage return and no ANSI escape sequence under spawnSync (never a TTY)', () => {
     const resultsDir = mkDir('run-cli-results-');
