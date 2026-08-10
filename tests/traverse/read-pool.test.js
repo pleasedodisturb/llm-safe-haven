@@ -497,3 +497,94 @@ describe('read-pool — unreadable / oversized accounting (G-1501/G-1512)', () =
     assert.equal(record.bulkSkipped, 'oversized-bulk');
   });
 });
+
+// ---------------------------------------------------------------------------
+// A FIFO can never block or be read (G-1503, TRAV-11, D-17.1-D)
+//
+// A writerless FIFO planted where a regular file was classified must be
+// refused in BOUNDED time (never block libuv's threadpool, T-17.1-05-01)
+// and must never have a single byte reach the marker matcher or the SHA256
+// digest (T-17.1-05-03). Both layers -- O_NONBLOCK (the open cannot block)
+// and the post-open file-type gate (the fstat refusal) -- are exercised
+// together here; break-proofs 1 and 2 below prove each is INDEPENDENTLY
+// load-bearing, not merely that one covers for the other.
+// ---------------------------------------------------------------------------
+
+describe('read-pool — a FIFO can never block or be read (G-1503, TRAV-11)', () => {
+  it('a writerless FIFO is refused in bounded time, zero bytes read; paired regular-file control reads normally', { timeout: 5000 }, async (t) => {
+    // Copied verbatim from tests/mcp/base.test.js:57-64 -- the same guard
+    // shape, not re-derived.
+    const { spawnSync } = require('child_process');
+    const dir = mkFixture();
+    const fifoPath = path.join(dir, 'blocking.fifo');
+    const mkfifo = spawnSync('mkfifo', [fifoPath]);
+    if (mkfifo.error || mkfifo.status !== 0) {
+      t.skip('mkfifo not available on this platform');
+      return;
+    }
+
+    // Without this guard, a hypothetical platform with mkfifo but no
+    // O_NONBLOCK would TIME OUT rather than skip -- in an unattended run
+    // that is a five-second stall reported as a failure, not a clean skip.
+    if (!require('fs').constants.O_NONBLOCK) {
+      t.skip('O_NONBLOCK unavailable on this platform');
+      return;
+    }
+
+    // The explicit { timeout: 5000 } above is load-bearing for two
+    // reasons. (1) It is what turns the flag-reverting break-proofs
+    // (recorded in 17.1-05-SUMMARY.md) into an OBSERVABLE FAILURE inside
+    // the child process instead of an indefinite stall: with the flags
+    // reverted, open() on a writerless FIFO blocks forever. (2) It is the
+    // CI signal for research Assumption A2 -- 17.1-VALIDATION.md's
+    // Manual-Only Verifications section asks a human to eyeball the
+    // test-macos CI job log for THIS test the first time it lands: a
+    // near-instant pass corroborates A2 (a writerless FIFO's non-blocking
+    // open does not silently retry), a slow-but-green pass would mean
+    // something is retrying rather than surfacing the condition promptly.
+
+    const skips = createSkipInventory();
+    const pool = createReadPool({ skips });
+    pool.submit({ absPath: fifoPath, needBulk: true, needHash: true });
+    const [record] = await pool.drain();
+
+    assert.equal(record.error, 'not-regular-file');
+    assert.equal(skips.counts().unreadable, 1);
+    assert.equal(skips.counts().symlink, 0);
+    assert.equal(pool.stats().skipped, 1);
+    assert.equal(pool.stats().bytesRead, 0, 'no byte of a FIFO may reach the marker matcher or the digest');
+
+    // Paired control, same describe block: without this, a pool that
+    // refused EVERYTHING would also pass the FIFO case above.
+    const controlFile = writeFile(dir, 'fifo-control.js', 'ordinary content');
+    const controlSkips = createSkipInventory();
+    const controlPool = createReadPool({ skips: controlSkips });
+    controlPool.submit({ absPath: controlFile, needBulk: true, needHash: true });
+    const [controlRecord] = await controlPool.drain();
+
+    assert.equal(controlSkips.total(), 0);
+    assert.equal(controlPool.stats().opened, 1);
+    assert.notEqual(controlRecord.digest, null);
+  });
+
+  // Break-proofs 1 and 2 (D-17.1-F, MANDATORY): run as a CHILD PROCESS
+  // under a parent-enforced spawnSync timeout, never in the foreground of
+  // this test runner -- see 17.1-05-SUMMARY.md for the verbatim recorded
+  // output of both. Reverting the O_NONBLOCK/O_NOFOLLOW flags makes
+  // open() on a writerless FIFO block in the libuv threadpool; node:test's
+  // own { timeout: 5000 } marks that case FAILED but cannot cancel the
+  // pending operation, so only a parent-enforced timeout on a spawned
+  // child process can guarantee this session does not wedge overnight.
+  //
+  // Blind spot of this guard (see also 17.1-05-SUMMARY.md): it proves a
+  // WRITERLESS FIFO is refused in bounded time with zero bytes read. It
+  // does NOT prove anything about sockets or device nodes (no test covers
+  // those; walk.js never emits them and the same file-type gate would
+  // refuse them, but that is reasoning, not evidence). It does not
+  // exercise a FIFO WITH a writer -- deliberately, since the file-type
+  // gate returns before any read and the reviewer claim that this case
+  // hangs was refuted (see the plan's REJECTED-claims list). And the
+  // { timeout: 5000 } bound is a TEST-HARNESS bound, not a product bound:
+  // nothing in the product cancels an in-flight read, a residual already
+  // documented in plan 17.1-01's READ_POOL_CLOCK_INTERVAL comment.
+});
