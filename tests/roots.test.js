@@ -190,6 +190,92 @@ describe('getRoots — symlinked root', () => {
 });
 
 // ---------------------------------------------------------------------------
+// getRoots — onMissingRoot (G-1504)
+// ---------------------------------------------------------------------------
+describe('getRoots — onMissingRoot (G-1504)', () => {
+  let sandboxHome;
+  let realDir;
+
+  afterEach(() => {
+    if (sandboxHome) fs.rmSync(sandboxHome, { recursive: true, force: true });
+    if (realDir) fs.rmSync(realDir, { recursive: true, force: true });
+    sandboxHome = realDir = undefined;
+  });
+
+  it('an LSH_ROOTS entry that does not exist fires onMissingRoot exactly once and is dropped from the result', () => {
+    realDir = mkTmp('roots-missing-real-');
+    const missing = path.join(os.tmpdir(), 'roots-missing-xyz-does-not-exist');
+
+    const calls = [];
+    const roots = getRoots({
+      env: { LSH_ROOTS: `${realDir}:${missing}` },
+      homedir: () => os.tmpdir(),
+      onMissingRoot: (candidate) => calls.push(candidate),
+    });
+
+    assert.deepEqual(roots, [path.resolve(realDir)]);
+    assert.deepEqual(calls, [missing]);
+  });
+
+  it('a default-root-list (probe) miss calls onMissingRoot ZERO times', () => {
+    sandboxHome = mkTmp('roots-missing-probe-');
+    fs.mkdirSync(path.join(sandboxHome, 'Projects'));
+    // Deliberately leave the other five DEFAULT_ROOT_NAMES absent.
+
+    const calls = [];
+    const roots = getRoots({
+      env: {},
+      homedir: () => sandboxHome,
+      onMissingRoot: (candidate) => calls.push(candidate),
+    });
+
+    assert.deepEqual(roots, [path.resolve(sandboxHome, 'Projects')]);
+    assert.deepEqual(calls, [], 'the default probe must never fire onMissingRoot — noise on every ordinary machine');
+  });
+
+  it('getRoots() with NO onMissingRoot supplied behaves byte-identically to today (no throw, same return value)', () => {
+    realDir = mkTmp('roots-missing-noop-');
+    const missing = path.join(os.tmpdir(), 'roots-missing-noop-does-not-exist');
+
+    assert.doesNotThrow(() => {
+      const roots = getRoots({ env: { LSH_ROOTS: `${realDir}:${missing}` }, homedir: () => os.tmpdir() });
+      assert.deepEqual(roots, [path.resolve(realDir)]);
+    });
+  });
+
+  it('an LSH_ROOTS entry that exists but is a FILE, not a directory, also fires onMissingRoot', () => {
+    sandboxHome = mkTmp('roots-missing-file-');
+    const filePath = path.join(sandboxHome, 'not-a-directory.txt');
+    fs.writeFileSync(filePath, 'x');
+
+    const calls = [];
+    const roots = getRoots({
+      env: { LSH_ROOTS: filePath },
+      homedir: () => os.tmpdir(),
+      onMissingRoot: (candidate) => calls.push(candidate),
+    });
+
+    assert.deepEqual(roots, []);
+    assert.deepEqual(calls, [filePath]);
+  });
+
+  it('LSH_ROOTS listing the same missing path twice fires onMissingRoot exactly TWICE — once per occurrence, not per unique path', () => {
+    const missing = path.join(os.tmpdir(), 'roots-missing-dup-does-not-exist');
+
+    const calls = [];
+    const roots = getRoots({
+      env: { LSH_ROOTS: `${missing}:${missing}` },
+      homedir: () => os.tmpdir(),
+      onMissingRoot: (candidate) => calls.push(candidate),
+    });
+
+    assert.deepEqual(roots, []);
+    assert.equal(calls.length, 2, 'the seen dedup only applies to surviving directories — a missing candidate reaches the drop path on every occurrence');
+    assert.deepEqual(calls, [missing, missing]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // FLIPPED 2026-08-07 by plan 17-13 (D-08): lib/scan.js now honours
 // LSH_ROOTS, since scanForEnvFiles() sources its root list from THIS
 // module's getRoots() instead of a hand-synced, LSH_ROOTS-blind SCAN_DIRS
