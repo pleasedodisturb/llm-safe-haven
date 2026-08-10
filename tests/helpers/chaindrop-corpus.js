@@ -763,4 +763,4 @@ function computeExpectationFingerprint() {
   return _fingerprintCache;
 }
 
-module.exports = { CASES, buildCase, computeExpectationFingerprint, canonicalCase, SPEC_PATH };
+module.exports = { CASES, buildCase, computeExpectationFingerprint, canonicalCase, SPEC_PATH, REVIEWED_FILE_MARKER_NAMES };
