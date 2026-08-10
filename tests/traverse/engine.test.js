@@ -22,7 +22,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 
-const { Traversal, traverse, DETECTOR_OWNERSHIP } = require('../../lib/traverse/engine.js');
+const { Traversal, traverse, DETECTOR_OWNERSHIP, countCandidateOversizedSkips, TARGETED_CONTENT_CLASSES } = require('../../lib/traverse/engine.js');
 const { createBudget } = require('../../lib/traverse/budget.js');
 const { normalizeOptions } = require('../../lib/traverse/index.js');
 const { CASES, buildCase } = require('../helpers/chaindrop-corpus.js');
@@ -631,7 +631,7 @@ describe('engine — an unreadable or oversized path makes the scan incomplete (
     assert.equal(result.exitCode, 0);
   });
 
-  it('Guard 3 (TRAV-15): a marker-config file AT/OVER bulkReadCapBytes -> incomplete, exit 2, skips.counts().oversized >= 1', async () => {
+  it('Guard 3 (TRAV-15, D-02a): a marker-config file AT/OVER bulkReadCapBytes -> incomplete, exit 2, skips.counts().oversized >= 1 -- the end-to-end NAMED-CANDIDATE proof (marker-config is a TARGETED_CONTENT_CLASSES member) that G-1512\'s poisoned-oversized-candidate reproduction still forces exit 2 after the D-02a scoping correction', async () => {
     const home = mkFixture();
     const cap = normalizeOptions({}).bulkReadCapBytes;
     // .env is a marker-config (targeted-content) member -- benign content
@@ -671,6 +671,79 @@ describe('engine — an unreadable or oversized path makes the scan incomplete (
     assert.ok(result.skips.counts().symlink >= 1);
     assert.equal(result.incomplete, false);
     assert.equal(result.exitCode, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D-02a (17.1-CONTEXT.md): `oversized` scoped to NAMED CANDIDATES ONLY
+// (correction to plan 17.1-01 Task 3's blanket `skips.counts().oversized >
+// 0` form, driven by a real-tree measurement -- see 17.1-01-SUMMARY.md's
+// "D-02a correction" section for the full account).
+//
+// These are DIRECT unit tests of the exported `countCandidateOversizedSkips`
+// pure function, not end-to-end `Traversal.run()` fixtures, for a structural
+// reason stated here rather than discovered by a future reader the hard
+// way: `classify()` cannot currently produce a `bulk-content`-classified
+// `WalkEvent` at all (2026-08-07 tiering-trade-off reversal --
+// `lib/traverse/classify.js`'s module header), and `isMarkerConfigMember()`
+// was deliberately WIDENED that same day to cover every name/extension
+// `bulk-content` used to allow-list (`*.js`/`*.json`/`*.lock`/`*.yaml`/etc,
+// `manifests/waves/chaindrop-aug2026.json`'s `classes['bulk-content']
+// .fileGlobs`). Consequence, verified empirically against a real
+// ~1M-entry `~/Projects` tree in 17.1-01-SUMMARY.md: EVERY reachable
+// `oversized-bulk` skip site today requires `needTargetedContent`, which
+// requires `marker-config` (or one of the other three) membership --
+// there is currently no real filename/extension that reaches the
+// oversized-bulk read-pool branch without ALSO being a
+// `TARGETED_CONTENT_CLASSES` member. The scoping rule is therefore
+// CORRECT but, given today's `classify.js`, a NO-OP on any real
+// filesystem input that exists right now -- these unit tests prove the
+// scoping LOGIC itself is right and load-bearing, independent of whether
+// any currently-reachable real-world input exercises its negative branch.
+describe('engine — countCandidateOversizedSkips scoping (D-02a correction to G-1512/D-02)', () => {
+  it('a hypothetical bulk-content-only classified oversized-bulk skip (non-candidate class) is NOT counted', () => {
+    // `classify()` can never actually produce `classes: ['bulk-content']`
+    // today (see the describe-block header above) -- this record shape is
+    // exactly what it WOULD look like if a future wave-spec class revived
+    // a genuinely non-targeted bulk tier, which is the scenario this
+    // scoping rule exists to keep excluded.
+    const workMap = new Map([['/fake/generic.dat', { absPath: '/fake/generic.dat', classes: ['bulk-content'], needHash: false }]]);
+    const resultsByPath = new Map([['/fake/generic.dat', { absPath: '/fake/generic.dat', bulkSkipped: 'oversized-bulk', hashSkipped: null }]]);
+    assert.equal(countCandidateOversizedSkips(workMap, resultsByPath), 0);
+  });
+
+  it('each of the four TARGETED_CONTENT_CLASSES individually makes an oversized-bulk skip count as a candidate', () => {
+    assert.deepEqual([...TARGETED_CONTENT_CLASSES].sort(), ['agent-config', 'family-packages', 'marker-config', 'no-prune']);
+    for (const cls of TARGETED_CONTENT_CLASSES) {
+      const absPath = `/fake/${cls}`;
+      const workMap = new Map([[absPath, { absPath, classes: [cls], needHash: false }]]);
+      const resultsByPath = new Map([[absPath, { absPath, bulkSkipped: 'oversized-bulk', hashSkipped: null }]]);
+      assert.equal(countCandidateOversizedSkips(workMap, resultsByPath), 1, `class "${cls}" must count as a named candidate`);
+    }
+  });
+
+  it('an oversized-hash skip counts regardless of TARGETED_CONTENT_CLASSES membership -- needHash alone is a named candidate (G-1512\'s actual reproduction shape)', () => {
+    const workMap = new Map([['/fake/router_runtime.js', { absPath: '/fake/router_runtime.js', classes: ['all-files'], needHash: true }]]);
+    const resultsByPath = new Map([['/fake/router_runtime.js', { absPath: '/fake/router_runtime.js', bulkSkipped: null, hashSkipped: 'oversized-hash' }]]);
+    assert.equal(countCandidateOversizedSkips(workMap, resultsByPath), 1);
+  });
+
+  it('a record with neither bulkSkipped nor hashSkipped set contributes zero, even if its class is a candidate class', () => {
+    const workMap = new Map([['/fake/ok.env', { absPath: '/fake/ok.env', classes: ['marker-config'], needHash: false }]]);
+    const resultsByPath = new Map([['/fake/ok.env', { absPath: '/fake/ok.env', bulkSkipped: null, hashSkipped: null }]]);
+    assert.equal(countCandidateOversizedSkips(workMap, resultsByPath), 0);
+  });
+
+  it('both a candidate bulk skip AND a candidate hash skip on the SAME record count as 2, matching two independent read-pool recordSkip() calls', () => {
+    const workMap = new Map([['/fake/both.js', { absPath: '/fake/both.js', classes: ['marker-config', 'all-files'], needHash: true }]]);
+    const resultsByPath = new Map([['/fake/both.js', { absPath: '/fake/both.js', bulkSkipped: 'oversized-bulk', hashSkipped: 'oversized-hash' }]]);
+    assert.equal(countCandidateOversizedSkips(workMap, resultsByPath), 2);
+  });
+
+  it('a workMap entry absent from resultsByPath (never reached the read pool) is skipped without throwing', () => {
+    const workMap = new Map([['/fake/never-read.js', { absPath: '/fake/never-read.js', classes: ['marker-config'], needHash: false }]]);
+    const resultsByPath = new Map();
+    assert.equal(countCandidateOversizedSkips(workMap, resultsByPath), 0);
   });
 });
 
