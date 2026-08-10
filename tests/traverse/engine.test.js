@@ -918,6 +918,69 @@ describe('engine — results-writer accessors and the traverse() convenience wra
 });
 
 // ---------------------------------------------------------------------------
+// enumerateSync() reports truncation (G-1511, TRAV-14) -- the sibling
+// honesty defect to G-1501/G-1506 (17.1-01), in the read-free enumeration
+// path lib/scan.js's `.env` secret scan is the sole real-tree consumer of.
+// `walkResult.stopped` was computed by walk() and silently discarded by
+// enumerateSync()'s final `return` -- a large tree could exhaust the
+// DEFAULT budget (this path passes none of its own) and `llm-safe-haven
+// scan` would report clean without having examined the whole tree.
+// ---------------------------------------------------------------------------
+
+describe('engine — enumerateSync() reports truncation (G-1511, TRAV-14)', () => {
+  const ENV_FILE_COUNT = 5;
+  const OTHER_FILE_COUNT = 15;
+
+  // A FLAT fixture (all entries direct children of `home`) so `maxFiles`'s
+  // clock-free, per-entry `noteFile()` enforcement latches deterministically
+  // regardless of filesystem readdirSync ordering -- `maxFiles: 3` permits
+  // exactly 3 of the 20 total entries to be emitted, so `byClass` can never
+  // capture more than 3, strictly fewer than the 5 planted `.env` variants,
+  // no matter which 3 entries the filesystem happens to return first.
+  function buildFlatFixture() {
+    const home = mkFixture();
+    for (let i = 0; i < ENV_FILE_COUNT; i++) {
+      write(path.join(home, `.env.variant${i}`), `SECRET_${i}=1\n`);
+    }
+    for (let i = 0; i < OTHER_FILE_COUNT; i++) {
+      write(path.join(home, `noise-${i}.txt`), 'not a secret\n');
+    }
+    return home;
+  }
+
+  it('Guard 1: maxFiles: 3 latches the enumeration -- stopped === true, and byClass captures fewer than the 5 planted .env files', () => {
+    const home = buildFlatFixture();
+    const result = new Traversal({ roots: [home], classes: ['env-secrets'], maxFiles: 3 }).enumerateSync();
+    assert.strictEqual(result.stopped, true, 'a maxFiles: 3 latch over 20 entries must report stopped === true');
+    assert.ok(
+      result.byClass.get('env-secrets').length < ENV_FILE_COUNT,
+      `a truncated enumeration must capture fewer than the ${ENV_FILE_COUNT} planted .env files, got ${result.byClass.get('env-secrets').length}`
+    );
+  });
+
+  it('Guard 2 (paired control): the identical fixture with no maxFiles override -- stopped === false, every planted .env file present', () => {
+    const home = buildFlatFixture();
+    const result = new Traversal({ roots: [home], classes: ['env-secrets'] }).enumerateSync();
+    assert.strictEqual(result.stopped, false, 'an unbounded walk over 20 entries (far under the default 1,000,000-file backstop) must not latch');
+    assert.strictEqual(
+      result.byClass.get('env-secrets').length,
+      ENV_FILE_COUNT,
+      'the complete enumeration must capture every planted .env file -- without this control, Guard 1 would also pass against an enumeration that returns nothing at all'
+    );
+  });
+
+  it('Guard 3: the returned object has exactly the keys [byClass, counts, skips, stopped]', () => {
+    const home = buildFlatFixture();
+    const result = new Traversal({ roots: [home], classes: ['env-secrets'] }).enumerateSync();
+    assert.deepEqual(
+      Object.keys(result).sort(),
+      ['byClass', 'counts', 'skips', 'stopped'],
+      "a future addition to enumerateSync()'s return value must be a deliberate, visible act, not a silent shape drift"
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // DETECTOR_OWNERSHIP coverage (T-17-15) -- driven from the matrix itself so
 // this suite cannot silently drift from it. MUST run last (COVERED_IDS is
 // populated by every `it()` above, in file-registration order).
