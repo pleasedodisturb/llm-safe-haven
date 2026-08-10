@@ -330,6 +330,70 @@ describe('run.js — a configured-but-missing root is surfaced and makes the run
 });
 
 // ---------------------------------------------------------------------------
+// G-1502 / TRAV-10 (D-20): run.js must construct exactly ONE Traversal per
+// invocation. Comments are stripped BEFORE counting so a comment mentioning
+// "new Traversal" (this repo's own module-header prose, and the doc comment
+// this very plan added) cannot make the guard vacuous -- a raw grep on the
+// source text would pass even if a second walk were reintroduced with the
+// old justification comment still attached, which is exactly the failure
+// mode a structural guard exists to catch.
+function stripComments(source) {
+  // Block comments first (non-greedy), then line comments. Good enough for
+  // this file: no string literal in run.js contains "//" or "/*" sequences
+  // that would be misread as a comment start.
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+}
+
+describe('run.js — exactly one traversal per invocation (G-1502, D-20)', () => {
+  it('after stripping comments, run.js contains exactly one "new Traversal(" and zero "enumerateSync(" occurrences', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', '..', 'lib', 'traverse', 'run.js'), 'utf8');
+    const stripped = stripComments(source);
+
+    const traversalCount = (stripped.match(/new Traversal\(/g) || []).length;
+    const enumerateSyncCount = (stripped.match(/enumerateSync\(/g) || []).length;
+
+    assert.equal(
+      traversalCount,
+      1,
+      `G-1502/D-20: run.js must construct exactly ONE Traversal per invocation (found ${traversalCount} after comment-stripping). ` +
+        'A second Traversal/enumerateSync() pass reintroduces two independently-budgeted walks observing two different filesystem ' +
+        'snapshots -- the exact regression that made poisoned keyv@6.0.0 vanish from lists/lockfiles.z, 6/6 attempts. Do not ' +
+        're-add a second walk; source lists/<class>.z from result.byClass instead.'
+    );
+    assert.equal(
+      enumerateSyncCount,
+      0,
+      `G-1502/D-20: run.js must never call enumerateSync() (found ${enumerateSyncCount} after comment-stripping) -- ` +
+        'lists/<class>.z is sourced from the single run() walk\'s result.byClass, not a second read-free pass.'
+    );
+  });
+
+  it('non-vacuity: stripComments() actually removes a "new Traversal(" / "enumerateSync(" mention living inside a comment, proving a raw grep-the-file guard would be meaningless', () => {
+    // A synthetic source snippet shaped like the exact regression this guard
+    // exists to catch: a re-added second pass with its own justification
+    // comment quoting both call shapes. A grep on the RAW text would count 2
+    // "new Traversal(" occurrences (one real, one in the comment) and 1
+    // "enumerateSync(" occurrence purely from the comment -- both wrong.
+    const synthetic = [
+      '// A second pass: new Traversal({ roots, classes: FILE_CLASSES, spec }).enumerateSync()',
+      'const traversal = new Traversal({ roots, spec });',
+      '/* block comment also mentioning new Traversal( and enumerateSync( */',
+    ].join('\n');
+
+    const rawTraversalCount = (synthetic.match(/new Traversal\(/g) || []).length;
+    const rawEnumerateSyncCount = (synthetic.match(/enumerateSync\(/g) || []).length;
+    assert.equal(rawTraversalCount, 3, 'sanity: the synthetic snippet must contain 3 raw "new Traversal(" occurrences (2 in comments, 1 real)');
+    assert.equal(rawEnumerateSyncCount, 2, 'sanity: the synthetic snippet must contain 2 raw "enumerateSync(" occurrences, both in comments');
+
+    const strippedSynthetic = stripComments(synthetic);
+    const strippedTraversalCount = (strippedSynthetic.match(/new Traversal\(/g) || []).length;
+    const strippedEnumerateSyncCount = (strippedSynthetic.match(/enumerateSync\(/g) || []).length;
+    assert.equal(strippedTraversalCount, 1, 'after stripping, only the REAL construction remains');
+    assert.equal(strippedEnumerateSyncCount, 0, 'after stripping, the comment-only enumerateSync( mentions are gone');
+  });
+});
+
+// ---------------------------------------------------------------------------
 describe('run.js — progress silence when piped (T-17-04b)', () => {
   it('stderr contains no carriage return and no ANSI escape sequence under spawnSync (never a TTY)', () => {
     const resultsDir = mkDir('run-cli-results-');
