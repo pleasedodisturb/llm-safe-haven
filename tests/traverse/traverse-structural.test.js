@@ -11,7 +11,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { walk } = require('../../lib/traverse/walk.js');
+const { walk, WALK_ENTRY_CLOCK_INTERVAL } = require('../../lib/traverse/walk.js');
 const { normalizeOptions } = require('../../lib/traverse/index.js');
 const { createBudget } = require('../../lib/traverse/budget.js');
 
@@ -129,7 +129,16 @@ describe('walk.js -- exactly one readdir per directory', () => {
 // ---------------------------------------------------------------------------
 
 describe('walk.js -- budget call cadence', () => {
-  it('noteDirectory is called once per directory and NOT once per file (directory count is strictly less than the file count)', () => {
+  it('noteDirectory is called once per directory, PLUS one interval-cadence recheck per WALK_ENTRY_CLOCK_INTERVAL entries iterated (G-1513, TRAV-16)', () => {
+    // Prior to G-1513, walkDirectory's entry loop never re-read the clock,
+    // so noteDirectoryCalls was expected to equal dirs.length EXACTLY. Now
+    // walkDirectory's entry loop also calls noteDirectory() every
+    // WALK_ENTRY_CLOCK_INTERVAL Dirents iterated, walk-wide (G-1513 /
+    // TRAV-16), so a per-directory-only expectation is no longer the
+    // contract. The expected count is therefore DERIVED from the fixture
+    // and the exported constant, not a bumped integer -- bumping the
+    // literal until it passes was exactly the defect-B1 reasoning
+    // (17.1-CONTEXT.md) this plan is required to avoid.
     const root = mkFixture();
     try {
       const { dirs, files } = buildFixture(root);
@@ -138,8 +147,18 @@ describe('walk.js -- budget call cadence', () => {
 
       walk([root], { budget: countingBudget }, () => {});
 
+      // Every directory is itself an entry of its parent EXCEPT the root
+      // (root[0] is never iterated as a Dirent of anything) -- the same
+      // formula the noteFile cadence test below already uses.
+      const entriesIterated = (dirs.length - 1) + files.length;
+      const expectedNoteDirectoryCalls = dirs.length + Math.floor(entriesIterated / WALK_ENTRY_CLOCK_INTERVAL);
+
       const { noteDirectoryCalls } = countingBudget.counts();
-      assert.equal(noteDirectoryCalls, dirs.length);
+      assert.equal(noteDirectoryCalls, expectedNoteDirectoryCalls);
+      // This fixture is far smaller than WALK_ENTRY_CLOCK_INTERVAL, so the
+      // interval term is 0 -- confirm that explicitly so a future fixture
+      // resize doesn't silently stop exercising the per-directory term.
+      assert.equal(Math.floor(entriesIterated / WALK_ENTRY_CLOCK_INTERVAL), 0, 'fixture sanity: this small tree must not cross the interval');
       assert.ok(dirs.length < files.length, 'fixture sanity: directory count must be smaller than file count');
       assert.ok(noteDirectoryCalls < files.length);
     } finally {
@@ -164,6 +183,116 @@ describe('walk.js -- budget call cadence', () => {
     } finally {
       cleanup(root);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// One flat directory cannot outrun the wall clock (G-1513, TRAV-16)
+// ---------------------------------------------------------------------------
+
+describe('walk.js -- one flat directory cannot outrun the wall clock (G-1513, TRAV-16)', () => {
+  const FLAT_COUNT = WALK_ENTRY_CLOCK_INTERVAL + 100;
+
+  function buildFlatFixture(root, count) {
+    for (let i = 0; i < count; i += 1) writeFile(path.join(root, `f${i}.txt`));
+  }
+
+  it('exhaustion case: an over-budget clock latches and STOPS the walk partway through a single directory larger than the interval', () => {
+    const root = mkFixture();
+    try {
+      buildFlatFixture(root, FLAT_COUNT);
+
+      let nowCalls = 0;
+      const now = () => {
+        nowCalls += 1;
+        // Call 1 is createBudget's own startNs read; call 2 is the root
+        // directory's own per-directory noteDirectory() -- both must see an
+        // unexhausted clock so the walk enters the entry loop at all. Every
+        // call after that sees the budget already blown, so the FIRST
+        // entry-loop interval recheck (at entryScanCount === 512) is the
+        // call that latches.
+        return nowCalls <= 2 ? 0n : 2_000_000_000n;
+      };
+
+      const events = [];
+      const result = walk([root], { now, budgetSeconds: 1 }, (e) => events.push(e));
+
+      assert.equal(result.stopped, true);
+      // Exactly ONE 'budget' skip: the recheck's own `ctx.skips.add(dirPath)`
+      // immediately followed by `break`. If the `break` were missing, the
+      // SAME iteration would fall through to `emitEntry`, whose `noteFile()`
+      // sees the already-latched budget and adds a SECOND 'budget' skip
+      // (this time keyed on the entry's absPath) before the pre-existing
+      // top-of-loop `exhausted()` check catches the next entry -- this is
+      // the assertion break-proof 2 depends on to distinguish "latch" from
+      // "latch AND stop" (a loose `>= 1` cannot tell the two apart, because
+      // noteFile()'s own latch check already prevents any EXTRA entry from
+      // being emitted either way).
+      assert.equal(result.skips.counts().budget, 1);
+      assert.equal(events.length, WALK_ENTRY_CLOCK_INTERVAL - 1, 'entries strictly before the interval boundary must have been emitted; the boundary entry itself must not be');
+      assert.ok(
+        events.length < FLAT_COUNT,
+        `without the entry-loop recheck this single directory would emit all ${FLAT_COUNT} files -- the only other clock read on this fixture is the ONE per-directory noteDirectory() call, which already passed by the time the walk entered the loop`
+      );
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it('PAIRED control: the identical fixture with the real clock and the default budget emits every file with zero budget skips', () => {
+    const root = mkFixture();
+    try {
+      buildFlatFixture(root, FLAT_COUNT);
+
+      const events = [];
+      const result = walk([root], {}, (e) => events.push(e));
+
+      // Without this control, the exhaustion case above would also pass
+      // against a walk that refuses everything regardless of the clock.
+      assert.equal(events.length, FLAT_COUNT);
+      assert.equal(result.skips.counts().budget, 0);
+      assert.equal(result.stopped, false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it('noteFile() stays clock-free: total now() calls equal exactly 1 + dirsWalked + floor(entriesIterated / WALK_ENTRY_CLOCK_INTERVAL)', () => {
+    // The T-17-04-04 guard: if a future change ever moves the clock read
+    // into noteFile(), this count jumps from a handful to roughly the
+    // entry count (612), and this assertion fails loudly.
+    const root = mkFixture();
+    try {
+      buildFlatFixture(root, FLAT_COUNT);
+
+      let nowCalls = 0;
+      const now = () => {
+        nowCalls += 1;
+        return 0n; // never exhausts -- an ample budget, default budgetSeconds
+      };
+
+      const result = walk([root], { now }, () => {});
+
+      const entriesIterated = FLAT_COUNT; // one flat directory, no subdirectories
+      const expectedNowCalls = 1 + result.counts.dirsWalked + Math.floor(entriesIterated / WALK_ENTRY_CLOCK_INTERVAL);
+      assert.equal(nowCalls, expectedNowCalls);
+      assert.equal(result.counts.dirsWalked, 1, 'fixture sanity: exactly one directory (the root itself)');
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it('WALK_ENTRY_CLOCK_INTERVAL stays within its stated worst-case-overrun bound (<= 512)', () => {
+    // The only assertion in this file that does NOT derive from the
+    // constant itself -- it pins the constant's VALUE, not just the
+    // cadence SHAPE, so a future widening of the interval to silence a
+    // slow test cannot pass silently. At a pessimistic 10ms/lstat, 512
+    // entries is ~5.1s, ~8.5% of the default 60s budget; a larger interval
+    // breaks that bound.
+    assert.ok(
+      WALK_ENTRY_CLOCK_INTERVAL <= 512,
+      `WALK_ENTRY_CLOCK_INTERVAL (${WALK_ENTRY_CLOCK_INTERVAL}) exceeds the stated worst-case-overrun bound: at ~10ms/lstat, N entries costs ~N*10ms, and 512*10ms ~= 5.1s (~8.5% of the default 60s budget) is the largest overrun this plan justifies`
+    );
   });
 });
 
@@ -288,4 +417,49 @@ describe('walk.js -- smoke', () => {
 //    to `noteFile()`, just a differently-named call) correctly did NOT fail
 //    the overshoot test -- confirming that per-call batch SIZE (not the
 //    method name) is what the overshoot test actually proves. Restored.
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Break-proofs (G-1513, TRAV-16) -- performed manually during development,
+// confirmed to fail, then reverted; documented here per the same convention
+// as the block above.
+//
+// 3. BREAK-PROOF 1 -- reverted ONLY the `ctx.budget.noteDirectory()` recheck
+//    inside `walkDirectory`'s entry loop (kept the `ctx.entryScanCount += 1`
+//    increment; deleted the surrounding `if (... % WALK_ENTRY_CLOCK_INTERVAL
+//    === 0) { if (!ctx.budget.noteDirectory()) { ...; break; } }` block
+//    entirely). Re-ran `node --test tests/traverse/traverse-structural.test.js`:
+//    9 pass, 2 FAILED (verbatim):
+//      "exhaustion case: ...": AssertionError [ERR_ASSERTION]: Expected
+//        values to be strictly equal: false !== true (on `result.stopped`)
+//      "noteFile() stays clock-free: ...": AssertionError [ERR_ASSERTION]:
+//        Expected values to be strictly equal: 2 !== 3 (on the total now()
+//        call count -- without the recheck, only the startNs read and the
+//        one per-directory noteDirectory() call touch the clock at all, so
+//        the walk's own budget never re-observes the blown clock and emits
+//        every one of the 612 files instead of stopping at 511). Restored.
+// 4. BREAK-PROOF 2 -- reverted ONLY the `break` inside that same recheck
+//    (kept the `ctx.budget.noteDirectory()` call and its `ctx.skips.add(
+//    'budget', dirPath)`, so the budget DOES latch on the interval boundary
+//    but the entry loop does not immediately exit). Re-ran the same command:
+//    10 pass, 1 FAILED (verbatim):
+//      "exhaustion case: ...": AssertionError [ERR_ASSERTION]: Expected
+//        values to be strictly equal: 2 !== 1 (on `result.skips.counts()
+//        .budget`).
+//    Note what this failure IS and is NOT: `events.length` was UNCHANGED
+//    (511 either way) -- `noteFile()`'s own latch check (it returns `false`
+//    the instant `exhaustedReason !== null`, before incrementing anything)
+//    already refuses to emit the boundary entry even when the inner `break`
+//    is missing, and the loop's PRE-EXISTING `if (ctx.budget.exhausted())
+//    break;` at the very top catches the NEXT iteration regardless. The
+//    only observable difference is a SECOND 'budget' skip (the recheck's
+//    own `ctx.skips.add(dirPath)` plus a follow-on one from `emitEntry`'s
+//    `noteFile()` on the same entry, keyed on its absPath) -- proving the
+//    inner `break` is still load-bearing (it is what keeps the skip
+//    inventory accurate to "one skip per latch event"), even though on
+//    this particular flat-file fixture it is not what prevents an
+//    over-emission (that guarantee comes from `noteFile()` and the
+//    pre-existing top-of-loop check, both untouched by this plan). This is
+//    the honest scope of what break-proof 2 proves here, recorded rather
+//    than overclaimed. Restored.
 // ---------------------------------------------------------------------------
