@@ -577,3 +577,102 @@ describe("scan()'s return contract — a truncated .env scan returns { code: 2 }
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// G-1504 / D-03 (17.1-CONTEXT.md): scanForEnvFilesDetailed() must fold a
+// configured-but-missing LSH_ROOTS entry into `incomplete`, mirroring
+// lib/traverse/run.js's own onMissingRoot wiring (found missing here by
+// cross-model review — B3/G-1504). Same fixture-plus-sandbox-HOME pattern
+// as the return-contract describe block above: LSH_ROOTS is pinned so the
+// six real default roots are never touched.
+// ---------------------------------------------------------------------------
+describe("scan()'s return contract — a missing configured LSH_ROOTS entry also returns { code: 2 } with a stderr warning (G-1504, D-03)", () => {
+  const osPath = require.resolve('os');
+  const scanPath = require.resolve('../lib/scan.js');
+
+  let sandboxHome;
+  let fixtureDir;
+  let originalOsEntry;
+  let originalLshRoots;
+
+  beforeEach(() => {
+    sandboxHome = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-missing-root-'));
+    fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-missing-root-existing-'));
+    originalOsEntry = require.cache[osPath];
+    originalLshRoots = process.env.LSH_ROOTS;
+  });
+
+  afterEach(() => {
+    if (originalOsEntry === undefined) delete require.cache[osPath];
+    else require.cache[osPath] = originalOsEntry;
+    delete require.cache[scanPath];
+    if (originalLshRoots === undefined) delete process.env.LSH_ROOTS;
+    else process.env.LSH_ROOTS = originalLshRoots;
+    fs.rmSync(sandboxHome, { recursive: true, force: true });
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
+  });
+
+  it('a missing configured root (LSH_ROOTS) returns { code: 2 } and prints a stderr warning naming the path, never on stdout', async () => {
+    const missingRoot = path.join(fixtureDir, 'definitely-does-not-exist-xyz');
+    process.env.LSH_ROOTS = missingRoot;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+
+    const originalError = console.error;
+    const stderrLines = [];
+    console.error = (msg) => { stderrLines.push(String(msg)); };
+    try {
+      const { logs, result } = await captureLog(() => sandboxedScan({}, {}));
+      assert.deepEqual(result, { code: 2 }, 'a missing configured root must return { code: 2 }, never undefined');
+      assert.ok(
+        stderrLines.some((l) => l.includes('configured scan root does not exist') && l.includes(missingRoot)),
+        `expected a stderr warning naming ${missingRoot}, got: ${stderrLines}`
+      );
+      assert.ok(
+        stderrLines.some((l) => l.includes('did not finish') && l.includes('incomplete')),
+        `expected the incomplete-scan diagnostic on stderr too, got: ${stderrLines}`
+      );
+      assert.ok(
+        !logs.some((l) => l.includes(missingRoot) || l.includes('did not finish')),
+        'neither the missing-root warning nor the incomplete-scan diagnostic must reach stdout'
+      );
+    } finally {
+      console.error = originalError;
+    }
+  });
+
+  it('paired control: LSH_ROOTS pointing at an existing, empty directory returns undefined (implicit exit 0), no missing-root warning', async () => {
+    process.env.LSH_ROOTS = fixtureDir;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+
+    const originalError = console.error;
+    const stderrLines = [];
+    console.error = (msg) => { stderrLines.push(String(msg)); };
+    try {
+      const { result } = await captureLog(() => sandboxedScan({}, {}));
+      assert.strictEqual(result, undefined, 'a fully-present, clean root set must return undefined, exactly as before G-1504');
+      assert.equal(stderrLines.length, 0, 'a fully-present root set must print no missing-root warning and no incomplete diagnostic');
+    } finally {
+      console.error = originalError;
+    }
+  });
+
+  it('a missing root listed twice in LSH_ROOTS prints the stderr warning exactly once (dedup, mirroring run.js)', async () => {
+    const missingRoot = path.join(fixtureDir, 'definitely-does-not-exist-xyz');
+    process.env.LSH_ROOTS = `${missingRoot}:${missingRoot}`;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+
+    const originalError = console.error;
+    const stderrLines = [];
+    console.error = (msg) => { stderrLines.push(String(msg)); };
+    try {
+      await captureLog(() => sandboxedScan({}, {}));
+      const warningLines = stderrLines.filter((l) => l.includes('configured scan root does not exist') && l.includes(missingRoot));
+      assert.equal(warningLines.length, 1, `expected exactly one deduped warning line, got: ${warningLines}`);
+    } finally {
+      console.error = originalError;
+    }
+  });
+});
