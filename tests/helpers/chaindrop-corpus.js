@@ -77,6 +77,31 @@ if (!FN_MATH_SYMBOL || !POISONED_KEYV || !SAFE_KEYV || !SAFE_FLAT_CACHE || !MARK
   throw new Error('tests/helpers/chaindrop-corpus.js: an expected literal is missing from manifests/waves/chaindrop-aug2026.json — corpus and spec have drifted');
 }
 
+// ---- REVIEWED_FILE_MARKER_NAMES (TRAV-13 / G-1505 / D-07) -----------------
+// A DELIBERATELY hand-maintained literal, reviewed by a human. It must NEVER
+// be derived from manifests/waves/chaindrop-aug2026.json's fileMarkers.fail
+// (do not "fix" this by re-deriving it from the spec, even though every
+// other IOC literal in this file IS spec-sourced — see the comment above).
+// It is the independent second source that tests/chaindrop-spec-parity.test.js
+// compares the wave spec against.
+//
+// This REVERSES an earlier version of this plan, which required the
+// per-marker corpus cases below to be generated FROM spec.fileMarkers.fail
+// "not from a re-hardcoded literal array". That instruction is exactly what
+// made the spec-parity drift guard tautological (defect B2): with one
+// source feeding both sides of the comparison, deleting a name (e.g.
+// router_runtime.js) from the spec removed it from BOTH sides and the guard
+// passed. Adding a marker to the spec without adding it here — or here
+// without the spec — is a TEST FAILURE BY DESIGN, not a bug.
+const REVIEWED_FILE_MARKER_NAMES = [
+  'Math_Symbol.js',
+  'math_init.js',
+  'router_runtime.js',
+  'gh-token-monitor.sh',
+  'gh-token-monitor.service',
+  'com.user.gh-token-monitor.plist',
+];
+
 // buildCase(home, caseDef) — writes caseDef's fixture into `home`, exposing
 // the same `p(rel) => path.join(home, rel)` convenience join every other
 // fixture builder in this repo uses (tests/helpers/chaindrop-fixtures.js
@@ -420,8 +445,10 @@ CASES.push(
       status: 0,
       findingCount: 0,
       mustNotMatch: [/\[FAIL\]/],
+      mustMatch: [/\[INFO\] tasks\.json has a folderOpen auto-run task \(review if unexpected\)/],
+      matchCounts: { [/\[INFO\] tasks\.json has a folderOpen auto-run task \(review if unexpected\)/.source]: 1 },
     },
-    note: 'A legitimate dev-server folderOpen task is INFO ("review if unexpected"), never FAIL — the ChainDrop-specific pattern is the FAIL gate, not folderOpen itself.',
+    note: 'TRAV-13/G-1505: A legitimate dev-server folderOpen task is INFO ("review if unexpected"), never FAIL — the ChainDrop-specific pattern is the FAIL gate, not folderOpen itself. This case previously asserted ONLY the absence of [FAIL], which would pass identically if the scanner emitted nothing at all for this fixture (vacuous — proven by break-proof 1 in 17.1-02-SUMMARY.md). It now also pins the literal INFO line the scanner actually emits, captured by running the real scanner against this exact fixture (2026-08-10).',
   },
   {
     id: 'marker-source',
@@ -551,6 +578,55 @@ CASES.push({
   note:
     'Section 6b parity: the old bash scanner never consulted gitignore for its marker-string scan at all, so a marker string in a git-ignored, non-PRUNE_COMMON path FAILs both before AND after the plan 17-14 retrofit -- this is no longer a declared trade-off, it is ordinary parity. The credential-bearing members of section 6b\'s allowlist (.env, .npmrc) were ALREADY exempt from any gitignore consultation via the targeted `marker-config` class before this widening (see the marker-npmrc / marker-env cases above); the widening extends that same targeted-tier treatment to every other allow-listed extension too.',
 });
+
+// -----------------------------------------------------------------------
+// Per-reviewed-marker cases (TRAV-13 / G-1505 / D-07), modelled exactly on
+// the LOCKFILE_FORMATS loop above. Every `spec.fileMarkers.fail` entry gets
+// its OWN independent corpus case, sourced from REVIEWED_FILE_MARKER_NAMES
+// (never from the spec itself — see that const's comment). Each is planted
+// under its own `Projects/marker-<index>/` subdirectory so no two cases
+// collide, and under a plain `Projects/...` path (not inside node_modules)
+// so the basename-only `isAllFilesMember`/file-marker detector fires rather
+// than the staticPaths detector (fn-watcher-local above already covers
+// `.local/bin/gh-token-monitor.sh`'s STATIC path specifically — this loop's
+// gh-token-monitor.* cases are deliberately a DIFFERENT location, proving
+// the basename marker fires anywhere, not just at the known static paths;
+// they are not duplicates of fn-watcher-local/-plist/-systemd).
+//
+// findingCount/mustMatch below were captured by actually running the real
+// scanner against each built fixture (2026-08-10), per the corpus's own
+// premise — not estimated. All six produced exactly one finding (the
+// basename file-marker verdict); none additionally triggered the
+// staticPaths watcher-removal guidance, because none of these six fixtures
+// are planted at a recognised static watcher path.
+//
+// This loop exists so that deleting an entry from
+// manifests/waves/chaindrop-aug2026.json's fileMarkers.fail breaks a
+// corpus-level parity test here, independent of Task 3's spec-parity drift
+// guard — two independent guards, not one.
+//
+// The pre-existing hard-coded `fn-exact` case (Math_Symbol.js inside
+// node_modules/keyv, defined at the top of CASES) is intentionally NOT a
+// duplicate of this loop's `fn-marker-Math_Symbol.js` entry: fn-exact
+// covers the D-25 no-prune-inside-node_modules scope specifically, while
+// this loop covers the generic "any of the six reviewed names, anywhere
+// under a scan root" scope. Do not delete either as redundant.
+for (const [index, name] of REVIEWED_FILE_MARKER_NAMES.entries()) {
+  CASES.push({
+    id: `fn-marker-${name}`,
+    ioc: `fileMarkers.fail:${name}`,
+    build: (h, p) => write(p(`Projects/marker-${index}/${name}`), '/* stub */\n'),
+    expect: {
+      status: 1,
+      findingCount: 1,
+      mustMatch: [new RegExp(`ChainDrop file marker '${name.replace(/\./g, '\\.')}' present`)],
+      matchCounts: {
+        [new RegExp(`\\[FAIL\\].*ChainDrop file marker '${name.replace(/\./g, '\\.')}' present`).source]: 1,
+      },
+    },
+    note: `TRAV-13/G-1505/D-07: independent per-marker case for REVIEWED_FILE_MARKER_NAMES[${index}] ('${name}'). Observed (2026-08-10, real scanner run): status 1, findingCount 1, exactly one [FAIL] line — no additional staticPaths watcher-removal guidance fired for this name at this location. This loop exists so deleting this name from the wave spec breaks a test here, independent of Task 3's bidirectional spec-parity drift guard.`,
+  });
+}
 
 // -----------------------------------------------------------------------
 // computeExpectationFingerprint() — sha256 over a canonical serialisation of

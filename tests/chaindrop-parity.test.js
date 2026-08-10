@@ -55,6 +55,16 @@ const SPEC_RELATIVE = 'manifests/waves/chaindrop-aug2026.json';
 // control: a determined executor can update both, but an accidental or
 // unreviewed expectation/fixture drift cannot silently pass a diff.
 //
+// Updated 2026-08-10 (TRAV-13/G-1505/D-07, plan 17.1-02, Task 2 Part B/C):
+// added six independent `fn-marker-<name>` cases (one per
+// REVIEWED_FILE_MARKER_NAMES entry) and pinned a positive `[INFO]` line
+// assertion on `vscode-task-info` (previously absence-only, and vacuous —
+// see that case's `note`). CASES count: 40 -> 46. This file's total test
+// count (both describe blocks: the CASES-driven detection-parity loop plus
+// its 2 suite-level tests, plus the 4 Q-03 false-positive guards) went
+// 45 -> 52 across this plan's two fingerprint-moving commits (Task 1's +1
+// non-vacuity guard, Task 2's +6 marker cases).
+//
 // Updated 2026-08-10 (TRAV-13/G-1505/D-04, plan 17.1-02): the fingerprint
 // now covers the BUILT FIXTURE TREE (computeExpectationFingerprint(),
 // tests/helpers/chaindrop-corpus.js), not just the five canonicalCase()
@@ -76,7 +86,7 @@ const SPEC_RELATIVE = 'manifests/waves/chaindrop-aug2026.json';
 // changed. See 17.1-01-SUMMARY.md for the human sign-off record
 // (17.1-CONTEXT.md D-01/D-02, already operator-approved before this plan
 // executed).
-const FROZEN_FINGERPRINT = '5974f0a169396d8c1b8e5c1dfb71ce7c419eae247f943ad9197474c0d4ea2909';
+const FROZEN_FINGERPRINT = 'c559c91d34115627f2c92dd29ee105a23514c172bab15f48eee5b78bfdb120a6';
 
 function findingCountOf(stdout) {
   const m = stdout.match(/(\d+) FINDING\(S\)/);
