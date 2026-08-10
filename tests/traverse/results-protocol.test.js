@@ -15,6 +15,7 @@ const path = require('path');
 
 const { RESULTS_SCHEMA_VERSION, writeResults } = require('../../lib/traverse/results.js');
 const { createSkipInventory, SKIP_REASONS, FILE_CLASSES } = require('../../lib/traverse/index.js');
+const { Traversal } = require('../../lib/traverse/engine.js');
 
 const SPEC_PATH = path.join(__dirname, '..', '..', 'manifests', 'waves', 'chaindrop-aug2026.json');
 const REAL_SPEC = JSON.parse(fs.readFileSync(SPEC_PATH, 'utf8'));
@@ -28,6 +29,15 @@ function mkResultsDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'results-protocol-'));
   dirs.push(dir);
   return dir;
+}
+function mkFixtureRoot(prefix) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  dirs.push(dir);
+  return dir;
+}
+function writeFixtureFile(filePath, contents) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, contents);
 }
 after(() => dirs.forEach((d) => fs.rmSync(d, { recursive: true, force: true })));
 
@@ -321,5 +331,110 @@ describe('results.js — FILE_CLASSES / SKIP_REASONS completeness', () => {
     for (const cls of FILE_CLASSES) {
       assert.ok(fs.existsSync(path.join(dir, 'lists', `${cls}.z`)), `lists/${cls}.z missing`);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G-1502 / TRAV-10 -- with run.js no longer sourcing lists/<class>.z from a
+// second, independently-budgeted enumeration pass (plan 17.1-04 Task 2),
+// run()'s own byClass must (a) agree with enumerateSync()'s on a complete
+// scan, and (b) provably diverge as a proper SUBSET, not a coincidental
+// smaller set, when the single shared budget latches mid-walk (decision
+// D-08). Guard 3 alone would only prove plumbing agreement on a fixture too
+// small to latch; Guard 5 is the load-bearing proof the single-walk
+// guarantee actually matters.
+describe('engine.js — run().byClass and enumerateSync().byClass (G-1502, D-08)', () => {
+  it('Guard 3: on a small, non-latching fixture spanning multiple classes, run().byClass and enumerateSync().byClass agree exactly, per class, across all 8 FILE_CLASSES', async () => {
+    const root = mkFixtureRoot('results-protocol-crosscheck-');
+    // Deliberately spans 7 of the 8 FILE_CLASSES (bulk-content can no longer
+    // be assigned by classify() at all -- see classify.js's module header --
+    // so an empty bulk-content bucket on both sides is the correct, non-
+    // vacuous outcome for that one class, not a gap in this fixture).
+    writeFixtureFile(path.join(root, 'Projects', 'a', 'package-lock.json'), JSON.stringify({ lockfileVersion: 3, packages: {} }));
+    writeFixtureFile(path.join(root, 'node_modules', 'keyv', 'package.json'), JSON.stringify({ name: 'keyv', version: '1.0.0' }));
+    writeFixtureFile(path.join(root, '.claude', 'settings.json'), '{}');
+    writeFixtureFile(path.join(root, '.env'), 'BENIGN=1\n');
+    writeFixtureFile(path.join(root, 'Math_Symbol.js'), '/* stub */\n');
+
+    const spec = cloneSpec();
+    const runResult = await new Traversal({ roots: [root], spec }).run();
+    const enumResult = new Traversal({ roots: [root], classes: FILE_CLASSES, spec }).enumerateSync();
+
+    let nonEmptyClasses = 0;
+    for (const cls of FILE_CLASSES) {
+      const runPaths = (runResult.byClass.get(cls) || []).slice().sort();
+      const enumPaths = (enumResult.byClass.get(cls) || []).slice().sort();
+      assert.deepEqual(runPaths, enumPaths, `class "${cls}" disagrees between run().byClass and enumerateSync().byClass`);
+      if (runPaths.length > 0) nonEmptyClasses += 1;
+    }
+    assert.ok(
+      nonEmptyClasses >= 5,
+      `fixture must exercise multiple non-empty classes so this proves real agreement, not vacuous agreement on empties (saw ${nonEmptyClasses} non-empty classes)`
+    );
+    // Sanity: the bare package-lock.json needs zero read-pool work (it is
+    // not a hash candidate and `lockfiles` is in neither
+    // TARGETED_CONTENT_CLASSES nor bulk-content) yet still reached
+    // run().byClass -- the exact class of file the naive fix would have
+    // dropped (Task 3's Guard 1/break-proof 1 below reproduces this at the
+    // process boundary).
+    assert.ok(
+      (runResult.byClass.get('lockfiles') || []).some((p) => p.endsWith(path.join('Projects', 'a', 'package-lock.json'))),
+      'a bare, zero-read-pool-work package-lock.json must reach run().byClass.lockfiles'
+    );
+  });
+
+  it('Guard 5 (D-08): under a maxFiles latch, run().byClass is a STRICT per-class SUBSET of the full enumerateSync().byClass, never equal', async () => {
+    const root = mkFixtureRoot('results-protocol-latch-');
+    const TOTAL_DIRS = 40; // 40 subdirectories x (1 dir-entry + 1 file-entry) = 80 walk entries total
+    for (let i = 0; i < TOTAL_DIRS; i += 1) {
+      writeFixtureFile(path.join(root, `d${i}`, 'package-lock.json'), JSON.stringify({ lockfileVersion: 3, packages: {} }));
+    }
+
+    const spec = cloneSpec();
+    const MAX_FILES = 20; // well below the fixture's 80-entry walk (noteFile() counts both directory AND file entries)
+
+    const runResult = await new Traversal({ roots: [root], spec, maxFiles: MAX_FILES }).run();
+    assert.equal(runResult.incomplete, true, 'the maxFiles bound must actually latch this run -- otherwise this case silently degrades into Guard 3 again (D-08)');
+    assert.equal(runResult.tiers.targeted.complete, false, 'an enumeration-phase latch cuts the targeted tier too (D-20) -- confirms this is NOT a non-latching run');
+
+    const enumResult = new Traversal({ roots: [root], classes: FILE_CLASSES, spec }).enumerateSync();
+
+    let totalRun = 0;
+    let totalEnum = 0;
+    let sawStrictlyFewer = false;
+    for (const cls of FILE_CLASSES) {
+      const runPaths = new Set(runResult.byClass.get(cls) || []);
+      const enumPaths = new Set(enumResult.byClass.get(cls) || []);
+      for (const p of runPaths) {
+        assert.ok(enumPaths.has(p), `class "${cls}": every path in run().byClass must also be in enumerateSync().byClass (subset relation) -- missing ${p}`);
+      }
+      totalRun += runPaths.size;
+      totalEnum += enumPaths.size;
+      if (runPaths.size < enumPaths.size) sawStrictlyFewer = true;
+    }
+    // A plain deep-equality assertion here would be WRONG (see the plan's
+    // own action text) -- this must be a PROPER subset, strictly smaller.
+    assert.ok(
+      totalRun < totalEnum,
+      `total run().byClass count (${totalRun}) must be STRICTLY LESS than the full enumeration's (${totalEnum}) -- a proper subset, not equality`
+    );
+    assert.ok(sawStrictlyFewer, 'at least one FILE_CLASSES member must have strictly fewer entries under run() than under the full enumeration');
+
+    const runLockfiles = new Set(runResult.byClass.get('lockfiles') || []);
+    const enumLockfiles = enumResult.byClass.get('lockfiles') || [];
+    const missing = enumLockfiles.filter((p) => !runLockfiles.has(p));
+    assert.ok(missing.length > 0, 'the missing set (full enumeration minus run()) must be non-empty for the lockfiles class');
+    assert.ok(missing.every((p) => !runLockfiles.has(p)), 'the missing set must be disjoint from run()\'s own paths, by construction of a set difference');
+    assert.equal(enumLockfiles.length, TOTAL_DIRS, `sanity: the full, unbudgeted enumeration must see all ${TOTAL_DIRS} lockfiles`);
+    assert.ok(
+      runLockfiles.size > 0 && runLockfiles.size < TOTAL_DIRS,
+      `sanity: the latched run() must have captured SOME but not ALL lockfiles (captured ${runLockfiles.size} of ${TOTAL_DIRS}) -- proves the fixture is large enough to straddle the latch point`
+    );
+
+    // INTENDED post-G-1502 behaviour, not a defect: one budget now governs
+    // both findings AND lists, so an incomplete scan yields shorter class
+    // lists than the old two-budget arrangement would have produced (which
+    // let the second, unbudgeted pass enumerate further than the findings
+    // pass ever examined). Plan 17.1-06's release note must mention this.
   });
 });

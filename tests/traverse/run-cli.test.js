@@ -63,6 +63,14 @@ function readScalar(resultsDir, name) {
   return Number(fs.readFileSync(path.join(resultsDir, 'scalars', name), 'utf8').trim());
 }
 
+function readNulList(resultsDir, className) {
+  const raw = fs.readFileSync(path.join(resultsDir, 'lists', `${className}.z`), 'utf8');
+  if (raw === '') return [];
+  const parts = raw.split('\0');
+  if (parts[parts.length - 1] === '') parts.pop();
+  return parts;
+}
+
 // ---------------------------------------------------------------------------
 describe('run.js — argv and gate refusals (all exit 2, all print nothing to stdout)', () => {
   it('no arguments -> exit 2, usage printed on stderr, stdout empty', () => {
@@ -326,6 +334,57 @@ describe('run.js — a configured-but-missing root is surfaced and makes the run
     assert.equal(res.status, 2);
     const occurrences = res.stderr.split('\n').filter((line) => line.includes(missing));
     assert.equal(occurrences.length, 1, `expected exactly one stderr line naming ${missing}, got: ${JSON.stringify(occurrences)}`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G-1502 / TRAV-10 -- the reproduction on record: a bare, zero-read-pool-work
+// classified file must reach lists/<class>.z from the SAME single walk that
+// produces findings.json, at the real process boundary (not just inside
+// Traversal.run() directly). This is what the old second, independently-
+// budgeted enumerateSync() pass in run.js could silently disagree with
+// (poisoned keyv@6.0.0 vanished from lists/lockfiles.z, 6/6 attempts), and
+// what a naive "just delete the second walk" fix would ALSO have broken --
+// package-lock.json needs zero read-pool work, so without Task 1's collector
+// it would never have reached workMap and would never have been listed.
+describe('run.js — a classified, read-free file reaches its class list from the single walk (G-1502, TRAV-10)', () => {
+  it('Guard 1: a package-lock.json with a poisoned keyv@6.0.0 entry appears in lists/lockfiles.z', () => {
+    const resultsDir = mkDir('run-cli-results-');
+    const root = mkDir('run-cli-root-');
+    const lockfilePath = path.join(root, 'Projects', 'a', 'package-lock.json');
+    writeFile(lockfilePath, JSON.stringify({ lockfileVersion: 3, packages: { 'node_modules/keyv': { version: '6.0.0' } } }));
+
+    const res = runCli(['--spec', SPEC_PATH, '--results-dir', resultsDir, '--roots', root]);
+    assert.equal(res.stdout, '');
+    const lockfiles = readNulList(resultsDir, 'lockfiles');
+    assert.ok(lockfiles.includes(lockfilePath), `lists/lockfiles.z must contain ${lockfilePath}; got ${JSON.stringify(lockfiles)}`);
+  });
+
+  it('Guard 2: the same fixture with a SAFE keyv version is still listed -- list membership is classification, not detection', () => {
+    const resultsDir = mkDir('run-cli-results-');
+    const root = mkDir('run-cli-root-');
+    const lockfilePath = path.join(root, 'Projects', 'a', 'package-lock.json');
+    writeFile(lockfilePath, JSON.stringify({ lockfileVersion: 3, packages: { 'node_modules/keyv': { version: '5.6.0' } } }));
+
+    const res = runCli(['--spec', SPEC_PATH, '--results-dir', resultsDir, '--roots', root]);
+    assert.equal(res.status, 0, 'a safe version must produce no finding');
+    const lockfiles = readNulList(resultsDir, 'lockfiles');
+    assert.ok(lockfiles.includes(lockfilePath), `lists/lockfiles.z must contain ${lockfilePath} regardless of whether the version is poisoned; got ${JSON.stringify(lockfiles)}`);
+  });
+
+  it('Guard 4: an installed compromised-family package.json appears in lists/family-packages.z -- universal collector, universal proof', () => {
+    const resultsDir = mkDir('run-cli-results-');
+    const root = mkDir('run-cli-root-');
+    const familyPkgPath = path.join(root, 'node_modules', 'keyv', 'package.json');
+    writeFile(familyPkgPath, JSON.stringify({ name: 'keyv', version: '1.0.0' }));
+
+    const res = runCli(['--spec', SPEC_PATH, '--results-dir', resultsDir, '--roots', root]);
+    assert.equal(res.status, 0, 'a non-poisoned installed version must produce no finding');
+    const familyPackages = readNulList(resultsDir, 'family-packages');
+    assert.ok(
+      familyPackages.includes(familyPkgPath),
+      `lists/family-packages.z must contain ${familyPkgPath}; got ${JSON.stringify(familyPackages)}`
+    );
   });
 });
 
