@@ -76,17 +76,27 @@ const SPEC_RELATIVE = 'manifests/waves/chaindrop-aug2026.json';
 // binary being present, so both this test and the non-vacuity guard below
 // are skipped when git is unavailable.
 //
+// Updated again 2026-08-10 (G-1512/D-02b, follow-on to plan 17.1-01 Task 3
+// and its D-02a correction) in the SAME commit as tests/helpers/
+// chaindrop-corpus.js's `marker-oversized` case change: D-02b (17.1-CONTEXT.md,
+// FINAL, operator-approved) retires BOTH the blanket D-02 form and the
+// D-02a candidate-scoping correction -- `oversized` is now classified a
+// SCOPE reason and no longer folds into `incomplete` under any rule, so a
+// marker string past the bulk-content size cap reverts to exit 0 (its
+// pre-17.1-01 value), not 2. findingCount stays 0 -- the evidence found is
+// unchanged; only whether the scan's own honest disclosure of a routine
+// size boundary also flips the exit code changed (it no longer does). See
+// 17.1-01-SUMMARY.md's "D-02b" section for the full account, including why
+// G-1512's underlying premise was disproved by test.
+//
 // Previously updated 2026-08-10 in the SAME commit as tests/helpers/
 // chaindrop-corpus.js's `marker-oversized` case change: G-1512/TRAV-15
-// (17.1-CONTEXT.md decision D-02, operator-approved) folds
+// (17.1-CONTEXT.md decision D-02, operator-approved) folded
 // `skips.counts().oversized > 0` into `incomplete`, so a marker string past
-// the bulk-content size cap now exits 2 (INCOMPLETE) instead of falsely
-// reporting 0 (ALL CLEAR). findingCount stays 0 -- the evidence found is
-// unchanged; only the scan's honesty about what it could not examine
-// changed. See 17.1-01-SUMMARY.md for the human sign-off record
-// (17.1-CONTEXT.md D-01/D-02, already operator-approved before this plan
-// executed).
-const FROZEN_FINGERPRINT = 'c559c91d34115627f2c92dd29ee105a23514c172bab15f48eee5b78bfdb120a6';
+// the bulk-content size cap exited 2 (INCOMPLETE) instead of 0 (ALL CLEAR)
+// for a time. See 17.1-01-SUMMARY.md for the original human sign-off
+// record (17.1-CONTEXT.md D-01/D-02) -- now superseded by D-02b above.
+const FROZEN_FINGERPRINT = '53693506d8087064ca4eb51f613cc98de163b96de1f46e6a8ddc463127caa628';
 
 function findingCountOf(stdout) {
   const m = stdout.match(/(\d+) FINDING\(S\)/);

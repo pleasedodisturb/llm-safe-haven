@@ -22,9 +22,9 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 
-const { Traversal, traverse, DETECTOR_OWNERSHIP, countCandidateOversizedSkips, TARGETED_CONTENT_CLASSES } = require('../../lib/traverse/engine.js');
+const { Traversal, traverse, DETECTOR_OWNERSHIP, TARGETED_CONTENT_CLASSES, ANOMALY_SKIP_REASONS, SCOPE_SKIP_REASONS } = require('../../lib/traverse/engine.js');
 const { createBudget } = require('../../lib/traverse/budget.js');
-const { normalizeOptions } = require('../../lib/traverse/index.js');
+const { normalizeOptions, SKIP_REASONS } = require('../../lib/traverse/index.js');
 const { CASES, buildCase } = require('../helpers/chaindrop-corpus.js');
 const { write } = require('../helpers/chaindrop-fixtures.js');
 
@@ -545,13 +545,20 @@ describe('engine — exit precedence end to end', () => {
 });
 
 // ---------------------------------------------------------------------------
-// An unreadable or oversized path makes the scan incomplete (G-1501,
-// G-1512 / TRAV-15, decisions D-01/D-02). `symlink`/`other-device` are
-// DELIBERATELY excluded (Guard 4) -- this is what stops a future agent from
-// "completing the set" and folding all five SKIP_REASONS into `incomplete`.
+// ANOMALY reasons (unreadable, budget) make the scan incomplete; SCOPE
+// reasons (oversized, symlink, other-device) never do (G-1501/G-1512,
+// TRAV-15, decision D-02b -- FINAL, 17.1-CONTEXT.md). `oversized` moved
+// buckets in this decision -- it used to feed `incomplete` (D-02's blanket
+// form, then D-02a's candidate-scoped form, both plan 17.1-01) and no
+// longer does under any rule; Guard 3 below pins that directly. `symlink`/
+// `other-device` were ALREADY excluded and stay excluded -- this is what
+// stops a future agent from "completing the set" and folding all five
+// SKIP_REASONS into `incomplete`. The SKIP_REASONS ANOMALY/SCOPE partition
+// test further down in this file is what makes a SIXTH, unclassified skip
+// reason fail loudly instead of silently doing nothing.
 // ---------------------------------------------------------------------------
 
-describe('engine — an unreadable or oversized path makes the scan incomplete (G-1501/G-1512, D-01/D-02)', () => {
+describe('engine — ANOMALY skip reasons (unreadable, budget) make the scan incomplete; SCOPE reasons (oversized, symlink, other-device) never do (G-1501/G-1512, D-02b)', () => {
   it('Guard 1: a chmod 000 subdirectory holding a real marker -> incomplete, exit 2, zero findings (the marker is invisible)', async (t) => {
     if (process.platform === 'win32' || !process.getuid || process.getuid() === 0) {
       t.skip('POSIX permission bits only meaningfully deny access as a non-root, non-Windows user');
@@ -631,7 +638,7 @@ describe('engine — an unreadable or oversized path makes the scan incomplete (
     assert.equal(result.exitCode, 0);
   });
 
-  it('Guard 3 (TRAV-15, D-02a): a marker-config file AT/OVER bulkReadCapBytes -> incomplete, exit 2, skips.counts().oversized >= 1 -- the end-to-end NAMED-CANDIDATE proof (marker-config is a TARGETED_CONTENT_CLASSES member) that G-1512\'s poisoned-oversized-candidate reproduction still forces exit 2 after the D-02a scoping correction', async () => {
+  it('Guard 3 (TRAV-15, D-02b -- FINAL): a marker-config file AT/OVER bulkReadCapBytes still records the oversized skip, but incomplete stays FALSE and exit stays 0 -- oversized is a disclosed SCOPE boundary, not an ANOMALY, superseding the exit-2 behaviour the D-02 blanket form and D-02a candidate-scoping correction both had', async () => {
     const home = mkFixture();
     const cap = normalizeOptions({}).bulkReadCapBytes;
     // .env is a marker-config (targeted-content) member -- benign content
@@ -642,8 +649,8 @@ describe('engine — an unreadable or oversized path makes the scan incomplete (
     const t2 = new Traversal({ roots: [home], spec: SPEC });
     const result = await t2.run();
 
-    assert.equal(result.incomplete, true);
-    assert.equal(result.exitCode, 2);
+    assert.equal(result.incomplete, false);
+    assert.equal(result.exitCode, 0);
     assert.ok(result.skips.counts().oversized >= 1);
   });
 
@@ -675,75 +682,111 @@ describe('engine — an unreadable or oversized path makes the scan incomplete (
 });
 
 // ---------------------------------------------------------------------------
-// D-02a (17.1-CONTEXT.md): `oversized` scoped to NAMED CANDIDATES ONLY
-// (correction to plan 17.1-01 Task 3's blanket `skips.counts().oversized >
-// 0` form, driven by a real-tree measurement -- see 17.1-01-SUMMARY.md's
-// "D-02a correction" section for the full account).
+// SKIP_REASONS ANOMALY/SCOPE partition (D-02b -- FINAL, 17.1-CONTEXT.md,
+// G-1512). This test IS the point of the D-02b change: it is what stops
+// the "does `oversized` feed `incomplete`?" question from being
+// re-litigated a third time (it was: the blanket D-02 form, then the
+// D-02a candidate-scoping correction, both plan 17.1-01, both now
+// superseded and removed -- see 17.1-01-SUMMARY.md's "D-02a Correction"
+// and "D-02b" sections for the full history).
 //
-// These are DIRECT unit tests of the exported `countCandidateOversizedSkips`
-// pure function, not end-to-end `Traversal.run()` fixtures, for a structural
-// reason stated here rather than discovered by a future reader the hard
-// way: `classify()` cannot currently produce a `bulk-content`-classified
-// `WalkEvent` at all (2026-08-07 tiering-trade-off reversal --
-// `lib/traverse/classify.js`'s module header), and `isMarkerConfigMember()`
-// was deliberately WIDENED that same day to cover every name/extension
-// `bulk-content` used to allow-list (`*.js`/`*.json`/`*.lock`/`*.yaml`/etc,
-// `manifests/waves/chaindrop-aug2026.json`'s `classes['bulk-content']
-// .fileGlobs`). Consequence, verified empirically against a real
-// ~1M-entry `~/Projects` tree in 17.1-01-SUMMARY.md: EVERY reachable
-// `oversized-bulk` skip site today requires `needTargetedContent`, which
-// requires `marker-config` (or one of the other three) membership --
-// there is currently no real filename/extension that reaches the
-// oversized-bulk read-pool branch without ALSO being a
-// `TARGETED_CONTENT_CLASSES` member. The scoping rule is therefore
-// CORRECT but, given today's `classify.js`, a NO-OP on any real
-// filesystem input that exists right now -- these unit tests prove the
-// scoping LOGIC itself is right and load-bearing, independent of whether
-// any currently-reachable real-world input exercises its negative branch.
-describe('engine — countCandidateOversizedSkips scoping (D-02a correction to G-1512/D-02)', () => {
-  it('a hypothetical bulk-content-only classified oversized-bulk skip (non-candidate class) is NOT counted', () => {
-    // `classify()` can never actually produce `classes: ['bulk-content']`
-    // today (see the describe-block header above) -- this record shape is
-    // exactly what it WOULD look like if a future wave-spec class revived
-    // a genuinely non-targeted bulk tier, which is the scenario this
-    // scoping rule exists to keep excluded.
-    const workMap = new Map([['/fake/generic.dat', { absPath: '/fake/generic.dat', classes: ['bulk-content'], needHash: false }]]);
-    const resultsByPath = new Map([['/fake/generic.dat', { absPath: '/fake/generic.dat', bulkSkipped: 'oversized-bulk', hashSkipped: null }]]);
-    assert.equal(countCandidateOversizedSkips(workMap, resultsByPath), 0);
-  });
-
-  it('each of the four TARGETED_CONTENT_CLASSES individually makes an oversized-bulk skip count as a candidate', () => {
-    assert.deepEqual([...TARGETED_CONTENT_CLASSES].sort(), ['agent-config', 'family-packages', 'marker-config', 'no-prune']);
-    for (const cls of TARGETED_CONTENT_CLASSES) {
-      const absPath = `/fake/${cls}`;
-      const workMap = new Map([[absPath, { absPath, classes: [cls], needHash: false }]]);
-      const resultsByPath = new Map([[absPath, { absPath, bulkSkipped: 'oversized-bulk', hashSkipped: null }]]);
-      assert.equal(countCandidateOversizedSkips(workMap, resultsByPath), 1, `class "${cls}" must count as a named candidate`);
+// Structural guarantee asserted below: every member of `SKIP_REASONS`
+// belongs to EXACTLY ONE of `ANOMALY_SKIP_REASONS` / `SCOPE_SKIP_REASONS`
+// -- no reason omitted, none in both. A future agent adding a sixth skip
+// reason to `lib/traverse/index.js`'s `SKIP_REASONS` array without also
+// classifying it in `lib/traverse/engine.js` fails THIS test, with a
+// message naming exactly which reason is unclassified, rather than
+// silently leaving the new reason's effect on `incomplete` ambiguous.
+// ---------------------------------------------------------------------------
+describe('engine — SKIP_REASONS ANOMALY/SCOPE partition (D-02b -- FINAL, supersedes D-02/D-02a)', () => {
+  it('every SKIP_REASONS member belongs to EXACTLY ONE of ANOMALY_SKIP_REASONS / SCOPE_SKIP_REASONS', () => {
+    for (const reason of SKIP_REASONS) {
+      const inAnomaly = ANOMALY_SKIP_REASONS.has(reason);
+      const inScope = SCOPE_SKIP_REASONS.has(reason);
+      assert.ok(
+        inAnomaly || inScope,
+        `SKIP_REASONS member "${reason}" is not classified into ANOMALY_SKIP_REASONS or ` +
+          'SCOPE_SKIP_REASONS -- D-02b (17.1-CONTEXT.md) requires every skip reason be explicitly ' +
+          'classified before it can affect (ANOMALY) or be excluded from (SCOPE) `incomplete`. Add ' +
+          'it to one of the two sets in lib/traverse/engine.js.'
+      );
+      assert.ok(
+        !(inAnomaly && inScope),
+        `SKIP_REASONS member "${reason}" is classified into BOTH ANOMALY_SKIP_REASONS and ` +
+          'SCOPE_SKIP_REASONS -- a skip reason must mean exactly one of "I tried to look and could ' +
+          'not" (ANOMALY) or "I deliberately did not look there" (SCOPE), never both.'
+      );
     }
   });
 
-  it('an oversized-hash skip counts regardless of TARGETED_CONTENT_CLASSES membership -- needHash alone is a named candidate (G-1512\'s actual reproduction shape)', () => {
-    const workMap = new Map([['/fake/router_runtime.js', { absPath: '/fake/router_runtime.js', classes: ['all-files'], needHash: true }]]);
-    const resultsByPath = new Map([['/fake/router_runtime.js', { absPath: '/fake/router_runtime.js', bulkSkipped: null, hashSkipped: 'oversized-hash' }]]);
-    assert.equal(countCandidateOversizedSkips(workMap, resultsByPath), 1);
+  it('ANOMALY_SKIP_REASONS and SCOPE_SKIP_REASONS contain no stale entries outside SKIP_REASONS, and their sizes sum to SKIP_REASONS.length', () => {
+    const reasonSet = new Set(SKIP_REASONS);
+    for (const r of ANOMALY_SKIP_REASONS) {
+      assert.ok(reasonSet.has(r), `ANOMALY_SKIP_REASONS has stale entry "${r}" no longer present in SKIP_REASONS`);
+    }
+    for (const r of SCOPE_SKIP_REASONS) {
+      assert.ok(reasonSet.has(r), `SCOPE_SKIP_REASONS has stale entry "${r}" no longer present in SKIP_REASONS`);
+    }
+    assert.equal(
+      ANOMALY_SKIP_REASONS.size + SCOPE_SKIP_REASONS.size,
+      SKIP_REASONS.length,
+      'ANOMALY_SKIP_REASONS.size + SCOPE_SKIP_REASONS.size must equal SKIP_REASONS.length -- a ' +
+        'mismatch combined with the previous two assertions passing would mean an impossible state ' +
+        '(duplicate membership within one set); this is a belt-and-suspenders arithmetic check'
+    );
   });
 
-  it('a record with neither bulkSkipped nor hashSkipped set contributes zero, even if its class is a candidate class', () => {
-    const workMap = new Map([['/fake/ok.env', { absPath: '/fake/ok.env', classes: ['marker-config'], needHash: false }]]);
-    const resultsByPath = new Map([['/fake/ok.env', { absPath: '/fake/ok.env', bulkSkipped: null, hashSkipped: null }]]);
-    assert.equal(countCandidateOversizedSkips(workMap, resultsByPath), 0);
+  it('today\'s concrete classification matches D-02b\'s decision table exactly', () => {
+    // Pins the CURRENT membership literally, not just the structural
+    // partition property above -- a future agent could satisfy the
+    // partition test by moving `unreadable` into SCOPE (structurally
+    // valid, semantically wrong) without this second check catching it.
+    assert.deepEqual([...ANOMALY_SKIP_REASONS].sort(), ['budget', 'unreadable']);
+    assert.deepEqual([...SCOPE_SKIP_REASONS].sort(), ['other-device', 'oversized', 'symlink']);
   });
 
-  it('both a candidate bulk skip AND a candidate hash skip on the SAME record count as 2, matching two independent read-pool recordSkip() calls', () => {
-    const workMap = new Map([['/fake/both.js', { absPath: '/fake/both.js', classes: ['marker-config', 'all-files'], needHash: true }]]);
-    const resultsByPath = new Map([['/fake/both.js', { absPath: '/fake/both.js', bulkSkipped: 'oversized-bulk', hashSkipped: 'oversized-hash' }]]);
-    assert.equal(countCandidateOversizedSkips(workMap, resultsByPath), 2);
+  // Non-vacuity proof (this describe block's own break-proof, recorded
+  // verbatim in 17.1-01-SUMMARY.md's "D-02b" section): temporarily adding a
+  // SIXTH, unclassified reason to a LOCAL copy of SKIP_REASONS (never
+  // mutating the frozen real one, which would break every other test in
+  // this suite) and asserting the exact same partition logic the first
+  // `it` above runs, fails on that reason. This is the reusable half of the
+  // "revert the guard, observe failure, quote it" discipline -- this
+  // `it()` codifies the check as a permanent regression guard; the actual
+  // break-proof (temporarily editing SKIP_REASONS itself and re-running
+  // `node --test`) is recorded as verbatim output in the SUMMARY, since a
+  // frozen exported array cannot be safely mutated from within a test file
+  // without risking cross-test pollution (SKIP_REASONS is `Object.freeze`d
+  // and shared by reference across every file that imports it).
+  it('non-vacuity: a hypothetical sixth, unclassified reason fails the SAME partition assertion the real test above runs', () => {
+    const hypotheticalReasons = [...SKIP_REASONS, 'quarantined'];
+    let sawFailure = false;
+    for (const reason of hypotheticalReasons) {
+      const inAnomaly = ANOMALY_SKIP_REASONS.has(reason);
+      const inScope = SCOPE_SKIP_REASONS.has(reason);
+      if (reason === 'quarantined') {
+        assert.ok(!inAnomaly && !inScope, 'the hypothetical reason must not already be classified (test setup sanity)');
+        sawFailure = true;
+      } else {
+        assert.ok(inAnomaly || inScope, `real SKIP_REASONS member "${reason}" unexpectedly unclassified`);
+      }
+    }
+    assert.ok(sawFailure, 'the hypothetical sixth reason must have been observed as unclassified -- proves this loop is not vacuous');
   });
+});
 
-  it('a workMap entry absent from resultsByPath (never reached the read pool) is skipped without throwing', () => {
-    const workMap = new Map([['/fake/never-read.js', { absPath: '/fake/never-read.js', classes: ['marker-config'], needHash: false }]]);
-    const resultsByPath = new Map();
-    assert.equal(countCandidateOversizedSkips(workMap, resultsByPath), 0);
+// ---------------------------------------------------------------------------
+// TARGETED_CONTENT_CLASSES -- D-02b (17.1-CONTEXT.md) retired the D-02a
+// `countCandidateOversizedSkips` helper and its describe block (which used
+// to pin this set's membership as a side effect of testing that helper),
+// but `TARGETED_CONTENT_CLASSES` itself is UNCHANGED and still live
+// production logic (`buildWorkFlags`'s `needTargetedContent`, above) -- so
+// its membership stays pinned directly here rather than losing coverage
+// when the helper that used to exercise it was removed.
+// ---------------------------------------------------------------------------
+describe('engine — TARGETED_CONTENT_CLASSES (live export, still drives buildWorkFlags\' needTargetedContent)', () => {
+  it('is exactly the four targeted-content classes', () => {
+    assert.deepEqual([...TARGETED_CONTENT_CLASSES].sort(), ['agent-config', 'family-packages', 'marker-config', 'no-prune']);
   });
 });
 

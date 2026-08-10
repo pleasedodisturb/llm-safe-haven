@@ -64,6 +64,35 @@ describe('scan-chaindrop-aug2026.sh — functional: each IOC path', { skip: !has
     assert.match(r.stdout, /Poisoned ChainDrop version keyv@6\.0\.0/);
   });
 
+  it('G-1512 disproof (D-02b, 17.1-CONTEXT.md): a poisoned package-lock.json padded well past the 256 KiB bulk-content cap is STILL detected -- lockfile poisoned-version matching is bash-owned (poisoned_hit_in_file()) and carries no size guard, unlike the engine-owned marker-string bulk-content scan', () => {
+    // This fixture is the direct disproof cited by D-02b (17.1-CONTEXT.md):
+    // G-1512's original premise -- that a poisoned lockfile could hide from
+    // detection past the engine's 256 KiB bulk-content read cap -- is
+    // FALSE. Section 3a's lockfile matching (DETECTOR_OWNERSHIP,
+    // lib/traverse/engine.js) is a SEPARATE, bash-owned, unbounded awk pass
+    // over every path in `lists/lockfiles.z`; it never goes through the
+    // engine's capped bulk-content read pool at all, so a 2.2x-over-cap
+    // poisoned lockfile is caught exactly like a small one. Only a marker
+    // STRING inside a >256 KiB file is actually blind to the cap (the
+    // inherited, disclosed scope boundary the paired oversized-marker tests
+    // above pin) -- this test proves the lockfile path is a different,
+    // unbounded detector, not the same blind spot.
+    const home = newHome(built, (h, p) => {
+      const padding = 'x'.repeat(300 * 1024); // well past bulkReadCapBytes (262144)
+      write(
+        p('Projects/app/package-lock.json'),
+        JSON.stringify(
+          { name: 'app', lockfileVersion: 3, packages: { 'node_modules/keyv': { version: '6.0.0' } }, _pad: padding },
+          null,
+          2
+        )
+      );
+    });
+    const r = runScanner(home);
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stdout, /Poisoned ChainDrop version keyv@6\.0\.0/);
+  });
+
   // Lockfile-format matrix — a poisoned keyv@6.0.0 must be caught in EVERY
   // common lockfile shape, and a safe keyv@5.6.0 must be caught in NONE.
   // (Regression guard: yarn Berry poisoned versions were originally missed,
@@ -266,21 +295,26 @@ describe('scan-chaindrop-aug2026.sh — non-functional contract', { skip: !hasBa
     assert.match(r.stdout, /Network checks disabled/);
   });
 
-  it('does NOT flag a marker hidden in a file over the 256k size cap (bounded read), but reports INCOMPLETE (G-1512/D-02) rather than falsely claiming ALL CLEAR', () => {
+  it('does NOT flag a marker hidden in a file over the 256k size cap (bounded read), and does NOT report INCOMPLETE either (D-02b: oversized is a disclosed SCOPE boundary, not an ANOMALY)', () => {
     // A marker inside a large data/blob file is intentionally skipped: the
     // whole-tree content read is size-capped so the scan cannot stall on big
     // files. This pins that bound so a regression that removes it is caught.
-    // 17.1-01 (G-1512/TRAV-15, decision D-02, operator-approved): the
-    // skipped-oversized file now folds into `incomplete`, so this exits 2,
-    // not 0 -- the scan never examined this file and must not claim it did.
+    // D-02b (17.1-CONTEXT.md, FINAL, 2026-08-10) retired both the blanket
+    // D-02 form and the D-02a candidate-scoping correction plan 17.1-01
+    // Task 3 originally implemented here: `oversized` is a SCOPE reason
+    // ("I deliberately did not look there," routine, by design, disclosed
+    // via `[skip] oversized: N`) and no longer folds into `incomplete`
+    // under any rule -- see lib/traverse/engine.js's
+    // ANOMALY_SKIP_REASONS/SCOPE_SKIP_REASONS doc comment. This restores
+    // the pre-17.1-01 exit-0 expectation.
     const home = newHome(built, (h, p) => {
       const big = 'x'.repeat(300 * 1024) + '\nnpm-cache.com\n';
       write(p('Projects/x/huge.js'), big);
     });
     const r = runScanner(home);
-    assert.equal(r.status, 2, r.stdout);
+    assert.equal(r.status, 0, r.stdout);
     assert.doesNotMatch(r.stdout, /\[FAIL\]/);
-    assert.match(r.stdout, /INCOMPLETE/);
+    assert.doesNotMatch(r.stdout, /INCOMPLETE/);
     assert.match(r.stdout, /\[skip\] oversized: 1/);
   });
 
@@ -344,27 +378,29 @@ describe('scan-chaindrop-aug2026.sh — non-functional contract', { skip: !hasBa
     assert.match(r.stdout, /setup\.mjs matches a known ChainDrop loader hash/);
   });
 
-  it('paired negative: the SAME setup.mjs fixture with the UNMODIFIED bundled spec never FAILs (WARN only) -- but exits 2 (INCOMPLETE) because the same >256KiB size also trips the oversized bulk-content skip (G-1512/D-02)', () => {
+  it('paired negative: the SAME setup.mjs fixture with the UNMODIFIED bundled spec never FAILs (WARN only) and exits 0 -- the same >256KiB size also trips the oversized bulk-content skip, but D-02b means that no longer affects the exit code (WARN alone never does either)', () => {
     // Proves the FAIL above is not caused by some unrelated marker in the
     // fixture — only the temporary spec's added hash makes it FAIL.
-    // 17.1-01 (G-1512/TRAV-15, decision D-02, operator-approved): setup.mjs
-    // is BOTH a hash candidate (1 MiB cap, D-24 -- unaffected, still
-    // produces the setup-bare WARN below) AND a marker-config bulk-content
-    // candidate (256 KiB cap) -- this fixture is well past the smaller cap,
-    // so it is also recorded as an `oversized` skip, which now folds into
-    // `incomplete`. The scan is honestly reporting it could not examine
-    // this file for marker strings, even though its hash-based check did
-    // run and found nothing.
+    // setup.mjs is BOTH a hash candidate (1 MiB cap, D-24 -- unaffected,
+    // still produces the setup-bare WARN below) AND a marker-config
+    // bulk-content candidate (256 KiB cap) -- this fixture is well past the
+    // smaller cap, so it is also recorded as an `oversized` skip. D-02b
+    // (17.1-CONTEXT.md, FINAL) classifies `oversized` as SCOPE, not
+    // ANOMALY, so it does not fold into `incomplete` (superseding the
+    // exit-2 behaviour plan 17.1-01 Task 3 and its D-02a correction
+    // originally implemented here). Combined with the WARN-only finding
+    // (WARN never affects the exit code either -- D-18), this fixture now
+    // exits 0.
     const home = newHome(built, () => {});
     const dir = path.join(home, 'Projects', 'x');
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'setup.mjs'), crypto.randomBytes(400 * 1024));
 
     const r = runScanner(home);
-    assert.equal(r.status, 2, r.stdout);
+    assert.equal(r.status, 0, r.stdout);
     assert.doesNotMatch(r.stdout, /\[FAIL\]/);
     assert.match(r.stdout, /setup\.mjs present with no worm markers/);
-    assert.match(r.stdout, /INCOMPLETE/);
+    assert.doesNotMatch(r.stdout, /INCOMPLETE/);
     assert.match(r.stdout, /\[skip\] oversized: 1/);
   });
 
@@ -419,7 +455,7 @@ describe('scan-chaindrop-aug2026.sh — non-functional contract', { skip: !hasBa
     assert.match(r.stdout, /did not finish, this is NOT a clean result/);
   });
 
-  it('skip counts appear in the report: a symlink and an oversized file produce non-zero named skip-reason lines -- exits 2 (INCOMPLETE) because the oversized skip folds into incomplete (G-1512/D-02); symlink deliberately does not (D-06/D-12 -- Guard 4 in tests/traverse/engine.test.js pins this directly)', () => {
+  it('skip counts appear in the report: a symlink and an oversized file produce non-zero named skip-reason lines -- exits 0, NOT INCOMPLETE, because BOTH symlink (D-06/D-12) and oversized (D-02b) are SCOPE reasons, not ANOMALY (Guard 4 in tests/traverse/engine.test.js pins the symlink half directly; the SKIP_REASONS partition test pins the classification itself)', () => {
     const home = newHome(built, (h, p) => {
       const dir = p('Projects/x');
       fs.mkdirSync(dir, { recursive: true });
@@ -428,10 +464,10 @@ describe('scan-chaindrop-aug2026.sh — non-functional contract', { skip: !hasBa
       fs.writeFileSync(path.join(dir, 'huge.js'), 'x'.repeat(300 * 1024));
     });
     const r = runScanner(home);
-    assert.equal(r.status, 2, r.stdout);
+    assert.equal(r.status, 0, r.stdout);
     assert.match(r.stdout, /\[skip\] symlink: \d+/);
     assert.match(r.stdout, /\[skip\] oversized: \d+/);
-    assert.match(r.stdout, /INCOMPLETE/);
+    assert.doesNotMatch(r.stdout, /INCOMPLETE/);
   });
 
   it('LSH_BUDGET_SECONDS=0 on a clean tree exits 2, prints the not-clean message, and the retained results dir exists', () => {
