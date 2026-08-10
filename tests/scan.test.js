@@ -22,7 +22,7 @@ const os = require('os');
 const { stubHomedir, installStub } = require('./helpers/module-stub.js');
 const { captureLog } = require('./helpers/capture-log.js');
 
-const { findEnvFiles, findEnvFilesDetailed, scanForEnvFiles } = require('../lib/scan.js');
+const { findEnvFiles, findEnvFilesDetailed, scanForEnvFiles, scan } = require('../lib/scan.js');
 
 function mkFixture() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'scan-fixture-'));
@@ -256,6 +256,85 @@ describe('findEnvFilesDetailed — additive export (D-23 engine adoption)', () =
     assert.deepEqual(detailed.files, findEnvFiles(fixtureDir, 4));
     assert.equal(typeof detailed.skips.total, 'function', 'skips is a SkipInventory (add/counts/paths/total)');
   });
+
+  // Guard 1 (G-1511, TRAV-14): findEnvFilesDetailed() both directions —
+  // incomplete === false for an ordinary small fixture, incomplete === true
+  // when the underlying engine enumeration truncates.
+  it('incomplete is false for an ordinary small fixture', () => {
+    fs.writeFileSync(path.join(fixtureDir, '.env'), 'SECRET=1\n');
+    const detailed = findEnvFilesDetailed(fixtureDir, 4);
+    assert.equal(detailed.incomplete, false);
+  });
+
+  it('incomplete is true when LSH_MAX_FILES truncates the enumeration; truncated files is a subset of the complete run (G-1511, TRAV-14)', () => {
+    for (let i = 0; i < 5; i++) {
+      fs.writeFileSync(path.join(fixtureDir, `.env.variant${i}`), `SECRET_${i}=1\n`);
+    }
+    for (let i = 0; i < 10; i++) {
+      fs.writeFileSync(path.join(fixtureDir, `noise-${i}.txt`), 'not a secret\n');
+    }
+
+    const complete = findEnvFilesDetailed(fixtureDir, 4);
+    assert.equal(complete.incomplete, false, 'precondition: the untruncated run over this small fixture must itself be complete');
+    assert.equal(complete.files.length, 5, 'precondition: all 5 planted .env variants must be found in the untruncated run');
+
+    const originalMaxFiles = process.env.LSH_MAX_FILES;
+    try {
+      process.env.LSH_MAX_FILES = '3';
+      const truncated = findEnvFilesDetailed(fixtureDir, 4);
+      assert.equal(truncated.incomplete, true, 'LSH_MAX_FILES=3 over 15 entries must truncate the enumeration');
+      assert.ok(
+        truncated.files.length < complete.files.length,
+        `truncated run must find strictly fewer files than the complete run (${truncated.files.length} vs ${complete.files.length})`
+      );
+      assert.ok(
+        truncated.files.every((f) => complete.files.includes(f)),
+        'every truncated-run file must also appear in the complete run — a genuine subset, not a different set'
+      );
+    } finally {
+      if (originalMaxFiles === undefined) delete process.env.LSH_MAX_FILES;
+      else process.env.LSH_MAX_FILES = originalMaxFiles;
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Guard 2 (G-1511, TRAV-14): scanForEnvFiles() is unchanged — pinned as a
+// thin wrapper over scanForEnvFilesDetailed().files, the frozen accessor's
+// signature and return type provably untouched by the additive export.
+// ---------------------------------------------------------------------------
+describe('scanForEnvFiles / scanForEnvFilesDetailed — the frozen accessor is a thin wrapper over the additive one (G-1511, TRAV-14)', () => {
+  const osPath = require.resolve('os');
+  const scanPath = require.resolve('../lib/scan.js');
+
+  let sandboxHome;
+  let originalOsEntry;
+
+  beforeEach(() => {
+    sandboxHome = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-frozen-accessor-'));
+    originalOsEntry = require.cache[osPath];
+  });
+
+  afterEach(() => {
+    if (originalOsEntry === undefined) delete require.cache[osPath];
+    else require.cache[osPath] = originalOsEntry;
+    delete require.cache[scanPath];
+    fs.rmSync(sandboxHome, { recursive: true, force: true });
+  });
+
+  it('scanForEnvFilesDetailed().files deep-equals scanForEnvFiles() for the same sandbox', () => {
+    const projectsDir = path.join(sandboxHome, 'Projects');
+    fs.mkdirSync(projectsDir, { recursive: true });
+    fs.writeFileSync(path.join(projectsDir, '.env'), 'SECRET=1\n');
+
+    const { scanForEnvFiles: sef, scanForEnvFilesDetailed: sefd } = stubHomedir(sandboxHome, scanPath);
+    assert.deepEqual(sefd().files, sef(), 'the additive accessor\'s .files and the frozen accessor\'s return value must be identical');
+  });
+
+  it('scanForEnvFiles() still returns a bare Array (not an object)', () => {
+    const { scanForEnvFiles: sef } = stubHomedir(sandboxHome, scanPath);
+    assert.ok(Array.isArray(sef()), 'scanForEnvFiles() must still return a bare array — every existing consumer depends on this shape');
+  });
 });
 
 describe('scan.js spawns zero subprocesses (env-secrets is TARGETED tier — T-17-02)', () => {
@@ -413,5 +492,88 @@ describe('skip accounting (new capability) — findEnvFilesDetailed counts symli
 
     const { skips } = findEnvFilesDetailed(fixtureDir, 4);
     assert.ok(skips.counts().unreadable >= 1, 'the permission-denied subdirectory must be counted as an unreadable skip');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Guard 3 (G-1511, TRAV-14): scan()'s return contract — a truncated .env
+// enumeration returns { code: 2 } (never undefined/implicit exit 0); a
+// complete, clean enumeration still returns undefined exactly as before.
+// LSH_ROOTS is pinned to a fixture directory inside a stubbed sandbox
+// homedir (D-08's override, not merge) so this is fast and deterministic —
+// the six real default roots are never touched.
+// ---------------------------------------------------------------------------
+describe("scan()'s return contract — a truncated .env scan returns { code: 2 }, a complete clean scan returns undefined (G-1511, TRAV-14)", () => {
+  const osPath = require.resolve('os');
+  const scanPath = require.resolve('../lib/scan.js');
+
+  let sandboxHome;
+  let fixtureDir;
+  let originalOsEntry;
+  let originalLshRoots;
+  let originalLshMaxFiles;
+
+  beforeEach(() => {
+    sandboxHome = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-return-contract-'));
+    fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-return-contract-root-'));
+    originalOsEntry = require.cache[osPath];
+    originalLshRoots = process.env.LSH_ROOTS;
+    originalLshMaxFiles = process.env.LSH_MAX_FILES;
+  });
+
+  afterEach(() => {
+    if (originalOsEntry === undefined) delete require.cache[osPath];
+    else require.cache[osPath] = originalOsEntry;
+    delete require.cache[scanPath];
+    if (originalLshRoots === undefined) delete process.env.LSH_ROOTS;
+    else process.env.LSH_ROOTS = originalLshRoots;
+    if (originalLshMaxFiles === undefined) delete process.env.LSH_MAX_FILES;
+    else process.env.LSH_MAX_FILES = originalLshMaxFiles;
+    fs.rmSync(sandboxHome, { recursive: true, force: true });
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
+  });
+
+  it('a truncated enumeration (LSH_MAX_FILES small) returns { code: 2 } and prints the diagnostic to stderr only, never stdout', async () => {
+    for (let i = 0; i < 5; i++) fs.writeFileSync(path.join(fixtureDir, `noise-${i}.txt`), 'x\n');
+    process.env.LSH_ROOTS = fixtureDir;
+    process.env.LSH_MAX_FILES = '2';
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+
+    const originalError = console.error;
+    const stderrLines = [];
+    console.error = (msg) => { stderrLines.push(String(msg)); };
+    try {
+      const { logs, result } = await captureLog(() => sandboxedScan({}, {}));
+      assert.deepEqual(result, { code: 2 }, 'a truncated .env enumeration must return { code: 2 }, never undefined');
+      assert.ok(
+        stderrLines.some((l) => l.includes('did not finish') && l.includes('incomplete')),
+        `expected an incomplete-scan diagnostic on stderr, got: ${stderrLines}`
+      );
+      assert.ok(
+        !logs.some((l) => l.includes('did not finish')),
+        'the incomplete-scan diagnostic must go to stderr, never stdout — the scorecard owns stdout'
+      );
+    } finally {
+      console.error = originalError;
+    }
+  });
+
+  it('paired control: the same fixture with no LSH_MAX_FILES override returns undefined (implicit exit 0), no stderr diagnostic', async () => {
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+
+    const originalError = console.error;
+    const stderrLines = [];
+    console.error = (msg) => { stderrLines.push(String(msg)); };
+    try {
+      const { result } = await captureLog(() => sandboxedScan({}, {}));
+      assert.strictEqual(result, undefined, 'a complete, clean .env enumeration must return undefined, exactly as before G-1511');
+      assert.equal(stderrLines.length, 0, 'a complete, clean scan must print no incomplete-scan diagnostic');
+    } finally {
+      console.error = originalError;
+    }
   });
 });
