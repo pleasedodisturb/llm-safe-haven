@@ -1,0 +1,331 @@
+'use strict';
+
+// Coverage for lib/roots.js (17-03, D-08) — the single source of the
+// default code-root list and LSH_ROOTS parsing. Includes a deliberate
+// "pre-change pin" (RESEARCH.md A3) recording that lib/scan.js today
+// IGNORES LSH_ROOTS entirely — plan 17-13 flips this when scan.js adopts
+// lib/roots.js; the flip is an intentional capability addition, not a
+// regression.
+
+const { describe, it, afterEach } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+
+const { stubHomedir, restoreHomedir } = require('./helpers/module-stub.js');
+
+const { getRoots, parseRootsEnv, DEFAULT_ROOT_NAMES } = require('../lib/roots.js');
+
+function mkTmp(prefix) {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
+// ---------------------------------------------------------------------------
+// default list identity — existence filter proven in both branches
+// ---------------------------------------------------------------------------
+describe('getRoots — default list identity', () => {
+  let sandboxHome;
+
+  afterEach(() => {
+    if (sandboxHome) fs.rmSync(sandboxHome, { recursive: true, force: true });
+    sandboxHome = undefined;
+  });
+
+  it('with a sandbox homedir containing all six directories, returns them in DEFAULT_ROOT_NAMES order', () => {
+    sandboxHome = mkTmp('roots-full-');
+    for (const name of DEFAULT_ROOT_NAMES) {
+      fs.mkdirSync(path.join(sandboxHome, name));
+    }
+
+    const roots = getRoots({ env: {}, homedir: () => sandboxHome });
+    assert.deepEqual(roots, DEFAULT_ROOT_NAMES.map((name) => path.resolve(sandboxHome, name)));
+  });
+
+  it('with only Projects and src present, returns exactly those two, in that order', () => {
+    sandboxHome = mkTmp('roots-partial-');
+    fs.mkdirSync(path.join(sandboxHome, 'Projects'));
+    fs.mkdirSync(path.join(sandboxHome, 'src'));
+
+    const roots = getRoots({ env: {}, homedir: () => sandboxHome });
+    assert.deepEqual(roots, [
+      path.resolve(sandboxHome, 'Projects'),
+      path.resolve(sandboxHome, 'src'),
+    ]);
+  });
+
+  it('with none of the six present, returns []', () => {
+    sandboxHome = mkTmp('roots-empty-');
+    const roots = getRoots({ env: {}, homedir: () => sandboxHome });
+    assert.deepEqual(roots, []);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LSH_ROOTS override — proves override, not merge
+// ---------------------------------------------------------------------------
+describe('getRoots — LSH_ROOTS override', () => {
+  let sandboxHome;
+  let realA;
+  let realB;
+
+  afterEach(() => {
+    if (sandboxHome) fs.rmSync(sandboxHome, { recursive: true, force: true });
+    if (realA) fs.rmSync(realA, { recursive: true, force: true });
+    if (realB) fs.rmSync(realB, { recursive: true, force: true });
+    sandboxHome = realA = realB = undefined;
+  });
+
+  it('returns only the real LSH_ROOTS dirs and IGNORES the six defaults entirely', () => {
+    // Seed a sandbox homedir with all six defaults present — if LSH_ROOTS
+    // merged instead of overrode, these would leak into the result.
+    sandboxHome = mkTmp('roots-lsh-home-');
+    for (const name of DEFAULT_ROOT_NAMES) {
+      fs.mkdirSync(path.join(sandboxHome, name));
+    }
+
+    realA = mkTmp('roots-lsh-a-');
+    realB = mkTmp('roots-lsh-b-');
+    const nonexistent = path.join(os.tmpdir(), 'roots-lsh-does-not-exist-xyz');
+
+    const lshRoots = [realA, nonexistent, realB].join(':');
+    const roots = getRoots({ env: { LSH_ROOTS: lshRoots }, homedir: () => sandboxHome });
+
+    assert.deepEqual(roots, [path.resolve(realA), path.resolve(realB)]);
+    for (const name of DEFAULT_ROOT_NAMES) {
+      assert.ok(
+        !roots.includes(path.resolve(sandboxHome, name)),
+        `default root ${name} must be absent when LSH_ROOTS is set`
+      );
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseRootsEnv edge cases
+// ---------------------------------------------------------------------------
+describe('parseRootsEnv', () => {
+  it('empty string returns []', () => {
+    assert.deepEqual(parseRootsEnv(''), []);
+  });
+
+  it('undefined returns []', () => {
+    assert.deepEqual(parseRootsEnv(undefined), []);
+  });
+
+  it('null returns []', () => {
+    assert.deepEqual(parseRootsEnv(null), []);
+  });
+
+  it('single path returns a one-element array', () => {
+    assert.deepEqual(parseRootsEnv('/a/b/c'), ['/a/b/c']);
+  });
+
+  it('trailing colon drops the empty trailing segment', () => {
+    assert.deepEqual(parseRootsEnv('/a:/b:'), ['/a', '/b']);
+  });
+
+  it('leading colon drops the empty leading segment', () => {
+    assert.deepEqual(parseRootsEnv(':/a:/b'), ['/a', '/b']);
+  });
+
+  it('repeated colons drop every empty segment they produce', () => {
+    assert.deepEqual(parseRootsEnv('/a:::/b'), ['/a', '/b']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deduplication
+// ---------------------------------------------------------------------------
+describe('getRoots — deduplication', () => {
+  let realDir;
+
+  afterEach(() => {
+    if (realDir) fs.rmSync(realDir, { recursive: true, force: true });
+    realDir = undefined;
+  });
+
+  it('the same directory listed twice yields one entry', () => {
+    realDir = mkTmp('roots-dedup-');
+    const roots = getRoots({ env: { LSH_ROOTS: `${realDir}:${realDir}` }, homedir: () => os.tmpdir() });
+    assert.deepEqual(roots, [path.resolve(realDir)]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// symlinked root — both branches
+// ---------------------------------------------------------------------------
+describe('getRoots — symlinked root', () => {
+  let parentDir;
+  let realTarget;
+  let goodLink;
+  let brokenLink;
+  let brokenTarget;
+
+  afterEach(() => {
+    if (parentDir) fs.rmSync(parentDir, { recursive: true, force: true });
+    parentDir = realTarget = goodLink = brokenLink = brokenTarget = undefined;
+  });
+
+  it('a symlink pointing at a real directory is accepted', () => {
+    parentDir = mkTmp('roots-symlink-good-');
+    realTarget = path.join(parentDir, 'real-target');
+    fs.mkdirSync(realTarget);
+    goodLink = path.join(parentDir, 'good-link');
+    fs.symlinkSync(realTarget, goodLink, 'dir');
+
+    const roots = getRoots({ env: { LSH_ROOTS: goodLink }, homedir: () => os.tmpdir() });
+    assert.deepEqual(roots, [path.resolve(goodLink)]);
+  });
+
+  it('a broken symlink is dropped', () => {
+    parentDir = mkTmp('roots-symlink-broken-');
+    brokenTarget = path.join(parentDir, 'never-created');
+    brokenLink = path.join(parentDir, 'broken-link');
+    fs.symlinkSync(brokenTarget, brokenLink, 'dir');
+
+    const roots = getRoots({ env: { LSH_ROOTS: brokenLink }, homedir: () => os.tmpdir() });
+    assert.deepEqual(roots, []);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getRoots — onMissingRoot (G-1504)
+// ---------------------------------------------------------------------------
+describe('getRoots — onMissingRoot (G-1504)', () => {
+  let sandboxHome;
+  let realDir;
+
+  afterEach(() => {
+    if (sandboxHome) fs.rmSync(sandboxHome, { recursive: true, force: true });
+    if (realDir) fs.rmSync(realDir, { recursive: true, force: true });
+    sandboxHome = realDir = undefined;
+  });
+
+  it('an LSH_ROOTS entry that does not exist fires onMissingRoot exactly once and is dropped from the result', () => {
+    realDir = mkTmp('roots-missing-real-');
+    const missing = path.join(os.tmpdir(), 'roots-missing-xyz-does-not-exist');
+
+    const calls = [];
+    const roots = getRoots({
+      env: { LSH_ROOTS: `${realDir}:${missing}` },
+      homedir: () => os.tmpdir(),
+      onMissingRoot: (candidate) => calls.push(candidate),
+    });
+
+    assert.deepEqual(roots, [path.resolve(realDir)]);
+    assert.deepEqual(calls, [missing]);
+  });
+
+  it('a default-root-list (probe) miss calls onMissingRoot ZERO times', () => {
+    sandboxHome = mkTmp('roots-missing-probe-');
+    fs.mkdirSync(path.join(sandboxHome, 'Projects'));
+    // Deliberately leave the other five DEFAULT_ROOT_NAMES absent.
+
+    const calls = [];
+    const roots = getRoots({
+      env: {},
+      homedir: () => sandboxHome,
+      onMissingRoot: (candidate) => calls.push(candidate),
+    });
+
+    assert.deepEqual(roots, [path.resolve(sandboxHome, 'Projects')]);
+    assert.deepEqual(calls, [], 'the default probe must never fire onMissingRoot — noise on every ordinary machine');
+  });
+
+  it('getRoots() with NO onMissingRoot supplied behaves byte-identically to today (no throw, same return value)', () => {
+    realDir = mkTmp('roots-missing-noop-');
+    const missing = path.join(os.tmpdir(), 'roots-missing-noop-does-not-exist');
+
+    assert.doesNotThrow(() => {
+      const roots = getRoots({ env: { LSH_ROOTS: `${realDir}:${missing}` }, homedir: () => os.tmpdir() });
+      assert.deepEqual(roots, [path.resolve(realDir)]);
+    });
+  });
+
+  it('an LSH_ROOTS entry that exists but is a FILE, not a directory, also fires onMissingRoot', () => {
+    sandboxHome = mkTmp('roots-missing-file-');
+    const filePath = path.join(sandboxHome, 'not-a-directory.txt');
+    fs.writeFileSync(filePath, 'x');
+
+    const calls = [];
+    const roots = getRoots({
+      env: { LSH_ROOTS: filePath },
+      homedir: () => os.tmpdir(),
+      onMissingRoot: (candidate) => calls.push(candidate),
+    });
+
+    assert.deepEqual(roots, []);
+    assert.deepEqual(calls, [filePath]);
+  });
+
+  it('LSH_ROOTS listing the same missing path twice fires onMissingRoot exactly TWICE — once per occurrence, not per unique path', () => {
+    const missing = path.join(os.tmpdir(), 'roots-missing-dup-does-not-exist');
+
+    const calls = [];
+    const roots = getRoots({
+      env: { LSH_ROOTS: `${missing}:${missing}` },
+      homedir: () => os.tmpdir(),
+      onMissingRoot: (candidate) => calls.push(candidate),
+    });
+
+    assert.deepEqual(roots, []);
+    assert.equal(calls.length, 2, 'the seen dedup only applies to surviving directories — a missing candidate reaches the drop path on every occurrence');
+    assert.deepEqual(calls, [missing, missing]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FLIPPED 2026-08-07 by plan 17-13 (D-08): lib/scan.js now honours
+// LSH_ROOTS, since scanForEnvFiles() sources its root list from THIS
+// module's getRoots() instead of a hand-synced, LSH_ROOTS-blind SCAN_DIRS
+// array. This is an INTENTIONAL CAPABILITY ADDITION, not a regression — the
+// previous version of this describe block (RESEARCH.md A3) pinned the OLD
+// LSH_ROOTS-blind behaviour; a future reader must not mistake this flip for
+// a silent behaviour change.
+// ---------------------------------------------------------------------------
+describe('LSH_ROOTS override — lib/scan.js now honours LSH_ROOTS (D-08, flipped by plan 17-13)', () => {
+  const scanPath = require.resolve('../lib/scan.js');
+
+  let sandboxHome;
+  let lshDir;
+  let originalLshRoots;
+
+  afterEach(() => {
+    restoreHomedir(scanPath);
+    if (sandboxHome) fs.rmSync(sandboxHome, { recursive: true, force: true });
+    if (lshDir) fs.rmSync(lshDir, { recursive: true, force: true });
+    if (originalLshRoots === undefined) delete process.env.LSH_ROOTS;
+    else process.env.LSH_ROOTS = originalLshRoots;
+    sandboxHome = lshDir = undefined;
+  });
+
+  it('scanForEnvFiles() finds a .env inside an LSH_ROOTS directory AND does not scan the six default roots', () => {
+    originalLshRoots = process.env.LSH_ROOTS;
+
+    // Seed every DEFAULT_ROOT_NAMES directory with its own .env — if
+    // LSH_ROOTS merged instead of overrode, these would leak into the
+    // result.
+    sandboxHome = mkTmp('roots-flip-home-');
+    for (const name of DEFAULT_ROOT_NAMES) {
+      const dir = path.join(sandboxHome, name);
+      fs.mkdirSync(dir);
+      fs.writeFileSync(path.join(dir, '.env'), `DEFAULT_${name}=1\n`);
+    }
+
+    lshDir = mkTmp('roots-flip-lsh-');
+    fs.writeFileSync(path.join(lshDir, '.env'), 'SECRET=1\n');
+    process.env.LSH_ROOTS = lshDir;
+
+    const { scanForEnvFiles } = stubHomedir(sandboxHome, scanPath);
+    const found = scanForEnvFiles();
+
+    assert.deepEqual(found, [path.join(lshDir, '.env')], 'the LSH_ROOTS directory must be scanned and only its .env reported');
+    for (const name of DEFAULT_ROOT_NAMES) {
+      assert.ok(
+        !found.some((f) => f.startsWith(path.join(sandboxHome, name) + path.sep) || f === path.join(sandboxHome, name)),
+        `default root ${name} must NOT be scanned when LSH_ROOTS is set`
+      );
+    }
+  });
+});

@@ -579,4 +579,76 @@ describe('parseArgs', () => {
       }
     });
   });
+
+  describe("Guard 4: scan command end to end — a truncated .env enumeration really propagates exit code 2 through settleCommand (G-1511, TRAV-14)", () => {
+    // Real run(['scan']) against a real fs fixture, with the REAL lib/scan.js
+    // (no stubbing) -- this is the guard that proves settleCommand actually
+    // propagates the synchronous { code: 2 } return, not just that reading
+    // lib/cli.js's source suggests it should. LSH_ROOTS is an override, not
+    // a merge (D-08), so this never touches the six real default roots.
+    const fs = require('fs');
+    const os = require('os');
+    const path = require('path');
+
+    async function withEnv(overrides, fn) {
+      const originalExitCode = process.exitCode;
+      const saved = {};
+      for (const key of Object.keys(overrides)) saved[key] = process.env[key];
+      try {
+        process.exitCode = 0;
+        for (const [key, value] of Object.entries(overrides)) process.env[key] = value;
+        // MUST await here, not `return fn()` -- fn is async, and a bare
+        // `return fn()` inside try/finally lets the finally clause restore
+        // process.exitCode/env SYNCHRONOUSLY, before fn's own post-await
+        // continuation (which reads process.exitCode) ever runs.
+        return await fn();
+      } finally {
+        process.exitCode = originalExitCode;
+        for (const key of Object.keys(overrides)) {
+          if (saved[key] === undefined) delete process.env[key];
+          else process.env[key] = saved[key];
+        }
+      }
+    }
+
+    it('LSH_ROOTS pointed at a fixture + LSH_MAX_FILES small -> exit code 2', async () => {
+      const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cli-scan-g1511-'));
+      const originalError = console.error;
+      const stderrLines = [];
+      console.error = (msg) => { stderrLines.push(String(msg)); };
+      try {
+        for (let i = 0; i < 5; i++) fs.writeFileSync(path.join(fixtureDir, `noise-${i}.txt`), 'x\n');
+
+        await withEnv({ LSH_ROOTS: fixtureDir, LSH_MAX_FILES: '2' }, async () => {
+          await captureLog(() => run(['scan']));
+          assert.strictEqual(
+            process.exitCode, 2,
+            'a truncated .env enumeration must exit 2, never 0 -- the literal G-1511 reproduction'
+          );
+          assert.ok(
+            stderrLines.some((l) => l.includes('did not finish')),
+            `expected an incomplete-scan diagnostic on stderr, got: ${stderrLines}`
+          );
+        });
+      } finally {
+        console.error = originalError;
+        fs.rmSync(fixtureDir, { recursive: true, force: true });
+      }
+    });
+
+    it('paired control: the same fixture with no LSH_MAX_FILES override, on a clean tree -> exit code 0', async () => {
+      const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cli-scan-g1511-clean-'));
+      try {
+        await withEnv({ LSH_ROOTS: fixtureDir }, async () => {
+          await captureLog(() => run(['scan']));
+          assert.strictEqual(
+            process.exitCode, 0,
+            'a complete, clean .env enumeration must leave exitCode at 0 (implicit success)'
+          );
+        });
+      } finally {
+        fs.rmSync(fixtureDir, { recursive: true, force: true });
+      }
+    });
+  });
 });

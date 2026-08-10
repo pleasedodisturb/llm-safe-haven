@@ -38,6 +38,13 @@
 #
 # Sources: Socket.dev, StepSecurity, Tenable, Wiz, Sonatype, JFrog (June 2026).
 # ============================================================================
+#
+# NOTE (G-1482): this is a standalone legacy wave scanner and still works
+# as-is. New waves are authored as data (manifests/waves/*.json) and run
+# through the shared traversal engine documented in docs/wave-spec.md.
+# Migrating THIS script to a wave spec is tracked as G-1490. Do not fork a
+# new standalone scanner for the next wave — write a spec instead.
+# ============================================================================
 
 set -u  # error on undefined vars (do NOT use -e — we want to keep checking)
 
