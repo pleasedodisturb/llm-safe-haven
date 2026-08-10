@@ -236,6 +236,24 @@ describe('walk.js -- symlinks are never followed (D-06)', () => {
 // ---------------------------------------------------------------------------
 
 function makeDeviceStubFs(overridePrefixes, overriddenDev) {
+  // G-1504: walkOneRoot now calls fs.statSync(root) (in addition to the
+  // fs.lstatSync it already used for every other stat in the module), so
+  // this stub must answer both. statSync mirrors lstatSync's override
+  // logic exactly -- none of these fixtures contain a symlink, so a
+  // follow-vs-no-follow distinction has no observable effect here; what
+  // matters is that BOTH stat calls agree on which paths are "overridden"
+  // onto a different device.
+  const overrideStat = (p) => {
+    const real = fs.statSync(p);
+    const isOverridden = overridePrefixes.some((prefix) => p === prefix || p.startsWith(prefix + path.sep));
+    if (!isOverridden) return real;
+    return {
+      dev: overriddenDev,
+      isDirectory: () => real.isDirectory(),
+      isFile: () => real.isFile(),
+      isSymbolicLink: () => real.isSymbolicLink(),
+    };
+  };
   return {
     readdirSync: (p, opts) => fs.readdirSync(p, opts),
     lstatSync: (p) => {
@@ -249,6 +267,7 @@ function makeDeviceStubFs(overridePrefixes, overriddenDev) {
         isSymbolicLink: () => real.isSymbolicLink(),
       };
     },
+    statSync: overrideStat,
   };
 }
 
@@ -301,6 +320,136 @@ describe('walk.js -- device boundaries (D-12)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// A symlinked root anchors its device on the TARGET, not the link (G-1504)
+// ---------------------------------------------------------------------------
+
+// Root-specific device stub: statSync(root) reports the TARGET's dev (42);
+// lstatSync(root) reports the LINK's own dev (1) -- included purely to
+// document that production code no longer reads it for the root argument,
+// not because any test here depends on it being called. Every OTHER
+// lstatSync call (the per-directory device-containment check, matching a
+// real subdirectory) reports `subtreeDev` UNLESS its absolute path is in
+// `crossDevicePrefixes`, in which case it reports `crossDeviceDev` -- this
+// is what lets Guard 2 prove a genuinely cross-device subdirectory is still
+// pruned on the SAME stub that proves Guard 1.
+function makeRootAnchorStubFs(rootPath, { targetDev, linkDev, subtreeDev, crossDevicePrefixes = [], crossDeviceDev }) {
+  return {
+    readdirSync: (p, opts) => fs.readdirSync(p, opts),
+    statSync: (p) => {
+      if (p === rootPath) {
+        return { dev: targetDev, isDirectory: () => true, isFile: () => false, isSymbolicLink: () => false };
+      }
+      return fs.statSync(p);
+    },
+    lstatSync: (p) => {
+      if (p === rootPath) {
+        return { dev: linkDev, isDirectory: () => true, isFile: () => false, isSymbolicLink: () => false };
+      }
+      const real = fs.lstatSync(p);
+      const isCrossDevice = crossDevicePrefixes.some((prefix) => p === prefix || p.startsWith(prefix + path.sep));
+      const dev = isCrossDevice ? crossDeviceDev : subtreeDev;
+      return { dev, isDirectory: () => real.isDirectory(), isFile: () => real.isFile(), isSymbolicLink: () => real.isSymbolicLink() };
+    },
+  };
+}
+
+describe('walk.js -- a symlinked root anchors its device on the TARGET (G-1504)', () => {
+  it('Guard 1: with the root TARGET dev (statSync) differing from the LINK dev (lstatSync), the whole subtree is walked and other-device stays 0', () => {
+    const root = mkFixture();
+    try {
+      const subtreeFile = path.join(root, 'subtree', 'file.txt');
+      const deepFile = path.join(root, 'subtree', 'inner', 'deep-file.txt');
+      writeFile(subtreeFile, 'x');
+      writeFile(deepFile, 'x');
+
+      const stubFs = makeRootAnchorStubFs(root, { targetDev: 42, linkDev: 1, subtreeDev: 42 });
+      const { events, result } = runWalk([root], { fs: stubFs });
+
+      assert.ok(has(events, subtreeFile), 'a direct child of the target subtree must be emitted');
+      assert.ok(has(events, deepFile), 'a NESTED descendant of the target subtree must also be reached, not just the top level');
+      assert.equal(result.skips.counts()['other-device'], 0, 'anchoring on the TARGET dev must not prune any of its own subtree');
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it('Guard 2 (D-12 is not weakened): a genuinely cross-device SUBDIRECTORY under the same root is still pruned as other-device', () => {
+    const root = mkFixture();
+    try {
+      const subtreeFile = path.join(root, 'subtree', 'file.txt');
+      const crossDeviceDir = path.join(root, 'cross-device');
+      const crossDeviceFile = path.join(crossDeviceDir, 'should-not-appear.txt');
+      writeFile(subtreeFile, 'x');
+      writeFile(crossDeviceFile, 'x');
+
+      const stubFs = makeRootAnchorStubFs(root, {
+        targetDev: 42,
+        linkDev: 1,
+        subtreeDev: 42,
+        crossDevicePrefixes: [crossDeviceDir],
+        crossDeviceDev: 99,
+      });
+      const { events, result } = runWalk([root], { fs: stubFs });
+
+      assert.ok(has(events, subtreeFile), 'the same-device subtree must still be walked');
+      assert.equal(has(events, crossDeviceFile), false, 'a subdirectory on a genuinely different device must never be descended into');
+      assert.ok(result.skips.counts()['other-device'] >= 1, 'without this, Guard 1 would also pass if the device check were deleted outright');
+      assert.ok(result.skips.paths('other-device').includes(crossDeviceDir));
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it('Guard 3: a root that is a BROKEN symlink (statSync throws ENOENT) is an unreadable skip, zero entries, no throw', () => {
+    const parent = mkFixture();
+    try {
+      const brokenTarget = path.join(parent, 'never-created');
+      const brokenRoot = path.join(parent, 'broken-root');
+      fs.symlinkSync(brokenTarget, brokenRoot);
+
+      // Real fs, no stub needed -- a genuinely broken symlink makes the
+      // real statSync throw ENOENT on its own (Pitfall 3: this must be
+      // PROVEN against the real filesystem, not inferred from reading the
+      // code -- see the completion note for the observed skip count).
+      const { events, result } = runWalk([brokenRoot]);
+
+      assert.equal(events.length, 0);
+      assert.equal(result.counts.filesWalked, 0);
+      assert.equal(result.skips.counts().unreadable, 1);
+      assert.deepEqual(result.skips.paths('unreadable'), [brokenRoot]);
+      assert.equal(result.stopped, false, 'walk() must return normally, never throw, on a broken-symlink root');
+    } finally {
+      cleanup(parent);
+    }
+  });
+
+  it('Guard 3b: a root that is a symlink to a regular FILE is an unreadable skip (statSync succeeds; readdirSync then throws ENOTDIR)', () => {
+    const parent = mkFixture();
+    try {
+      const regularFile = path.join(parent, 'a-regular-file.txt');
+      writeFile(regularFile, 'x');
+      const fileRoot = path.join(parent, 'file-root');
+      fs.symlinkSync(regularFile, fileRoot);
+
+      // Real fs, no stub needed -- statSync(fileRoot) follows the symlink
+      // and succeeds (reporting a file), then walkDirectory's own
+      // readdirSync(fileRoot) throws ENOTDIR, hitting the SAME existing
+      // catch as any other unreadable directory (Guard 4 territory: no new
+      // catch was added for this case).
+      const { events, result } = runWalk([fileRoot]);
+
+      assert.equal(events.length, 0);
+      assert.equal(result.counts.filesWalked, 0);
+      assert.equal(result.skips.counts().unreadable, 1);
+      assert.deepEqual(result.skips.paths('unreadable'), [fileRoot]);
+      assert.equal(result.stopped, false, 'walk() must return normally, never throw, on a symlink-to-file root');
+    } finally {
+      cleanup(parent);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Unreadable directories (T-17-11)
 // ---------------------------------------------------------------------------
 
@@ -323,6 +472,7 @@ describe('walk.js -- unreadable directories are counted, not fatal', () => {
           return fs.readdirSync(p, opts);
         },
         lstatSync: (p) => fs.lstatSync(p),
+        statSync: (p) => fs.statSync(p), // G-1504: walkOneRoot's root-level stat call
       };
 
       const { events, result } = runWalk([root], { fs: stubFs });
@@ -363,6 +513,7 @@ describe('walk.js -- DT_UNKNOWN Dirent fallback', () => {
           if (p === targetAbsPath) targetLstatCalls += 1;
           return fs.lstatSync(p);
         },
+        statSync: (p) => fs.statSync(p), // G-1504: walkOneRoot's root-level stat call
       };
 
       const { events } = runWalk([root], { fs: stubFs });
@@ -394,6 +545,11 @@ function makeSyntheticDirFs(dirPath, count, { known }) {
       state.lstatCalls += 1;
       return { dev: 1, isDirectory: () => false, isFile: () => true, isSymbolicLink: () => false };
     },
+    // G-1504: walkOneRoot's root-level stat call -- deliberately NOT routed
+    // through the same counter as the per-entry lstat fallback above (it
+    // never was, even before this fix -- the root argument is a directory,
+    // not one of the synthetic DT_UNKNOWN entries this stub simulates).
+    statSync: () => ({ dev: 1, isDirectory: () => true, isFile: () => false, isSymbolicLink: () => false }),
   };
   return { stubFs, state };
 }
@@ -474,6 +630,7 @@ describe('walk.js -- repo attribution is readdir-order independent (D-26 / B6)',
           return gitEntry ? [...rest, gitEntry] : real;
         },
         lstatSync: (p) => fs.lstatSync(p),
+        statSync: (p) => fs.statSync(p), // G-1504: walkOneRoot's root-level stat call
       };
 
       const { events } = runWalk([root], { fs: stubFs });
@@ -574,15 +731,19 @@ describe('walk.js -- additional lstat error-path coverage', () => {
   it('an inaccessible ROOT itself is recorded unreadable, never thrown', () => {
     const root = mkFixture();
     try {
+      // G-1504: walkOneRoot's root-level stat call is statSync, not
+      // lstatSync -- the throw belongs on statSync to exercise the actual
+      // call site the production code now uses.
       const stubFs = {
         readdirSync: (p, opts) => fs.readdirSync(p, opts),
-        lstatSync: (p) => {
+        lstatSync: (p) => fs.lstatSync(p),
+        statSync: (p) => {
           if (p === root) {
             const err = new Error('ENOENT: no such file or directory');
             err.code = 'ENOENT';
             throw err;
           }
-          return fs.lstatSync(p);
+          return fs.statSync(p);
         },
       };
 
@@ -623,6 +784,7 @@ describe('walk.js -- additional lstat error-path coverage', () => {
           }
           return fs.lstatSync(p);
         },
+        statSync: (p) => fs.statSync(p), // G-1504: walkOneRoot's root-level stat call
       };
 
       const { events, result } = runWalk([root], { fs: stubFs });
@@ -655,6 +817,7 @@ describe('walk.js -- additional lstat error-path coverage', () => {
           }));
         },
         lstatSync: (p) => fs.lstatSync(p),
+        statSync: (p) => fs.statSync(p), // G-1504: walkOneRoot's root-level stat call
       };
 
       const { events, result } = runWalk([root], { fs: stubFs });
@@ -685,6 +848,7 @@ describe('walk.js -- additional lstat error-path coverage', () => {
           }
           return fs.lstatSync(p);
         },
+        statSync: (p) => fs.statSync(p), // G-1504: walkOneRoot's root-level stat call
       };
 
       const { events, result } = runWalk([root], { fs: stubFs });
