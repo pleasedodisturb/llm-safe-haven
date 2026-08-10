@@ -47,7 +47,7 @@ required by the validator, but every bundled spec carries them, and you should t
 | `compromisedFamily` | string[] | **required** | The package names the `family-packages` class walks `node_modules` looking for, cross-referenced against `poisonedVersions` for the actual FAIL condition. Family presence alone is informational, not a finding. |
 | `markerStrings` | string[] | **required** | Literal strings (C2 domains, IPs, wallet addresses, dead-drop description text) grepped for by the `marker-config` class (extension-allowlisted per `spec.classes['bulk-content'].fileGlobs`, size-capped by `bulkReadCapBytes`, and — per the tiering rule below — never `.gitignore`-pruned, for every allow-listed name, not just `.env`/`.env.*`/`.npmrc`). |
 | `installMarker` | object with `filename`, `pattern`, `jsPattern`, `prune`, `note` | **required** | Drives the `no-prune` class — a regex (POSIX `pattern` for the bash-era ground truth, `jsPattern` for the engine) matched against `filename` (typically `package.json`) with **no directory prune at all**, including inside `node_modules`. This is deliberately the widest-scoped check in the taxonomy. |
-| `persistence` | object with `claudeSettings`, `vscodeTasks` sub-objects | **required** | Drives the `agent-config` class: glob-matched `.claude/settings*.json` / `.vscode/tasks.json` files checked against `commandPattern` / `triggerPattern` + `failPattern`. This is the AI-agent persistence-hook detection — the vector most of the 2026 waves actually use for re-execution (see `docs/supply-chain-defense.md`). |
+| `persistence` | object with `claudeSettings`, `vscodeTasks` sub-objects | **required** | Drives the `agent-config` class: glob-matched `.claude/settings*.json` / `.vscode/tasks.json` files checked against `commandPattern` / `triggerPattern` + `failPattern`. Like `installMarker.pattern`/`jsPattern`, `claudeSettings.commandPattern` and `vscodeTasks.failPattern` are POSIX ERE for the bash-era ground truth; the engine consumes the required `jsCommandPattern` / `jsFailPattern` siblings instead, because a JS `RegExp` does not understand a POSIX bracket class such as `[[:space:]]` (G-1482). `triggerPattern` has no POSIX-class dependency and needs no `js*` counterpart. This is the AI-agent persistence-hook detection — the vector most of the 2026 waves actually use for re-execution (see `docs/supply-chain-defense.md`). |
 | `lockfiles` | string[] | **required** | Filenames the `lockfiles` class matches (`package-lock.json`, `yarn.lock`, etc.), scanned for `poisonedVersions` entries. |
 | `staticPaths` | string[] | **required** | Fixed, non-walked paths (typically under `$HOME`) checked directly for existence — persistence artifacts that don't live inside a project tree (systemd units, LaunchAgents, the two `$HOME/.claude/settings*.json` paths). |
 | `classes` | object | **required** | Declares, per targeted-class name, its directory-prune scope (`pruneCommon`, a custom array, or none), whether it walks into `node_modules` (`includesNodeModules`), and (for `bulk-content`) its file-extension allowlist and size cap. This is the ground truth the engine's `FILE_CLASSES` prune-scope table in `lib/traverse/index.js` formalizes. Must be a plain object or the spec fails validation. |
@@ -249,13 +249,15 @@ enough to copy, rename, and edit as a starting point for a real one.
   "persistence": {
     "claudeSettings": {
       "paths": ["*/.claude/settings.json", "*/.claude/settings.local.json"],
-      "commandPattern": "setup_stage1|evil_payload",
+      "commandPattern": "setup_stage1|evil_payload|node[[:space:]]+-e",
+      "jsCommandPattern": "setup_stage1|evil_payload|node\\s+-e",
       "note": "Glob-matched during the walk (agent-config class)."
     },
     "vscodeTasks": {
       "path": "*/.vscode/tasks.json",
       "triggerPattern": "\"runOn\"\\s*:\\s*\"folderOpen\"",
-      "failPattern": "setup_stage1|evil_payload"
+      "failPattern": "setup_stage1|evil_payload",
+      "jsFailPattern": "setup_stage1|evil_payload"
     }
   },
   "lockfiles": ["package-lock.json", "yarn.lock", "pnpm-lock.yaml"],

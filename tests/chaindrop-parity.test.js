@@ -96,7 +96,21 @@ const SPEC_RELATIVE = 'manifests/waves/chaindrop-aug2026.json';
 // the bulk-content size cap exited 2 (INCOMPLETE) instead of 0 (ALL CLEAR)
 // for a time. See 17.1-01-SUMMARY.md for the original human sign-off
 // record (17.1-CONTEXT.md D-01/D-02) -- now superseded by D-02b above.
-const FROZEN_FINGERPRINT = '53693506d8087064ca4eb51f613cc98de163b96de1f46e6a8ddc463127caa628';
+// Updated 2026-08-10 (G-1482, merge-blocking security fix): added four
+// corpus cases (claude-hook-node-e, claude-hook-curl-pipe,
+// claude-hook-safe-control, vscode-task-node-e) proving persistence.
+// claudeSettings.commandPattern / persistence.vscodeTasks.failPattern's
+// POSIX-ERE `[[:space:]]` alternates ("node -e", "curl ... | sh") were
+// silently un-matchable when fed straight into a JS `new RegExp()` (a
+// POSIX bracket class is not understood by JS RegExp -- it compiles to a
+// literal 8-character class instead). The fix introduces sibling
+// `jsCommandPattern`/`jsFailPattern` fields (manifests/waves/
+// chaindrop-aug2026.json) with `\s` in place of `[[:space:]]`, which
+// lib/traverse/engine.js now consumes instead. These four cases pass
+// against BOTH the bash scanner (POSIX ERE always worked there) and the
+// fixed engine; break-proofs against the pre-fix engine are recorded in
+// the G-1482 plan summary. CASES count: 46 -> 50.
+const FROZEN_FINGERPRINT = '2b1af5853eda868a64a14d3ef13dce45018734a9621914f13f6dceca1a3416d3';
 
 function findingCountOf(stdout) {
   const m = stdout.match(/(\d+) FINDING\(S\)/);

@@ -97,12 +97,15 @@
     "claudeSettings": {
       "paths": ["*/.claude/settings.json", "*/.claude/settings.local.json"],
       "commandPattern": "setup\\.mjs|Math_Symbol|math_init|gh-token-monitor|node[[:space:]]+-e|curl[[:space:]].*\\|[[:space:]]*(sh|bash)|npm-cache\\.com|bun-dl-",
-      "note": "Glob patterns matched during the walk (agent-config class), covering any project's .claude/settings.json — in addition to the two static $HOME paths listed in staticPaths (script:399/402-423, HOOK_SUS_RE)."
+      "jsCommandPattern": "setup\\.mjs|Math_Symbol|math_init|gh-token-monitor|node\\s+-e|curl\\s.*\\|\\s*(sh|bash)|npm-cache\\.com|bun-dl-",
+      "note": "Glob patterns matched during the walk (agent-config class), covering any project's .claude/settings.json — in addition to the two static $HOME paths listed in staticPaths (script:399/402-423, HOOK_SUS_RE). commandPattern is POSIX ERE for bash `grep -E` (scripts/scan-chaindrop-aug2026.sh:512, the two static-path check); jsCommandPattern is the SAME IOC set with `[[:space:]]` rewritten to `\\s` for JS `new RegExp()` (lib/traverse/engine.js), which does not understand POSIX bracket classes — `[[:space:]]` in a JS RegExp is a literal character class of `[`,`:`,`s`,`p`,`a`,`c`,`e`,`]`, not whitespace (G-1482 merge-blocking fix, 2026-08-10). Keep both patterns' non-whitespace IOC terms identical; only the whitespace-class spelling differs."
     },
     "vscodeTasks": {
       "path": "*/.vscode/tasks.json",
       "triggerPattern": "\"runOn\"\\s*:\\s*\"folderOpen\"",
-      "failPattern": "setup\\.mjs|Math_Symbol|math_init|Environment Setup|node[[:space:]]+-e|npm-cache\\.com"
+      "failPattern": "setup\\.mjs|Math_Symbol|math_init|Environment Setup|node[[:space:]]+-e|npm-cache\\.com",
+      "jsFailPattern": "setup\\.mjs|Math_Symbol|math_init|Environment Setup|node\\s+-e|npm-cache\\.com",
+      "note": "failPattern is POSIX ERE and, unlike claudeSettings.commandPattern, has no bash consumer today — only lib/traverse/engine.js reads persistence.vscodeTasks fields, so this field's POSIX `[[:space:]]` was a silent no-op miss from day one, not a regression against a working bash check. jsFailPattern is the same IOC set with `[[:space:]]` -> `\\s` for JS `new RegExp()` (G-1482 merge-blocking fix, 2026-08-10). triggerPattern above contains no POSIX bracket class and needs no js* counterpart."
     }
   },
   "lockfiles": [

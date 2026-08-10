@@ -265,6 +265,39 @@ describe('engine — corpus-driven detector coverage (exact multiplicity)', () =
     COVERED_IDS.add('vscode-task-info');
   });
 
+  // G-1482 merge-blocking fix: commandPattern/failPattern are POSIX ERE
+  // (`[[:space:]]`) for scripts/scan-chaindrop-aug2026.sh's bash `grep -E`
+  // consumer. A JS `new RegExp()` does not understand a POSIX bracket
+  // class -- `[[:space:]]` there compiles to a literal 8-character class,
+  // not whitespace -- so feeding commandPattern/failPattern straight into
+  // `new RegExp()` (as engine.js did before this fix) silently drops every
+  // alternate containing embedded whitespace (`node -e`, `curl ... | sh`)
+  // while the whitespace-free alternates (`setup.mjs`, `Math_Symbol`, ...)
+  // keep matching -- which is exactly why the pre-existing claude-hook
+  // corpus cases above (built from "node setup.mjs") never caught this.
+  // The four cases below pin the engine to the `jsCommandPattern`/
+  // `jsFailPattern` fields specifically.
+  it('claude-hook-node-e -> claude-hook (exactly 1) — commandPattern\'s node -e alternate, the exact G-1482 regression', async () => {
+    const result = await runCorpusCase('claude-hook-node-e');
+    assert.equal(findingsOfId(result, 'claude-hook').length, 1);
+  });
+
+  it('claude-hook-curl-pipe -> claude-hook (exactly 1) — commandPattern\'s curl | sh alternate', async () => {
+    const result = await runCorpusCase('claude-hook-curl-pipe');
+    assert.equal(findingsOfId(result, 'claude-hook').length, 1);
+  });
+
+  it('claude-hook-safe-control -> zero findings (safe control, no IOC term)', async () => {
+    const result = await runCorpusCase('claude-hook-safe-control');
+    assert.equal(result.findings.length, 0);
+  });
+
+  it('vscode-task-node-e -> vscode-task (exactly 1, fail — not vscode-task-info) — failPattern\'s node -e alternate', async () => {
+    const result = await runCorpusCase('vscode-task-node-e');
+    assert.equal(findingsOfId(result, 'vscode-task').length, 1);
+    assert.equal(findingsOfId(result, 'vscode-task-info').length, 0, 'pre-fix, this fixture was downgraded to vscode-task-info instead of being absent');
+  });
+
   it('marker-source (ordinary .js file) -> marker-string (exactly 1)', async () => {
     // 2026-08-07 tiering-trade-off reversal: marker-config now covers every
     // bulk-content-allowlisted name too (see classify.js's widened

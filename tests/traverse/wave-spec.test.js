@@ -18,7 +18,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { loadWaveSpec, validateWaveSpec, SUPPORTED_SPEC_VERSIONS } = require('../../lib/traverse/wave-spec.js');
+const { loadWaveSpec, validateWaveSpec, SUPPORTED_SPEC_VERSIONS, JS_REGEX_FIELD_PATHS, getAtPath } = require('../../lib/traverse/wave-spec.js');
 
 const SPEC_PATH = path.join(__dirname, '..', '..', 'manifests', 'waves', 'chaindrop-aug2026.json');
 const REAL_SPEC = JSON.parse(fs.readFileSync(SPEC_PATH, 'utf8'));
@@ -201,6 +201,78 @@ describe('wave-spec.js — prototype-pollution guard', () => {
   });
 
   it('accepts the real spec, which has no polluted keys (paired valid case)', () => {
+    const good = clone(REAL_SPEC);
+    const result = validateWaveSpec(good);
+    assert.equal(result.valid, true, result.reason);
+  });
+});
+
+describe('wave-spec.js — JS-consumed regex-field guard (G-1482 merge-blocking fix)', () => {
+  // A JS `new RegExp()` does not understand POSIX bracket classes --
+  // `[[:space:]]` compiles to a literal 8-character class, not whitespace --
+  // so every field the engine feeds into `new RegExp()`
+  // (JS_REGEX_FIELD_PATHS) must be present, non-empty, and RegExp-
+  // constructible, and must never itself contain a `[[:` POSIX class (the
+  // second check is the permanent drift guard: it is what would have caught
+  // commandPattern/failPattern being handed to `new RegExp()` in the first
+  // place, before any corpus fixture had to prove the miss at runtime).
+  const POSIX_CLASS_RE = /\[\[:/;
+
+  it('the real spec has no `[[:` POSIX bracket class in any JS-consumed regex field', () => {
+    for (const segments of JS_REGEX_FIELD_PATHS) {
+      const value = getAtPath(REAL_SPEC, segments);
+      assert.equal(typeof value, 'string', `${segments.join('.')} must be a string in the real spec`);
+      assert.doesNotMatch(
+        value,
+        POSIX_CLASS_RE,
+        `${segments.join('.')} contains a POSIX bracket class ([[:...:]]) — a JS new RegExp() does not understand POSIX classes and will silently fail to match what the class describes (G-1482)`
+      );
+    }
+  });
+
+  it('non-vacuity: a POSIX-class value DOES trip the guard above (verified by local mutation, not asserted against the real spec)', () => {
+    // Proves the assertion in the previous test is not vacuously true for
+    // every string (e.g. via a mistyped regex) -- mutate a local copy to
+    // reintroduce the exact defect and confirm the guard's own regex fires.
+    assert.match('node[[:space:]]+-e', POSIX_CLASS_RE);
+  });
+
+  for (const segments of JS_REGEX_FIELD_PATHS) {
+    const dottedPath = segments.join('.');
+
+    it(`rejects a spec with "${dottedPath}" deleted (no fallthrough to new RegExp(undefined))`, () => {
+      const bad = clone(REAL_SPEC);
+      let node = bad;
+      for (let i = 0; i < segments.length - 1; i += 1) node = node[segments[i]];
+      delete node[segments[segments.length - 1]];
+
+      const result = validateWaveSpec(bad);
+      assert.equal(result.valid, false, `a spec missing ${dottedPath} must fail validation, not silently pass through to new RegExp(undefined) (which matches every string)`);
+      assert.match(result.reason, new RegExp(dottedPath.replace(/\./g, '\\.')));
+    });
+
+    it(`rejects a spec with "${dottedPath}" set to an empty string`, () => {
+      const bad = clone(REAL_SPEC);
+      let node = bad;
+      for (let i = 0; i < segments.length - 1; i += 1) node = node[segments[i]];
+      node[segments[segments.length - 1]] = '';
+
+      const result = validateWaveSpec(bad);
+      assert.equal(result.valid, false, `${dottedPath} = "" must fail validation (new RegExp('') matches every string)`);
+    });
+
+    it(`rejects a spec with "${dottedPath}" set to an invalid regex source`, () => {
+      const bad = clone(REAL_SPEC);
+      let node = bad;
+      for (let i = 0; i < segments.length - 1; i += 1) node = node[segments[i]];
+      node[segments[segments.length - 1]] = '(unterminated group';
+
+      const result = validateWaveSpec(bad);
+      assert.equal(result.valid, false, `${dottedPath} must be constructible by new RegExp(); an unterminated group must be rejected`);
+    });
+  }
+
+  it('accepts the real spec (paired valid case for every JS_REGEX_FIELD_PATHS entry)', () => {
     const good = clone(REAL_SPEC);
     const result = validateWaveSpec(good);
     assert.equal(result.valid, true, result.reason);
