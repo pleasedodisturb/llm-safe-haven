@@ -20,7 +20,14 @@
 //   1. enumerate            — bare recursive fs.readdirSync walk, lstat-free
 //   2. enumerate+lstat-dirs — the same walk plus one fs.lstatSync per directory
 //   3. git-repos            — one `git ls-files` per discovered repo boundary
-//   4. old-scanner          — scripts/scan-chaindrop-aug2026.sh end to end
+//   4. old-scanner          — scripts/scan-chaindrop-aug2026.sh end to end, but that
+//                             script was itself retrofitted onto the traversal engine on
+//                             2026-08-07 (zero `find` passes), so this phase measures the
+//                             CURRENT engine-backed scanner, not a pre-engine one.
+//                             A baseline recorded today is therefore NOT a pre-engine
+//                             measurement: it records `meta.scannerEngineBacked: true`, and
+//                             `--mode engine --baseline <that file>` REFUSES to report a
+//                             speedup rather than divide the same program by itself.
 //
 // What it measures (--mode engine, plan 17-15):
 //   1. engineRun            — a single direct `node lib/traverse/run.js` invocation
@@ -67,6 +74,15 @@ const { spawnSync } = require('child_process');
 
 const GIT_LS_FILES_ARGS = ['ls-files', '--cached', '--others', '--exclude-standard', '--full-name', '-z'];
 const GIT_ENV_OVERRIDES = { GIT_OPTIONAL_LOCKS: '0', GIT_PAGER: '', GIT_TERMINAL_PROMPT: '0' };
+// The date scripts/scan-chaindrop-aug2026.sh was retrofitted onto the traversal
+// engine (zero `find` passes). SOURCE: this file's own `--mode engine` header
+// block above (the `engineScanner` entry, lines 38-43), which has carried the
+// retrofit date on line 41 since the retrofit landed — this constant is read
+// off that admission, not guessed and not inferred from git history. A baseline
+// recorded before this instant measured a genuinely different program; one
+// recorded after it did not.
+const SCANNER_RETROFIT_ISO = '2026-08-07T00:00:00Z';
+
 const MAX_BUFFER = 256 * 1024 * 1024; // 256 MiB — a large repo's NUL-delimited ls-files output, or a long scanner report, can run to tens of MB; Node's ~1 MiB default would silently truncate and make the measurement wrong.
 
 function msFrom(startNs, endNs) {
@@ -401,6 +417,11 @@ function runEngineRunPhase(root, jsonMode) {
  * `incomplete` too, but is named explicitly here for readability of the
  * comparison object). Never throws -- an unreadable/malformed baseline
  * degrades to an `{ error }` field rather than crashing the whole run.
+ *
+ * A baseline that cannot be shown to predate SCANNER_RETROFIT_ISO degrades the
+ * same way, to an `{ error }` naming its post-retrofit provenance (TOOL-02 /
+ * G-1546) -- see the provenance gate below for why a ratio against such a file
+ * is meaningless. There is exactly ONE return site for that error string.
  */
 function buildComparison(baselinePath, engineScanner, engineRun) {
   let baseline;
@@ -417,11 +438,51 @@ function buildComparison(baselinePath, engineScanner, engineRun) {
     return { error: 'baseline-missing-oldScanner-wallClockMs' };
   }
 
+  // ---- provenance gate (TOOL-02 / G-1546) ---------------------------------
+  // Deliberately placed AFTER the two guards above: an unreadable or
+  // shape-invalid baseline must report THAT, not a verdict about provenance.
+  //
+  // Both `--mode baseline` phase 4 (`oldScanner`) and `--mode engine` phase 2
+  // (`engineScanner`) call the SAME runOldScanner(), which spawns the SAME
+  // scripts/scan-chaindrop-aug2026.sh. Since the 2026-08-07 retrofit that
+  // script IS the traversal engine, so a baseline recorded after that date
+  // measures the very program this run measures, and their ratio is a program
+  // divided by itself dressed up as a speedup. Refuse rather than fabricate.
+  //
+  // Precedence, most explicit evidence first:
+  //   1. meta.scannerEngineBacked === false -> accept (declared pre-retrofit)
+  //   2. meta.scannerEngineBacked === true  -> refuse
+  //   3. a parseable meta.timestamp strictly before the retrofit -> accept
+  //   4. anything else (absent, unparseable, or on/after) -> refuse, fail closed
+  const meta = baseline && baseline.meta;
+  let provenance;
+  if (meta && meta.scannerEngineBacked === false) {
+    provenance = 'declared-pre-retrofit';
+  } else if (meta && meta.scannerEngineBacked === true) {
+    provenance = null;
+  } else {
+    const recordedMs = Date.parse((meta && meta.timestamp) || '');
+    provenance = Number.isFinite(recordedMs) && recordedMs < Date.parse(SCANNER_RETROFIT_ISO) ? 'pre-retrofit-timestamp' : null;
+  }
+
+  if (provenance === null) {
+    logErr(
+      `--baseline "${baselinePath}" cannot be shown to predate the ${SCANNER_RETROFIT_ISO} retrofit, ` +
+        'so its old-scanner phase measures the same engine-backed scanner this run measures — a ratio ' +
+        'against it would compare a program with itself; comparison omitted'
+    );
+    // No speedupRatio / oldScannerWallClockMs / newScannerWallClockMs /
+    // budgetFired key at all, so nothing downstream can render half a
+    // comparison. printEngineReport's existing `comparison.error` branch
+    // already handles this shape — no printer change is needed.
+    return { error: 'baseline-post-retrofit' };
+  }
+
   const newScannerWallClockMs = engineScanner.wallClockMs;
   const speedupRatio = newScannerWallClockMs > 0 ? oldScannerWallClockMs / newScannerWallClockMs : null;
   const budgetFired = Boolean(engineRun.incomplete) || Boolean(engineRun.tiers && engineRun.tiers.targeted && engineRun.tiers.targeted.complete === false);
 
-  return { oldScannerWallClockMs, newScannerWallClockMs, speedupRatio, budgetFired };
+  return { oldScannerWallClockMs, newScannerWallClockMs, speedupRatio, budgetFired, provenance };
 }
 
 function runEngine(root, jsonMode, baselinePath) {
@@ -519,6 +580,13 @@ function runBaseline(root, jsonMode) {
       arch: process.arch,
       cpus: os.cpus().length,
       timestamp: new Date().toISOString(),
+      // TOOL-02 / G-1546. The phase-4 measurement this file labels `oldScanner`
+      // is, since the 2026-08-07 retrofit, the CURRENT engine-backed scanner --
+      // runBaseline and runEngine call the same runOldScanner(). Recording that
+      // fact IN the artifact means a future reader never has to date the file by
+      // hand, and a baseline recorded by THIS code refuses itself for the right
+      // reason (explicit declaration) rather than sneaking past a date check.
+      scannerEngineBacked: true,
     },
     enumerate,
     enumerateLstatDirs,
@@ -605,4 +673,17 @@ function main() {
   process.exit(0);
 }
 
-main();
+// Direct CLI execution is byte-identical to before this guard existed; what
+// changes is that `require()`ing this file no longer runs a benchmark and no
+// longer calls process.exit() on the requiring process.
+if (require.main === module) {
+  main();
+}
+
+// `scripts/**` is excluded from the coverage denominator (package.json:42) and
+// absent from the test glob (package.json:41), so nothing in this file has ever
+// had a path to a unit test. This export exists for exactly one reason: to give
+// the one piece of real logic here -- buildComparison and the retrofit boundary
+// it gates on -- the unit tests the repo's standing rule requires of every piece
+// of code. Nothing in production imports this module.
+module.exports = { buildComparison, SCANNER_RETROFIT_ISO };
