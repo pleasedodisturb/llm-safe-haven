@@ -216,7 +216,13 @@ describe('wave-spec.js — JS-consumed regex-field guard (G-1482 merge-blocking 
   // second check is the permanent drift guard: it is what would have caught
   // commandPattern/failPattern being handed to `new RegExp()` in the first
   // place, before any corpus fixture had to prove the miss at runtime).
-  const POSIX_CLASS_RE = /\[\[:/;
+  // Must stay byte-identical to the validator's POSIX_CLASS_RE
+  // (lib/traverse/wave-spec.js) — the two are deliberately the same
+  // expression so they cannot disagree about what counts as a POSIX class.
+  // Token form, not the leading-`[[:` form: the latter was bypassed by
+  // `[^[:space:]]` (negated) and `[a-z[:digit:]]` (mixed), found by
+  // adversarial code review of PR #96.
+  const POSIX_CLASS_RE = /\[:[a-z]+:\]/;
 
   it('the real spec has no `[[:` POSIX bracket class in any JS-consumed regex field', () => {
     for (const segments of JS_REGEX_FIELD_PATHS) {
@@ -325,6 +331,70 @@ describe('wave-spec.js — JS-consumed regex-field guard (G-1482 merge-blocking 
       );
     });
   }
+
+  // ---- PR #96 code-review finding: the leading-`[[:` form was bypassable ----
+  //
+  // The original ban was `/\[\[:/`, which matches only a POSIX class at the
+  // START of a bracket expression. Adversarial code review found two shapes
+  // that slipped through — and they are the two an operator is MOST likely to
+  // write, because they are what you reach for when the simple form is not
+  // enough:
+  //
+  //     [^[:space:]]      negated
+  //     [a-z[:digit:]]    mixed with an ordinary range
+  //
+  // Both compile in JS as literal character classes. Measured:
+  // `/[^[:space:]]/.test('s')` is FALSE — a pattern meaning "not whitespace"
+  // fails to match a non-whitespace character. That is a silently non-firing
+  // detector reaching production through the exact validator built to stop it.
+  //
+  // Neither plan review nor a hand check of the leading form caught this;
+  // only reviewing the shipped diff did. These cases exist so the narrower
+  // form cannot come back.
+  const POSIX_BYPASS_SHAPES = [
+    ['negated', '[^[:space:]]'],
+    ['mixed with a range', '[a-z[:digit:]]'],
+    ['two classes in one expression', '[[:alpha:][:digit:]]'],
+    ['embedded mid-pattern', 'node[[:upper:]]+-e'],
+  ];
+
+  for (const [label, source] of POSIX_BYPASS_SHAPES) {
+    it(`rejects a ${label} POSIX class — "${source}" (PR #96 review; bypassed the leading-[[: form)`, () => {
+      const bad = clone(REAL_SPEC);
+      const segments = JS_REGEX_FIELD_PATHS[0];
+      let node = bad;
+      for (let i = 0; i < segments.length - 1; i += 1) node = node[segments[i]];
+      node[segments[segments.length - 1]] = source;
+
+      const result = validateWaveSpec(bad);
+      assert.equal(
+        result.valid,
+        false,
+        `"${source}" must be rejected. It compiles without throwing and then never matches what its author meant, which is the silently-non-firing detector this ban exists to prevent.`
+      );
+      assert.match(result.reason, /POSIX/, `reason must identify it as a POSIX class: ${result.reason}`);
+    });
+  }
+
+  it('paired control 4 — legitimate patterns that merely LOOK POSIX-adjacent are still accepted', () => {
+    // Guards the opposite failure: a ban broad enough to catch the negated
+    // and mixed shapes must not start rejecting valid regexes. The rejected
+    // alternative `/\[\^?[^\]]*\[:/` false-positives on both of these.
+    for (const source of ['[\\[:]', '\\[\\[:not-a-class', '[a-z]', '^\\s*$', '[A-Za-z0-9_-]+']) {
+      const good = clone(REAL_SPEC);
+      const segments = JS_REGEX_FIELD_PATHS[0];
+      let node = good;
+      for (let i = 0; i < segments.length - 1; i += 1) node = node[segments[i]];
+      node[segments[segments.length - 1]] = source;
+
+      const result = validateWaveSpec(good);
+      assert.equal(
+        result.valid,
+        true,
+        `"${source}" is a legitimate JS regex and must still validate — the POSIX ban must not over-reach: ${result.reason}`
+      );
+    }
+  });
 
   it('paired control 1 — the shipped spec still validates unchanged (D-06 zero-risk claim under test)', () => {
     const result = validateWaveSpec(clone(REAL_SPEC));
