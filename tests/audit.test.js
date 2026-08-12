@@ -311,6 +311,39 @@ describe('audit --json frozen contract (D-11) and containment', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// EXIT-01 / review C-6 (G-1545) — the cross-check between scan() and
+// audit() over a .env fixture. The first draft of this plan asked for raw
+// exit-code EQUALITY between the two commands; that criterion is FALSE
+// under normal conditions: lib/audit.js:132-135 returns { code: 1 } on zero
+// detected agents, before the env scan ever runs, so on an empty fixture
+// scan() legitimately returns 0 while audit() legitimately returns 1. The
+// phase could be entirely correct and still fail an equality check, or pass
+// it for the wrong reason. The real criterion, pinned here with agents and
+// MCP PINNED so the asymmetry above cannot interfere: BOTH commands refuse
+// a false all-clear over a .env fixture -- neither prints the green line,
+// neither returns a code meaning clean.
+// ---------------------------------------------------------------------------
+describe('EXIT-01 / audit parity — both commands refuse a false all-clear (review C-6, G-1545)', () => {
+  beforeEach(() => {
+    currentBuildEnvelope = () => Promise.resolve(envelope());
+    currentAgents = [fakeAgent()];
+    currentEnvFiles = ['/project/.env'];
+  });
+
+  it('audit(), with at least one agent detected and a clean MCP scan, reports the .env finding and never returns a code meaning clean', async () => {
+    const { logs, result } = await captureLog(() => audit({}));
+    assert.ok(
+      logs.some((l) => l.includes('.env file(s) found')),
+      `audit must still report the .env finding, got: ${logs.join('\n')}`
+    );
+    assert.notEqual(
+      result.code, 0,
+      'audit must never return a code meaning clean when a .env is present -- the criterion is "refuses a false all-clear", not exit-code equality with scan() (lib/audit.js:132-135 is why raw equality would fail on entirely correct code, review C-6)'
+    );
+  });
+});
+
 describe('normalizeAuditResult (WR-03 boundary)', () => {
   it('null/undefined -> { checks: [], level: 0 }', () => {
     assert.deepEqual(normalizeAuditResult(null), { checks: [], level: 0 });

@@ -884,3 +884,144 @@ describe('D-07a — an unreadable directory can no longer render a green check o
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// EXIT-01 (G-1545, D-04) — scan()'s exit code is now produced by
+// computeExit(), not a hand-rolled ladder: a `.env` finding exits 1, a
+// clean/complete scan still returns `undefined`, an incomplete-with-findings
+// scan exits 1 (D-18: findings beat incompleteness), an incomplete-with-no-
+// findings scan still exits 2 (Task 1's case, unchanged), and the
+// credential-file list can never drive the exit code (Pitfall 3 / D-02b).
+// Sandbox-HOME + LSH_ROOTS idiom copied from the return-contract describe
+// block above (:507-580).
+// ---------------------------------------------------------------------------
+describe('EXIT-01 — scan() routes its exit code through computeExit() (G-1545, D-04, D-18)', () => {
+  const osPath = require.resolve('os');
+  const scanPath = require.resolve('../lib/scan.js');
+  const skipUnreadableFixtures = process.platform === 'win32' || runningAsRoot;
+
+  let sandboxHome;
+  let fixtureDir;
+  let originalOsEntry;
+  let originalLshRoots;
+  let originalLshMaxFiles;
+
+  beforeEach(() => {
+    sandboxHome = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-exit01-home-'));
+    fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-exit01-root-'));
+    originalOsEntry = require.cache[osPath];
+    originalLshRoots = process.env.LSH_ROOTS;
+    originalLshMaxFiles = process.env.LSH_MAX_FILES;
+  });
+
+  afterEach(() => {
+    if (originalOsEntry === undefined) delete require.cache[osPath];
+    else require.cache[osPath] = originalOsEntry;
+    delete require.cache[scanPath];
+    if (originalLshRoots === undefined) delete process.env.LSH_ROOTS;
+    else process.env.LSH_ROOTS = originalLshRoots;
+    if (originalLshMaxFiles === undefined) delete process.env.LSH_MAX_FILES;
+    else process.env.LSH_MAX_FILES = originalLshMaxFiles;
+    fs.rmSync(sandboxHome, { recursive: true, force: true });
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
+  });
+
+  it('findings -> exit 1: a fixture root with a .env returns { code: 1 } and prints the red findings line', async () => {
+    fs.writeFileSync(path.join(fixtureDir, '.env'), 'SECRET_TOKEN=abc123\n');
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+    const { logs, result } = await captureLog(() => sandboxedScan({}, {}));
+
+    assert.deepEqual(result, { code: 1 }, 'a .env finding must return { code: 1 }, never undefined (implicit 0)');
+    assert.ok(logs.some((l) => l.includes('.env file(s) found')), 'the red findings line must still print');
+  });
+
+  it('PAIRED CONTROL: clean -> undefined (re-confirms tests/scan.test.js:573/:654 still hold, unedited)', async () => {
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+    const { result } = await captureLog(() => sandboxedScan({}, {}));
+
+    assert.strictEqual(result, undefined, 'a clean, complete scan must still return undefined, byte-identical to before this plan');
+  });
+
+  it('D-18 precedence: findings AND an incomplete enumeration -> exit 1, not 2', { skip: skipUnreadableFixtures }, async () => {
+    fs.writeFileSync(path.join(fixtureDir, '.env'), 'SECRET_TOKEN=abc123\n');
+    const lockedSibling = path.join(fixtureDir, 'locked-sibling');
+    fs.mkdirSync(lockedSibling);
+    fs.chmodSync(lockedSibling, 0o000);
+
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+    try {
+      const { result } = await captureLog(() => sandboxedScan({}, {}));
+      assert.deepEqual(result, { code: 1 }, 'D-18: a real .env finding must beat incompleteness — exit 1, not 2');
+    } finally {
+      fs.chmodSync(lockedSibling, 0o755);
+    }
+  });
+
+  it('no findings AND incomplete -> exit 2, unchanged from Task 1', { skip: skipUnreadableFixtures }, async () => {
+    const locked = path.join(fixtureDir, 'locked-secret');
+    fs.mkdirSync(locked);
+    fs.writeFileSync(path.join(locked, '.env'), 'SECRET_TOKEN=abc123\n');
+    fs.chmodSync(locked, 0o000);
+
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+    try {
+      const { result } = await captureLog(() => sandboxedScan({}, {}));
+      assert.deepEqual(result, { code: 2 }, 'zero findings plus incompleteness must still exit 2');
+    } finally {
+      fs.chmodSync(locked, 0o755);
+    }
+  });
+
+  it('CRYING-WOLF CONTROL (Pitfall 3): a sandbox HOME with .npmrc and no .env still returns undefined', async () => {
+    fs.writeFileSync(path.join(sandboxHome, '.npmrc'), '//registry.npmjs.org/:_authToken=FAKE\n');
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+    const { logs, result } = await captureLog(() => sandboxedScan({}, {}));
+
+    assert.strictEqual(result, undefined, 'mapping dangerousFiles to fail would exit 1 on nearly every real developer machine — a D-02b-class regression');
+    assert.ok(logs.some((l) => l.includes('Credential files accessible to agents:')), 'the credential-file block must still print (detected, just not fail-severity)');
+  });
+
+  it('CRYING-WOLF CONTROL (Pitfall 3): a sandbox HOME with .aws/credentials and no .env still returns undefined', async () => {
+    const awsDir = path.join(sandboxHome, '.aws');
+    fs.mkdirSync(awsDir, { recursive: true });
+    fs.writeFileSync(path.join(awsDir, 'credentials'), '[default]\naws_access_key_id = FAKE\n');
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+    const { logs, result } = await captureLog(() => sandboxedScan({}, {}));
+
+    assert.strictEqual(result, undefined, 'mapping dangerousFiles to fail would exit 1 on nearly every real developer machine — a D-02b-class regression');
+    assert.ok(logs.some((l) => l.includes('Credential files accessible to agents:')), 'the credential-file block must still print (detected, just not fail-severity)');
+  });
+
+  it('synchronous-return guard: the env path never returns a thenable (lib/cli.js:122-127\'s requirement)', async () => {
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+    let rawReturn;
+    await captureLog(() => { rawReturn = sandboxedScan({}, {}); return rawReturn; });
+
+    assert.strictEqual(rawReturn, undefined, 'a clean fixture returns undefined synchronously');
+    assert.ok(
+      !(rawReturn && typeof rawReturn.then === 'function'),
+      'scan()\'s return value must never be a thenable — pins the sync-return contract so this path is never made async'
+    );
+  });
+});
