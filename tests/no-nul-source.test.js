@@ -69,6 +69,31 @@ function scanForNulBytes(absPaths) {
   let scanned = 0;
   const offenders = [];
   for (const abs of absPaths) {
+    // Establish the file TYPE before opening it. readFileSync() on a FIFO
+    // blocks forever waiting for a writer — measured: a 5s timeout kills it,
+    // it never returns — so a single tracked FIFO would hang CI indefinitely
+    // rather than fail it. lstat (not stat) because a symlink must be judged
+    // as itself: following one would scan a file outside the tracked set and
+    // report an offender path that is not the path git enumerated.
+    //
+    // This mirrors the project's own read-path discipline — the traversal
+    // engine opens with O_NOFOLLOW and gates on fstat().isFile() for exactly
+    // this reason (lib/traverse/read-pool.js). A guard that can hang is worse
+    // than one that fails: a hang has no output to read.
+    let st;
+    try {
+      st = fs.lstatSync(abs);
+    } catch (err) {
+      offenders.push({ file: abs, offset: null, error: (err && err.code) || 'UNKNOWN' });
+      continue;
+    }
+    if (!st.isFile()) {
+      // Not a pass. A non-regular tracked entry has not been shown NUL-free,
+      // and silently skipping it is the vacuity this file exists to prevent.
+      offenders.push({ file: abs, offset: null, error: 'NON_REGULAR_FILE' });
+      continue;
+    }
+
     let buf;
     try {
       buf = fs.readFileSync(abs);
