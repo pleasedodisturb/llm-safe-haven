@@ -715,6 +715,116 @@ describe('engine — ANOMALY skip reasons (unreadable, budget) make the scan inc
 });
 
 // ---------------------------------------------------------------------------
+// A short read makes the scan incomplete (exit 2), or exit 1 when the
+// partial content still FAILs (D-18) (Task 2, SCAN-04/D-03, G-1541).
+// End-to-end guard: pins that the pool-level `record.shortRead` accounting
+// (tests/traverse/read-pool.test.js) actually reaches Traversal.run()'s
+// incomplete/exitCode contract, and that the partial content is never
+// silently dropped from finding generation.
+// ---------------------------------------------------------------------------
+
+// Half-then-zero, applied through the Traversal's own `fs` injectable seam:
+// the FIRST read on any opened handle returns half the bytes the real read
+// actually produced; every subsequent read on that SAME handle returns
+// zero. Matches tests/traverse/read-pool.test.js's halfThenZeroFs() shape
+// exactly (not shared via a helper module -- each file's local copy stays
+// self-contained, matching this file's existing local-stub convention, e.g.
+// Guard 2's `denyingFs` above).
+function halfThenZeroFs() {
+  const realFs = require('fs');
+  return {
+    ...realFs,
+    promises: {
+      ...realFs.promises,
+      open: async (...args) => {
+        const handle = await realFs.promises.open(...args);
+        const originalRead = handle.read.bind(handle);
+        let callCount = 0;
+        return Object.assign(Object.create(Object.getPrototypeOf(handle)), handle, {
+          read: async (buffer, offset, length, position) => {
+            callCount += 1;
+            if (callCount === 1) {
+              const real = await originalRead(buffer, offset, length, position);
+              return { bytesRead: Math.floor(real.bytesRead / 2), buffer };
+            }
+            return { bytesRead: 0, buffer };
+          },
+        });
+      },
+    },
+  };
+}
+
+describe('engine — a short read makes the scan incomplete (exit 2), or exit 1 when the partial content still FAILs (D-18) (Task 2, SCAN-04/D-03, G-1541)', () => {
+  it('benign fixture, truncating fs -> incomplete true, exit 2, zero findings, unreadable >= 1', async () => {
+    const home = mkFixture();
+    write(path.join(home, '.npmrc'), `registry=https://registry.npmjs.org/\n${'x'.repeat(200)}\n`);
+
+    const t2 = new Traversal({ roots: [home], spec: SPEC, fs: halfThenZeroFs() });
+    const result = await t2.run();
+
+    assert.equal(result.incomplete, true);
+    assert.equal(result.exitCode, 2);
+    assert.equal(result.findings.filter((f) => f.severity === 'fail').length, 0);
+    assert.equal(result.findings.filter((f) => f.severity === 'warn').length, 0);
+    assert.equal(result.findings.filter((f) => f.severity === 'info').length, 0);
+    assert.ok(result.skips.counts().unreadable >= 1);
+  });
+
+  it('PAIRED CONTROL: identical benign fixture, real fs -> incomplete false, exit 0, zero unreadable skips', async () => {
+    const home = mkFixture();
+    write(path.join(home, '.npmrc'), `registry=https://registry.npmjs.org/\n${'x'.repeat(200)}\n`);
+
+    const t2 = new Traversal({ roots: [home], spec: SPEC });
+    const result = await t2.run();
+
+    assert.equal(result.incomplete, false);
+    assert.equal(result.exitCode, 0);
+    assert.equal(result.skips.counts().unreadable, 0);
+  });
+
+  // Marker-in-partial-content fixture: reuses the marker-npmrc corpus case
+  // (`; ioc: ${MARKER}\nregistry=https://registry.npmjs.org/\n`, MARKER =
+  // 'npm-cache.com'). Measured (node -e against the real corpus builder,
+  // recorded in the plan SUMMARY): total file size 58 bytes, marker starts
+  // at byte offset 7 and ends at byte offset 20. halfThenZeroFs's first
+  // read here returns floor(58/2) = 29 bytes -- well past byte 20, so the
+  // marker survives the truncation intact and marker matching still fires
+  // over the partial content.
+  it('marker-in-partial-content fixture (corpus case marker-npmrc, marker at byte offset 7-20 of a 58-byte file, half-read returns 29 bytes), truncating fs -> exit 1 (D-18: FAIL beats incompleteness), incomplete true, finding still present', async () => {
+    const result = await runCorpusCase('marker-npmrc', { fs: halfThenZeroFs() });
+
+    assert.equal(result.exitCode, 1, 'a FAIL finding derived from the partial content must beat incompleteness under D-18 -- this is the guard that fails if result.error had been set instead of result.shortRead');
+    assert.equal(result.incomplete, true);
+    assert.ok(result.skips.counts().unreadable >= 1);
+    const matches = findingsOfId(result, 'marker-string');
+    assert.equal(
+      matches.length,
+      1,
+      'the marker-npmrc corpus case promises exactly one marker-string finding; if this count is not 1, STOP and report rather than relaxing the assertion'
+    );
+  });
+
+  it('PAIRED CONTROL: the marker-npmrc corpus case, real fs -> exit 1, incomplete false, same finding count', async () => {
+    const result = await runCorpusCase('marker-npmrc');
+
+    assert.equal(result.exitCode, 1);
+    assert.equal(result.incomplete, false);
+    const matches = findingsOfId(result, 'marker-string');
+    assert.equal(matches.length, 1);
+  });
+
+  // Break-proofs 1-3 and their blind spot are Task 2's, defined and
+  // recorded alongside the pool-level cases they pair with in
+  // tests/traverse/read-pool.test.js's "a short read records ONE
+  // unreadable skip per record..." describe block -- the benign
+  // end-to-end case above and the marker-in-partial-content case above are
+  // the two NAMED cases break-proof 2 and break-proof 3 (respectively)
+  // require to fail here; see that block for the full protocol and the
+  // plan SUMMARY for the verbatim recorded output.
+});
+
+// ---------------------------------------------------------------------------
 // SKIP_REASONS ANOMALY/SCOPE partition (D-02b -- FINAL, 17.1-CONTEXT.md,
 // G-1512). This test IS the point of the D-02b change: it is what stops
 // the "does `oversized` feed `incomplete`?" question from being
