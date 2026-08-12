@@ -405,7 +405,7 @@ describe('wave-spec.js — JS-consumed regex-field guard (G-1482 merge-blocking 
     // Guards the opposite failure: a ban broad enough to catch the negated
     // and mixed shapes must not start rejecting valid regexes. The rejected
     // alternative `/\[\^?[^\]]*\[:/` false-positives on both of these.
-    for (const source of ['[\\[:]', '\\[\\[:not-a-class', '[a-z]', '^\\s*$', '[A-Za-z0-9_-]+', '[.]', '[=]', '[:]', '[.,;:]', '[a.b]', 'x[.]y']) {
+    for (const source of ['[\\[:]', '\\[\\[:not-a-class', '[a-z]', '^\\s*$', '[A-Za-z0-9_-]+', '[.]', '[=]', '[:]', '[.,;:]', '[a.b]', 'x[.]y', '[::]', '[..]', '[==]', '[:.=]', '[a:b]']) {
       const good = clone(REAL_SPEC);
       const segments = JS_REGEX_FIELD_PATHS[0];
       let node = good;
@@ -445,7 +445,17 @@ describe('wave-spec.js — JS-consumed regex-field guard (G-1482 merge-blocking 
 
   it('paired control 3 — a malformed regex still reports as malformed, not as a POSIX class (precedence)', () => {
     const bad = clone(REAL_SPEC);
-    bad.installMarker.jsPattern = '(unterminated group';
+    // The fixture must satisfy BOTH conditions or this test does not test
+    // precedence at all: it has to match POSIX_CLASS_RE *and* fail
+    // new RegExp(). The previous fixture, '(unterminated group', only threw —
+    // it never matched the POSIX detector, so swapping the two checks would
+    // have left this test green. A precedence test whose fixture trips only
+    // one of the two branches is not a precedence test. (CodeRabbit, PR #96.)
+    bad.installMarker.jsPattern = '[[:space:]](';
+    assert.match(bad.installMarker.jsPattern, VALIDATOR_POSIX_CLASS_RE,
+      'fixture must match the POSIX detector, else this test cannot observe ordering');
+    assert.throws(() => new RegExp(bad.installMarker.jsPattern),
+      'fixture must also fail new RegExp(), else this test cannot observe ordering');
 
     const result = validateWaveSpec(bad);
     assert.equal(result.valid, false);
