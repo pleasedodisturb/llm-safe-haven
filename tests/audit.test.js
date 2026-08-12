@@ -25,6 +25,31 @@ const { installStub } = require('./helpers/module-stub.js');
 let currentBuildEnvelope;
 let currentAgents;
 let currentEnvFiles;
+// D-11 (G-1545, plan 18-04 Task 4): lib/audit.js now imports
+// scanForEnvFilesDetailed/printEnvScanResult instead of the
+// incomplete-discarding scanForEnvFiles/printEnvScan pair. The stub below
+// replaces lib/scan.js WHOLESALE, so it must provide both new exports too
+// or audit() throws on an undefined call -- the single most likely way
+// this task breaks the existing suite (per the plan's own warning).
+// `currentEnvDetail` defaults to `undefined`, meaning "derive `.files` from
+// `currentEnvFiles` (unchanged behaviour for every pre-existing test) and
+// `.incomplete` from `currentEnvIncomplete`" -- explicitly set
+// `currentEnvDetail` only in tests that need the anomaly-count/rootFailures
+// fields too.
+let currentEnvIncomplete;
+let currentEnvDetail;
+// Call counter for the asymmetry pin below -- counts INVOCATIONS of the
+// stub, which is what "the env scan must never run on the zero-agents
+// human path" actually needs to prove (reading a property off whatever
+// currentEnvDetail happens to be would not distinguish "never called"
+// from "called but its return value's fields went unread").
+let scanForEnvFilesDetailedCallCount;
+
+// The REAL printEnvScanResult renderer, captured BEFORE lib/scan.js is
+// stubbed below, so the D-11 guard tests exercise the actual could-not-
+// verify rendering (not a mock of it) -- required to assert "no captured
+// stdout line contains the green text".
+const { printEnvScanResult: realPrintEnvScanResult } = require('../lib/scan.js');
 
 installStub(require.resolve('../lib/scan-mcp.js'), {
   buildEnvelope: (...args) => currentBuildEnvelope(...args),
@@ -37,6 +62,17 @@ installStub(require.resolve('../lib/agents/index.js'), {
 });
 installStub(require.resolve('../lib/scan.js'), {
   scanForEnvFiles: () => currentEnvFiles,
+  scanForEnvFilesDetailed: () => {
+    scanForEnvFilesDetailedCallCount += 1;
+    return currentEnvDetail || {
+      files: currentEnvFiles,
+      incomplete: currentEnvIncomplete,
+      anomalyCount: currentEnvIncomplete ? 1 : 0,
+      anomalyReasons: { unreadable: currentEnvIncomplete ? 1 : 0, budget: 0 },
+      rootFailures: { missing: 0, unreadable: 0 },
+    };
+  },
+  printEnvScanResult: (...args) => realPrintEnvScanResult(...args),
 });
 
 // Real (non-stubbed) collaborators: scorecard.js (computeSecurityLevel —
@@ -57,6 +93,8 @@ describe('audit --json frozen contract (D-11) and containment', () => {
     currentBuildEnvelope = () => Promise.resolve(envelope());
     currentAgents = [fakeAgent()];
     currentEnvFiles = [];
+    currentEnvIncomplete = false;
+    currentEnvDetail = undefined;
   });
 
   function parseSingleJsonDocument(logs) {
@@ -329,6 +367,8 @@ describe('EXIT-01 / audit parity — both commands refuse a false all-clear (rev
     currentBuildEnvelope = () => Promise.resolve(envelope());
     currentAgents = [fakeAgent()];
     currentEnvFiles = ['/project/.env'];
+    currentEnvIncomplete = false;
+    currentEnvDetail = undefined;
   });
 
   it('audit(), with at least one agent detected and a clean MCP scan, reports the .env finding and never returns a code meaning clean', async () => {
@@ -364,5 +404,87 @@ describe('normalizeAuditResult (WR-03 boundary)', () => {
   it('a well-formed result passes through by reference (no needless copies)', () => {
     const good = { checks: [{ name: 'c', detail: 'd', pass: true }], level: 4 };
     assert.strictEqual(normalizeAuditResult(good), good);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D-11 (G-1545, plan 18-04 Task 4) — audit() and audit({json:true}) both
+// stop printing a green check over an unread env-scan secret. Agents and
+// MCP are PINNED (at least one detected agent, a clean completing MCP
+// scan) so the ONLY remaining producer of exit code 2 is the env scan --
+// exactly the distinction the operator's real reproduction could not make
+// (the real audit() exits 2 on a mode-000 fixture today, but for MCP
+// incompleteness, not the unreadable env path -- review C-6/D-11).
+// ---------------------------------------------------------------------------
+describe('D-11 — audit() and audit({json:true}) refuse the same false all-clear as scan() (G-1545)', () => {
+  beforeEach(() => {
+    currentBuildEnvelope = () => Promise.resolve(envelope());
+    currentAgents = [fakeAgent()];
+    currentEnvFiles = [];
+    currentEnvIncomplete = false;
+    currentEnvDetail = undefined;
+    scanForEnvFilesDetailedCallCount = 0;
+  });
+
+  function incompleteZeroFilesDetail() {
+    return {
+      files: [],
+      incomplete: true,
+      anomalyCount: 1,
+      anomalyReasons: { unreadable: 1, budget: 0 },
+      rootFailures: { missing: 0, unreadable: 0 },
+    };
+  }
+
+  it('audit(): an incomplete env scan prints no green line, reports the could-not-verify state, and returns code 2 -- with agents and MCP pinned, the ONLY remaining producer of 2 is the env scan', async () => {
+    currentEnvDetail = incompleteZeroFilesDetail();
+
+    const { logs, result } = await captureLog(() => audit({}));
+    // The code assertion is checked FIRST (Task 1 break-proof 2's own
+    // pattern): the exit code and the printed line are two independent
+    // defects, and this ordering is what proves it -- a revert of only
+    // the RENDER call must fail the render assertion while the code
+    // assertion still passes, not throw before either is observed.
+    assert.equal(
+      result.code, 2,
+      'with agents detected and MCP clean, the only remaining producer of exit 2 is the env scan -- exactly the distinction the real reproduction could not make'
+    );
+    assert.ok(!logs.some((l) => l.includes('No .env files found')), 'no captured stdout line may print the green check');
+    assert.ok(logs.some((l) => l.includes('could not verify')), `expected the could-not-verify line, got: ${logs.join('\n')}`);
+  });
+
+  it('audit({json:true}): an incomplete env scan still emits exactly one parseable JSON document, with code 2', async () => {
+    currentEnvDetail = incompleteZeroFilesDetail();
+
+    const { logs, result } = await captureLog(() => audit({ json: true }));
+    assert.equal(logs.length, 1, `audit --json must emit EXACTLY one console.log call, got ${logs.length}`);
+    let parsed;
+    assert.doesNotThrow(() => { parsed = JSON.parse(logs[0]); }, 'audit --json stdout must parse as JSON even when the env scan is incomplete');
+    assert.deepEqual(parsed.envFiles, [], 'the frozen envFiles key is unaffected -- additive-only (D-11)');
+    assert.equal(result.code, 2);
+  });
+
+  it('PAIRED CONTROL: a complete, clean env detail prints the green line, no could-not-verify line, and today\'s exit code (0)', async () => {
+    currentEnvDetail = {
+      files: [],
+      incomplete: false,
+      anomalyCount: 0,
+      anomalyReasons: { unreadable: 0, budget: 0 },
+      rootFailures: { missing: 0, unreadable: 0 },
+    };
+
+    const { logs, result } = await captureLog(() => audit({}));
+    assert.ok(logs.some((l) => l.includes('No .env files found')), 'the green line must still print for a complete, clean env scan');
+    assert.ok(!logs.some((l) => l.includes('could not verify')), 'a complete, clean env scan must never print the could-not-verify line');
+    assert.deepEqual(result, { code: 0 }, 'unchanged from before this task: level 3 (fakeAgent), clean MCP -> exit 0');
+  });
+
+  it('PAIRED CONTROL: the zero-agents asymmetry pin (line ~157/168) is unaffected -- the env scan still never runs on the human short-circuit path', async () => {
+    currentAgents = [];
+    currentEnvDetail = incompleteZeroFilesDetail();
+
+    const { result } = await captureLog(() => audit({}));
+    assert.equal(result.code, 1, 'the human path must still short-circuit to exit 1 on zero agents, before the env scan is ever consulted');
+    assert.equal(scanForEnvFilesDetailedCallCount, 0, 'scanForEnvFilesDetailed() must never be CALLED on the zero-agents human path (unchanged asymmetry)');
   });
 });
