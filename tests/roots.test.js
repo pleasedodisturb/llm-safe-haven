@@ -329,3 +329,196 @@ describe('LSH_ROOTS override — lib/scan.js now honours LSH_ROOTS (D-08, flippe
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// getRoots — onUnreadableRoot (EXIT-02 / D-07b, G-1542, plan 18-04 Task 3)
+// ---------------------------------------------------------------------------
+describe('getRoots — onUnreadableRoot (EXIT-02, D-07b)', () => {
+  function statSyncThrowing(code) {
+    return (candidate) => {
+      const err = new Error(`simulated ${code}`);
+      err.code = code;
+      throw err;
+    };
+  }
+
+  it('EACCES on a DEFAULT-probe candidate fires onUnreadableRoot(candidate, "EACCES") and does NOT fire onMissingRoot', () => {
+    const missingCalls = [];
+    const unreadableCalls = [];
+    const roots = getRoots({
+      env: {},
+      homedir: () => '/home/fake',
+      fs: { statSync: statSyncThrowing('EACCES') },
+      onMissingRoot: (candidate) => missingCalls.push(candidate),
+      onUnreadableRoot: (candidate, code) => unreadableCalls.push([candidate, code]),
+    });
+
+    assert.deepEqual(roots, []);
+    assert.deepEqual(missingCalls, [], 'onMissingRoot must never fire for an unreadable candidate');
+    assert.equal(unreadableCalls.length, DEFAULT_ROOT_NAMES.length, 'onUnreadableRoot must fire once per default-probe candidate');
+    for (const [, code] of unreadableCalls) assert.equal(code, 'EACCES');
+  });
+
+  it('ENOENT on a DEFAULT-probe candidate fires NEITHER callback — D-17.1-B silence preserved', () => {
+    const missingCalls = [];
+    const unreadableCalls = [];
+    const roots = getRoots({
+      env: {},
+      homedir: () => '/home/fake',
+      fs: { statSync: statSyncThrowing('ENOENT') },
+      onMissingRoot: (candidate) => missingCalls.push(candidate),
+      onUnreadableRoot: (candidate, code) => unreadableCalls.push([candidate, code]),
+    });
+
+    assert.deepEqual(roots, []);
+    assert.deepEqual(missingCalls, [], 'ENOENT on the default probe must stay silent (D-17.1-B)');
+    assert.deepEqual(unreadableCalls, [], 'ENOENT means absent, not unreadable — must not fire onUnreadableRoot');
+  });
+
+  it('ENOTDIR fires neither callback on the default probe, and fires onMissingRoot (not onUnreadableRoot) when explicit', () => {
+    const defaultMissing = [];
+    const defaultUnreadable = [];
+    getRoots({
+      env: {},
+      homedir: () => '/home/fake',
+      fs: { statSync: statSyncThrowing('ENOTDIR') },
+      onMissingRoot: (c) => defaultMissing.push(c),
+      onUnreadableRoot: (c, code) => defaultUnreadable.push([c, code]),
+    });
+    assert.deepEqual(defaultMissing, [], 'ENOTDIR on the default probe must stay silent (D-17.1-B)');
+    assert.deepEqual(defaultUnreadable, [], 'ENOTDIR means absent (not a directory), not unreadable');
+
+    const explicitMissing = [];
+    const explicitUnreadable = [];
+    getRoots({
+      env: { LSH_ROOTS: '/some/explicit/path' },
+      homedir: () => '/home/fake',
+      fs: { statSync: statSyncThrowing('ENOTDIR') },
+      onMissingRoot: (c) => explicitMissing.push(c),
+      onUnreadableRoot: (c, code) => explicitUnreadable.push([c, code]),
+    });
+    assert.deepEqual(explicitMissing, ['/some/explicit/path'], 'ENOTDIR on an explicit root must fire onMissingRoot');
+    assert.deepEqual(explicitUnreadable, [], 'ENOTDIR must never fire onUnreadableRoot');
+  });
+
+  it('a SUCCESSFUL statSync whose isDirectory() is false fires onMissingRoot when explicit and NOTHING on the default probe', () => {
+    const fakeFs = { statSync: () => ({ isDirectory: () => false }) };
+
+    const explicitMissing = [];
+    const explicitUnreadable = [];
+    getRoots({
+      env: { LSH_ROOTS: '/some/file-not-dir' },
+      homedir: () => '/home/fake',
+      fs: fakeFs,
+      onMissingRoot: (c) => explicitMissing.push(c),
+      onUnreadableRoot: (c, code) => explicitUnreadable.push([c, code]),
+    });
+    assert.deepEqual(explicitMissing, ['/some/file-not-dir']);
+    assert.deepEqual(explicitUnreadable, [], 'a regular file is a scope fact, never an anomaly');
+
+    const defaultMissing = [];
+    const defaultUnreadable = [];
+    getRoots({
+      env: {},
+      homedir: () => '/home/fake',
+      fs: fakeFs,
+      onMissingRoot: (c) => defaultMissing.push(c),
+      onUnreadableRoot: (c, code) => defaultUnreadable.push([c, code]),
+    });
+    assert.deepEqual(defaultMissing, [], 'the default probe never fires onMissingRoot regardless of cause');
+    assert.deepEqual(defaultUnreadable, []);
+  });
+
+  it('EACCES on an EXPLICIT LSH_ROOTS entry fires onUnreadableRoot, not onMissingRoot', () => {
+    const missingCalls = [];
+    const unreadableCalls = [];
+    const roots = getRoots({
+      env: { LSH_ROOTS: '/some/locked/path' },
+      homedir: () => '/home/fake',
+      fs: { statSync: statSyncThrowing('EACCES') },
+      onMissingRoot: (c) => missingCalls.push(c),
+      onUnreadableRoot: (c, code) => unreadableCalls.push([c, code]),
+    });
+    assert.deepEqual(roots, []);
+    assert.deepEqual(missingCalls, [], 'an unreadable explicit root must never be reported as missing');
+    assert.deepEqual(unreadableCalls, [['/some/locked/path', 'EACCES']]);
+  });
+
+  it('getRoots() with NO onUnreadableRoot supplied behaves byte-identically to today (no throw, same bare string[] return)', () => {
+    assert.doesNotThrow(() => {
+      const roots = getRoots({
+        env: { LSH_ROOTS: '/some/locked/path' },
+        homedir: () => '/home/fake',
+        fs: { statSync: statSyncThrowing('EACCES') },
+      });
+      assert.deepEqual(roots, []);
+    });
+  });
+
+  // Real-filesystem paired control: the stub's errno is the one the kernel
+  // actually produces. Measured this session: statSync on a child UNDER a
+  // mode-000 parent throws EACCES (statSync on the mode-000 directory
+  // itself SUCCEEDS -- isDirectory() is true -- which is exactly why the
+  // gap is confined to "statSync itself throws", per 18-CONTEXT.md D-07b).
+  describe('real filesystem: a child under a mode-000 parent', () => {
+    const runningAsRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+    const skip = process.platform === 'win32' || runningAsRoot;
+
+    let parentDir;
+    let childDir;
+
+    afterEach(() => {
+      if (parentDir) {
+        try { fs.chmodSync(parentDir, 0o755); } catch { /* may not exist */ }
+        fs.rmSync(parentDir, { recursive: true, force: true });
+      }
+      parentDir = childDir = undefined;
+    });
+
+    it('a real mode-000 parent makes statSync on the child throw EACCES, and getRoots() fires onUnreadableRoot for it', { skip }, () => {
+      parentDir = mkTmp('roots-real-eacces-parent-');
+      childDir = path.join(parentDir, 'child');
+      fs.mkdirSync(childDir);
+      fs.chmodSync(parentDir, 0o000);
+
+      const unreadableCalls = [];
+      const missingCalls = [];
+      try {
+        const roots = getRoots({
+          env: { LSH_ROOTS: childDir },
+          homedir: () => os.tmpdir(),
+          onMissingRoot: (c) => missingCalls.push(c),
+          onUnreadableRoot: (c, code) => unreadableCalls.push([c, code]),
+        });
+        assert.deepEqual(roots, []);
+        assert.deepEqual(missingCalls, []);
+        assert.equal(unreadableCalls.length, 1);
+        assert.equal(unreadableCalls[0][0], childDir);
+        assert.equal(unreadableCalls[0][1], 'EACCES');
+      } finally {
+        fs.chmodSync(parentDir, 0o755);
+      }
+    });
+
+    it('PAIRED CONTROL: statSync on the mode-000 directory ITSELF succeeds — isDirectory() is true, no callback fires', { skip }, () => {
+      parentDir = mkTmp('roots-real-eacces-self-');
+      fs.chmodSync(parentDir, 0o000);
+
+      const unreadableCalls = [];
+      const missingCalls = [];
+      try {
+        const roots = getRoots({
+          env: { LSH_ROOTS: parentDir },
+          homedir: () => os.tmpdir(),
+          onMissingRoot: (c) => missingCalls.push(c),
+          onUnreadableRoot: (c, code) => unreadableCalls.push([c, code]),
+        });
+        assert.deepEqual(roots, [path.resolve(parentDir)], 'statSync itself succeeds on a mode-000 directory — the gap is confined to a child beneath it');
+        assert.deepEqual(missingCalls, []);
+        assert.deepEqual(unreadableCalls, []);
+      } finally {
+        fs.chmodSync(parentDir, 0o755);
+      }
+    });
+  });
+});

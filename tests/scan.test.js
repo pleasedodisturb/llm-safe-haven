@@ -1025,3 +1025,127 @@ describe('EXIT-01 — scan() routes its exit code through computeExit() (G-1545,
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// EXIT-02 (G-1542, D-07b) — a configured root that exists but could not be
+// READ (the parent lacks +x) is surfaced distinctly from a missing one, at
+// the scan() caller level. Sandbox-HOME + LSH_ROOTS idiom copied from the
+// return-contract describe block above (:507-580).
+// ---------------------------------------------------------------------------
+describe('EXIT-02 — an unreadable configured root is surfaced, distinctly from a missing one (G-1542, D-07b)', () => {
+  const osPath = require.resolve('os');
+  const scanPath = require.resolve('../lib/scan.js');
+  const runningAsRootLocal = typeof process.getuid === 'function' && process.getuid() === 0;
+  const skip = process.platform === 'win32' || runningAsRootLocal;
+
+  let sandboxHome;
+  let parentDir;
+  let childDir;
+  let originalOsEntry;
+  let originalLshRoots;
+
+  beforeEach(() => {
+    sandboxHome = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-exit02-home-'));
+    originalOsEntry = require.cache[osPath];
+    originalLshRoots = process.env.LSH_ROOTS;
+  });
+
+  afterEach(() => {
+    if (originalOsEntry === undefined) delete require.cache[osPath];
+    else require.cache[osPath] = originalOsEntry;
+    delete require.cache[scanPath];
+    if (originalLshRoots === undefined) delete process.env.LSH_ROOTS;
+    else process.env.LSH_ROOTS = originalLshRoots;
+    fs.rmSync(sandboxHome, { recursive: true, force: true });
+    if (parentDir) {
+      try { fs.chmodSync(parentDir, 0o755); } catch { /* may not exist */ }
+      fs.rmSync(parentDir, { recursive: true, force: true });
+    }
+    parentDir = childDir = undefined;
+  });
+
+  it('LSH_ROOTS under a mode-000 parent returns { code: 2 }, names the path and the errno, and never claims the root "does not exist"', { skip }, async () => {
+    parentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-exit02-parent-'));
+    childDir = path.join(parentDir, 'child');
+    fs.mkdirSync(childDir);
+    fs.chmodSync(parentDir, 0o000);
+
+    process.env.LSH_ROOTS = childDir;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+
+    const originalError = console.error;
+    const stderrLines = [];
+    console.error = (msg) => { stderrLines.push(String(msg)); };
+    try {
+      const { result } = await captureLog(() => sandboxedScan({}, {}));
+      assert.deepEqual(result, { code: 2 }, 'an unreadable configured root must return { code: 2 }');
+      assert.ok(
+        stderrLines.some((l) => l.includes(childDir) && l.includes('EACCES')),
+        `expected a stderr line naming the path and the EACCES errno, got: ${stderrLines}`
+      );
+      assert.ok(
+        !stderrLines.some((l) => l.includes(childDir) && l.includes('does not exist')),
+        'the unreadable-root warning must NEVER claim the root "does not exist" — that wording is reserved for a genuinely absent root'
+      );
+    } finally {
+      fs.chmodSync(parentDir, 0o755);
+      console.error = originalError;
+    }
+  });
+
+  it('PAIRED CONTROL: a readable root prints no unreadable-root warning and returns undefined', async () => {
+    const readable = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-exit02-readable-'));
+    try {
+      process.env.LSH_ROOTS = readable;
+      const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+
+      const originalError = console.error;
+      const stderrLines = [];
+      console.error = (msg) => { stderrLines.push(String(msg)); };
+      try {
+        const { result } = await captureLog(() => sandboxedScan({}, {}));
+        assert.strictEqual(result, undefined, 'a fully readable root set must return undefined');
+        assert.equal(stderrLines.length, 0, 'a fully readable root set must print no warning at all');
+      } finally {
+        console.error = originalError;
+      }
+    } finally {
+      fs.rmSync(readable, { recursive: true, force: true });
+    }
+  });
+
+  it('rootFailures.unreadable is non-zero on the unreadable-root fixture and zero on the readable control', { skip }, () => {
+    parentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-exit02-rf-parent-'));
+    childDir = path.join(parentDir, 'child');
+    fs.mkdirSync(childDir);
+    fs.chmodSync(parentDir, 0o000);
+
+    process.env.LSH_ROOTS = childDir;
+    const { scanForEnvFilesDetailed } = stubHomedir(sandboxHome, scanPath);
+
+    const originalError = console.error;
+    console.error = () => {};
+    let detailUnreadable;
+    let detailReadable;
+    try {
+      detailUnreadable = scanForEnvFilesDetailed();
+    } finally {
+      fs.chmodSync(parentDir, 0o755);
+      console.error = originalError;
+    }
+
+    const readable = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-exit02-rf-readable-'));
+    try {
+      process.env.LSH_ROOTS = readable;
+      delete require.cache[scanPath];
+      const { scanForEnvFilesDetailed: sefd2 } = stubHomedir(sandboxHome, scanPath);
+      detailReadable = sefd2();
+    } finally {
+      fs.rmSync(readable, { recursive: true, force: true });
+    }
+
+    assert.ok(detailUnreadable.rootFailures.unreadable > 0, `expected rootFailures.unreadable > 0, got ${detailUnreadable.rootFailures.unreadable}`);
+    assert.equal(detailReadable.rootFailures.unreadable, 0, 'a readable root must report rootFailures.unreadable === 0');
+  });
+});

@@ -338,6 +338,56 @@ describe('run.js — a configured-but-missing root is surfaced and makes the run
 });
 
 // ---------------------------------------------------------------------------
+// EXIT-02 (G-1542, D-07b, plan 18-04 Task 3) — a configured root that EXISTS
+// but could not be READ (parent lacking +x) is surfaced distinctly from an
+// absent one, at the real process boundary.
+// ---------------------------------------------------------------------------
+describe('run.js — a configured-but-unreadable root is surfaced, distinctly from a missing one (EXIT-02, D-07b)', () => {
+  const runningAsRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+  const skip = process.platform === 'win32' || runningAsRoot;
+
+  it('--roots under a mode-000 parent -> exit 2, stderr names the path and EACCES, never "does not exist"', { skip }, () => {
+    const resultsDir = mkDir('run-cli-results-');
+    const parentDir = mkDir('run-cli-unreadable-parent-');
+    const childDir = path.join(parentDir, 'child');
+    fs.mkdirSync(childDir);
+    fs.chmodSync(parentDir, 0o000);
+
+    try {
+      const res = runCli(['--spec', SPEC_PATH, '--results-dir', resultsDir, '--roots', childDir]);
+      assert.equal(res.status, 2);
+      assert.equal(res.stdout, '');
+      assert.match(res.stderr, new RegExp(childDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+      assert.match(res.stderr, /EACCES/);
+      assert.equal(
+        res.stderr.includes(`${childDir}`) && res.stderr.includes('does not exist'),
+        false,
+        'the unreadable-root warning must never claim the root "does not exist"'
+      );
+      const envelope = readFindingsJson(resultsDir);
+      assert.equal(envelope.incomplete, true);
+      assert.equal(envelope.exitCode, 2);
+    } finally {
+      fs.chmodSync(parentDir, 0o755);
+    }
+  });
+
+  it('negative control: the same construction with the parent readable writes no unreadable-root line and exits 0 on a clean tree', () => {
+    const resultsDir = mkDir('run-cli-results-');
+    const parentDir = mkDir('run-cli-readable-parent-');
+    const childDir = path.join(parentDir, 'child');
+    fs.mkdirSync(childDir);
+    writeFile(path.join(childDir, 'clean.txt'), 'nothing interesting\n');
+
+    const res = runCli(['--spec', SPEC_PATH, '--results-dir', resultsDir, '--roots', childDir]);
+    assert.equal(res.status, 0);
+    assert.equal(res.stdout, '');
+    assert.equal(res.stderr.includes('could not be read'), false);
+    assert.equal(readFindingsJson(resultsDir).incomplete, false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // G-1502 / TRAV-10 -- the reproduction on record: a bare, zero-read-pool-work
 // classified file must reach lists/<class>.z from the SAME single walk that
 // produces findings.json, at the real process boundary (not just inside
