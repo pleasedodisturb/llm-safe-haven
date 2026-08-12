@@ -18,7 +18,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { loadWaveSpec, validateWaveSpec, SUPPORTED_SPEC_VERSIONS, JS_REGEX_FIELD_PATHS, getAtPath } = require('../../lib/traverse/wave-spec.js');
+const { loadWaveSpec, validateWaveSpec, SUPPORTED_SPEC_VERSIONS, JS_REGEX_FIELD_PATHS, getAtPath, POSIX_CLASS_RE: VALIDATOR_POSIX_CLASS_RE } = require('../../lib/traverse/wave-spec.js');
 
 const SPEC_PATH = path.join(__dirname, '..', '..', 'manifests', 'waves', 'chaindrop-aug2026.json');
 const REAL_SPEC = JSON.parse(fs.readFileSync(SPEC_PATH, 'utf8'));
@@ -216,13 +216,29 @@ describe('wave-spec.js — JS-consumed regex-field guard (G-1482 merge-blocking 
   // second check is the permanent drift guard: it is what would have caught
   // commandPattern/failPattern being handed to `new RegExp()` in the first
   // place, before any corpus fixture had to prove the miss at runtime).
-  // Must stay byte-identical to the validator's POSIX_CLASS_RE
-  // (lib/traverse/wave-spec.js) — the two are deliberately the same
-  // expression so they cannot disagree about what counts as a POSIX class.
-  // Token form, not the leading-`[[:` form: the latter was bypassed by
-  // `[^[:space:]]` (negated) and `[a-z[:digit:]]` (mixed), found by
-  // adversarial code review of PR #96.
-  const POSIX_CLASS_RE = /\[([:.=])[^\]]*\1\]/;
+  // The validator's own regex, imported rather than re-declared.
+  //
+  // This block previously defined its own copy with a comment asserting the
+  // two "cannot disagree". Two independent reviewers pointed out that the
+  // coupling was documentary only: fix the validator, forget the test, and
+  // this guard keeps passing against the old shape — a vacuous guard of
+  // exactly the kind this suite exists to prevent. Now there is one object.
+  const POSIX_CLASS_RE = VALIDATOR_POSIX_CLASS_RE;
+
+  it('the validator EXPORTS the regex this block guards with (drift is impossible, not merely discouraged)', () => {
+    // If POSIX_CLASS_RE stops being exported, or is exported as something
+    // other than a RegExp, this block would silently start asserting against
+    // `undefined` and every doesNotMatch below would pass vacuously.
+    assert.ok(VALIDATOR_POSIX_CLASS_RE instanceof RegExp,
+      'lib/traverse/wave-spec.js must export POSIX_CLASS_RE as a RegExp — the test-side guard reads it directly so the two cannot drift');
+    // Pin the construct grammar itself. Three POSIX bracket constructs exist
+    // and JS mis-compiles all three; a future narrowing back to one of them
+    // must fail here, not in six months on a live wave.
+    for (const shape of ['[[:space:]]', '[[.hyphen.]]', '[[=a=]]', '[[:SPACE:]]', '[^[:space:]]']) {
+      assert.match(shape, VALIDATOR_POSIX_CLASS_RE,
+        `the exported POSIX_CLASS_RE must still catch "${shape}"`);
+    }
+  });
 
   it('the real spec has no `[[:` POSIX bracket class in any JS-consumed regex field', () => {
     for (const segments of JS_REGEX_FIELD_PATHS) {
