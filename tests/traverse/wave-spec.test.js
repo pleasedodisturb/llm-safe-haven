@@ -381,6 +381,13 @@ describe('wave-spec.js — JS-consumed regex-field guard (G-1482 merge-blocking 
     ['whitespace inside the token', '[[: space :]]'],
     ['collating symbol', '[[.hyphen.]]'],
     ['equivalence class', '[[=a=]]'],
+    // Fifth-iteration additions: empty-named constructs. The bare-token form
+    // required non-empty inner content and so missed all three.
+    ['empty collating symbol', '[[..]]'],
+    ['empty class name', '[[::]]'],
+    ['empty equivalence', '[[==]]'],
+    ['nested in a group', '(?:[[:digit:]])'],
+    ['quantified', '[[:digit:]]{2,}'],
   ];
 
   for (const [label, source] of POSIX_BYPASS_SHAPES) {
@@ -405,7 +412,7 @@ describe('wave-spec.js — JS-consumed regex-field guard (G-1482 merge-blocking 
     // Guards the opposite failure: a ban broad enough to catch the negated
     // and mixed shapes must not start rejecting valid regexes. The rejected
     // alternative `/\[\^?[^\]]*\[:/` false-positives on both of these.
-    for (const source of ['[\\[:]', '\\[\\[:not-a-class', '[a-z]', '^\\s*$', '[A-Za-z0-9_-]+', '[.]', '[=]', '[:]', '[.,;:]', '[a.b]', 'x[.]y', '[::]', '[..]', '[==]', '[:.=]', '[a:b]']) {
+    for (const source of ['[\\[:]', '\\[\\[:not-a-class', '[a-z]', '^\\s*$', '[A-Za-z0-9_-]+', '[.]', '[=]', '[:]', '[.,;:]', '[a.b]', 'x[.]y', '[::]', '[..]', '[==]', '[:.=]', '[a:b]', '[.-.]', '[:-]', '[.-]', '[=+-]', '[0-9.]', '[a-z.]']) {
       const good = clone(REAL_SPEC);
       const segments = JS_REGEX_FIELD_PATHS[0];
       let node = good;
