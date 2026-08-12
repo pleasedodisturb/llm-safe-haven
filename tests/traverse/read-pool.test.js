@@ -590,6 +590,198 @@ describe('read-pool — a FIFO can never block or be read (G-1503, TRAV-11)', ()
 });
 
 // ---------------------------------------------------------------------------
+// readBulkContent reads a CONTIGUOUS remainder and reports a short read
+// (D-10 + SCAN-04, G-1541, Task 1).
+//
+// Review A-1 boundary: `readBulkContent` is NOT exported and `record.
+// shortRead` does not exist until Task 2 -- every assertion below is on
+// `record.bulkBuffer` and the skip inventory, driven through
+// `createReadPool` + `submit({ needBulk: true })` + `drain()`. The `short`
+// flag this task adds to `readBulkContent`'s four return paths is asserted
+// in Task 2 (as `record.shortRead`), once it reaches the record.
+// ---------------------------------------------------------------------------
+
+function positionalContent(n) {
+  // Position-dependent so a spliced buffer (a hole in the middle) is
+  // detectable by VALUE, not merely by length -- a repeating decimal digit
+  // keyed off the byte offset.
+  return Buffer.from(Array.from({ length: n }, (_, i) => String(i % 10)).join(''));
+}
+
+function wrapHandleRead(realOpen, onRead) {
+  return async (...args) => {
+    const handle = await realOpen(...args);
+    const originalRead = handle.read.bind(handle);
+    let callCount = 0;
+    return Object.assign(Object.create(Object.getPrototypeOf(handle)), handle, {
+      read: async (buffer, offset, length, position) => {
+        callCount += 1;
+        return onRead({ callCount, originalRead, buffer, offset, length, position });
+      },
+    });
+  };
+}
+
+// Half-then-zero: the FIRST read on a handle returns HALF the bytes the
+// real read actually produced; every subsequent read on the SAME handle
+// returns zero. Half-then-zero (rather than a fixed clamp) keeps
+// hashWholeFile's `while (offset < size)` loop to exactly two iterations
+// regardless of fixture size, makes `bytesRead < size` deterministic, and
+// terminates the loop through the `n <= 0` guard rather than by exhausting
+// the file -- the real-world shape a shrinking/truncated read takes.
+function halfThenZeroFs() {
+  const realFs = require('fs');
+  return {
+    ...realFs,
+    promises: {
+      ...realFs.promises,
+      open: wrapHandleRead(realFs.promises.open, async ({ callCount, originalRead, buffer, offset, length, position }) => {
+        if (callCount === 1) {
+          const real = await originalRead(buffer, offset, length, position);
+          return { bytesRead: Math.floor(real.bytesRead / 2), buffer };
+        }
+        return { bytesRead: 0, buffer };
+      }),
+    },
+  };
+}
+
+// Short-sniff-then-full: the FIRST read on a handle returns half the bytes
+// the real read actually produced (a short sniff); every subsequent read on
+// the SAME handle delegates to the original, unmodified read. This is the
+// D-10 DISCRIMINATOR: under the pre-fix splice, the second (remainder) read
+// starts at the REQUESTED sniff offset rather than the ACTUAL one, so the
+// bytes between the actual and requested offsets are never read and the
+// returned buffer has a hole; under the fix, the remainder read starts
+// exactly where the sniff actually ended, so there is no hole.
+function shortSniffThenFullFs() {
+  const realFs = require('fs');
+  return {
+    ...realFs,
+    promises: {
+      ...realFs.promises,
+      open: wrapHandleRead(realFs.promises.open, async ({ callCount, originalRead, buffer, offset, length, position }) => {
+        if (callCount === 1) {
+          const real = await originalRead(buffer, offset, length, position);
+          return { bytesRead: Math.floor(real.bytesRead / 2), buffer };
+        }
+        return originalRead(buffer, offset, length, position);
+      }),
+    },
+  };
+}
+
+describe('read-pool — readBulkContent reads a CONTIGUOUS remainder and reports a short read (D-10 + SCAN-04, G-1541, Task 1)', () => {
+  const SNIFF_BYTES = normalizeOptions({}).sniffBytes;
+
+  it('D-10 DISCRIMINATOR: a short sniff followed by the remainder read yields a bulkBuffer BYTE-IDENTICAL to the real file — a spliced buffer would still pass a length-only check, so this asserts CONTENT equality, which the length-only version of SCAN-04 would have passed incorrectly', async () => {
+    const dir = mkFixture();
+    const size = SNIFF_BYTES + 2000; // larger than sniffBytes, smaller than bulkReadCapBytes
+    const real = positionalContent(size);
+    const file = path.join(dir, 'discriminator.txt');
+    fs.writeFileSync(file, real);
+
+    const skips = createSkipInventory();
+    const pool = createReadPool({ fs: shortSniffThenFullFs(), skips });
+    pool.submit({ absPath: file, needBulk: true });
+    const [record] = await pool.drain();
+
+    assert.ok(
+      record.bulkBuffer.equals(real),
+      'record.bulkBuffer must equal the real file contents byte-for-byte — a splice (bytes missing from the middle) still produces a buffer of a plausible LENGTH, so only a content comparison catches it'
+    );
+    assert.equal(skips.total(), 0);
+  });
+
+  it('truncation, bulk branch: a half-then-zero read yields a strict CONTIGUOUS PREFIX of the real contents, shorter than the file', async () => {
+    const dir = mkFixture();
+    const size = SNIFF_BYTES + 2000;
+    const real = positionalContent(size);
+    const file = path.join(dir, 'truncated.txt');
+    fs.writeFileSync(file, real);
+
+    const pool = createReadPool({ fs: halfThenZeroFs() });
+    pool.submit({ absPath: file, needBulk: true });
+    const [record] = await pool.drain();
+
+    assert.ok(
+      record.bulkBuffer.length < real.length,
+      `bulkBuffer.length ${record.bulkBuffer.length} must be strictly shorter than the real file (${real.length})`
+    );
+    assert.ok(
+      record.bulkBuffer.equals(real.subarray(0, record.bulkBuffer.length)),
+      'the returned buffer must be a CONTIGUOUS PREFIX of the real content, not a splice'
+    );
+  });
+
+  it('zero-byte file is never short: needBulk through BOTH truncating stubs AND the real fs produces zero skips and an empty buffer — treating an empty file as short would make every empty file in the tree an anomaly', async () => {
+    const dir = mkFixture();
+    const file = writeFile(dir, 'empty-short.js', '');
+
+    for (const fsImpl of [halfThenZeroFs(), shortSniffThenFullFs(), require('fs')]) {
+      const skips = createSkipInventory();
+      const pool = createReadPool({ fs: fsImpl, skips });
+      pool.submit({ absPath: file, needBulk: true });
+      const [record] = await pool.drain();
+      assert.equal(skips.total(), 0, 'an empty file must never be treated as a short read, through any fs implementation');
+      assert.equal(record.bulkBuffer.length, 0);
+    }
+  });
+
+  it('PAIRED CONTROL — real fs, a file BELOW sniffBytes: bulkBuffer equals the real content exactly, zero skips', async () => {
+    const dir = mkFixture();
+    const real = positionalContent(200);
+    const file = path.join(dir, 'below-sniff.txt');
+    fs.writeFileSync(file, real);
+    const skips = createSkipInventory();
+    const pool = createReadPool({ skips });
+    pool.submit({ absPath: file, needBulk: true });
+    const [record] = await pool.drain();
+    assert.ok(record.bulkBuffer.equals(real));
+    assert.equal(skips.total(), 0);
+  });
+
+  it('PAIRED CONTROL — real fs, a file ABOVE sniffBytes: bulkBuffer equals the real content exactly, zero skips', async () => {
+    const dir = mkFixture();
+    const size = SNIFF_BYTES + 2000;
+    const real = positionalContent(size);
+    const file = path.join(dir, 'above-sniff.txt');
+    fs.writeFileSync(file, real);
+    const skips = createSkipInventory();
+    const pool = createReadPool({ skips });
+    pool.submit({ absPath: file, needBulk: true });
+    const [record] = await pool.drain();
+    assert.ok(record.bulkBuffer.equals(real));
+    assert.equal(skips.total(), 0);
+  });
+
+  // Break-proof (MANDATORY, D-10). Revert ONLY the D-10 substitution in
+  // lib/traverse/read-pool.js (put `remaining` and the remainder read's
+  // `position` back on the REQUESTED `sniffLen`), re-run
+  // `node --test tests/traverse/read-pool.test.js`, and record the observed
+  // failure VERBATIM in the plan's SUMMARY.
+  //
+  // Named case that MUST fail (D-12): the D-10 DISCRIMINATOR case above, on
+  // its `Buffer.equals` assertion. ONE named failure is correct and
+  // sufficient here — only the short-sniff-then-full path depends on the
+  // substitution. The half-then-zero case still yields a contiguous prefix
+  // under the old code (its second read returns nothing, so there is no
+  // splice to observe), the zero-byte case never reaches the remainder
+  // read, and the real-fs paired controls never come up short. Reverting
+  // the substitution therefore breaks exactly one behaviour.
+  //
+  // Blind spot of this break-proof (MANDATORY to state in the SUMMARY): it
+  // proves the two reads are contiguous when the FIRST one comes up short.
+  // It does NOT prove anything about a short REMAINDER read followed by
+  // more data (there is no third read — the function reads at most twice),
+  // it does NOT prove the kernel ever actually returns a short read on a
+  // regular file on this platform (the stub is the only producer in this
+  // suite; the real-world triggers are network filesystems, concurrent
+  // truncation and signal interruption, none of which CI exercises), and it
+  // says nothing about whether `sniffBytes` is the right window.
+});
+
+// ---------------------------------------------------------------------------
 // A symlink at the final path component is never followed (G-1503, D-06)
 //
 // walk.js already refuses a symlink it SEES during enumeration
