@@ -36,6 +36,7 @@ const { spawnSync } = require('child_process');
 
 const { write, newHome, runScanner, hasBash } = require('./helpers/chaindrop-fixtures.js');
 const { initRepo } = require('./helpers/git-fixture.js');
+const { SKIP_REASONS } = require('../lib/traverse/index.js');
 
 const SCRIPT = path.join(__dirname, '..', 'scripts', 'scan-chaindrop-aug2026.sh');
 const MANIFEST = path.join(__dirname, '..', 'manifests', 'chaindrop-poisoned-versions.json');
@@ -621,5 +622,54 @@ describe('ChainDrop manifest integrity + scanner parity (drift guards)', () => {
     const specFam = new Set(spec.compromisedFamily);
     const coreFamily = new Set(manifest.coreFamily);
     for (const fam of specFam) assert.ok(coreFamily.has(fam), `family "${fam}" not in manifest coreFamily`);
+  });
+
+  // D-01 (18-CONTEXT.md, G-1543/G-1544, site 6): scripts/scan-chaindrop-
+  // aug2026.sh:629 hand-declares its own copy of the SKIP_REASONS
+  // vocabulary (`_SKIP_REASONS="..."`) because a bash Summary loop cannot
+  // `require()` the JS module. Until 2026-08-11 a repo-wide search for the
+  // identifier `_SKIP_REASONS` returned exactly one hit -- the declaration
+  // itself -- so a reason added to SKIP_REASONS and never mirrored here
+  // would leave `[skip] <reason>: N` permanently unprinted with a fully
+  // green test suite. This guard parses source text (like the pair above),
+  // so it carries no `hasBash` skip guard -- it needs bash installed only
+  // to RUN the scanner, never merely to read its source.
+  it('a permanent drift guard: the bash _SKIP_REASONS list and SKIP_REASONS agree in BOTH directions (D-01, G-1543/G-1544, site 6)', () => {
+    const scriptSrc = fs.readFileSync(SCRIPT, 'utf8');
+    const match = /_SKIP_REASONS="([^"]*)"/.exec(scriptSrc);
+    // The regex must MATCH before anything about its capture is asserted --
+    // an unparseable or renamed declaration must FAIL this test, not
+    // silently satisfy it. This is the exact vacuity mode the guard exists
+    // to prevent (the phase's own POSIX-character-class-ban lesson: a
+    // guard that stops matching must go loud, never quiet).
+    assert.ok(
+      match,
+      'could not find a _SKIP_REASONS="..." assignment in scripts/scan-chaindrop-aug2026.sh -- an ' +
+        'unparseable or renamed declaration must FAIL this drift guard, not silently pass it'
+    );
+    const bashReasons = match[1].split(/\s+/).filter(Boolean);
+    assert.equal(
+      new Set(bashReasons).size,
+      bashReasons.length,
+      `scripts/scan-chaindrop-aug2026.sh's _SKIP_REASONS has a duplicate entry: ${bashReasons.join(', ')}`
+    );
+    // Imported from lib/traverse/index.js rather than re-listed as literals
+    // here -- re-listing would create a THIRD source of truth, which is the
+    // defect this guard exists to close.
+    const jsReasons = [...SKIP_REASONS];
+    const missingFromBash = jsReasons.filter((r) => !bashReasons.includes(r));
+    const staleInBash = bashReasons.filter((r) => !jsReasons.includes(r));
+    assert.deepEqual(
+      missingFromBash,
+      [],
+      `SKIP_REASONS member(s) missing from scripts/scan-chaindrop-aug2026.sh's _SKIP_REASONS: ` +
+        `${missingFromBash.join(', ')} -- the bash operator report will never print [skip] <reason>: N for these`
+    );
+    assert.deepEqual(
+      staleInBash,
+      [],
+      `scripts/scan-chaindrop-aug2026.sh's _SKIP_REASONS names reason(s) no longer in SKIP_REASONS: ` +
+        `${staleInBash.join(', ')} -- stale bash vocabulary`
+    );
   });
 });
