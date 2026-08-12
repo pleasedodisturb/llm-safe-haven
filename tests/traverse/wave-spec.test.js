@@ -277,6 +277,106 @@ describe('wave-spec.js — JS-consumed regex-field guard (G-1482 merge-blocking 
     const result = validateWaveSpec(good);
     assert.equal(result.valid, true, result.reason);
   });
+
+  // ---- G-1552 (SCAN-03): the ban is now ENFORCED in validateWaveSpec() ----
+  //
+  // The two tests at the top of this block are drift guards for the SHIPPED
+  // manifests/waves/chaindrop-aug2026.json. They cannot see an
+  // operator-supplied spec, and `--spec` / LSH_WAVE_SPEC accept any path
+  // (lib/traverse/run.js:52,90). The cases below prove validateWaveSpec()
+  // itself REJECTS a POSIX bracket class in the four JS-consumed fields, so
+  // such a spec cannot install a silently non-firing detector.
+  //
+  // Those two existing tests are deliberately RETAINED, not replaced. They
+  // now overlap with the validator, which is correct: they remain the guard
+  // for the shipped FILE specifically (a drift there fails both, as it
+  // should). Deleting them would be a regression, not a cleanup.
+
+  for (const segments of JS_REGEX_FIELD_PATHS) {
+    const dottedPath = segments.join('.');
+
+    it(`rejects a spec with "${dottedPath}" containing a POSIX bracket class (G-1552)`, () => {
+      const bad = clone(REAL_SPEC);
+      let node = bad;
+      for (let i = 0; i < segments.length - 1; i += 1) node = node[segments[i]];
+      // The realistic operator error: copying the bash sibling's POSIX ERE
+      // into the JS-consumed field. It compiles without throwing, and then
+      // never matches whitespace.
+      node[segments[segments.length - 1]] = 'setup\\.mjs|node[[:space:]]+-e';
+
+      const result = validateWaveSpec(bad);
+      assert.equal(
+        result.valid,
+        false,
+        `${dottedPath} carrying a POSIX bracket class must be REJECTED by validateWaveSpec(), not merely flagged by a test — new RegExp() accepts it and the detector then silently never fires (G-1552)`
+      );
+      assert.match(
+        result.reason,
+        new RegExp(dottedPath.replace(/\./g, '\\.')),
+        `reason must name the offending field "${dottedPath}": ${result.reason}`
+      );
+      // Assert on reason CONTENT, not merely on `valid` — a rejection for the
+      // wrong reason (hygiene, say) would otherwise pass this test and send
+      // the operator to fix the wrong thing.
+      assert.match(
+        result.reason,
+        /POSIX/,
+        `reason must identify the problem as a POSIX bracket class: ${result.reason}`
+      );
+    });
+  }
+
+  it('paired control 1 — the shipped spec still validates unchanged (D-06 zero-risk claim under test)', () => {
+    const result = validateWaveSpec(clone(REAL_SPEC));
+    assert.equal(
+      result.valid,
+      true,
+      `D-06 claims the shipped manifest passes the POSIX ban with ZERO manifest edits. It does not: ${result.reason}`
+    );
+  });
+
+  it('paired control 2 — a POSIX class in the bash-consumed sibling installMarker.pattern still validates (D-06 scoping)', () => {
+    const good = clone(REAL_SPEC);
+    good.installMarker.pattern = '"preinstall"[[:space:]]*:[[:space:]]*"node[[:space:]]+loader\\.mjs"';
+    assert.match(good.installMarker.pattern, POSIX_CLASS_RE, 'sanity: this control only means something if the value really carries a POSIX class');
+
+    const result = validateWaveSpec(good);
+    assert.equal(
+      result.valid,
+      true,
+      `The single most important assertion in G-1552: the ban is scoped to JS_REGEX_FIELD_PATHS, NOT repo-wide. installMarker.pattern (like claudeSettings.commandPattern and vscodeTasks.failPattern) is never fed to new RegExp(), and the shipped manifest legitimately holds POSIX ERE there. If this fails, someone widened the ban and broke the shipped manifest — re-read 18-CONTEXT.md D-06 before changing anything: ${result.reason}`
+    );
+  });
+
+  it('paired control 3 — a malformed regex still reports as malformed, not as a POSIX class (precedence)', () => {
+    const bad = clone(REAL_SPEC);
+    bad.installMarker.jsPattern = '(unterminated group';
+
+    const result = validateWaveSpec(bad);
+    assert.equal(result.valid, false);
+    assert.match(
+      result.reason,
+      /not a valid JS regular expression/,
+      `the new RegExp() constructibility check must stay AHEAD of the POSIX check: ${result.reason}`
+    );
+    assert.doesNotMatch(
+      result.reason,
+      /POSIX/,
+      `a genuinely broken pattern must not be mis-reported as a POSIX class — that sends the operator the wrong way: ${result.reason}`
+    );
+  });
+
+  it('paired control 4 — an ordinary legal JS character class ([a-z]) is unaffected by the ban', () => {
+    const good = clone(REAL_SPEC);
+    good.installMarker.jsPattern = '"preinstall"\\s*:\\s*"node\\s+[a-z]+\\.mjs"';
+
+    const result = validateWaveSpec(good);
+    assert.equal(
+      result.valid,
+      true,
+      `the ban must match the POSIX opening sequence "[[:", not any bracket: ${result.reason}`
+    );
+  });
 });
 
 describe('wave-spec.js — loadWaveSpec file-level guards', () => {
