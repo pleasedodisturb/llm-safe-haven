@@ -1008,7 +1008,7 @@ describe('read-pool — a short read records ONE unreadable skip per record, sup
 // ---------------------------------------------------------------------------
 
 describe('read-pool — a symlink at the final path component is never followed (G-1503, D-06)', () => {
-  it('Case 1: the refusal -- symlink submitted directly is refused with reason discrimination (symlink, not unreadable)', async (t) => {
+  it('Case 1: the refusal -- symlink submitted directly is refused with reason discrimination (swapped, not symlink or unreadable) (D-01, G-1543/G-1544)', async (t) => {
     if (!fs.constants.O_NOFOLLOW) {
       t.skip('O_NOFOLLOW not available on this platform');
       return;
@@ -1023,12 +1023,18 @@ describe('read-pool — a symlink at the final path component is never followed 
     pool.submit({ absPath: linkPath, needBulk: true, needHash: true });
     await pool.drain();
 
-    // Read-side half of D-06: walk.js already refuses a symlink it SEES
-    // during enumeration (walk.js:218-221); O_NOFOLLOW here is what
-    // covers the window between that lstat and this open.
-    assert.equal(skips.counts().symlink, 1);
+    // This is the read-side, post-classification half of D-06: walk.js
+    // already refuses a symlink it SEES during enumeration (walk.js:218-221)
+    // under the `symlink` reason (unchanged, SCOPE). Submitting a symlink
+    // path DIRECTLY to createReadPool -- bypassing the walk entirely -- is
+    // the post-classification case, so O_NOFOLLOW's refusal here is
+    // recorded as `swapped` instead (D-01, G-1543/G-1544, ANOMALY). Both
+    // neighbouring reasons must be zero, or this test cannot tell a rename
+    // from a split.
+    assert.equal(skips.counts().swapped, 1);
     assert.equal(skips.counts().unreadable, 0);
-    assert.ok(skips.paths('symlink').includes(linkPath));
+    assert.equal(skips.counts().symlink, 0);
+    assert.ok(skips.paths('swapped').includes(linkPath));
     assert.equal(pool.stats().opened, 0);
     assert.equal(pool.stats().bytesRead, 0);
   });
@@ -1060,7 +1066,7 @@ describe('read-pool — a symlink at the final path component is never followed 
   // the flags in lib/traverse/read-pool.js (leave O_NONBLOCK in place),
   // re-run node --test tests/traverse/read-pool.test.js, and record the
   // observed failure: the symlink is read successfully,
-  // skips.counts().symlink === 0, stats().opened === 1 -- the literal
+  // skips.counts().swapped === 0, stats().opened === 1 -- the literal
   // "currently read silently with the counter at 0" defect this plan
   // closes. This break-proof cannot block (no FIFO is involved), so it
   // was run in the foreground, unlike the FIFO break-proofs above. Result
@@ -1068,17 +1074,26 @@ describe('read-pool — a symlink at the final path component is never followed 
   //
   // Break-proof 2 (MANDATORY). Restore O_NOFOLLOW but revert the open
   // catch's error-code branch (so it records `unreadable` for every open
-  // failure, including a loop-detected symlink), re-run, and record the
-  // failure on Case 1's reason-discrimination assertions. Also recorded
-  // verbatim in 17.1-05-SUMMARY.md.
+  // failure, including a loop-detected symlink/swap), re-run, and record
+  // the failure on Case 1's reason-discrimination assertions. Also
+  // recorded verbatim in 17.1-05-SUMMARY.md.
   //
   // Blind spot of these guards (MANDATORY, see also 17.1-05-SUMMARY.md):
   // they prove a symlink at the FINAL path component is refused at open
   // time. They do NOT cover a symlink in an INTERMEDIATE directory
   // component -- O_NOFOLLOW is defined to affect only the final
   // component, and intermediate components are the walk's territory
-  // (walk.js:218-219 refuses them during enumeration, a different guard
+  // (walk.js:188,288 refuses them during enumeration, a different guard
   // in a different file). They also do not prove the loop-detected-errno
   // branch fires for any errno other than the one the kernel actually
   // returns on this platform.
+  //
+  // D-01/G-1543/G-1544 (2026-08-12, plan 18-05): the reason recorded on
+  // the ELOOP branch changed from `symlink` to `swapped`, so this ELOOP
+  // refusal is now the post-classification `swapped` ANOMALY, not the
+  // walk-refused `symlink` SCOPE reason. Task 1's own break-proofs
+  // (reverting the ANOMALY_SKIP_REASONS classification, then reverting
+  // the recording site independently) are recorded verbatim in
+  // 18-05-SUMMARY.md, alongside the end-to-end swap case in
+  // tests/traverse/engine.test.js that pairs with Case 1 above.
 });

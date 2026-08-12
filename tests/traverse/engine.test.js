@@ -578,9 +578,10 @@ describe('engine — exit precedence end to end', () => {
 });
 
 // ---------------------------------------------------------------------------
-// ANOMALY reasons (unreadable, budget) make the scan incomplete; SCOPE
-// reasons (oversized, symlink, other-device) never do (G-1501/G-1512,
-// TRAV-15, decision D-02b -- FINAL, 17.1-CONTEXT.md). `oversized` moved
+// ANOMALY reasons (budget, swapped, unreadable) make the scan incomplete;
+// SCOPE reasons (oversized, symlink, other-device) never do (G-1501/G-1512,
+// TRAV-15, decision D-02b -- FINAL, 17.1-CONTEXT.md; `swapped` added by
+// D-01, G-1543/G-1544, 2026-08-12). `oversized` moved
 // buckets in this decision -- it used to feed `incomplete` (D-02's blanket
 // form, then D-02a's candidate-scoped form, both plan 17.1-01) and no
 // longer does under any rule; Guard 3 below pins that directly. `symlink`/
@@ -591,7 +592,7 @@ describe('engine — exit precedence end to end', () => {
 // reason fail loudly instead of silently doing nothing.
 // ---------------------------------------------------------------------------
 
-describe('engine — ANOMALY skip reasons (unreadable, budget) make the scan incomplete; SCOPE reasons (oversized, symlink, other-device) never do (G-1501/G-1512, D-02b)', () => {
+describe('engine — ANOMALY skip reasons (budget, swapped, unreadable) make the scan incomplete; SCOPE reasons (oversized, symlink, other-device) never do (G-1501/G-1512, D-02b, D-01)', () => {
   it('Guard 1: a chmod 000 subdirectory holding a real marker -> incomplete, exit 2, zero findings (the marker is invisible)', async (t) => {
     if (process.platform === 'win32' || !process.getuid || process.getuid() === 0) {
       t.skip('POSIX permission bits only meaningfully deny access as a non-root, non-Windows user');
@@ -712,6 +713,120 @@ describe('engine — ANOMALY skip reasons (unreadable, budget) make the scan inc
     assert.equal(result.incomplete, false);
     assert.equal(result.exitCode, 0);
   });
+});
+
+// ---------------------------------------------------------------------------
+// D-01: a post-classification symlink swap is `swapped`, an ANOMALY, and
+// drives exit 2 (G-1543/G-1544, EXIT-03). A symlink `walk.js` REFUSES
+// during enumeration is a routine, disclosed SCOPE boundary (Guard 4
+// above): the walk sees it, counts it, and moves on. This is the other
+// case: a path that PASSED classification as a regular file and became a
+// symlink before `lib/traverse/read-pool.js`'s open() ran -- a TOCTOU
+// swap the shared `symlink` bucket could never distinguish, which is why
+// this earned its own reason (D-03).
+// ---------------------------------------------------------------------------
+
+// The fs-seam construction Guard 2 (above) already uses for a targeted
+// open() failure: `fs.promises.open` rejects with an ELOOP-coded error for
+// exactly one path, delegating to the real implementation for everything
+// else. A REAL on-disk symlink swap cannot be arranged deterministically
+// without racing the walk itself -- the walk must classify the path as a
+// REGULAR file and the pool must then open a SYMLINK at that same path,
+// with no window in a single-process test to swap the file on disk between
+// the two. The seam is honest as long as the errno and the code path it
+// exercises (read-pool.js's ELOOP catch branch) are real, which they are:
+// this is the exact errno the open() catch above branches on.
+function swapFs(swapPath) {
+  const realFs = require('fs');
+  return {
+    ...realFs,
+    promises: {
+      ...realFs.promises,
+      open: (p, ...rest) => {
+        if (p === swapPath) {
+          const err = new Error('ELOOP: too many symbolic links encountered');
+          err.code = 'ELOOP';
+          return Promise.reject(err);
+        }
+        return realFs.promises.open(p, ...rest);
+      },
+    },
+  };
+}
+
+describe('engine — D-01: a post-classification symlink swap is `swapped`, an ANOMALY, and drives exit 2 (G-1543/G-1544)', () => {
+  it('a file that passed classification as a regular file but ELOOPs at open() -> incomplete true, exit 2, zero findings, swapped === 1', async () => {
+    const home = mkFixture();
+    const target = path.join(home, 'setup.mjs');
+    write(target, 'export const setup = () => {};\n');
+
+    const t2 = new Traversal({ roots: [home], spec: SPEC, fs: swapFs(target) });
+    const result = await t2.run();
+
+    assert.equal(result.incomplete, true);
+    assert.equal(result.exitCode, 2);
+    assert.equal(result.findings.filter((f) => f.severity === 'fail').length, 0);
+    assert.equal(result.findings.filter((f) => f.severity === 'warn').length, 0);
+    assert.equal(result.findings.filter((f) => f.severity === 'info').length, 0);
+    assert.equal(result.skips.counts().swapped, 1);
+  });
+
+  it('PAIRED CONTROL: the same fixture with the real fs (no ELOOP interception) -> incomplete false, exit 0, swapped === 0', async () => {
+    const home = mkFixture();
+    write(path.join(home, 'setup.mjs'), 'export const setup = () => {};\n');
+
+    const t2 = new Traversal({ roots: [home], spec: SPEC });
+    const result = await t2.run();
+
+    assert.equal(result.incomplete, false);
+    assert.equal(result.exitCode, 0);
+    assert.equal(result.skips.counts().swapped, 0);
+  });
+
+  it('PAIRED CONTROL, the D-01 clean-tree proof: a symlink refused by the WALK (enumeration-time) still yields symlink >= 1, swapped === 0, incomplete false, exit 0 -- the 368-vs-0 measurement in miniature; this is what fails if a future change merges the two reasons or promotes symlink to ANOMALY', async () => {
+    const home = mkFixture();
+    write(path.join(home, 'real.js'), 'console.log(1);\n');
+    fs.symlinkSync(path.join(home, 'real.js'), path.join(home, 'link.js'));
+
+    const t2 = new Traversal({ roots: [home], spec: SPEC });
+    const result = await t2.run();
+
+    assert.ok(result.skips.counts().symlink >= 1);
+    assert.equal(result.skips.counts().swapped, 0);
+    assert.equal(result.incomplete, false);
+    assert.equal(result.exitCode, 0);
+  });
+
+  // Break-proof 1 (MANDATORY, D-12: four named cases -- the per-member
+  // classification case, the ANOMALY+SCOPE arithmetic case, the literal-
+  // membership pin, AND this end-to-end swap case). Revert ONLY
+  // lib/traverse/engine.js's ANOMALY_SKIP_REASONS membership (remove
+  // `swapped`, leaving it in SKIP_REASONS and leaving read-pool.js's ELOOP
+  // branch recording it), re-run `node --test tests/traverse/engine.test.js
+  // tests/traverse/read-pool.test.js`, and record the exact observed
+  // failure verbatim (recorded in 18-05-SUMMARY.md). This `it()` above is
+  // the fourth named case: it fails by reporting exitCode 0 instead of 2,
+  // proving the classification reaches the exit code, not just the set.
+  //
+  // Break-proof 2 (MANDATORY, D-12: two named cases -- read-pool Case 1 on
+  // all three reason assertions AND this end-to-end swap case). Restore
+  // ANOMALY_SKIP_REASONS, then revert ONLY lib/traverse/read-pool.js's
+  // ELOOP branch (record the old `symlink` reason again instead of
+  // `swapped`), re-run, and record the failure verbatim (recorded in
+  // 18-05-SUMMARY.md). This `it()` above fails because a `symlink` skip
+  // is SCOPE, so exitCode stays 0.
+  //
+  // Blind spot (MANDATORY, see 18-05-SUMMARY.md for the full statement):
+  // these break-proofs prove the post-classification ELOOP path is
+  // counted and reaches the exit code. They do NOT prove a real TOCTOU
+  // race is detectable -- no test races the walk against a swap, and the
+  // guard rests on `O_NOFOLLOW` being kernel-enforced rather than on
+  // winning a race. They do NOT prove the Linux errno (assumption A1: man7
+  // and POSIX say ELOOP; the first green ubuntu CI leg IS the
+  // measurement, and the failure mode if wrong is a failing test, not a
+  // silent miss). They do NOT cover an intermediate-path-component
+  // symlink, which is the walk's territory. And they say nothing about
+  // `other-device`, which D-02 deliberately leaves as SCOPE.
 });
 
 // ---------------------------------------------------------------------------
@@ -884,7 +999,7 @@ describe('engine — SKIP_REASONS ANOMALY/SCOPE partition (D-02b -- FINAL, super
     // partition property above -- a future agent could satisfy the
     // partition test by moving `unreadable` into SCOPE (structurally
     // valid, semantically wrong) without this second check catching it.
-    assert.deepEqual([...ANOMALY_SKIP_REASONS].sort(), ['budget', 'unreadable']);
+    assert.deepEqual([...ANOMALY_SKIP_REASONS].sort(), ['budget', 'swapped', 'unreadable']);
     assert.deepEqual([...SCOPE_SKIP_REASONS].sort(), ['other-device', 'oversized', 'symlink']);
   });
 
