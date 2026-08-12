@@ -702,3 +702,195 @@ describe('computeSecurityLevel + printLevel/printMcpAuditSection render smoke', 
     assert.ok(!logs.some((l) => /unverified notice/.test(l)));
   });
 });
+
+// ---------------------------------------------------------------------------
+// The MCP composite grouping key (TOOL-01 / G-1573, CONTEXT D-05).
+//
+// G-1573 replaced two LITERAL 0x00 bytes in lib/scorecard.js with their escape
+// sequence. That is an ENCODING change only: the escape and the literal byte are
+// the same string value, so no behavioural test can tell them apart. The byte
+// scan in tests/no-nul-source.test.js is the "did the thing" half of the proof;
+// everything below is the "did not break anything" half. Both halves are needed,
+// and neither substitutes for the other.
+//
+// Every assertion here is on the BUILT STRING, never on the source text — the
+// source text is exactly what a printable delimiter would still satisfy.
+// ---------------------------------------------------------------------------
+describe('mcpGroupKey: the composite MCP grouping key (G-1573 / D-05)', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const { Finding, SEVERITY, CONFIDENCE } = require('../lib/mcp/base.js');
+  const { mcpGroupKey, printMcpScan } = require('../lib/scorecard.js');
+
+  // Built from char codes, never typed as literals: a real NUL must not enter
+  // this file (tests/no-nul-source.test.js scans it too), and typing the escape
+  // risks a tool interpolating it into the actual byte — which happened twice
+  // while this plan was being written.
+  const NUL = String.fromCharCode(0);
+  const NUL_ESCAPE = String.fromCharCode(92, 117, 48, 48, 48, 48); // backslash u 0 0 0 0
+
+  const SCORECARD_PATH = path.join(__dirname, '..', 'lib', 'scorecard.js');
+
+  function mcpFinding(overrides = {}) {
+    return Finding({
+      id: 'detector/rule-id',
+      detector: 'detector',
+      severity: SEVERITY.INFO,
+      confidence: CONFIDENCE.VERIFIED,
+      agentId: 'claude-code',
+      scope: 'user',
+      serverName: 'some-server',
+      message: 'a finding message',
+      ...overrides,
+    });
+  }
+
+  // ---- runtime: the delimiter is still a real NUL --------------------------
+
+  it('builds exactly three segments separated by two real NUL bytes', () => {
+    const k = mcpGroupKey({ agentId: 'claude-code', scope: 'user', serverName: 'srv' });
+    assert.equal(k.split(NUL).length, 3, 'the key must carry exactly two delimiters');
+  });
+
+  it('the two delimiters are code point ZERO at the two expected positions', () => {
+    const k = mcpGroupKey({ agentId: 'claude-code', scope: 'user', serverName: 'srv' });
+    assert.equal(
+      k.charCodeAt('claude-code'.length),
+      0,
+      'first delimiter must be code point 0 — this is the assertion a printable delimiter fails'
+    );
+    assert.equal(
+      k.charCodeAt('claude-code'.length + 1 + 'user'.length),
+      0,
+      'second delimiter must be code point 0 — this is the assertion a printable delimiter fails'
+    );
+  });
+
+  it('round-trips to its three components', () => {
+    const k = mcpGroupKey({ agentId: 'claude-code', scope: 'user', serverName: 'srv' });
+    assert.deepEqual(k.split(NUL), ['claude-code', 'user', 'srv']);
+  });
+
+  it('a hostile serverName full of printable delimiters still yields exactly three segments', () => {
+    // serverName is the only attacker-controlled component (agentId comes from
+    // the fixed 10-item KNOWN_AGENT_IDS behind a fail-closed dispatch guard,
+    // scope from a fixed 4-value vocabulary). This is the case that pins WHY a
+    // printable delimiter is refused (D-05(b)): under a colon, space or pipe
+    // delimiter this exact server name would forge a group boundary and
+    // attribute findings to a different agent or scope in the operator's report.
+    const k = mcpGroupKey({ agentId: 'claude-code', scope: 'user', serverName: 'a:b c|d' });
+    assert.equal(
+      k.split(NUL).length,
+      3,
+      'a NUL delimiter is uncollidable with attacker-chosen printable text; a printable one is not'
+    );
+    assert.deepEqual(k.split(NUL), ['claude-code', 'user', 'a:b c|d']);
+  });
+
+  // ---- paired control: the render path still groups the same way -----------
+
+  it('CONTROL: printMcpScan renders findings sharing (agentId, scope, serverName) as ONE group', async () => {
+    const { logs } = await captureLog(() =>
+      printMcpScan({
+        sources: [],
+        servers: [],
+        findings: [mcpFinding({ id: 'd/one', message: 'first msg' }), mcpFinding({ id: 'd/two', message: 'second msg' })],
+      })
+    );
+    const headers = logs.filter((l) => l.includes('›'));
+    assert.equal(headers.length, 1, `expected exactly one group header, got ${headers.length}`);
+  });
+
+  it('CONTROL: printMcpScan renders findings differing only in serverName as TWO groups', async () => {
+    const { logs } = await captureLog(() =>
+      printMcpScan({
+        sources: [],
+        servers: [],
+        findings: [
+          mcpFinding({ id: 'd/one', serverName: 'server-a', message: 'first msg' }),
+          mcpFinding({ id: 'd/two', serverName: 'server-b', message: 'second msg' }),
+        ],
+      })
+    );
+    const headers = logs.filter((l) => l.includes('›'));
+    assert.equal(headers.length, 2, `expected exactly two group headers, got ${headers.length}`);
+  });
+
+  // ---- structural: mcpGroupKey is the ONLY implementation ------------------
+  //
+  // The two behavioural controls above are NOT sufficient, and review A-3 said
+  // so. A refactor that leaves mcpGroupKey correct, exported and unit-tested
+  // while printMcpScan keeps its OWN inline key builder using the same delimiter
+  // produces byte-identical grouping and passes every assertion above — a
+  // behavioural control can see the key's SHAPE, never which code built it.
+  //
+  // A runtime module seam was REJECTED for this. Routing the call through
+  // module.exports.mcpGroupKey so a test could spy on it would make a security
+  // renderer's grouping key swappable at runtime by anything that can reach the
+  // module object — a worse property than the one being proven, in the one file
+  // that renders hostile MCP config data to the operator's terminal. The
+  // structural assertion buys the same guarantee with no production weakening.
+
+  function printMcpScanSource() {
+    const src = fs.readFileSync(SCORECARD_PATH, 'utf8');
+    const start = src.indexOf('\nfunction printMcpScan(');
+    if (start === -1) return { src, slice: '' };
+    // printMcpScan is currently the LAST top-level function in the file, so the
+    // terminator is whichever comes first: the next column-0 `function `
+    // declaration or the column-0 `module.exports`.
+    const rest = src.slice(start + 1);
+    const nextDecl = rest.slice(1).search(/^(function |module\.exports)/m);
+    const slice = nextDecl === -1 ? rest : rest.slice(0, nextDecl + 1);
+    return { src, slice };
+  }
+
+  it('STRUCTURAL: printMcpScan calls mcpGroupKey and builds no composite key of its own', () => {
+    const { slice } = printMcpScanSource();
+
+    // Asserted FIRST and on its own: if the anchor were renamed, every
+    // assertion below would pass vacuously against an empty string.
+    assert.ok(
+      slice.length > 0,
+      'could not locate printMcpScan\'s source region — an anchor rename would make every ' +
+        'assertion in this test pass vacuously against an empty slice, so this is checked first'
+    );
+    assert.ok(slice.includes('function printMcpScan('), 'the slice must actually start at printMcpScan');
+
+    assert.equal(
+      slice.split('mcpGroupKey(').length - 1,
+      1,
+      'printMcpScan must call the extracted builder exactly once'
+    );
+
+    assert.equal(
+      slice.split(NUL_ESCAPE).length - 1,
+      0,
+      'printMcpScan must contain ZERO occurrences of the NUL escape. This is the load-bearing ' +
+        'half: a second inline key builder using the same delimiter has to spell that delimiter ' +
+        'somewhere, and after the byte guard in tests/no-nul-source.test.js it can no longer spell ' +
+        'it as a raw byte. The two guards compose; neither closes this hole alone.'
+    );
+  });
+
+  it('STRUCTURAL: the NUL escape occurs exactly twice in lib/scorecard.js, both inside mcpGroupKey', () => {
+    const { src } = printMcpScanSource();
+
+    assert.equal(src.split(NUL_ESCAPE).length - 1, 2, 'exactly two delimiters, and nowhere else in the file');
+
+    const bodyStart = src.indexOf('\nfunction mcpGroupKey(');
+    assert.ok(bodyStart !== -1, 'could not locate mcpGroupKey — checked before asserting on its extent');
+    const bodyEnd = src.indexOf('\n}', bodyStart);
+    assert.ok(bodyEnd > bodyStart, 'could not locate the end of mcpGroupKey');
+
+    let at = -1;
+    const positions = [];
+    while ((at = src.indexOf(NUL_ESCAPE, at + 1)) !== -1) positions.push(at);
+    for (const pos of positions) {
+      assert.ok(
+        pos > bodyStart && pos < bodyEnd,
+        `a NUL escape at offset ${pos} sits outside mcpGroupKey's body (${bodyStart}..${bodyEnd}) — ` +
+          'the delimiter must be spelled in exactly one place'
+      );
+    }
+  });
+});
