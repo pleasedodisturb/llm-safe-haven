@@ -222,7 +222,7 @@ describe('wave-spec.js — JS-consumed regex-field guard (G-1482 merge-blocking 
   // Token form, not the leading-`[[:` form: the latter was bypassed by
   // `[^[:space:]]` (negated) and `[a-z[:digit:]]` (mixed), found by
   // adversarial code review of PR #96.
-  const POSIX_CLASS_RE = /\[:[a-z]+:\]/;
+  const POSIX_CLASS_RE = /\[([:.=])[^\]]*\1\]/;
 
   it('the real spec has no `[[:` POSIX bracket class in any JS-consumed regex field', () => {
     for (const segments of JS_REGEX_FIELD_PATHS) {
@@ -356,6 +356,15 @@ describe('wave-spec.js — JS-consumed regex-field guard (G-1482 merge-blocking 
     ['mixed with a range', '[a-z[:digit:]]'],
     ['two classes in one expression', '[[:alpha:][:digit:]]'],
     ['embedded mid-pattern', 'node[[:upper:]]+-e'],
+    // Third-iteration additions. The token form /\[:[a-z]+:\]/ that fixed
+    // the first two shapes was itself bypassed by these: it pinned the class
+    // name to lowercase and knew about only one of POSIX's three bracket
+    // constructs. JS mis-compiles all of them.
+    ['UPPERCASE class name', '[[:SPACE:]]'],
+    ['MixedCase class name', '[[:Alpha:]]'],
+    ['whitespace inside the token', '[[: space :]]'],
+    ['collating symbol', '[[.hyphen.]]'],
+    ['equivalence class', '[[=a=]]'],
   ];
 
   for (const [label, source] of POSIX_BYPASS_SHAPES) {
@@ -380,7 +389,7 @@ describe('wave-spec.js — JS-consumed regex-field guard (G-1482 merge-blocking 
     // Guards the opposite failure: a ban broad enough to catch the negated
     // and mixed shapes must not start rejecting valid regexes. The rejected
     // alternative `/\[\^?[^\]]*\[:/` false-positives on both of these.
-    for (const source of ['[\\[:]', '\\[\\[:not-a-class', '[a-z]', '^\\s*$', '[A-Za-z0-9_-]+']) {
+    for (const source of ['[\\[:]', '\\[\\[:not-a-class', '[a-z]', '^\\s*$', '[A-Za-z0-9_-]+', '[.]', '[=]', '[:]', '[.,;:]', '[a.b]', 'x[.]y']) {
       const good = clone(REAL_SPEC);
       const segments = JS_REGEX_FIELD_PATHS[0];
       let node = good;
