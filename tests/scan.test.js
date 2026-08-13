@@ -22,7 +22,7 @@ const os = require('os');
 const { stubHomedir, installStub } = require('./helpers/module-stub.js');
 const { captureLog } = require('./helpers/capture-log.js');
 
-const { findEnvFiles, findEnvFilesDetailed, scanForEnvFiles, scan } = require('../lib/scan.js');
+const { findEnvFiles, findEnvFilesDetailed, scanForEnvFiles, scan, buildCauseClauses, remedyForCause } = require('../lib/scan.js');
 
 function mkFixture() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'scan-fixture-'));
@@ -1147,5 +1147,85 @@ describe('EXIT-02 — an unreadable configured root is surfaced, distinctly from
 
     assert.ok(detailUnreadable.rootFailures.unreadable > 0, `expected rootFailures.unreadable > 0, got ${detailUnreadable.rootFailures.unreadable}`);
     assert.equal(detailReadable.rootFailures.unreadable, 0, 'a readable root must report rootFailures.unreadable === 0');
+  });
+});
+
+// ---------------------------------------------------------------------
+// G-1617: every ANOMALY_SKIP_REASONS member must be EXPLAINABLE, not just
+// classifiable.
+//
+// `incomplete` is derived generically by iterating the frozen
+// ANOMALY_SKIP_REASONS set, but buildCauseClauses() names its causes by
+// hand. Those are two sources of truth. The engine's partition test forces
+// a new reason to be CLASSIFIED as ANOMALY or SCOPE; nothing forced it to
+// be EXPLAINED, so a seventh reason would set `incomplete`, produce no
+// clause, and make the caller's `clauses[0].id` throw in the operator-
+// facing next-steps block of a scan that already could not finish.
+//
+// This is the mechanism that replaces the convention. It is derived FROM
+// the frozen set, so it covers reasons nobody has written yet -- a test
+// listing today's six by hand would pass forever and prove nothing.
+// ---------------------------------------------------------------------
+describe('buildCauseClauses — ANOMALY reason coverage (G-1617)', () => {
+  const { ANOMALY_SKIP_REASONS } = require('../lib/traverse/engine.js');
+
+  it('the frozen ANOMALY set is non-empty and readable — this test cannot pass vacuously', () => {
+    const members = [...ANOMALY_SKIP_REASONS];
+    assert.ok(
+      members.length >= 3,
+      `expected at least the 3 known ANOMALY reasons, got ${members.length}: ${members.join(', ')} — ` +
+      'if this set became unreadable or empty, every assertion below would iterate nothing and pass silently'
+    );
+  });
+
+  it('EVERY ANOMALY_SKIP_REASONS member produces a named clause — a 7th reason without one FAILS here', () => {
+    const uncovered = [];
+    for (const reason of ANOMALY_SKIP_REASONS) {
+      // One anomaly present, everything else zero: the clause list must
+      // name THIS reason and never fall through to the `unknown` fallback.
+      const detail = {
+        anomalyReasons: { [reason]: 1 },
+        rootFailures: { missing: 0, unreadable: 0 },
+      };
+      const clauses = buildCauseClauses(detail);
+      if (clauses.length === 0 || clauses[0].id === 'unknown') {
+        uncovered.push(reason);
+      }
+    }
+    assert.deepEqual(
+      uncovered, [],
+      `ANOMALY_SKIP_REASONS member(s) with no clause in buildCauseClauses(): ${uncovered.join(', ')} — ` +
+      'they would set `incomplete` and leave the operator with no stated cause. Add a clause AND a ' +
+      'remedy in remedyForCause() for each.'
+    );
+  });
+
+  it('every clause id also has a REMEDY that is not the generic fallback', () => {
+    const generic = remedyForCause('definitely-not-a-real-clause-id', 'scan', {});
+    const missing = [];
+    for (const reason of ANOMALY_SKIP_REASONS) {
+      const clauses = buildCauseClauses({
+        anomalyReasons: { [reason]: 1 },
+        rootFailures: { missing: 0, unreadable: 0 },
+      });
+      if (clauses.length && remedyForCause(clauses[0].id, 'scan', {}) === generic) {
+        missing.push(`${reason} (clause '${clauses[0].id}')`);
+      }
+    }
+    assert.deepEqual(missing, [], `clause(s) falling through to the generic remedy: ${missing.join(', ')}`);
+  });
+
+  // The fallback exists so the caller can never throw. It must stay
+  // UNREACHABLE in practice -- these two assertions pin both halves.
+  it('the unknown fallback exists (so clauses[0] never throws) but is not reachable via any real reason', () => {
+    const empty = buildCauseClauses({ anomalyReasons: {}, rootFailures: { missing: 0, unreadable: 0 } });
+    assert.equal(empty.length, 1, 'an empty cause set must still yield one clause, never []');
+    assert.equal(empty[0].id, 'unknown');
+    assert.ok(remedyForCause(empty[0].id, 'scan', {}).length > 0, 'the fallback must still render a remedy');
+  });
+
+  it('PAIRED CONTROL: a root failure alone still names the root cause, not the fallback', () => {
+    const clauses = buildCauseClauses({ anomalyReasons: {}, rootFailures: { missing: 1, unreadable: 0 } });
+    assert.equal(clauses[0].id, 'root');
   });
 });
