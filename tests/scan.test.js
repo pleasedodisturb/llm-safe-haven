@@ -1188,8 +1188,12 @@ describe('buildCauseClauses — ANOMALY reason coverage (G-1617)', () => {
         rootFailures: { missing: 0, unreadable: 0 },
       };
       const clauses = buildCauseClauses(detail);
-      if (clauses.length === 0 || clauses[0].id === 'unknown') {
-        uncovered.push(reason);
+      // G-1619 (Kimi-K3, review round 2): asserting merely that SOME clause
+      // exists is too weak -- a reason could produce a clause belonging to a
+      // DIFFERENT reason and still pass. With exactly one anomaly set, the
+      // clause list must name THAT reason and nothing else.
+      if (clauses.length !== 1 || clauses[0].id !== reason) {
+        uncovered.push(`${reason} -> ${clauses.map((c) => c.id).join(',') || '(none)'}`);
       }
     }
     assert.deepEqual(
@@ -1227,5 +1231,81 @@ describe('buildCauseClauses — ANOMALY reason coverage (G-1617)', () => {
   it('PAIRED CONTROL: a root failure alone still names the root cause, not the fallback', () => {
     const clauses = buildCauseClauses({ anomalyReasons: {}, rootFailures: { missing: 1, unreadable: 0 } });
     assert.equal(clauses[0].id, 'root');
+  });
+});
+
+// ---------------------------------------------------------------------
+// G-1619 (Kimi-K3, cross-AI review round 2): the invariant that G-1617's
+// "the unknown fallback is unreachable" claim actually rests on.
+//
+// `incomplete` is `result.stopped === true || anomalyCount > 0`. The
+// anomaly half is covered by the coverage test above. The `stopped` half
+// is NOT: if the walk could ever report `stopped: true` while recording
+// ZERO budget skips, `incomplete` would be true with an empty cause list
+// and the fallback would be reachable today -- making the comment that
+// calls it unreachable false.
+//
+// Probed and held on every budget-exhaustion shape (maxFiles 0/1,
+// budgetSeconds 0, multi-root), but held-when-probed is not the same as
+// enforced. This pins it.
+// ---------------------------------------------------------------------
+describe('walk invariant: stopped implies at least one budget skip (G-1619)', () => {
+  const { Traversal } = require('../lib/traverse/engine.js');
+  const fsMod = require('fs');
+  const osMod = require('os');
+  const pathMod = require('path');
+
+  function tree() {
+    const dir = fsMod.mkdtempSync(pathMod.join(osMod.tmpdir(), 'lsh-stopped-'));
+    for (const sub of ['r1/a', 'r2/b']) {
+      fsMod.mkdirSync(pathMod.join(dir, sub), { recursive: true });
+      for (let i = 0; i < 3; i += 1) {
+        fsMod.writeFileSync(pathMod.join(dir, sub, `f${i}.txt`), 'x\n');
+      }
+    }
+    return dir;
+  }
+
+  const SHAPES = [
+    { name: 'maxFiles: 0', opts: { maxFiles: 0 } },
+    { name: 'maxFiles: 1', opts: { maxFiles: 1 } },
+    { name: 'budgetSeconds: 0', opts: { budgetSeconds: 0 } },
+  ];
+
+  for (const shape of SHAPES) {
+    it(`${shape.name} — stopped is true AND a budget skip is recorded, never one without the other`, () => {
+      const dir = tree();
+      try {
+        const result = new Traversal({
+          roots: [pathMod.join(dir, 'r1'), pathMod.join(dir, 'r2')],
+          classes: ['env-secrets'],
+          ...shape.opts,
+        }).enumerateSync();
+
+        assert.equal(result.stopped, true, `${shape.name} should exhaust the budget`);
+        assert.ok(
+          (result.skips.counts().budget || 0) > 0,
+          `stopped === true with ZERO budget skips: buildCauseClauses() would return an empty ` +
+          `list while incomplete is true, making the 'unknown' fallback reachable and the ` +
+          `"unreachable" comment in lib/scan.js false. counts=${JSON.stringify(result.skips.counts())}`
+        );
+      } finally {
+        fsMod.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  }
+
+  it('PAIRED CONTROL: an unconstrained walk of the same tree is not stopped and records no budget skip', () => {
+    const dir = tree();
+    try {
+      const result = new Traversal({
+        roots: [pathMod.join(dir, 'r1'), pathMod.join(dir, 'r2')],
+        classes: ['env-secrets'],
+      }).enumerateSync();
+      assert.equal(result.stopped, false);
+      assert.equal(result.skips.counts().budget || 0, 0);
+    } finally {
+      fsMod.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

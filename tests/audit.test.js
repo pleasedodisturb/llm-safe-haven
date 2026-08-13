@@ -49,7 +49,10 @@ let scanForEnvFilesDetailedCallCount;
 // stubbed below, so the D-11 guard tests exercise the actual could-not-
 // verify rendering (not a mock of it) -- required to assert "no captured
 // stdout line contains the green text".
-const { printEnvScanResult: realPrintEnvScanResult } = require('../lib/scan.js');
+const {
+  printEnvScanResult: realPrintEnvScanResult,
+  buildCauseClauses: realBuildCauseClauses,
+} = require('../lib/scan.js');
 
 installStub(require.resolve('../lib/scan-mcp.js'), {
   buildEnvelope: (...args) => currentBuildEnvelope(...args),
@@ -73,6 +76,13 @@ installStub(require.resolve('../lib/scan.js'), {
     };
   },
   printEnvScanResult: (...args) => realPrintEnvScanResult(...args),
+  // G-1619: auditJson() now derives `envCauses` for the --json envelope, so
+  // this wholesale stub must delegate buildCauseClauses to the REAL
+  // implementation too. Captured before the stub replaces the require.cache
+  // entry (same ordering rule as printEnvScanResult above). Delegating
+  // rather than faking keeps the envelope's causes and the human renderer's
+  // clause list provably the same list, which is the point of the field.
+  buildCauseClauses: (...args) => realBuildCauseClauses(...args),
 });
 
 // Real (non-stubbed) collaborators: scorecard.js (computeSecurityLevel —
@@ -549,6 +559,10 @@ describe('auditExitCode — the exit ladder (G-1615)', () => {
     const { computeExit } = require('../lib/traverse/index.js');
     const mismatches = [];
 
+    // G-1619 (Kimi-K3, review round 2): `level` was hardcoded to 3 here, so
+    // the `if (exit === 0 && level < 2) return 1` refinement this function
+    // ships with was NEVER exercised by its own agreement test. Loop it.
+    for (const level of [0, 1, 2, 3, 4]) {
     for (const envFileCount of [0, 1, 7]) {
       for (const mcp of [COMPLETE_MCP, INCOMPLETE_MCP]) {
         for (const envIncomplete of [false, true]) {
@@ -560,15 +574,107 @@ describe('auditExitCode — the exit ladder (G-1615)', () => {
           // The level term only refines the CLEAN outcome (a complete scan
           // whose posture is below the pass threshold) — it must never
           // change a 1 into a 2 or vice versa.
-          const expected = canonical === 0 ? [0, 1] : [canonical];
-          const actual = auditExitCode(3, mcp, envIncomplete, envFileCount);
+          // The level term refines ONLY the CLEAN outcome: a complete scan
+          // with no finding but a sub-threshold posture reports 1 instead
+          // of 0. It must never turn a 1 into a 2 or a 2 into anything.
+          const expected = canonical === 0 ? [level >= 2 ? 0 : 1] : [canonical];
+          const actual = auditExitCode(level, mcp, envIncomplete, envFileCount);
           if (!expected.includes(actual)) {
-            mismatches.push(`envFiles=${envFileCount} mcpIncomplete=${mcpIncomplete} envIncomplete=${envIncomplete}: audit=${actual} computeExit=${canonical}`);
+            mismatches.push(`level=${level} envFiles=${envFileCount} mcpIncomplete=${mcpIncomplete} envIncomplete=${envIncomplete}: audit=${actual} expected=${expected.join('|')} computeExit=${canonical}`);
           }
         }
       }
     }
+    }
 
     assert.deepEqual(mismatches, [], `audit's exit code disagreed with the canonical ladder:\n  ${mismatches.join('\n  ')}`);
+  });
+});
+
+// ---------------------------------------------------------------------
+// G-1619 (Kimi-K3, review round 2): audit.js reads `EXIT` from
+// lib/mcp/base.js but derives its exit code through `computeExit` from
+// lib/traverse/index.js, which has its OWN frozen EXIT. Two enums, both
+// {CLEAN:0, FINDINGS:1, INCOMPLETE:2} today, kept equal by nothing.
+// `auditExitCode` compares `mcp.exitCode === EXIT.INCOMPLETE` using one and
+// returns values produced by the other, so a divergence would silently
+// mis-map audit's exit codes.
+//
+// Same convention-vs-mechanism shape as G-1617. This is the mechanism.
+// ---------------------------------------------------------------------
+describe('the two EXIT enums must agree (G-1619)', () => {
+  const { EXIT: MCP_EXIT } = require('../lib/mcp/base.js');
+  const { EXIT: TRAVERSE_EXIT } = require('../lib/traverse/index.js');
+
+  it('lib/mcp/base.js and lib/traverse/index.js define the SAME exit vocabulary', () => {
+    assert.deepEqual(
+      Object.keys(MCP_EXIT).sort(), Object.keys(TRAVERSE_EXIT).sort(),
+      'the two EXIT enums have different member names — audit.js mixes both, so they must stay identical'
+    );
+    assert.deepEqual(
+      MCP_EXIT, TRAVERSE_EXIT,
+      'the two EXIT enums disagree on a value. lib/audit.js compares mcp.exitCode against ' +
+      "mcp/base.js's EXIT while returning codes produced by traverse/index.js's computeExit — " +
+      'a divergence silently mis-maps audit exit codes with a green suite.'
+    );
+  });
+
+  it('non-vacuity: both enums are non-empty frozen objects, so deepEqual cannot pass on two blanks', () => {
+    for (const [name, e] of [['mcp/base', MCP_EXIT], ['traverse/index', TRAVERSE_EXIT]]) {
+      assert.ok(Object.keys(e).length >= 3, `${name} EXIT has too few members: ${JSON.stringify(e)}`);
+      assert.ok(Object.isFrozen(e), `${name} EXIT is not frozen`);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------
+// G-1619 (codex, review round 2): the regression G-1615 introduced.
+//
+// Before G-1615, an observed .env on an INCOMPLETE scan exited 2, so a
+// --json consumer could read the incompleteness off the exit code. G-1615
+// made that state exit 1 -- identical to a COMPLETE scan with the same
+// finding -- while the envelope still carried no env-incompleteness key.
+// Both channels went silent at once: verified byte-identical JSON and
+// identical exit codes for two fixtures differing only by an unreadable
+// directory.
+//
+// A fix that relocates a signal must carry the signal to its new home.
+// ---------------------------------------------------------------------
+describe('audit --json keeps the env-incompleteness signal when a finding wins precedence (G-1619)', () => {
+  beforeEach(() => {
+    currentBuildEnvelope = () => Promise.resolve(envelope());
+    currentAgents = [fakeAgent()];
+    currentEnvFiles = [];
+    currentEnvIncomplete = false;
+    currentEnvDetail = undefined;
+  });
+
+  it('a finding on an INCOMPLETE scan is distinguishable from the same finding on a COMPLETE scan', async () => {
+    const shared = { files: ['/project/.env'], anomalyCount: 1, anomalyReasons: { unreadable: 1, budget: 0 }, rootFailures: { missing: 0, unreadable: 0 } };
+
+    currentEnvDetail = { ...shared, incomplete: true };
+    const incomplete = JSON.parse((await captureLog(() => audit({ json: true }))).logs.join('\n'));
+
+    currentEnvDetail = { ...shared, incomplete: false, anomalyCount: 0, anomalyReasons: { unreadable: 0, budget: 0 } };
+    const complete = JSON.parse((await captureLog(() => audit({ json: true }))).logs.join('\n'));
+
+    assert.notDeepEqual(
+      incomplete, complete,
+      'the two envelopes are identical — a machine consumer cannot tell "finding, scan finished" ' +
+      'from "finding, paths went unexamined". This is the exact state G-1615 made indistinguishable.'
+    );
+    assert.equal(incomplete.envIncomplete, true);
+    assert.equal(complete.envIncomplete, false);
+    assert.deepEqual(incomplete.envCauses, ['unreadable'], 'the causes must name WHY, not just that');
+    assert.deepEqual(complete.envCauses, []);
+  });
+
+  it('PAIRED CONTROL: the additive keys never displace the frozen ones', async () => {
+    currentEnvDetail = { files: [], incomplete: false, anomalyCount: 0, anomalyReasons: { unreadable: 0, budget: 0 }, rootFailures: { missing: 0, unreadable: 0 } };
+    const j = JSON.parse((await captureLog(() => audit({ json: true }))).logs.join('\n'));
+    for (const key of ['agents', 'envFiles', 'envFileCount', 'overallLevel', 'mcp', 'levelCaps']) {
+      assert.ok(Object.prototype.hasOwnProperty.call(j, key), `frozen key '${key}' disappeared from the envelope`);
+    }
+    assert.equal(j.envIncomplete, false);
   });
 });
