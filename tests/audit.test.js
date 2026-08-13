@@ -86,7 +86,7 @@ const { captureLog } = require('./helpers/capture-log.js');
 
 // audit.js is required AFTER the stubs exist, so its top-level bindings
 // resolve to the stubs above.
-const { audit, getMcpInputs, normalizeAuditResult } = require('../lib/audit.js');
+const { audit, getMcpInputs, normalizeAuditResult, auditExitCode } = require('../lib/audit.js');
 
 describe('audit --json frozen contract (D-11) and containment', () => {
   beforeEach(() => {
@@ -486,5 +486,89 @@ describe('D-11 — audit() and audit({json:true}) refuse the same false all-clea
     const { result } = await captureLog(() => audit({}));
     assert.equal(result.code, 1, 'the human path must still short-circuit to exit 1 on zero agents, before the env scan is ever consulted');
     assert.equal(scanForEnvFilesDetailedCallCount, 0, 'scanForEnvFilesDetailed() must never be CALLED on the zero-agents human path (unchanged asymmetry)');
+  });
+});
+
+// ---------------------------------------------------------------------
+// G-1615: audit's exit ladder, unit-tested in ISOLATION.
+//
+// The inversion this suite pins survived every gate Phase 18 ran — the
+// 1496-test suite, 96% coverage, a goal-backward verifier and four
+// cross-AI reviewers' plan review — because `auditExitCode` was
+// module-private and only ever exercised through `audit()`/`auditJson()`,
+// where a stubbed fixture never combined "a .env WAS observed" with "and
+// something could not be read". Testing the ladder directly is the point
+// of this block, not a stylistic preference.
+//
+// The canonical ladder lives in ONE place, lib/traverse/index.js's
+// computeExit(): fail -> 1, then incomplete -> 2, else 0 (D-04).
+// ---------------------------------------------------------------------
+describe('auditExitCode — the exit ladder (G-1615)', () => {
+  const COMPLETE_MCP = { ran: true, exitCode: 0 };
+  const INCOMPLETE_MCP = { ran: false, exitCode: 2 };
+
+  // --- the defect this ticket fixed, both incompleteness sources --------
+  it('G-1615: an OBSERVED .env plus an incomplete ENV scan exits 1, not 2 — a finding beats incompleteness', () => {
+    assert.equal(
+      auditExitCode(0, COMPLETE_MCP, true, 1), 1,
+      'a tracked .env that was actually seen is ground truth; reporting it as "the scan did not finish" ' +
+      'demotes a certain finding to an infrastructure warning and lets an unreadable sibling directory mask it'
+    );
+  });
+
+  it('G-1615: an OBSERVED .env plus an incomplete MCP scan exits 1, not 2 (same rule, other incompleteness source)', () => {
+    assert.equal(auditExitCode(0, INCOMPLETE_MCP, false, 1), 1);
+  });
+
+  // --- PAIRED CONTROL: the fail-closed contract is NOT weakened ---------
+  // Without these, the test above would be satisfied by simply deleting
+  // the incompleteness term altogether.
+  it('PAIRED CONTROL: an incomplete scan with NO observed .env still exits 2 — fail-closed is intact (IN-03)', () => {
+    assert.equal(
+      auditExitCode(0, INCOMPLETE_MCP, false, 0), 2,
+      'a LOW LEVEL is not a finding: level is also low when there are no agents to audit, so a posture ' +
+      'computed from an unfinished scan must still fail closed rather than claim a verdict'
+    );
+    assert.equal(auditExitCode(3, COMPLETE_MCP, true, 0), 2, 'env-side incompleteness with no finding also stays 2');
+  });
+
+  it('PAIRED CONTROL: a fully complete, clean audit still exits 0 — this is not a blanket non-zero', () => {
+    assert.equal(auditExitCode(3, COMPLETE_MCP, false, 0), 0);
+  });
+
+  it('PAIRED CONTROL: a complete scan with a low level still exits 1 — pre-existing behaviour unchanged', () => {
+    assert.equal(auditExitCode(0, COMPLETE_MCP, false, 0), 1);
+  });
+
+  // --- D-04: ONE ladder, not two ---------------------------------------
+  // This is the assertion that would have caught the original bug. It
+  // compares against computeExit() itself rather than against a table of
+  // expected numbers, so it cannot drift out of agreement the way a
+  // hand-copied ladder did.
+  it('D-04: audit never re-derives precedence — it agrees with computeExit() on every combination', () => {
+    const { computeExit } = require('../lib/traverse/index.js');
+    const mismatches = [];
+
+    for (const envFileCount of [0, 1, 7]) {
+      for (const mcp of [COMPLETE_MCP, INCOMPLETE_MCP]) {
+        for (const envIncomplete of [false, true]) {
+          const mcpIncomplete = mcp.ran === false || mcp.exitCode === 2;
+          const canonical = computeExit({
+            severityCounts: { fail: envFileCount > 0 ? 1 : 0 },
+            incomplete: mcpIncomplete || envIncomplete,
+          });
+          // The level term only refines the CLEAN outcome (a complete scan
+          // whose posture is below the pass threshold) — it must never
+          // change a 1 into a 2 or vice versa.
+          const expected = canonical === 0 ? [0, 1] : [canonical];
+          const actual = auditExitCode(3, mcp, envIncomplete, envFileCount);
+          if (!expected.includes(actual)) {
+            mismatches.push(`envFiles=${envFileCount} mcpIncomplete=${mcpIncomplete} envIncomplete=${envIncomplete}: audit=${actual} computeExit=${canonical}`);
+          }
+        }
+      }
+    }
+
+    assert.deepEqual(mismatches, [], `audit's exit code disagreed with the canonical ladder:\n  ${mismatches.join('\n  ')}`);
   });
 });
