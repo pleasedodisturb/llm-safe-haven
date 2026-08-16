@@ -631,10 +631,18 @@ section "Summary"
 # is now guarded by a permanent, bidirectional drift test in
 # tests/chaindrop-scanner.test.js ("a permanent drift guard fails if the
 # bash _SKIP_REASONS list and SKIP_REASONS ever disagree"), because until
-# 2026-08-11 this line had ZERO test coverage -- a repo-wide search for the
-# identifier _SKIP_REASONS returned exactly one hit, this declaration
-# itself -- so omitting a reason here would have left `[skip] <reason>: N`
-# permanently unprinted with a fully green suite.
+# 2026-08-11 this line had ZERO test coverage -- `_SKIP_REASONS` was
+# referenced only inside this script (the declaration and the loop directly
+# below it) and by nothing else in the repo, so omitting a reason here would
+# have left `[skip] <reason>: N` permanently unprinted with a fully green
+# suite.
+#
+# CORRECTED 2026-08-16: this comment previously claimed the search "returned
+# exactly one hit, this declaration itself". It returns TWO -- the
+# declaration and its own consuming loop. The conclusion (no coverage,
+# because nothing OUTSIDE this script referenced it) was right; the stated
+# evidence was not. Recorded rather than quietly patched, because "a grep
+# proved it" is the exact class of claim this project has been burned by.
 _SKIP_REASONS="oversized symlink other-device unreadable budget swapped"
 for _r in $_SKIP_REASONS; do
   _n=$(_read_scalar "skip-$_r")

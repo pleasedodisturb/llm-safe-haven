@@ -187,9 +187,19 @@ exact semantics, so you gate CI on the right one:
 
 | Code | Meaning |
 |------|---------|
-| `0` | Security Level 2+ (and the in-process MCP scan completed) |
-| `1` | Security Level below 2 (scan completed) |
-| `2` | The MCP scan `audit` runs in-process did not complete — a pass/fail verdict built on an unfinished scan would not be trustworthy, so `audit` refuses to emit one |
+| `0` | Security Level 2+, and **both** in-process scans (MCP and `.env`) completed |
+| `1` | A tracked `.env` file was **observed** — even if the scan was also incomplete — or the Security Level is below 2 on a scan that completed |
+| `2` | Either in-process scan (MCP **or** `.env`) did not complete, and no finding was observed — a pass/fail verdict built on an unfinished scan would not be trustworthy, so `audit` refuses to emit one |
+
+**Precedence: a finding beats incompleteness.** A `.env` that was actually seen is ground truth
+regardless of what else went unread, so that state exits `1`, not `2`. Reporting it as "the scan did
+not finish" would demote a certain, actionable finding into an infrastructure warning — and would let
+anyone mask a real finding by making one sibling directory unreadable. Exit `0` is unaffected: an
+incomplete scan can still never report clean.
+
+**Machine consumers:** `audit --json` carries the env half as `envIncomplete` (boolean) and
+`envCauses` (the same ordered cause list the human output prints), and the MCP half as `mcp.ran` /
+`mcp.exitCode`. Read those rather than inferring completeness from the exit code alone.
 
 Verified MCP findings demote the Security Level (rules below) and therefore block
 Level 3+, but they do **not** by themselves fail `audit`'s exit code — a Level 2 setup
@@ -203,9 +213,16 @@ gating signal. CI gating belongs to `audit` (level + incomplete-scan) and `scan 
 
 The Security Level rules, in priority order:
 
-1. **An incomplete MCP scan caps the level at 2** — and, as of the table above, fails
-   `audit` with exit `2`. An unfinished scan (parse error, unreadable config) is never
-   treated as clean, because you don't actually know what it would have found.
+1. **An incomplete MCP scan caps the level at 2** — and, per the table above, fails
+   `audit` with exit `2` unless a tracked `.env` was observed, in which case that finding
+   takes precedence and `audit` exits `1`. An unfinished scan (parse error, unreadable
+   config) is never treated as clean, because you don't actually know what it would have
+   found.
+
+   Note the current limitation: the level cap covers the **MCP** half of incompleteness
+   only. An incomplete `.env` scan is reported in the exit code and in `audit --json`'s
+   `envIncomplete` field, but does **not** yet cap `overallLevel` / `levelCaps`. If you
+   gate CI on `overallLevel` alone, also check `envIncomplete`. Tracked as G-1623.
 2. **A verified MCP finding caps the level at 2** — regardless of severity, a verified
    finding means the scan found something concrete to fix.
 3. **Unverified findings never cap the level.** An offline-degraded "unverified" result

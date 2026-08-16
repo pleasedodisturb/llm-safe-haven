@@ -627,11 +627,16 @@ describe('ChainDrop manifest integrity + scanner parity (drift guards)', () => {
   // D-01 (18-CONTEXT.md, G-1543/G-1544, site 6): scripts/scan-chaindrop-
   // aug2026.sh:629 hand-declares its own copy of the SKIP_REASONS
   // vocabulary (`_SKIP_REASONS="..."`) because a bash Summary loop cannot
-  // `require()` the JS module. Until 2026-08-11 a repo-wide search for the
-  // identifier `_SKIP_REASONS` returned exactly one hit -- the declaration
-  // itself -- so a reason added to SKIP_REASONS and never mirrored here
-  // would leave `[skip] <reason>: N` permanently unprinted with a fully
-  // green test suite. This guard parses source text (like the pair above),
+  // `require()` the JS module. Until 2026-08-11 `_SKIP_REASONS` was
+  // referenced ONLY inside that script -- the declaration and its own
+  // consuming loop -- and by nothing else in the repo, so a reason added to
+  // SKIP_REASONS and never mirrored here would leave `[skip] <reason>: N`
+  // permanently unprinted with a fully green test suite.
+  //
+  // CORRECTED 2026-08-16: this said the search "returned exactly one hit".
+  // It returns TWO (declaration + loop). The conclusion held; the evidence
+  // as stated did not, and an overstated grep result is precisely what this
+  // project keeps getting caught by. This guard parses source text (like the pair above),
   // so it carries no `hasBash` skip guard -- it needs bash installed only
   // to RUN the scanner, never merely to read its source.
   it('a permanent drift guard: the bash _SKIP_REASONS list and SKIP_REASONS agree in BOTH directions (D-01, G-1543/G-1544, site 6)', () => {
