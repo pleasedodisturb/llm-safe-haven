@@ -111,6 +111,16 @@ exit-code change, byte-identical output to before this change.
 | 3 | Hardened | + Credential proxy + deny rules + clean MCP scan |
 | 4 | Fortified | + Container isolation + network restrictions |
 
+### Machine-readable posture: `audit --json`
+
+`overallLevel` and `levelCaps` are the keys a CI consumer should gate on (this repo's own
+documented pattern: `process.exit(result.overallLevel >= 2 ? 0 : 1)`). An unfinished `.env` scan
+now caps `overallLevel` at 2 and records an `env-incomplete` entry in `levelCaps` — the same way an
+unfinished MCP scan has always recorded `mcp-incomplete`. Gating CI on `overallLevel` alone is now
+sufficient for the incompleteness question across **both** scan halves; `envIncomplete` and
+`mcp.ran` remain in the envelope as the machine-readable detail for *why*, not as a second signal
+you need to check separately.
+
 ## Go Deeper
 
 - [Threat Model](docs/threat-model.md) -- OWASP Agentic Top 10 for solo devs (30+ real incidents)
