@@ -438,12 +438,22 @@ describe('run.js — zero default roots (EXIT-04, G-1621, D-20-13)', () => {
     const nonProjectCwd = mkDir('run-cli-nonproject-cwd-');
 
     const res = runCli(['--spec', SPEC_PATH, '--results-dir', resultsDir], { HOME: home }, nonProjectCwd);
+    // D-20-11 / Task 3 break-proof 3 ordering note: the stderr assertion is
+    // checked BEFORE the exit-code assertion deliberately. Break-proof 3
+    // (drop the `noRoot` flag from the `rootIncomplete` expression while
+    // leaving the stderr warning write in place) is supposed to fail the
+    // EXIT-CODE check while the STDERR check still passes -- "CI reads exit
+    // codes, not prose" is the whole point of the ticket. If the exit-code
+    // assertion ran first and threw, node:test would never reach this line
+    // at all, and the break-proof output could not show the stderr
+    // assertion passing (a thrown assertion aborts the rest of the `it()`
+    // body) -- so the ORDER here is what makes that distinction observable.
+    const causeLines = res.stderr.split('\n').filter((line) => line.includes(NO_SCAN_ROOT_CAUSE));
+    assert.equal(causeLines.length, 1, `expected the cause to be named exactly once on stderr, got: ${JSON.stringify(res.stderr)}`);
     assert.equal(res.status, 2);
     const envelope = readFindingsJson(resultsDir);
     assert.equal(envelope.incomplete, true);
     assert.deepEqual(envelope.roots, []);
-    const causeLines = res.stderr.split('\n').filter((line) => line.includes(NO_SCAN_ROOT_CAUSE));
-    assert.equal(causeLines.length, 1, `expected the cause to be named exactly once on stderr, got: ${JSON.stringify(res.stderr)}`);
   });
 
   it('empty HOME, no --roots, no LSH_ROOTS, cwd contains package.json: exit 0; exactly one notice line prefixed "run.js: "; roots:[cwd], rootsWalked:1', () => {
@@ -516,6 +526,38 @@ describe('run.js — zero default roots (EXIT-04, G-1621, D-20-13)', () => {
     assert.match(res.stderr, /does not exist or is not a directory/);
     assert.equal(res.stderr.includes(CWD_FALLBACK_NOTICE), false, 'explicit-mode misses must not trigger the default-probe fallback notice');
     assert.equal(res.stderr.includes(NO_SCAN_ROOT_CAUSE), false, 'explicit-mode misses render through the existing "root" cause, not the new "no-root" one');
+  });
+
+  // T-20-WRONGCAUSE (mirrors 20-01-SUMMARY.md's tests/scan.test.js case of
+  // the same name, at run.js's own process boundary): found MISSING by this
+  // task's own Task 3 break-proof 2 (revert the `unreadableRoots.length ===
+  // 0` gate) -- the first attempt produced ZERO test failures, because
+  // nothing at this entry point exercised "all six default roots exist but
+  // are unreadable" specifically. Added here so the gate is load-bearing
+  // through the real process boundary, not just inside lib/scan.js's own
+  // suite.
+  const runningAsRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+  const skipUnreadable = process.platform === 'win32' || runningAsRoot;
+
+  it('T-20-WRONGCAUSE: all six default roots unreadable (real mode-000 sandbox HOME) keeps the EXISTING unreadable-root warnings, never the "no-root" cause', { skip: skipUnreadable }, () => {
+    const resultsDir = mkDir('run-cli-results-');
+    const home = emptySandboxHome();
+    fs.mkdirSync(path.join(home, 'Projects'));
+    const nonProjectCwd = mkDir('run-cli-nonproject-cwd-');
+    fs.chmodSync(home, 0o000);
+
+    try {
+      const res = runCli(['--spec', SPEC_PATH, '--results-dir', resultsDir], { HOME: home }, nonProjectCwd);
+      assert.equal(res.status, 2);
+      assert.match(res.stderr, /could not be read/, 'must render the existing unreadable-root warning');
+      assert.equal(res.stderr.includes(NO_SCAN_ROOT_CAUSE), false, 'an unreadable-root run must NEVER also claim "no scan root could be resolved" -- the fallback gate must not fire on top of it');
+      assert.equal(res.stderr.includes(CWD_FALLBACK_NOTICE), false, 'the cwd fallback must not fire when the default roots were merely unreadable, not absent');
+      const envelope = readFindingsJson(resultsDir);
+      assert.equal(envelope.incomplete, true);
+      assert.deepEqual(envelope.roots, []);
+    } finally {
+      fs.chmodSync(home, 0o755);
+    }
   });
 });
 
