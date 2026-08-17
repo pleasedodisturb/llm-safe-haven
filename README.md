@@ -88,7 +88,10 @@ Now, when zero default roots resolve:
 - if the current directory looks like a project (it contains a `.git` entry or a `package.json`),
   that directory becomes the sole scan root. Exactly one line is printed to stderr noting the
   fallback, and the exit code follows findings as usual.
-- otherwise, the run is reported incomplete and exits `2` — never a silent `0`.
+- otherwise, the run is reported incomplete: `scan`, `audit` and `scan --supply-chain` exit `2` —
+  never a silent `0`. `install` prints the same `◆ could not verify` block but, as always, has no
+  exit code of its own (it exits `0` regardless of what the embedded scan found — its render is its
+  verdict; script against `scan`/`audit` if you need a status code).
 
 A machine with one or more of the six default roots present is unaffected: no new stderr line, no
 exit-code change, byte-identical output to before this change.
@@ -96,7 +99,8 @@ exit-code change, byte-identical output to before this change.
 > **⚠ Behaviour change — if you run any of these commands in a container or CI runner whose code
 > lives outside `~/{Projects,Developer,Code,src,repos,workspace}`, read this.**
 > A container or CI runner whose working directory is not itself a project (no `.git`, no
-> `package.json`) will now exit `2` where it previously exited `0`. This is intentional: an exit
+> `package.json`) will now exit `2` from `scan`, `audit` and `scan --supply-chain` where it
+> previously exited `0` (`install` is unchanged — it never had an exit code). This is intentional: an exit
 > code of `0` is supposed to mean "the scan ran and found nothing" — it never meant "the scan ran
 > nowhere." If you hit this, either set `LSH_ROOTS` to the directory you want scanned, or run the
 > command from that directory.
