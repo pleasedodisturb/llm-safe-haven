@@ -626,7 +626,24 @@ section "Summary"
 # protocol shape stability, not as a live mechanism -- see
 # lib/traverse/engine.js's run()), so scalars/degradation-count always
 # reads 0 and there is no longer a report line to print for it.
-_SKIP_REASONS="oversized symlink other-device unreadable budget"
+# 2026-08-12 (D-01, G-1543/G-1544): 'swapped' added -- a post-classification
+# TOCTOU symlink swap (lib/traverse/read-pool.js's ELOOP branch). This list
+# is now guarded by a permanent, bidirectional drift test in
+# tests/chaindrop-scanner.test.js ("a permanent drift guard fails if the
+# bash _SKIP_REASONS list and SKIP_REASONS ever disagree"), because until
+# 2026-08-11 this line had ZERO test coverage -- `_SKIP_REASONS` was
+# referenced only inside this script (the declaration and the loop directly
+# below it) and by nothing else in the repo, so omitting a reason here would
+# have left `[skip] <reason>: N` permanently unprinted with a fully green
+# suite.
+#
+# CORRECTED 2026-08-16: this comment previously claimed the search "returned
+# exactly one hit, this declaration itself". It returns TWO -- the
+# declaration and its own consuming loop. The conclusion (no coverage,
+# because nothing OUTSIDE this script referenced it) was right; the stated
+# evidence was not. Recorded rather than quietly patched, because "a grep
+# proved it" is the exact class of claim this project has been burned by.
+_SKIP_REASONS="oversized symlink other-device unreadable budget swapped"
 for _r in $_SKIP_REASONS; do
   _n=$(_read_scalar "skip-$_r")
   if [ "$_n" -gt 0 ] 2>/dev/null; then

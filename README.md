@@ -44,9 +44,9 @@ LLM Safe Haven -- Security Scorecard
 
 ```bash
 npx llm-safe-haven               # Install hooks and harden (default)
-npx llm-safe-haven audit          # Check security posture (exits 2 if the MCP scan can't complete)
+npx llm-safe-haven audit          # Check security posture (0 clean / 1 findings / 2 a scan didn't finish)
 npx llm-safe-haven audit --json   # Machine-readable for CI
-npx llm-safe-haven scan           # Find exposed .env files
+npx llm-safe-haven scan           # Find exposed .env files (0 none / 1 found / 2 scan didn't finish)
 npx llm-safe-haven scan --supply-chain  # Scan for ChainDrop/Shai-Hulud IOCs (macOS/Linux)
 npx llm-safe-haven scan --mcp     # Scan MCP server configs (5 agents) -- the CI gate for MCP findings
 npx llm-safe-haven scan --mcp --json    # Scan MCP server configs (JSON output)
@@ -54,6 +54,27 @@ npx llm-safe-haven scan --mcp --online  # Opt in to registry provenance checks
 npx llm-safe-haven update         # Update hooks to latest
 npx llm-safe-haven --dry-run      # Preview without changing anything
 ```
+
+### Exit codes
+
+Every scanning command uses the same three-valued contract:
+
+| Code | Meaning |
+|------|---------|
+| `0` | Clean — the scan completed and found nothing |
+| `1` | Findings — something was observed that you need to act on |
+| `2` | The scan did not finish — treat as unknown, never as clean |
+
+**An incomplete scan is never reported as clean.** A finding takes precedence over
+incompleteness: if a `.env` was actually observed, that is exit `1` even when other paths
+could not be read, because what was seen is a fact regardless of what was missed.
+
+> **⚠ Behaviour change — if you gate CI on `scan`, read this.**
+> `scan` previously exited `0` even when it found tracked `.env` files, while printing them
+> as a red `✗`. It now exits `1`, as the table above says it should. Any pipeline treating
+> `scan`'s `0` as "the command ran OK" rather than "nothing was found" will start failing —
+> correctly. Use `--json` (on `audit`) or check for `1` explicitly if you need to distinguish
+> "found something" from "could not run".
 
 ## Security Levels
 

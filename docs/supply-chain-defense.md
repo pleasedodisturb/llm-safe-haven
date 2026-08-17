@@ -1159,12 +1159,22 @@ exit `0`, and no results directory is left behind.
 ### The skip inventory and results directory
 
 Every entry the walk declines to fully process is counted and path-attributed by SKIP
-reason (`oversized`, `symlink`, `other-device`, `unreadable`, `budget`). On a run that
-exits `1` or `2`, the full per-reason path lists are written to a results directory whose
-path is printed in the final report line — this is what lets you answer "which files did
-the scan skip and why" after the fact. On a clean (`0`) exit, or on Ctrl-C, the results
-directory is removed; keep your terminal's scrollback if you need the summary counts from
-a clean run.
+reason (`oversized`, `symlink`, `other-device`, `unreadable`, `budget`, `swapped`). On a
+run that exits `1` or `2`, the full per-reason path lists are written to a results
+directory whose path is printed in the final report line — this is what lets you answer
+"which files did the scan skip and why" after the fact. On a clean (`0`) exit, or on
+Ctrl-C, the results directory is removed; keep your terminal's scrollback if you need the
+summary counts from a clean run.
+
+Two of those six reasons both come from a symlink, and they mean different things. A
+`symlink` skip means the scanner declined to follow a link it saw while enumerating the
+tree — normal, expected, and it does not affect the exit code. A `swapped` skip means a
+path that looked like a regular file WAS a symlink by the time the scanner tried to open
+it — a time-of-check/time-of-use swap, which means the tree changed underneath the scan
+while it was running. That DOES make the run incomplete (exit `2`). If you see
+`[skip] swapped: N`, inspect the named path(s) in `skips/swapped.z` inside the retained
+results directory; on a machine with no concurrent writers to the scanned tree, this
+count should be zero.
 
 ### `.gitignore` is never consulted (2026-08-07)
 

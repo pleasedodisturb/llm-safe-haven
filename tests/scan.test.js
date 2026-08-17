@@ -22,7 +22,7 @@ const os = require('os');
 const { stubHomedir, installStub } = require('./helpers/module-stub.js');
 const { captureLog } = require('./helpers/capture-log.js');
 
-const { findEnvFiles, findEnvFilesDetailed, scanForEnvFiles, scan } = require('../lib/scan.js');
+const { findEnvFiles, findEnvFilesDetailed, scanForEnvFiles, scan, buildCauseClauses, remedyForCause } = require('../lib/scan.js');
 
 function mkFixture() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'scan-fixture-'));
@@ -673,6 +673,639 @@ describe("scan()'s return contract — a missing configured LSH_ROOTS entry also
       assert.equal(warningLines.length, 1, `expected exactly one deduped warning line, got: ${warningLines}`);
     } finally {
       console.error = originalError;
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D-07a (G-1545, worst defect in the phase) — a `.env` behind an unreadable
+// directory must never render as a green check and must never exit 0. This
+// block makes the reproduction permanent, pins review C-1's next-steps fix
+// (an incomplete scan that found no .env files must not tell the operator to
+// remove .env files), and pins review C-4's cause-branching (budget,
+// unreadable and root causes must never render as the same sentence).
+// Sandbox-HOME + LSH_ROOTS idiom copied from the return-contract describe
+// block above (:507-580).
+// ---------------------------------------------------------------------------
+describe('D-07a — an unreadable directory can no longer render a green check or exit 0 (G-1545, review C-1/C-4)', () => {
+  const osPath = require.resolve('os');
+  const scanPath = require.resolve('../lib/scan.js');
+  const skipUnreadableFixtures = process.platform === 'win32' || runningAsRoot;
+
+  let sandboxHome;
+  let fixtureDir;
+  let originalOsEntry;
+  let originalLshRoots;
+  let originalLshMaxFiles;
+
+  beforeEach(() => {
+    sandboxHome = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-d07a-home-'));
+    fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-d07a-root-'));
+    originalOsEntry = require.cache[osPath];
+    originalLshRoots = process.env.LSH_ROOTS;
+    originalLshMaxFiles = process.env.LSH_MAX_FILES;
+  });
+
+  afterEach(() => {
+    if (originalOsEntry === undefined) delete require.cache[osPath];
+    else require.cache[osPath] = originalOsEntry;
+    delete require.cache[scanPath];
+    if (originalLshRoots === undefined) delete process.env.LSH_ROOTS;
+    else process.env.LSH_ROOTS = originalLshRoots;
+    if (originalLshMaxFiles === undefined) delete process.env.LSH_MAX_FILES;
+    else process.env.LSH_MAX_FILES = originalLshMaxFiles;
+    fs.rmSync(sandboxHome, { recursive: true, force: true });
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
+  });
+
+  async function runScanWithStderr(sandboxedScan) {
+    const originalError = console.error;
+    const stderrLines = [];
+    console.error = (msg) => { stderrLines.push(String(msg)); };
+    try {
+      const { logs, result } = await captureLog(() => sandboxedScan({}, {}));
+      return { logs, result, stderrLines };
+    } finally {
+      console.error = originalError;
+    }
+  }
+
+  it('the D-07a reproduction: a .env behind a mode-000 directory returns { code: 2 }, prints NO green line, and reports the could-not-verify state', { skip: skipUnreadableFixtures }, async () => {
+    const locked = path.join(fixtureDir, 'locked-secret');
+    fs.mkdirSync(locked);
+    fs.writeFileSync(path.join(locked, '.env'), 'SECRET_TOKEN=abc123\n');
+    fs.chmodSync(locked, 0o000);
+
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+
+    try {
+      const { logs, result, stderrLines } = await runScanWithStderr(sandboxedScan);
+      assert.deepEqual(result, { code: 2 }, 'a .env behind an unreadable directory must return { code: 2 }, never undefined');
+      assert.ok(!logs.some((l) => l.includes('No .env files found')), 'no captured stdout line may print the green "No .env files found" check');
+      assert.ok(logs.some((l) => l.includes('could not verify')), `expected a could-not-verify line on stdout, got: ${logs}`);
+      assert.ok(
+        stderrLines.some((l) => l.includes('did not finish') && l.includes('incomplete')),
+        `expected an incomplete-scan diagnostic on stderr, got: ${stderrLines}`
+      );
+      assert.ok(!logs.some((l) => l.includes('did not finish')), 'the incomplete-scan diagnostic must stay on stderr, never stdout — the scorecard owns stdout');
+    } finally {
+      fs.chmodSync(locked, 0o755);
+    }
+  });
+
+  it('review C-1: the next-steps block names the unreadable remedy, never the "remove .env files" sentence, for an incomplete scan that found none', { skip: skipUnreadableFixtures }, async () => {
+    const locked = path.join(fixtureDir, 'locked-secret');
+    fs.mkdirSync(locked);
+    fs.writeFileSync(path.join(locked, '.env'), 'SECRET_TOKEN=abc123\n');
+    fs.chmodSync(locked, 0o000);
+
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+
+    try {
+      const { logs } = await runScanWithStderr(sandboxedScan);
+      // Negative needle FIRST (review C-1's own break-proof reverts the
+      // dedicated block back to printNextSteps(1) -- that must fail THIS
+      // assertion, not merely leave the positive one unmatched, so the two
+      // are asserted independently rather than short-circuiting together).
+      assert.ok(
+        !logs.some((l) => l.includes('Set up audit logging and remove .env files')),
+        'an incomplete scan which found no .env files must NEVER tell the operator to remove .env files — that is review C-1\'s whole point'
+      );
+      assert.ok(
+        logs.some((l) => l.includes('Restore read access to the paths the scan could not read, then re-run npx llm-safe-haven scan')),
+        `expected the pinned unreadable-cause remedy sentence verbatim, got: ${logs.join('\n')}`
+      );
+    } finally {
+      fs.chmodSync(locked, 0o755);
+    }
+  });
+
+  it('review C-4: the unreadable cause renders its own clause, never the budget or root wording', { skip: skipUnreadableFixtures }, async () => {
+    const locked = path.join(fixtureDir, 'locked-secret');
+    fs.mkdirSync(locked);
+    fs.writeFileSync(path.join(locked, '.env'), 'SECRET_TOKEN=abc123\n');
+    fs.chmodSync(locked, 0o000);
+
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+
+    try {
+      const { logs } = await runScanWithStderr(sandboxedScan);
+      const output = logs.join('\n');
+      assert.ok(output.includes('path(s) could not be read'), `expected the unreadable clause, got: ${output}`);
+      assert.ok(!output.includes('stopped early'), 'a counter that sums several reasons must not render the budget clause when only unreadable fired');
+      assert.ok(!output.includes('configured scan root(s) could not be resolved'), 'a counter that sums several reasons must not render the root clause when only unreadable fired');
+    } finally {
+      fs.chmodSync(locked, 0o755);
+    }
+  });
+
+  it('review C-4: the budget cause renders its own clause, never the unreadable or root wording', async () => {
+    for (let i = 0; i < 5; i++) fs.writeFileSync(path.join(fixtureDir, `noise-${i}.txt`), 'x\n');
+    process.env.LSH_ROOTS = fixtureDir;
+    process.env.LSH_MAX_FILES = '2';
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+
+    const { logs } = await runScanWithStderr(sandboxedScan);
+    const output = logs.join('\n');
+    assert.ok(output.includes('stopped early'), `expected the budget clause, got: ${output}`);
+    assert.ok(!output.includes('path(s) could not be read'), 'a counter that sums several reasons must not render the unreadable clause when only budget fired');
+    assert.ok(!output.includes('configured scan root(s) could not be resolved'), 'a counter that sums several reasons must not render the root clause when only budget fired');
+  });
+
+  it('review C-4: the root cause renders its own clause, never the budget or unreadable wording', async () => {
+    process.env.LSH_ROOTS = path.join(fixtureDir, 'does-not-exist-xyz');
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+
+    const { logs } = await runScanWithStderr(sandboxedScan);
+    const output = logs.join('\n');
+    assert.ok(output.includes('configured scan root(s) could not be resolved'), `expected the root clause, got: ${output}`);
+    assert.ok(!output.includes('stopped early'), 'a counter that sums several reasons must not render the budget clause when only a missing root fired');
+    assert.ok(!output.includes('path(s) could not be read'), 'a counter that sums several reasons must not render the unreadable clause when only a missing root fired');
+  });
+
+  it('PAIRED CONTROL: the same fixture, readable, finds the .env and prints no could-not-verify line', { skip: skipUnreadableFixtures }, async () => {
+    const readable = path.join(fixtureDir, 'readable-secret');
+    fs.mkdirSync(readable);
+    fs.writeFileSync(path.join(readable, '.env'), 'SECRET_TOKEN=abc123\n');
+    fs.chmodSync(readable, 0o755);
+
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+
+    const { logs } = await runScanWithStderr(sandboxedScan);
+    assert.ok(logs.some((l) => l.includes('.env file(s) found')), `expected the .env to be found, got: ${logs.join('\n')}`);
+    assert.ok(!logs.some((l) => l.includes('could not verify')), 'a fully readable tree must never print the could-not-verify line');
+  });
+
+  it('PAIRED CONTROL: a readable, complete, empty root stays green — undefined result, standard next steps, no could-not-verify line', async () => {
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+
+    const { logs, result } = await runScanWithStderr(sandboxedScan);
+    assert.strictEqual(result, undefined, 'a complete, clean scan must return undefined, byte-identical to before this plan');
+    assert.ok(logs.some((l) => l.includes('No .env files found')), 'the green line must still print for a clean, complete scan');
+    assert.ok(logs.some((l) => l.includes('Next steps:')), 'the standard next-steps block must still render');
+    assert.ok(!logs.some((l) => l.includes('could not verify')), 'a clean, complete scan must never print the could-not-verify line');
+  });
+
+  it('PAIRED CONTROL: findings AND incomplete both render — the middle branch of the shared renderer', { skip: skipUnreadableFixtures }, async () => {
+    fs.writeFileSync(path.join(fixtureDir, '.env'), 'SECRET_TOKEN=abc123\n');
+    const lockedSibling = path.join(fixtureDir, 'locked-sibling');
+    fs.mkdirSync(lockedSibling);
+    fs.chmodSync(lockedSibling, 0o000);
+
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+
+    try {
+      const { logs } = await runScanWithStderr(sandboxedScan);
+      assert.ok(logs.some((l) => l.includes('.env file(s) found')), `expected the readable .env to be found and reported, got: ${logs.join('\n')}`);
+      assert.ok(logs.some((l) => l.includes('could not verify')), `expected the could-not-verify line alongside the findings, got: ${logs.join('\n')}`);
+    } finally {
+      fs.chmodSync(lockedSibling, 0o755);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// EXIT-01 (G-1545, D-04) — scan()'s exit code is now produced by
+// computeExit(), not a hand-rolled ladder: a `.env` finding exits 1, a
+// clean/complete scan still returns `undefined`, an incomplete-with-findings
+// scan exits 1 (D-18: findings beat incompleteness), an incomplete-with-no-
+// findings scan still exits 2 (Task 1's case, unchanged), and the
+// credential-file list can never drive the exit code (Pitfall 3 / D-02b).
+// Sandbox-HOME + LSH_ROOTS idiom copied from the return-contract describe
+// block above (:507-580).
+// ---------------------------------------------------------------------------
+describe('EXIT-01 — scan() routes its exit code through computeExit() (G-1545, D-04, D-18)', () => {
+  const osPath = require.resolve('os');
+  const scanPath = require.resolve('../lib/scan.js');
+  const skipUnreadableFixtures = process.platform === 'win32' || runningAsRoot;
+
+  let sandboxHome;
+  let fixtureDir;
+  let originalOsEntry;
+  let originalLshRoots;
+  let originalLshMaxFiles;
+
+  beforeEach(() => {
+    sandboxHome = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-exit01-home-'));
+    fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-exit01-root-'));
+    originalOsEntry = require.cache[osPath];
+    originalLshRoots = process.env.LSH_ROOTS;
+    originalLshMaxFiles = process.env.LSH_MAX_FILES;
+  });
+
+  afterEach(() => {
+    if (originalOsEntry === undefined) delete require.cache[osPath];
+    else require.cache[osPath] = originalOsEntry;
+    delete require.cache[scanPath];
+    if (originalLshRoots === undefined) delete process.env.LSH_ROOTS;
+    else process.env.LSH_ROOTS = originalLshRoots;
+    if (originalLshMaxFiles === undefined) delete process.env.LSH_MAX_FILES;
+    else process.env.LSH_MAX_FILES = originalLshMaxFiles;
+    fs.rmSync(sandboxHome, { recursive: true, force: true });
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
+  });
+
+  it('findings -> exit 1: a fixture root with a .env returns { code: 1 } and prints the red findings line', async () => {
+    fs.writeFileSync(path.join(fixtureDir, '.env'), 'SECRET_TOKEN=abc123\n');
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+    const { logs, result } = await captureLog(() => sandboxedScan({}, {}));
+
+    assert.deepEqual(result, { code: 1 }, 'a .env finding must return { code: 1 }, never undefined (implicit 0)');
+    assert.ok(logs.some((l) => l.includes('.env file(s) found')), 'the red findings line must still print');
+  });
+
+  it('PAIRED CONTROL: clean -> undefined (re-confirms tests/scan.test.js:573/:654 still hold, unedited)', async () => {
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+    const { result } = await captureLog(() => sandboxedScan({}, {}));
+
+    assert.strictEqual(result, undefined, 'a clean, complete scan must still return undefined, byte-identical to before this plan');
+  });
+
+  it('D-18 precedence: findings AND an incomplete enumeration -> exit 1, not 2', { skip: skipUnreadableFixtures }, async () => {
+    fs.writeFileSync(path.join(fixtureDir, '.env'), 'SECRET_TOKEN=abc123\n');
+    const lockedSibling = path.join(fixtureDir, 'locked-sibling');
+    fs.mkdirSync(lockedSibling);
+    fs.chmodSync(lockedSibling, 0o000);
+
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+    try {
+      const { result } = await captureLog(() => sandboxedScan({}, {}));
+      assert.deepEqual(result, { code: 1 }, 'D-18: a real .env finding must beat incompleteness — exit 1, not 2');
+    } finally {
+      fs.chmodSync(lockedSibling, 0o755);
+    }
+  });
+
+  it('no findings AND incomplete -> exit 2, unchanged from Task 1', { skip: skipUnreadableFixtures }, async () => {
+    const locked = path.join(fixtureDir, 'locked-secret');
+    fs.mkdirSync(locked);
+    fs.writeFileSync(path.join(locked, '.env'), 'SECRET_TOKEN=abc123\n');
+    fs.chmodSync(locked, 0o000);
+
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+    try {
+      const { result } = await captureLog(() => sandboxedScan({}, {}));
+      assert.deepEqual(result, { code: 2 }, 'zero findings plus incompleteness must still exit 2');
+    } finally {
+      fs.chmodSync(locked, 0o755);
+    }
+  });
+
+  it('CRYING-WOLF CONTROL (Pitfall 3): a sandbox HOME with .npmrc and no .env still returns undefined', async () => {
+    fs.writeFileSync(path.join(sandboxHome, '.npmrc'), '//registry.npmjs.org/:_authToken=FAKE\n');
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+    const { logs, result } = await captureLog(() => sandboxedScan({}, {}));
+
+    assert.strictEqual(result, undefined, 'mapping dangerousFiles to fail would exit 1 on nearly every real developer machine — a D-02b-class regression');
+    assert.ok(logs.some((l) => l.includes('Credential files accessible to agents:')), 'the credential-file block must still print (detected, just not fail-severity)');
+  });
+
+  it('CRYING-WOLF CONTROL (Pitfall 3): a sandbox HOME with .aws/credentials and no .env still returns undefined', async () => {
+    const awsDir = path.join(sandboxHome, '.aws');
+    fs.mkdirSync(awsDir, { recursive: true });
+    fs.writeFileSync(path.join(awsDir, 'credentials'), '[default]\naws_access_key_id = FAKE\n');
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+    const { logs, result } = await captureLog(() => sandboxedScan({}, {}));
+
+    assert.strictEqual(result, undefined, 'mapping dangerousFiles to fail would exit 1 on nearly every real developer machine — a D-02b-class regression');
+    assert.ok(logs.some((l) => l.includes('Credential files accessible to agents:')), 'the credential-file block must still print (detected, just not fail-severity)');
+  });
+
+  it('synchronous-return guard: the env path never returns a thenable (lib/cli.js:122-127\'s requirement)', async () => {
+    process.env.LSH_ROOTS = fixtureDir;
+    delete process.env.LSH_MAX_FILES;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+    let rawReturn;
+    await captureLog(() => { rawReturn = sandboxedScan({}, {}); return rawReturn; });
+
+    assert.strictEqual(rawReturn, undefined, 'a clean fixture returns undefined synchronously');
+    assert.ok(
+      !(rawReturn && typeof rawReturn.then === 'function'),
+      'scan()\'s return value must never be a thenable — pins the sync-return contract so this path is never made async'
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// EXIT-02 (G-1542, D-07b) — a configured root that exists but could not be
+// READ (the parent lacks +x) is surfaced distinctly from a missing one, at
+// the scan() caller level. Sandbox-HOME + LSH_ROOTS idiom copied from the
+// return-contract describe block above (:507-580).
+// ---------------------------------------------------------------------------
+describe('EXIT-02 — an unreadable configured root is surfaced, distinctly from a missing one (G-1542, D-07b)', () => {
+  const osPath = require.resolve('os');
+  const scanPath = require.resolve('../lib/scan.js');
+  const runningAsRootLocal = typeof process.getuid === 'function' && process.getuid() === 0;
+  const skip = process.platform === 'win32' || runningAsRootLocal;
+
+  let sandboxHome;
+  let parentDir;
+  let childDir;
+  let originalOsEntry;
+  let originalLshRoots;
+
+  beforeEach(() => {
+    sandboxHome = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-exit02-home-'));
+    originalOsEntry = require.cache[osPath];
+    originalLshRoots = process.env.LSH_ROOTS;
+  });
+
+  afterEach(() => {
+    if (originalOsEntry === undefined) delete require.cache[osPath];
+    else require.cache[osPath] = originalOsEntry;
+    delete require.cache[scanPath];
+    if (originalLshRoots === undefined) delete process.env.LSH_ROOTS;
+    else process.env.LSH_ROOTS = originalLshRoots;
+    fs.rmSync(sandboxHome, { recursive: true, force: true });
+    if (parentDir) {
+      try { fs.chmodSync(parentDir, 0o755); } catch { /* may not exist */ }
+      fs.rmSync(parentDir, { recursive: true, force: true });
+    }
+    parentDir = childDir = undefined;
+  });
+
+  it('LSH_ROOTS under a mode-000 parent returns { code: 2 }, names the path and the errno, and never claims the root "does not exist"', { skip }, async () => {
+    parentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-exit02-parent-'));
+    childDir = path.join(parentDir, 'child');
+    fs.mkdirSync(childDir);
+    fs.chmodSync(parentDir, 0o000);
+
+    process.env.LSH_ROOTS = childDir;
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+
+    const originalError = console.error;
+    const stderrLines = [];
+    console.error = (msg) => { stderrLines.push(String(msg)); };
+    try {
+      const { result } = await captureLog(() => sandboxedScan({}, {}));
+      assert.deepEqual(result, { code: 2 }, 'an unreadable configured root must return { code: 2 }');
+      assert.ok(
+        stderrLines.some((l) => l.includes(childDir) && l.includes('EACCES')),
+        `expected a stderr line naming the path and the EACCES errno, got: ${stderrLines}`
+      );
+      assert.ok(
+        !stderrLines.some((l) => l.includes(childDir) && l.includes('does not exist')),
+        'the unreadable-root warning must NEVER claim the root "does not exist" — that wording is reserved for a genuinely absent root'
+      );
+    } finally {
+      fs.chmodSync(parentDir, 0o755);
+      console.error = originalError;
+    }
+  });
+
+  it('PAIRED CONTROL: a readable root prints no unreadable-root warning and returns undefined', async () => {
+    const readable = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-exit02-readable-'));
+    try {
+      process.env.LSH_ROOTS = readable;
+      const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+
+      const originalError = console.error;
+      const stderrLines = [];
+      console.error = (msg) => { stderrLines.push(String(msg)); };
+      try {
+        const { result } = await captureLog(() => sandboxedScan({}, {}));
+        assert.strictEqual(result, undefined, 'a fully readable root set must return undefined');
+        assert.equal(stderrLines.length, 0, 'a fully readable root set must print no warning at all');
+      } finally {
+        console.error = originalError;
+      }
+    } finally {
+      fs.rmSync(readable, { recursive: true, force: true });
+    }
+  });
+
+  it('rootFailures.unreadable is non-zero on the unreadable-root fixture and zero on the readable control', { skip }, () => {
+    parentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-exit02-rf-parent-'));
+    childDir = path.join(parentDir, 'child');
+    fs.mkdirSync(childDir);
+    fs.chmodSync(parentDir, 0o000);
+
+    process.env.LSH_ROOTS = childDir;
+    const { scanForEnvFilesDetailed } = stubHomedir(sandboxHome, scanPath);
+
+    const originalError = console.error;
+    console.error = () => {};
+    let detailUnreadable;
+    let detailReadable;
+    try {
+      detailUnreadable = scanForEnvFilesDetailed();
+    } finally {
+      fs.chmodSync(parentDir, 0o755);
+      console.error = originalError;
+    }
+
+    const readable = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-exit02-rf-readable-'));
+    try {
+      process.env.LSH_ROOTS = readable;
+      delete require.cache[scanPath];
+      const { scanForEnvFilesDetailed: sefd2 } = stubHomedir(sandboxHome, scanPath);
+      detailReadable = sefd2();
+    } finally {
+      fs.rmSync(readable, { recursive: true, force: true });
+    }
+
+    assert.ok(detailUnreadable.rootFailures.unreadable > 0, `expected rootFailures.unreadable > 0, got ${detailUnreadable.rootFailures.unreadable}`);
+    assert.equal(detailReadable.rootFailures.unreadable, 0, 'a readable root must report rootFailures.unreadable === 0');
+  });
+});
+
+// ---------------------------------------------------------------------
+// G-1617: every ANOMALY_SKIP_REASONS member must be EXPLAINABLE, not just
+// classifiable.
+//
+// `incomplete` is derived generically by iterating the frozen
+// ANOMALY_SKIP_REASONS set, but buildCauseClauses() names its causes by
+// hand. Those are two sources of truth. The engine's partition test forces
+// a new reason to be CLASSIFIED as ANOMALY or SCOPE; nothing forced it to
+// be EXPLAINED, so a seventh reason would set `incomplete`, produce no
+// clause, and make the caller's `clauses[0].id` throw in the operator-
+// facing next-steps block of a scan that already could not finish.
+//
+// This is the mechanism that replaces the convention. It is derived FROM
+// the frozen set, so it covers reasons nobody has written yet -- a test
+// listing today's six by hand would pass forever and prove nothing.
+// ---------------------------------------------------------------------
+describe('buildCauseClauses — ANOMALY reason coverage (G-1617)', () => {
+  const { ANOMALY_SKIP_REASONS } = require('../lib/traverse/engine.js');
+
+  it('the frozen ANOMALY set is non-empty and readable — this test cannot pass vacuously', () => {
+    const members = [...ANOMALY_SKIP_REASONS];
+    assert.ok(
+      members.length >= 3,
+      `expected at least the 3 known ANOMALY reasons, got ${members.length}: ${members.join(', ')} — ` +
+      'if this set became unreadable or empty, every assertion below would iterate nothing and pass silently'
+    );
+  });
+
+  it('EVERY ANOMALY_SKIP_REASONS member produces a named clause — a 7th reason without one FAILS here', () => {
+    const uncovered = [];
+    for (const reason of ANOMALY_SKIP_REASONS) {
+      // One anomaly present, everything else zero: the clause list must
+      // name THIS reason and never fall through to the `unknown` fallback.
+      const detail = {
+        anomalyReasons: { [reason]: 1 },
+        rootFailures: { missing: 0, unreadable: 0 },
+      };
+      const clauses = buildCauseClauses(detail);
+      // G-1619 (Kimi-K3, review round 2): asserting merely that SOME clause
+      // exists is too weak -- a reason could produce a clause belonging to a
+      // DIFFERENT reason and still pass. With exactly one anomaly set, the
+      // clause list must name THAT reason and nothing else.
+      if (clauses.length !== 1 || clauses[0].id !== reason) {
+        uncovered.push(`${reason} -> ${clauses.map((c) => c.id).join(',') || '(none)'}`);
+      }
+    }
+    assert.deepEqual(
+      uncovered, [],
+      `ANOMALY_SKIP_REASONS member(s) with no clause in buildCauseClauses(): ${uncovered.join(', ')} — ` +
+      'they would set `incomplete` and leave the operator with no stated cause. Add a clause AND a ' +
+      'remedy in remedyForCause() for each.'
+    );
+  });
+
+  it('every clause id also has a REMEDY that is not the generic fallback', () => {
+    const generic = remedyForCause('definitely-not-a-real-clause-id', 'scan', {});
+    const missing = [];
+    for (const reason of ANOMALY_SKIP_REASONS) {
+      const clauses = buildCauseClauses({
+        anomalyReasons: { [reason]: 1 },
+        rootFailures: { missing: 0, unreadable: 0 },
+      });
+      if (clauses.length && remedyForCause(clauses[0].id, 'scan', {}) === generic) {
+        missing.push(`${reason} (clause '${clauses[0].id}')`);
+      }
+    }
+    assert.deepEqual(missing, [], `clause(s) falling through to the generic remedy: ${missing.join(', ')}`);
+  });
+
+  // The fallback exists so the caller can never throw. It must stay
+  // UNREACHABLE in practice -- these two assertions pin both halves.
+  it('the unknown fallback exists (so clauses[0] never throws) but is not reachable via any real reason', () => {
+    const empty = buildCauseClauses({ anomalyReasons: {}, rootFailures: { missing: 0, unreadable: 0 } });
+    assert.equal(empty.length, 1, 'an empty cause set must still yield one clause, never []');
+    assert.equal(empty[0].id, 'unknown');
+    assert.ok(remedyForCause(empty[0].id, 'scan', {}).length > 0, 'the fallback must still render a remedy');
+  });
+
+  it('PAIRED CONTROL: a root failure alone still names the root cause, not the fallback', () => {
+    const clauses = buildCauseClauses({ anomalyReasons: {}, rootFailures: { missing: 1, unreadable: 0 } });
+    assert.equal(clauses[0].id, 'root');
+  });
+});
+
+// ---------------------------------------------------------------------
+// G-1619 (Kimi-K3, cross-AI review round 2): the invariant that G-1617's
+// "the unknown fallback is unreachable" claim actually rests on.
+//
+// `incomplete` is `result.stopped === true || anomalyCount > 0`. The
+// anomaly half is covered by the coverage test above. The `stopped` half
+// is NOT: if the walk could ever report `stopped: true` while recording
+// ZERO budget skips, `incomplete` would be true with an empty cause list
+// and the fallback would be reachable today -- making the comment that
+// calls it unreachable false.
+//
+// Probed and held on every budget-exhaustion shape (maxFiles 0/1,
+// budgetSeconds 0, multi-root), but held-when-probed is not the same as
+// enforced. This pins it.
+// ---------------------------------------------------------------------
+describe('walk invariant: stopped implies at least one budget skip (G-1619)', () => {
+  const { Traversal } = require('../lib/traverse/engine.js');
+  const fsMod = require('fs');
+  const osMod = require('os');
+  const pathMod = require('path');
+
+  function tree() {
+    const dir = fsMod.mkdtempSync(pathMod.join(osMod.tmpdir(), 'lsh-stopped-'));
+    for (const sub of ['r1/a', 'r2/b']) {
+      fsMod.mkdirSync(pathMod.join(dir, sub), { recursive: true });
+      for (let i = 0; i < 3; i += 1) {
+        fsMod.writeFileSync(pathMod.join(dir, sub, `f${i}.txt`), 'x\n');
+      }
+    }
+    return dir;
+  }
+
+  const SHAPES = [
+    { name: 'maxFiles: 0', opts: { maxFiles: 0 } },
+    { name: 'maxFiles: 1', opts: { maxFiles: 1 } },
+    { name: 'budgetSeconds: 0', opts: { budgetSeconds: 0 } },
+  ];
+
+  for (const shape of SHAPES) {
+    it(`${shape.name} — stopped is true AND a budget skip is recorded, never one without the other`, () => {
+      const dir = tree();
+      try {
+        const result = new Traversal({
+          roots: [pathMod.join(dir, 'r1'), pathMod.join(dir, 'r2')],
+          classes: ['env-secrets'],
+          ...shape.opts,
+        }).enumerateSync();
+
+        assert.equal(result.stopped, true, `${shape.name} should exhaust the budget`);
+        assert.ok(
+          (result.skips.counts().budget || 0) > 0,
+          `stopped === true with ZERO budget skips: buildCauseClauses() would return an empty ` +
+          `list while incomplete is true, making the 'unknown' fallback reachable and the ` +
+          `"unreachable" comment in lib/scan.js false. counts=${JSON.stringify(result.skips.counts())}`
+        );
+      } finally {
+        fsMod.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  }
+
+  it('PAIRED CONTROL: an unconstrained walk of the same tree is not stopped and records no budget skip', () => {
+    const dir = tree();
+    try {
+      const result = new Traversal({
+        roots: [pathMod.join(dir, 'r1'), pathMod.join(dir, 'r2')],
+        classes: ['env-secrets'],
+      }).enumerateSync();
+      assert.equal(result.stopped, false);
+      assert.equal(result.skips.counts().budget || 0, 0);
+    } finally {
+      fsMod.rmSync(dir, { recursive: true, force: true });
     }
   });
 });

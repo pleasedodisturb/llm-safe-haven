@@ -6,6 +6,27 @@ const assert = require('node:assert/strict');
 const { parseArgs, run } = require('../lib/cli.js');
 const { captureLog } = require('./helpers/capture-log.js');
 
+// D-11 (G-1545, plan 18-04 Task 4): lib/audit.js now imports
+// scanForEnvFilesDetailed/printEnvScanResult from lib/scan.js instead of
+// the incomplete-discarding scanForEnvFiles/printEnvScan pair. Several
+// tests below stub lib/scan.js WHOLESALE to keep audit()'s env scan off
+// the real filesystem -- each stub must provide the two new exports too,
+// or audit() throws on an undefined call before it even reaches the MCP
+// path it's meant to be testing. Captured once, real, before any stub in
+// this file replaces the require.cache entry.
+const { printEnvScanResult: realPrintEnvScanResultForCliTests } = require('../lib/scan.js');
+function cleanEnvDetailStub() {
+  return {
+    scanForEnvFiles: () => [],
+    scanForEnvFilesDetailed: () => ({
+      files: [], incomplete: false,
+      anomalyCount: 0, anomalyReasons: { unreadable: 0, budget: 0 },
+      rootFailures: { missing: 0, unreadable: 0 },
+    }),
+    printEnvScanResult: (...args) => realPrintEnvScanResultForCliTests(...args),
+  };
+}
+
 describe('parseArgs', () => {
   it('parses --help flag', () => {
     const result = parseArgs(['--help']);
@@ -411,7 +432,7 @@ describe('parseArgs', () => {
         getById: () => null,
         getByIds: () => [],
       });
-      installStub(scanPath, { scanForEnvFiles: () => [] });
+      installStub(scanPath, cleanEnvDetailStub());
 
       const originalExitCode = process.exitCode;
       try {
@@ -462,7 +483,7 @@ describe('parseArgs', () => {
         getById: () => null,
         getByIds: () => [],
       });
-      installStub(scanPath, { scanForEnvFiles: () => [] });
+      installStub(scanPath, cleanEnvDetailStub());
 
       const originalExitCode = process.exitCode;
       try {
@@ -550,7 +571,7 @@ describe('parseArgs', () => {
       // scanForEnvFiles (recursive depth-4 walk of six real home dirs on
       // its human path, lib/audit.js:145) — stub it like the propagation
       // tests above.
-      installStub(scanPath, { scanForEnvFiles: () => [] });
+      installStub(scanPath, cleanEnvDetailStub());
 
       const originalExitCode = process.exitCode;
       try {

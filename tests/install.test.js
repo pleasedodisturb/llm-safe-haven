@@ -22,6 +22,18 @@ const { installStub } = require('./helpers/module-stub.js');
 let currentBuildEnvelope;
 let currentAgents;
 let currentEnvFiles;
+// D-11 (G-1545, plan 18-04 Task 4): lib/install.js (and transitively
+// lib/audit.js, reached via computeScorecardLevel) now import
+// scanForEnvFilesDetailed/printEnvScanResult instead of the
+// incomplete-discarding scanForEnvFiles/printEnvScan pair -- same stub
+// extension as tests/audit.test.js, and for the same reason (the stub
+// replaces lib/scan.js wholesale).
+let currentEnvIncomplete;
+let currentEnvDetail;
+
+// The REAL printEnvScanResult renderer, captured BEFORE lib/scan.js is
+// stubbed below, so the D-11 guard tests exercise actual rendering.
+const { printEnvScanResult: realPrintEnvScanResult } = require('../lib/scan.js');
 
 installStub(require.resolve('../lib/scan-mcp.js'), {
   buildEnvelope: (...args) => currentBuildEnvelope(...args),
@@ -34,6 +46,14 @@ installStub(require.resolve('../lib/agents/index.js'), {
 });
 installStub(require.resolve('../lib/scan.js'), {
   scanForEnvFiles: () => currentEnvFiles,
+  scanForEnvFilesDetailed: () => currentEnvDetail || {
+    files: currentEnvFiles,
+    incomplete: currentEnvIncomplete,
+    anomalyCount: currentEnvIncomplete ? 1 : 0,
+    anomalyReasons: { unreadable: currentEnvIncomplete ? 1 : 0, budget: 0 },
+    rootFailures: { missing: 0, unreadable: 0 },
+  },
+  printEnvScanResult: (...args) => realPrintEnvScanResult(...args),
 });
 
 // install() is required AFTER the stubs exist, so its own top-level
@@ -54,6 +74,8 @@ describe('install() orchestration (TQ-02, D-13)', () => {
     currentBuildEnvelope = () => Promise.resolve(envelope());
     currentAgents = [fakeAgent()];
     currentEnvFiles = [];
+    currentEnvIncomplete = false;
+    currentEnvDetail = undefined;
   });
 
   it('zero-agents path: prints "No AI coding agents detected." and resolves undefined (bare return, not { code })', async () => {
@@ -119,5 +141,37 @@ describe('install() orchestration (TQ-02, D-13)', () => {
       logs.some((l) => /could not complete/.test(l)),
       `expected the incomplete-scan warning to render, got: ${logs.join('\n')}`
     );
+  });
+
+  // D-11 (G-1545, plan 18-04 Task 4): install()'s env-scan render stops
+  // printing a green check over an unread secret. install() has no exit
+  // code of its own -- this is purely a render fix.
+  it('D-11: an incomplete env scan prints no green line and renders the could-not-verify block instead', async () => {
+    currentEnvDetail = {
+      files: [],
+      incomplete: true,
+      anomalyCount: 1,
+      anomalyReasons: { unreadable: 1, budget: 0 },
+      rootFailures: { missing: 0, unreadable: 0 },
+    };
+
+    const { logs, result } = await captureLog(() => install({}));
+    assert.equal(result, undefined, 'install() still bare-returns -- no exit-code change for this command');
+    assert.ok(!logs.some((l) => l.includes('No .env files found')), 'no captured stdout line may print the green check');
+    assert.ok(logs.some((l) => l.includes('could not verify')), `expected the could-not-verify line, got: ${logs.join('\n')}`);
+  });
+
+  it('D-11 PAIRED CONTROL: a complete, clean env detail still renders the green line and nothing extra', async () => {
+    currentEnvDetail = {
+      files: [],
+      incomplete: false,
+      anomalyCount: 0,
+      anomalyReasons: { unreadable: 0, budget: 0 },
+      rootFailures: { missing: 0, unreadable: 0 },
+    };
+
+    const { logs } = await captureLog(() => install({}));
+    assert.ok(logs.some((l) => l.includes('No .env files found')), 'the green line must still print for a complete, clean env scan');
+    assert.ok(!logs.some((l) => l.includes('could not verify')), 'a complete, clean env scan must never print the could-not-verify line');
   });
 });

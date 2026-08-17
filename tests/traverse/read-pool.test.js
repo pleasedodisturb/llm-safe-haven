@@ -590,6 +590,413 @@ describe('read-pool — a FIFO can never block or be read (G-1503, TRAV-11)', ()
 });
 
 // ---------------------------------------------------------------------------
+// readBulkContent reads a CONTIGUOUS remainder and reports a short read
+// (D-10 + SCAN-04, G-1541, Task 1).
+//
+// Review A-1 boundary: `readBulkContent` is NOT exported and `record.
+// shortRead` does not exist until Task 2 -- every assertion below is on
+// `record.bulkBuffer` and the skip inventory, driven through
+// `createReadPool` + `submit({ needBulk: true })` + `drain()`. The `short`
+// flag this task adds to `readBulkContent`'s four return paths is asserted
+// in Task 2 (as `record.shortRead`), once it reaches the record.
+// ---------------------------------------------------------------------------
+
+function positionalContent(n) {
+  // Position-dependent so a spliced buffer (a hole in the middle) is
+  // detectable by VALUE, not merely by length -- a repeating decimal digit
+  // keyed off the byte offset.
+  return Buffer.from(Array.from({ length: n }, (_, i) => String(i % 10)).join(''));
+}
+
+function wrapHandleRead(realOpen, onRead) {
+  return async (...args) => {
+    const handle = await realOpen(...args);
+    const originalRead = handle.read.bind(handle);
+    let callCount = 0;
+    return Object.assign(Object.create(Object.getPrototypeOf(handle)), handle, {
+      read: async (buffer, offset, length, position) => {
+        callCount += 1;
+        return onRead({ callCount, originalRead, buffer, offset, length, position });
+      },
+    });
+  };
+}
+
+// Half-then-zero: the FIRST read on a handle returns HALF the bytes the
+// real read actually produced; every subsequent read on the SAME handle
+// returns zero. Half-then-zero (rather than a fixed clamp) keeps
+// hashWholeFile's `while (offset < size)` loop to exactly two iterations
+// regardless of fixture size, makes `bytesRead < size` deterministic, and
+// terminates the loop through the `n <= 0` guard rather than by exhausting
+// the file -- the real-world shape a shrinking/truncated read takes.
+function halfThenZeroFs() {
+  const realFs = require('fs');
+  return {
+    ...realFs,
+    promises: {
+      ...realFs.promises,
+      open: wrapHandleRead(realFs.promises.open, async ({ callCount, originalRead, buffer, offset, length, position }) => {
+        if (callCount === 1) {
+          const real = await originalRead(buffer, offset, length, position);
+          return { bytesRead: Math.floor(real.bytesRead / 2), buffer };
+        }
+        return { bytesRead: 0, buffer };
+      }),
+    },
+  };
+}
+
+// Short-sniff-then-full: the FIRST read on a handle returns half the bytes
+// the real read actually produced (a short sniff); every subsequent read on
+// the SAME handle delegates to the original, unmodified read. This is the
+// D-10 DISCRIMINATOR: under the pre-fix splice, the second (remainder) read
+// starts at the REQUESTED sniff offset rather than the ACTUAL one, so the
+// bytes between the actual and requested offsets are never read and the
+// returned buffer has a hole; under the fix, the remainder read starts
+// exactly where the sniff actually ended, so there is no hole.
+function shortSniffThenFullFs() {
+  const realFs = require('fs');
+  return {
+    ...realFs,
+    promises: {
+      ...realFs.promises,
+      open: wrapHandleRead(realFs.promises.open, async ({ callCount, originalRead, buffer, offset, length, position }) => {
+        if (callCount === 1) {
+          const real = await originalRead(buffer, offset, length, position);
+          return { bytesRead: Math.floor(real.bytesRead / 2), buffer };
+        }
+        return originalRead(buffer, offset, length, position);
+      }),
+    },
+  };
+}
+
+describe('read-pool — readBulkContent reads a CONTIGUOUS remainder and reports a short read (D-10 + SCAN-04, G-1541, Task 1)', () => {
+  const SNIFF_BYTES = normalizeOptions({}).sniffBytes;
+
+  it('D-10 DISCRIMINATOR: a short sniff followed by the remainder read yields a bulkBuffer BYTE-IDENTICAL to the real file — a spliced buffer would still pass a length-only check, so this asserts CONTENT equality, which the length-only version of SCAN-04 would have passed incorrectly', async () => {
+    const dir = mkFixture();
+    const size = SNIFF_BYTES + 2000; // larger than sniffBytes, smaller than bulkReadCapBytes
+    const real = positionalContent(size);
+    const file = path.join(dir, 'discriminator.txt');
+    fs.writeFileSync(file, real);
+
+    const skips = createSkipInventory();
+    const pool = createReadPool({ fs: shortSniffThenFullFs(), skips });
+    pool.submit({ absPath: file, needBulk: true });
+    const [record] = await pool.drain();
+
+    assert.ok(
+      record.bulkBuffer.equals(real),
+      'record.bulkBuffer must equal the real file contents byte-for-byte — a splice (bytes missing from the middle) still produces a buffer of a plausible LENGTH, so only a content comparison catches it'
+    );
+    assert.equal(skips.total(), 0);
+  });
+
+  it('truncation, bulk branch: a half-then-zero read yields a strict CONTIGUOUS PREFIX of the real contents, shorter than the file', async () => {
+    const dir = mkFixture();
+    const size = SNIFF_BYTES + 2000;
+    const real = positionalContent(size);
+    const file = path.join(dir, 'truncated.txt');
+    fs.writeFileSync(file, real);
+
+    const pool = createReadPool({ fs: halfThenZeroFs() });
+    pool.submit({ absPath: file, needBulk: true });
+    const [record] = await pool.drain();
+
+    assert.ok(
+      record.bulkBuffer.length < real.length,
+      `bulkBuffer.length ${record.bulkBuffer.length} must be strictly shorter than the real file (${real.length})`
+    );
+    assert.ok(
+      record.bulkBuffer.equals(real.subarray(0, record.bulkBuffer.length)),
+      'the returned buffer must be a CONTIGUOUS PREFIX of the real content, not a splice'
+    );
+  });
+
+  it('zero-byte file is never short: needBulk through BOTH truncating stubs AND the real fs produces zero skips and an empty buffer — treating an empty file as short would make every empty file in the tree an anomaly', async () => {
+    const dir = mkFixture();
+    const file = writeFile(dir, 'empty-short.js', '');
+
+    for (const fsImpl of [halfThenZeroFs(), shortSniffThenFullFs(), require('fs')]) {
+      const skips = createSkipInventory();
+      const pool = createReadPool({ fs: fsImpl, skips });
+      pool.submit({ absPath: file, needBulk: true });
+      const [record] = await pool.drain();
+      assert.equal(skips.total(), 0, 'an empty file must never be treated as a short read, through any fs implementation');
+      assert.equal(record.bulkBuffer.length, 0);
+    }
+  });
+
+  it('PAIRED CONTROL — real fs, a file BELOW sniffBytes: bulkBuffer equals the real content exactly, zero skips', async () => {
+    const dir = mkFixture();
+    const real = positionalContent(200);
+    const file = path.join(dir, 'below-sniff.txt');
+    fs.writeFileSync(file, real);
+    const skips = createSkipInventory();
+    const pool = createReadPool({ skips });
+    pool.submit({ absPath: file, needBulk: true });
+    const [record] = await pool.drain();
+    assert.ok(record.bulkBuffer.equals(real));
+    assert.equal(skips.total(), 0);
+  });
+
+  it('PAIRED CONTROL — real fs, a file ABOVE sniffBytes: bulkBuffer equals the real content exactly, zero skips', async () => {
+    const dir = mkFixture();
+    const size = SNIFF_BYTES + 2000;
+    const real = positionalContent(size);
+    const file = path.join(dir, 'above-sniff.txt');
+    fs.writeFileSync(file, real);
+    const skips = createSkipInventory();
+    const pool = createReadPool({ skips });
+    pool.submit({ absPath: file, needBulk: true });
+    const [record] = await pool.drain();
+    assert.ok(record.bulkBuffer.equals(real));
+    assert.equal(skips.total(), 0);
+  });
+
+  // Break-proof (MANDATORY, D-10). Revert ONLY the D-10 substitution in
+  // lib/traverse/read-pool.js (put `remaining` and the remainder read's
+  // `position` back on the REQUESTED `sniffLen`), re-run
+  // `node --test tests/traverse/read-pool.test.js`, and record the observed
+  // failure VERBATIM in the plan's SUMMARY.
+  //
+  // Named case that MUST fail (D-12): the D-10 DISCRIMINATOR case above, on
+  // its `Buffer.equals` assertion. ONE named failure is correct and
+  // sufficient here — only the short-sniff-then-full path depends on the
+  // substitution. The half-then-zero case still yields a contiguous prefix
+  // under the old code (its second read returns nothing, so there is no
+  // splice to observe), the zero-byte case never reaches the remainder
+  // read, and the real-fs paired controls never come up short. Reverting
+  // the substitution therefore breaks exactly one behaviour.
+  //
+  // Blind spot of this break-proof (MANDATORY to state in the SUMMARY): it
+  // proves the two reads are contiguous when the FIRST one comes up short.
+  // It does NOT prove anything about a short REMAINDER read followed by
+  // more data (there is no third read — the function reads at most twice),
+  // it does NOT prove the kernel ever actually returns a short read on a
+  // regular file on this platform (the stub is the only producer in this
+  // suite; the real-world triggers are network filesystems, concurrent
+  // truncation and signal interruption, none of which CI exercises), and it
+  // says nothing about whether `sniffBytes` is the right window.
+});
+
+// ---------------------------------------------------------------------------
+// A short read anywhere in the read pool records exactly one `unreadable`
+// skip per RECORD, suppresses the untrustworthy digest, and keeps the
+// partial content (Task 2, SCAN-04/D-03, G-1541).
+//
+// `record.shortRead` is the signal the four `readBulkContent` return paths
+// Task 1 added `short` to now surface onto -- unobservable in Task 1
+// (review A-1), asserted here for the first time.
+// ---------------------------------------------------------------------------
+
+describe('read-pool — a short read records ONE unreadable skip per record, suppresses the digest, and keeps the partial content (D-03, SCAN-04, G-1541, Task 2)', () => {
+  it('the four readBulkContent return paths deferred from Task 1, now observable as record.shortRead: complete read (falsy)', async () => {
+    const dir = mkFixture();
+    const file = writeFile(dir, 'complete.js', 'ordinary content, read in full');
+    const pool = createReadPool({});
+    pool.submit({ absPath: file, needBulk: true });
+    const [record] = await pool.drain();
+    assert.ok(!record.shortRead, `record.shortRead must be falsy on a complete read, got ${record.shortRead}`);
+  });
+
+  it('a truncated read (falsy -> true): record.shortRead === true', async () => {
+    const dir = mkFixture();
+    const file = writeFile(dir, 'truncated.js', 'x'.repeat(500));
+    const pool = createReadPool({ fs: halfThenZeroFs() });
+    pool.submit({ absPath: file, needBulk: true });
+    const [record] = await pool.drain();
+    assert.equal(record.shortRead, true);
+  });
+
+  it('a zero-byte file (falsy): record.shortRead is falsy -- an empty file is not a short read, and treating it as one would make every empty file in the tree an anomaly', async () => {
+    const dir = mkFixture();
+    const file = writeFile(dir, 'empty.js', '');
+    const pool = createReadPool({ fs: halfThenZeroFs() });
+    pool.submit({ absPath: file, needBulk: true });
+    const [record] = await pool.drain();
+    assert.ok(!record.shortRead, 'an empty file must never be reported as a short read');
+  });
+
+  it('a binary-sniff bail whose sniff itself came up short: record.shortRead === true', async () => {
+    const dir = mkFixture();
+    const buf = Buffer.alloc(200, 0x61);
+    buf[5] = 0x00; // NUL well within the half-read window this stub returns
+    const file = path.join(dir, 'binary-short.bin');
+    fs.writeFileSync(file, buf);
+    const pool = createReadPool({ fs: halfThenZeroFs() });
+    pool.submit({ absPath: file, needBulk: true });
+    const [record] = await pool.drain();
+    assert.equal(record.isBinary, true);
+    assert.equal(record.shortRead, true);
+  });
+
+  it('bulk-only short read: one unreadable skip naming the path, record.error falsy, partial bulkBuffer retained', async () => {
+    const dir = mkFixture();
+    const file = writeFile(dir, 'bulk-only.js', 'x'.repeat(500));
+    const skips = createSkipInventory();
+    const pool = createReadPool({ fs: halfThenZeroFs(), skips });
+    pool.submit({ absPath: file, needBulk: true });
+    const [record] = await pool.drain();
+
+    assert.equal(skips.counts().unreadable, 1);
+    assert.ok(skips.paths('unreadable').includes(file));
+    assert.equal(record.shortRead, true);
+    assert.ok(
+      !record.error,
+      'Pitfall 1: a short read must NOT set record.error -- generateContentFindings skips any record with a truthy error, which would discard every finding derivable from the partial content that WAS read'
+    );
+    assert.ok(record.bulkBuffer !== null && record.bulkBuffer.length > 0, 'the partial bulkBuffer must be retained so marker matching still runs over it');
+  });
+
+  it('hash-only short read: one unreadable skip, digest null, record.error falsy, stats().hashed stays 0', async () => {
+    const dir = mkFixture();
+    const file = writeFile(dir, 'hash-only.js', 'x'.repeat(1000));
+    const skips = createSkipInventory();
+    const pool = createReadPool({ fs: halfThenZeroFs(), skips });
+    pool.submit({ absPath: file, needHash: true });
+    const [record] = await pool.drain();
+
+    assert.equal(skips.counts().unreadable, 1);
+    assert.equal(record.digest, null, 'a digest computed over fewer bytes than the file must never be emitted');
+    assert.ok(!record.error);
+    assert.equal(pool.stats().hashed, 0);
+  });
+
+  it('dual-tier de-dup: a record short on BOTH reads records exactly ONE unreadable entry, not two', async () => {
+    const dir = mkFixture();
+    const file = writeFile(dir, 'dual-short.js', 'x'.repeat(500));
+    const skips = createSkipInventory();
+    const pool = createReadPool({ fs: halfThenZeroFs(), skips });
+    pool.submit({ absPath: file, needBulk: true, needHash: true });
+    const [record] = await pool.drain();
+
+    assert.equal(record.shortRead, true);
+    assert.equal(skips.counts().unreadable, 1, 'a dual-tier record short on both reads must record exactly ONE unreadable entry, not two');
+    assert.equal(skips.paths('unreadable').length, 1);
+  });
+
+  it('PAIRED CONTROL — bulk-only, real fs: zero skips, shortRead falsy, error falsy', async () => {
+    const dir = mkFixture();
+    const file = writeFile(dir, 'bulk-only-ctrl.js', 'x'.repeat(500));
+    const skips = createSkipInventory();
+    const pool = createReadPool({ skips });
+    pool.submit({ absPath: file, needBulk: true });
+    const [record] = await pool.drain();
+    assert.equal(skips.total(), 0);
+    assert.ok(!record.shortRead);
+    assert.ok(!record.error);
+  });
+
+  it('PAIRED CONTROL — hash-only, real fs: zero skips, non-null digest, stats().hashed === 1', async () => {
+    const dir = mkFixture();
+    const file = writeFile(dir, 'hash-only-ctrl.js', 'x'.repeat(1000));
+    const skips = createSkipInventory();
+    const pool = createReadPool({ skips });
+    pool.submit({ absPath: file, needHash: true });
+    const [record] = await pool.drain();
+    assert.equal(skips.total(), 0);
+    assert.notEqual(record.digest, null);
+    assert.equal(pool.stats().hashed, 1);
+  });
+
+  it('PAIRED CONTROL — dual-tier, real fs: zero skips, shortRead falsy, non-null digest', async () => {
+    const dir = mkFixture();
+    const file = writeFile(dir, 'dual-ctrl.js', 'x'.repeat(500));
+    const skips = createSkipInventory();
+    const pool = createReadPool({ skips });
+    pool.submit({ absPath: file, needBulk: true, needHash: true });
+    const [record] = await pool.drain();
+    assert.equal(skips.total(), 0);
+    assert.ok(!record.shortRead);
+    assert.notEqual(record.digest, null);
+  });
+
+  it('PAIRED CONTROL — the existing unreadable sites still work: a rejecting open() still records unreadable and still returns a truthy record.error -- this pins the distinction the whole task rests on: a FAILED read sets error, a SHORT read does not', async () => {
+    const dir = mkFixture();
+    const file = writeFile(dir, 'denied.js', 'x');
+    const realFs = require('fs');
+    const denyingFs = {
+      ...realFs,
+      promises: {
+        ...realFs.promises,
+        open: () => {
+          const err = new Error('EACCES: permission denied');
+          err.code = 'EACCES';
+          return Promise.reject(err);
+        },
+      },
+    };
+    const skips = createSkipInventory();
+    const pool = createReadPool({ fs: denyingFs, skips });
+    pool.submit({ absPath: file, needBulk: true });
+    const [record] = await pool.drain();
+
+    assert.equal(skips.counts().unreadable, 1);
+    assert.ok(record.error, 'a FAILED read (open() rejection) must still set record.error -- unlike a SHORT read, which never does');
+  });
+
+  // Break-proof 1 (MANDATORY, the hash half). Revert ONLY the
+  // `hashed.bytesRead !== size` comparison in lib/traverse/read-pool.js
+  // (assign the digest unconditionally again), re-run
+  // `node --test tests/traverse/read-pool.test.js tests/traverse/engine.test.js`,
+  // and record the observed failure VERBATIM in the plan's SUMMARY.
+  //
+  // Named case that MUST fail (D-12): the hash-only short-read case above
+  // (reports a non-null digest and zero skips). ONE named failure is
+  // correct here -- the dual-tier de-dup case still records its single skip
+  // through the BULK branch and stays green; the bulk-only case never
+  // touches the hash branch; the real-fs controls never come up short; and
+  // the end-to-end engine cases (tests/traverse/engine.test.js) drive bulk
+  // content, not hashes. Reverting the hash comparison breaks exactly one
+  // behaviour.
+  //
+  // Break-proof 2 (MANDATORY, the bulk half). Restore the hash comparison,
+  // then revert ONLY the `noteShortRead()` call in the bulk branch, re-run,
+  // and record the observed failure verbatim. The two must be proven
+  // INDEPENDENTLY -- reverting them together would let one guard cover for
+  // the other.
+  //
+  // Named cases that MUST fail (D-12): the bulk-only short-read case above
+  // AND the benign end-to-end case in tests/traverse/engine.test.js (which
+  // reports exitCode === 0 / incomplete === false once the bulk skip stops
+  // being recorded). Two are required here: one pins the pool's recording
+  // site, the other pins that the recording actually reaches the exit code
+  // -- a wiring change between them would break only the second.
+  //
+  // Break-proof 3 (MANDATORY, Pitfall 1 -- the one that matters most).
+  // Restore both, then change the short-read path to set
+  // `error: 'short-read'` on the record INSTEAD of `shortRead: true`.
+  // Re-run `node --test tests/traverse/engine.test.js
+  // tests/traverse/read-pool.test.js` and record the observed failure
+  // verbatim.
+  //
+  // Named cases that MUST fail (D-12): the marker-in-partial-content
+  // end-to-end case in tests/traverse/engine.test.js (it loses its finding
+  // and reports exitCode === 2 instead of 1) AND the bulk-only pool case's
+  // `record.error` falsy assertion above. Two are required and both are
+  // genuinely independent: the first proves the detection loss reaches the
+  // operator's exit code, the second proves the record-level contract that
+  // causes it, and an implementation that set `error` only on the hash path
+  // would fail one but not the other.
+  //
+  // Blind spot of these break-proofs (MANDATORY to state in the SUMMARY):
+  // they prove a short read reaches `incomplete` and does not suppress
+  // findings. They CANNOT detect (a) a short read that is never DETECTED in
+  // the first place -- if a future change stops comparing `bytesRead` to
+  // `size`, the counter and the verdict go quiet together, which is why
+  // this pool-level block pins the recording sites separately from the
+  // engine-level end-to-end verdict; (b) whether the exit code is CORRECT
+  // for an arbitrary severity mix -- tests/traverse/exit-precedence.test.js
+  // owns D-18; (c) the residual documented but NOT fixed: a file
+  // legitimately truncated by another process between fstat and read (log
+  // rotation) is now `unreadable` -> exit 2. Semantically correct -- "I
+  // tried to read N bytes and got fewer, so the digest is not trustworthy"
+  // -- but no long-running high-churn tree was sampled.
+});
+
+// ---------------------------------------------------------------------------
 // A symlink at the final path component is never followed (G-1503, D-06)
 //
 // walk.js already refuses a symlink it SEES during enumeration
@@ -601,7 +1008,7 @@ describe('read-pool — a FIFO can never block or be read (G-1503, TRAV-11)', ()
 // ---------------------------------------------------------------------------
 
 describe('read-pool — a symlink at the final path component is never followed (G-1503, D-06)', () => {
-  it('Case 1: the refusal -- symlink submitted directly is refused with reason discrimination (symlink, not unreadable)', async (t) => {
+  it('Case 1: the refusal -- symlink submitted directly is refused with reason discrimination (swapped, not symlink or unreadable) (D-01, G-1543/G-1544)', async (t) => {
     if (!fs.constants.O_NOFOLLOW) {
       t.skip('O_NOFOLLOW not available on this platform');
       return;
@@ -616,12 +1023,18 @@ describe('read-pool — a symlink at the final path component is never followed 
     pool.submit({ absPath: linkPath, needBulk: true, needHash: true });
     await pool.drain();
 
-    // Read-side half of D-06: walk.js already refuses a symlink it SEES
-    // during enumeration (walk.js:218-221); O_NOFOLLOW here is what
-    // covers the window between that lstat and this open.
-    assert.equal(skips.counts().symlink, 1);
+    // This is the read-side, post-classification half of D-06: walk.js
+    // already refuses a symlink it SEES during enumeration (walk.js:218-221)
+    // under the `symlink` reason (unchanged, SCOPE). Submitting a symlink
+    // path DIRECTLY to createReadPool -- bypassing the walk entirely -- is
+    // the post-classification case, so O_NOFOLLOW's refusal here is
+    // recorded as `swapped` instead (D-01, G-1543/G-1544, ANOMALY). Both
+    // neighbouring reasons must be zero, or this test cannot tell a rename
+    // from a split.
+    assert.equal(skips.counts().swapped, 1);
     assert.equal(skips.counts().unreadable, 0);
-    assert.ok(skips.paths('symlink').includes(linkPath));
+    assert.equal(skips.counts().symlink, 0);
+    assert.ok(skips.paths('swapped').includes(linkPath));
     assert.equal(pool.stats().opened, 0);
     assert.equal(pool.stats().bytesRead, 0);
   });
@@ -653,7 +1066,7 @@ describe('read-pool — a symlink at the final path component is never followed 
   // the flags in lib/traverse/read-pool.js (leave O_NONBLOCK in place),
   // re-run node --test tests/traverse/read-pool.test.js, and record the
   // observed failure: the symlink is read successfully,
-  // skips.counts().symlink === 0, stats().opened === 1 -- the literal
+  // skips.counts().swapped === 0, stats().opened === 1 -- the literal
   // "currently read silently with the counter at 0" defect this plan
   // closes. This break-proof cannot block (no FIFO is involved), so it
   // was run in the foreground, unlike the FIFO break-proofs above. Result
@@ -661,17 +1074,26 @@ describe('read-pool — a symlink at the final path component is never followed 
   //
   // Break-proof 2 (MANDATORY). Restore O_NOFOLLOW but revert the open
   // catch's error-code branch (so it records `unreadable` for every open
-  // failure, including a loop-detected symlink), re-run, and record the
-  // failure on Case 1's reason-discrimination assertions. Also recorded
-  // verbatim in 17.1-05-SUMMARY.md.
+  // failure, including a loop-detected symlink/swap), re-run, and record
+  // the failure on Case 1's reason-discrimination assertions. Also
+  // recorded verbatim in 17.1-05-SUMMARY.md.
   //
   // Blind spot of these guards (MANDATORY, see also 17.1-05-SUMMARY.md):
   // they prove a symlink at the FINAL path component is refused at open
   // time. They do NOT cover a symlink in an INTERMEDIATE directory
   // component -- O_NOFOLLOW is defined to affect only the final
   // component, and intermediate components are the walk's territory
-  // (walk.js:218-219 refuses them during enumeration, a different guard
+  // (walk.js:188,288 refuses them during enumeration, a different guard
   // in a different file). They also do not prove the loop-detected-errno
   // branch fires for any errno other than the one the kernel actually
   // returns on this platform.
+  //
+  // D-01/G-1543/G-1544 (2026-08-12, plan 18-05): the reason recorded on
+  // the ELOOP branch changed from `symlink` to `swapped`, so this ELOOP
+  // refusal is now the post-classification `swapped` ANOMALY, not the
+  // walk-refused `symlink` SCOPE reason. Task 1's own break-proofs
+  // (reverting the ANOMALY_SKIP_REASONS classification, then reverting
+  // the recording site independently) are recorded verbatim in
+  // 18-05-SUMMARY.md, alongside the end-to-end swap case in
+  // tests/traverse/engine.test.js that pairs with Case 1 above.
 });
