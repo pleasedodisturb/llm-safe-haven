@@ -192,19 +192,20 @@ else
   # etc.) are not worm IOCs even though they use runOn:folderOpen.
   WORM_CMD_RE='curl[^|&;]+\|[[:space:]]*(ba)?sh|wget[^|&;]+\|[[:space:]]*(ba)?sh|base64[[:space:]]+-d[^|]*\|[[:space:]]*(ba)?sh|eval[[:space:]]+.*curl|m-kosche|kitty-monitor|gh-token-monitor|/tmp/[^"[:space:]]*\.(sh|py|lock)|\.local/share/kitty|LaunchAgents/.+\.plist'
 
-  FOLDEROPEN_FILES=""
-  while IFS= read -r f; do
-    if [ -n "$f" ] && grep -l '"runOn"[[:space:]]*:[[:space:]]*"folderOpen"' "$f" >/dev/null 2>&1; then
-      FOLDEROPEN_FILES="${FOLDEROPEN_FILES}${f}\n"
-    fi
-  done < <(find "${SEARCH_ROOTS[@]}" -type f -path '*/.vscode/tasks.json' 2>/dev/null)
-
-  if [ -z "$FOLDEROPEN_FILES" ]; then
-    pass "No tasks.json files with runOn:folderOpen found"
-  else
-    # Triage each file: FAIL if any command matches worm patterns, else INFO.
-    while IFS= read -r f; do
-      [ -z "$f" ] && continue
+  # D-11: no intermediate accumulator. Triage happens inline, in the SAME
+  # loop that discovers each tasks.json -- the two-loop shape this replaces
+  # accumulated every discovered path into one growing string using a
+  # 2-character escape-sequence separator, then re-interpreted that whole
+  # string's escape sequences into a second `while read`. That
+  # escape-reinterpreting control-flow site is deleted, not hardened
+  # (SCAN-02). D-12: the `find` feeding this loop is NUL-delimited
+  # (`-print0` / `read -r -d ''`), so a real newline embedded in a path can
+  # never split one record into two -- every discovered tasks.json is
+  # examined, including any file discovered after a poisoned one.
+  folderopen_count=0
+  while IFS= read -r -d '' f; do
+    if grep -l '"runOn"[[:space:]]*:[[:space:]]*"folderOpen"' "$f" >/dev/null 2>&1; then
+      folderopen_count=$((folderopen_count + 1))
       # Extract every "command": "..." value from the file
       bad_cmds=$(grep -oE '"command"[[:space:]]*:[[:space:]]*"[^"]*"' "$f" 2>/dev/null \
                   | grep -iE "$WORM_CMD_RE" || true)
@@ -219,7 +220,11 @@ else
         grep -oE '"command"[[:space:]]*:[[:space:]]*"[^"]*"' "$f" 2>/dev/null \
           | sed 's/^/         /'
       fi
-    done < <(printf "%b" "$FOLDEROPEN_FILES")
+    fi
+  done < <(find "${SEARCH_ROOTS[@]}" -type f -path '*/.vscode/tasks.json' -print0 2>/dev/null)
+
+  if [ "$folderopen_count" -eq 0 ]; then
+    pass "No tasks.json files with runOn:folderOpen found"
   fi
 fi
 
