@@ -173,14 +173,20 @@ check_file_absent "$HOME/.config/systemd/user/kitty-monitor.service" "Linux syst
 check_file_absent "/tmp/tmp.987654321.lock" "older Shai-Hulud lock file"
 
 # Also scan all LaunchAgents for anything kitty-related, in case the name varies
+# WR-01/G-1549 (19-REVIEW.md): NUL-delimited (--null, never bare -Z --
+# measured 2026-08-17 on this machine's BSD grep: -Z is accepted, exits 0,
+# but still emits NEWLINE-delimited records, silently useless; --null is
+# correct on both BSD and GNU grep, same conclusion as the g747 XOR_HITS
+# site) so a real newline in a matched path can never split one record into
+# two phantom fail() calls.
 LA_DIR="$HOME/Library/LaunchAgents"
 if [ -d "$LA_DIR" ]; then
-  KITTY_LA=$(grep -lir "kitty" "$LA_DIR" 2>/dev/null || true)
-  if [ -n "$KITTY_LA" ]; then
-    while IFS= read -r f; do
-      fail "LaunchAgent references 'kitty': $f"
-    done <<< "$KITTY_LA"
-  else
+  KITTY_LA_COUNT=0
+  while IFS= read -r -d '' f; do
+    KITTY_LA_COUNT=$((KITTY_LA_COUNT + 1))
+    fail "LaunchAgent references 'kitty': $f"
+  done < <(grep -lir --null "kitty" "$LA_DIR" 2>/dev/null || true)
+  if [ "$KITTY_LA_COUNT" -eq 0 ]; then
     pass "No LaunchAgents reference 'kitty'"
   fi
 else
@@ -189,23 +195,28 @@ fi
 
 # Miasma Wave D (June 1, 2026) IOC: Bun binary in /tmp/b-*/
 # Payload downloads Bun runtime to a random temp dir matching /tmp/b-<random>/bun
-MIASMA_BUN=$(find /tmp -maxdepth 2 -name "bun" -path "*/b-*" -type f 2>/dev/null || true)
-if [ -n "$MIASMA_BUN" ]; then
-  while IFS= read -r f; do
-    fail "Miasma Wave D IOC: Bun binary found at $f (Wave D / RHSB-2026-006 — payload may have crashed)"
-  done <<< "$MIASMA_BUN"
-else
+# WR-01/G-1549 (19-REVIEW.md): NUL-delimited (-print0/-d ''), no
+# intermediate accumulator variable to re-split -- fail() is called directly
+# per matched record, counted via MIASMA_BUN_COUNT.
+MIASMA_BUN_COUNT=0
+while IFS= read -r -d '' f; do
+  MIASMA_BUN_COUNT=$((MIASMA_BUN_COUNT + 1))
+  fail "Miasma Wave D IOC: Bun binary found at $f (Wave D / RHSB-2026-006 — payload may have crashed)"
+done < <(find /tmp -maxdepth 2 -name "bun" -path "*/b-*" -type f -print0 2>/dev/null)
+if [ "$MIASMA_BUN_COUNT" -eq 0 ]; then
   pass "No Miasma Wave D Bun binary found in /tmp/b-*/"
 fi
 
 # Miasma Wave D IOC: JS payload file in /tmp/p*.js
 # Payload writes a JS file matching /tmp/p<base36>.js; removed on success, persists on crash
-MIASMA_JS=$(find /tmp -maxdepth 1 -name "p*.js" -type f 2>/dev/null || true)
-if [ -n "$MIASMA_JS" ]; then
-  while IFS= read -r f; do
-    fail "Miasma Wave D IOC: Possible payload JS at $f (p<base36>.js pattern — Wave D / RHSB-2026-006)"
-  done <<< "$MIASMA_JS"
-else
+# WR-01/G-1549 (19-REVIEW.md): NUL-delimited (-print0/-d ''), same pattern
+# as MIASMA_BUN above.
+MIASMA_JS_COUNT=0
+while IFS= read -r -d '' f; do
+  MIASMA_JS_COUNT=$((MIASMA_JS_COUNT + 1))
+  fail "Miasma Wave D IOC: Possible payload JS at $f (p<base36>.js pattern — Wave D / RHSB-2026-006)"
+done < <(find /tmp -maxdepth 1 -name "p*.js" -type f -print0 2>/dev/null)
+if [ "$MIASMA_JS_COUNT" -eq 0 ]; then
   pass "No Miasma Wave D payload JS file found in /tmp/p*.js"
 fi
 
