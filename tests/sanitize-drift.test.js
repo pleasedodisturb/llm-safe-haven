@@ -336,3 +336,127 @@ describe('D-09: bash <-> Node sanitize_for_terminal() drift guard (SCAN-01, G-15
     );
   }
 });
+
+// ---------------------------------------------------------------------------
+// sanitize_block_for_terminal -- the LINE-PRESERVING sibling introduced by
+// 19-09-PLAN.md (SCAN-01, G-1635). Same shape as the D-09 guard above:
+// non-vacuous extraction, four-way byte identity, locale-FORM pin, class
+// parity against the canonical Node sanitizer (SINGLE-LINE input only, since
+// this function's whole reason for existing is the ONE place it diverges:
+// LF), and that LF divergence asserted POSITIVELY in both directions.
+// ---------------------------------------------------------------------------
+
+function extractBlockFunctionBody(scriptPath) {
+  const lines = fs.readFileSync(scriptPath, 'utf8').split('\n');
+  const startIdx = lines.findIndex((l) => /^sanitize_block_for_terminal\(\)\s*\{/.test(l));
+  if (startIdx === -1) return '';
+  let endIdx = -1;
+  for (let i = startIdx + 1; i < lines.length; i++) {
+    if (/^\}/.test(lines[i])) {
+      endIdx = i;
+      break;
+    }
+  }
+  if (endIdx === -1) return '';
+  return lines.slice(startIdx, endIdx + 1).join('\n');
+}
+
+function runBashBlockSanitizeSingle(scriptPath, probe) {
+  const body = extractBlockFunctionBody(scriptPath);
+  assert.ok(
+    body.length > 0,
+    `could not extract sanitize_block_for_terminal() from ${scriptPath} -- a renamed or unparseable ` +
+      'definition must FAIL this guard, not silently pass it'
+  );
+  const bashScript = `${body}\nsanitize_block_for_terminal "$1"\n`;
+  const res = spawnSync('bash', ['-c', bashScript, '_', probe], { env: hostileLocaleEnv() });
+  assert.equal(
+    res.status,
+    0,
+    `bash sanitize_block_for_terminal invocation failed (status ${res.status}): ${res.stderr ? res.stderr.toString() : ''}`
+  );
+  return res.stdout.toString('utf8');
+}
+
+describe('sanitize_block_for_terminal: line-preserving drift guard (SCAN-01, G-1635, plan 19-09)', () => {
+  it('non-vacuity: extraction of sanitize_block_for_terminal() succeeds for all four scripts (a renamed/unparseable definition must FAIL this guard, not silently pass it)', () => {
+    for (const [name, p] of Object.entries(SCRIPT_PATHS)) {
+      const body = extractBlockFunctionBody(p);
+      assert.ok(
+        body.length > 0,
+        `${name}: extraction of sanitize_block_for_terminal() produced an EMPTY body -- renamed or ` +
+          'unparseable definition, must FAIL this guard'
+      );
+    }
+  });
+
+  it('the four bash sanitize_block_for_terminal() copies are byte-identical to each other (pairwise against the first, naming the divergent script)', () => {
+    const bodies = Object.fromEntries(
+      Object.entries(SCRIPT_PATHS).map(([k, p]) => [k, extractBlockFunctionBody(p)])
+    );
+    for (const name of ['chaindrop', 'g747', 'shaiHulud']) {
+      assert.equal(
+        bodies[name],
+        bodies.miasma,
+        `${name}'s sanitize_block_for_terminal() diverged from ${CANONICAL_NAME}`
+      );
+    }
+  });
+
+  it('locale-FORM pin: each script declares LC_ALL via a function-scoped `local` inside sanitize_block_for_terminal, and no script uses the REFUTED assignment-prefix form on printf anywhere in code', () => {
+    for (const [name, p] of Object.entries(SCRIPT_PATHS)) {
+      const body = extractBlockFunctionBody(p);
+      assert.match(
+        body,
+        /^\s*local\s+LC_ALL=/m,
+        `${name}: sanitize_block_for_terminal() body has no function-scoped 'local LC_ALL=' declaration`
+      );
+      const wholeSrcStripped = stripComments(fs.readFileSync(p, 'utf8'));
+      assert.doesNotMatch(
+        wholeSrcStripped,
+        /^\s*LC_ALL=\S+\s+printf/m,
+        `${name}: contains the REFUTED assignment-prefix locale form (LC_ALL=... printf ...) in CODE ` +
+          '-- same refutation as sanitize_for_terminal (review R1-1); a future edit must not reintroduce it'
+      );
+    }
+  });
+
+  it(
+    'character-class parity on SINGLE-LINE input: for all 64 class members EXCEPT LF (0x0A), sanitize_block_for_terminal() output equals the canonical Node sanitizeForTerminal() output plus one trailing newline',
+    { skip: !hasBash ? 'bash unavailable' : false },
+    () => {
+      const nonLfMembers = CONTROL_CLASS_MEMBERS.filter((c) => c !== 0x0a);
+      assert.equal(nonLfMembers.length, 63, JSON.stringify(nonLfMembers));
+      for (const c of nonLfMembers) {
+        const probe = String.fromCharCode(c);
+        const nodeOut = sanitizeForTerminal(probe);
+        const blockOut = runBashBlockSanitizeSingle(CANONICAL, probe);
+        assert.equal(
+          blockOut,
+          `${nodeOut}\n`,
+          `member 0x${c.toString(16)} diverged: block=${JSON.stringify(blockOut)} expected=${JSON.stringify(`${nodeOut}\n`)}`
+        );
+      }
+    }
+  );
+
+  it('LF exception (positive, canonical side): the canonical Node sanitizeForTerminal() REPLACES LF (0x0A) with U+FFFD', () => {
+    assert.equal(sanitizeForTerminal('\n'), '�', 'canonical sanitizer must replace a bare LF with U+FFFD');
+  });
+
+  it(
+    "LF exception (positive, block-function side): sanitize_block_for_terminal() PRESERVES LF as a line boundary instead of replacing it -- this IS the function's entire reason for existing, so a future edit that \"fixes\" this difference (e.g. by carving LF out of a shared class, or reusing the single-line sanitizer here) must fail this assertion loudly",
+    { skip: !hasBash ? 'bash unavailable' : false },
+    () => {
+      const out = runBashBlockSanitizeSingle(CANONICAL, 'a\nb');
+      assert.equal(
+        out,
+        'a\nb\n',
+        `expected LF to survive as a line boundary between two otherwise-benign lines, with no U+FFFD ` +
+          `substitution anywhere -- got ${JSON.stringify(out)}. If this fails because LF was replaced, ` +
+          'sanitize_block_for_terminal has been "unified" with sanitize_for_terminal and no longer ' +
+          'preserves multi-line block structure -- the entire reason this function exists.'
+      );
+    }
+  );
+});
