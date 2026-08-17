@@ -215,7 +215,7 @@ fi
 PROC_HITS=$(ps -axo command 2>/dev/null | grep -E "gvfsd-network|/tmp/\.sshd" | grep -v grep || true)
 if [ -n "$PROC_HITS" ]; then
   fail "Suspicious processes running:"
-  printf "%s\n" "$PROC_HITS"
+  printf "%s\n" "$(sanitize_block_for_terminal "$PROC_HITS")"
 else
   pass "No gvfsd-network or /tmp/.sshd processes running"
 fi

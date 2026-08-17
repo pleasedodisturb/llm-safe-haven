@@ -431,7 +431,7 @@ _emit_section_findings() {
         ;;
     esac
     case "$fid" in
-      claude-hook) printf '%s\n' "$fdetail" | head -5 | sed 's/^/        /' ;;
+      claude-hook) printf '%s\n' "$(sanitize_block_for_terminal "$fdetail")" | head -5 | sed 's/^/        /' ;;
       # A single `printf` substitution, NOT `... | sed 's/^/  /'` — a path is
       # ONE value that may itself contain a literal embedded newline byte
       # (T-17-10/B5); piping it through sed would re-split on that embedded
@@ -439,8 +439,11 @@ _emit_section_findings() {
       # this NUL-delimited protocol exists to keep intact. (claude-hook,
       # below, is intentionally different: `fdetail` there is already
       # several independent matched-line strings the OLD bash also indented
-      # one per line — not a single path.)
-      marker-string) printf '         %s\n' "$fpath" ;;
+      # one per line — not a single path.) 19-10-PLAN.md: this is the reason
+      # this arm uses sanitize_for_terminal (single-line), never
+      # sanitize_block_for_terminal (block) -- the block function's LF-preserving
+      # design would re-split an embedded-newline path exactly like `sed` would.
+      marker-string) printf '         %s\n' "$(sanitize_for_terminal "$fpath")" ;;
     esac
   done < "$RESULTS_DIR/lists/findings.z"
 }
@@ -614,7 +617,7 @@ for _sf in "$HOME/.claude/settings.json" "$HOME/.claude/settings.local.json"; do
   fi
   if [ -n "$_m" ]; then
     fail "Suspicious hook command in $_sf (ChainDrop persistence)"
-    printf "%s\n" "$_m" | head -5 | sed 's/^/        /'
+    printf "%s\n" "$(sanitize_block_for_terminal "$_m")" | head -5 | sed 's/^/        /'
     HOOK_ANY=1
   fi
 done
@@ -683,7 +686,7 @@ elif command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
   else
     if printf "%s" "$REPO_JSON" | grep -qi "Shai-Hulud: Here We Go Again\|Shai-Hulud"; then
       fail "A repo in your account carries a Shai-Hulud dead-drop description:"
-      printf "%s" "$REPO_JSON" | grep -i "Shai-Hulud" | sed 's/^/      /'
+      printf "%s" "$(sanitize_block_for_terminal "$REPO_JSON")" | grep -i "Shai-Hulud" | sed 's/^/      /'
     else
       pass "No repos match the ChainDrop dead-drop description"
     fi

@@ -938,7 +938,7 @@ describe('content-print source guard, all four scanner scripts (no bash required
         // overshoot into the UNRELATED catch-all `*)` fallback arm (which
         // also happens to mention "$fpath" in its own diagnostic message).
         name: 'chaindrop fpath (marker-string engine finding, single-path arm)',
-        line: findNear(chaindropLines, 'is intentionally different: `fdetail` there is already', ['printf', '"$fpath"'], 4),
+        line: findNear(chaindropLines, 'is intentionally different: `fdetail` there is already', ['printf', '"$fpath"'], 8),
       },
       {
         name: 'chaindrop _m (static $HOME hook-command matches)',
@@ -996,7 +996,7 @@ describe('content-print source guard, all four scanner scripts (no bash required
   it('chaindrop\'s marker-string fpath arm uses sanitize_for_terminal (single-line), NOT sanitize_block_for_terminal (block) -- the one deliberate exception in the whole 22-site class, and its existing single-path code comment survives', () => {
     const src = fs.readFileSync(CHAINDROP_SCRIPT, 'utf8');
     const lines = src.split('\n');
-    const line = findNear(lines, 'is intentionally different: `fdetail` there is already', ['printf', '"$fpath"'], 4);
+    const line = findNear(lines, 'is intentionally different: `fdetail` there is already', ['printf', '"$fpath"'], 8);
     assert.ok(line, 'could not locate the chaindrop marker-string fpath line');
     assert.match(line, /sanitize_for_terminal/, `expected sanitize_for_terminal on the marker-string line: ${line}`);
     assert.doesNotMatch(line, /sanitize_block_for_terminal/, `marker-string must NOT use the block function (a path is ONE value that may contain an embedded newline byte): ${line}`);

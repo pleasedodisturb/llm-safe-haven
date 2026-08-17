@@ -204,21 +204,22 @@ function assertLoopDiscrimination(items, controlItem, poisonedItem, poisonedOrig
 // fail()/warn()/info()/pass()'s sanitize_for_terminal capture. At the time
 // this plan (19-08) landed, that print was UNSANITIZED at both sites (a
 // deliberate, out-of-scope-for-19-08 property, deferred to
-// 19-09-PLAN.md/19-10-PLAN.md's content-print class). 19-09-PLAN.md closes
-// the gap for MIASMA specifically (its "$lockfile"/"$pkg" values now route
-// through sanitize_for_terminal); shai-hulud's equivalent site remains open
-// until 19-10-PLAN.md. So this function takes the EXPECTED marker path as a
-// parameter rather than deriving it from the raw on-disk path internally --
-// the miasma call site below passes the SANITIZED representation (LF -> U+FFFD),
-// the shai-hulud call site still passes the raw, unsanitized one. A real LF
-// in an UNSANITIZED path prints LITERALLY and spans what LOOKS like two
-// physical terminal lines even after the delimiter fix -- a line-based
-// extraction (assertLoopDiscrimination's `items`) cannot see that as one
-// entry; a whole-stdout substring match can, because printf still writes the
-// bytes contiguously. This function asserts LOOP COMPLETENESS (the record
-// was read whole, not split at read()-time) for BOTH scripts, and correctness
-// of the CALLER-SUPPLIED marker representation (sanitized or not, per the
-// caller's own scope) -- it does not re-derive sanitization state itself.
+// 19-09-PLAN.md/19-10-PLAN.md's content-print class). 19-09-PLAN.md closed
+// the gap for MIASMA specifically; 19-10-PLAN.md closes it for shai-hulud
+// too -- both "$lockfile"/"$pkg" values now route through
+// sanitize_for_terminal at BOTH sites, so both call sites below now pass the
+// SANITIZED representation (LF -> U+FFFD). This function still takes the
+// EXPECTED marker path as a parameter rather than deriving it from the raw
+// on-disk path internally, since it is also reused by any future site that
+// has NOT yet closed this gap -- a real LF in an UNSANITIZED path prints
+// LITERALLY and spans what LOOKS like two physical terminal lines even after
+// the delimiter fix -- a line-based extraction (assertLoopDiscrimination's
+// `items`) cannot see that as one entry; a whole-stdout substring match can,
+// because printf still writes the bytes contiguously. This function asserts
+// LOOP COMPLETENESS (the record was read whole, not split at read()-time)
+// for BOTH scripts, and correctness of the CALLER-SUPPLIED marker
+// representation (sanitized or not, per the caller's own scope) -- it does
+// not re-derive sanitization state itself.
 function assertLockfileLoopCompleteness(stdout, controlPath, expectedPoisonedMarkerPath, label) {
   const controlMarker = `  FILE: ${controlPath}`;
   const poisonedMarker = `  FILE: ${expectedPoisonedMarkerPath}`;
@@ -672,7 +673,8 @@ describe('scan-shai-hulud-may2026.sh -- 2 read loops (D-12/D-13, G-1549)', { ski
     fs.writeFileSync(poisonedPath, lockContent);
 
     const res = runShaiHulud(home, built);
-    assertLockfileLoopCompleteness(res.stdout, controlPath, poisonedPath, 'shai-hulud lockfile sweep');
+    const sanitizedPoisoned = poisonedPath.replace(HOSTILE_NAMES.LF, '�');
+    assertLockfileLoopCompleteness(res.stdout, controlPath, sanitizedPoisoned, 'shai-hulud lockfile sweep');
   });
 
   it('shai-hulud clean tree: exit 0, ALL CLEAR, still true after the NUL-delimiting conversion', () => {

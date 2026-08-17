@@ -251,7 +251,7 @@ else
       if [ -n "$bad_cmds" ]; then
         fail "tasks.json runOn:folderOpen with worm-pattern command — $f"
         printf "       Matched commands:\n"
-        printf "%s\n" "$bad_cmds" | sed 's/^/         /'
+        printf "%s\n" "$(sanitize_block_for_terminal "$bad_cmds")" | sed 's/^/         /'
       else
         # folderOpen present but commands look like normal dev tasks
         info "tasks.json has runOn:folderOpen but commands look legitimate — $f"
@@ -358,15 +358,17 @@ else
       continue
     fi
     info "SessionStart hook commands in: $sf"
-    # Print each "command" entry in the block for transparency
-    printf "%s\n" "$BLOCK" | grep -nE '"command"[[:space:]]*:' | sed -E 's/^/      /' || true
+    # Print each "command" entry in the block for transparency. Sanitized on
+    # the way IN, BEFORE the grep -nE filter -- sanitizing after would be
+    # sanitizing at the print site, which D-02 rejects.
+    printf "%s\n" "$(sanitize_block_for_terminal "$BLOCK")" | grep -nE '"command"[[:space:]]*:' | sed -E 's/^/      /' || true
     # Flag suspicious patterns within the block
     FILE_SUS=0
     for pat in "${SUSPICIOUS_HOOK_PATTERNS[@]}"; do
       M=$(printf "%s" "$BLOCK" | grep -nE "$pat" || true)
       if [ -n "$M" ]; then
         fail "Suspicious SessionStart pattern in $sf (matches: $pat)"
-        printf "%s\n" "$M" | sed 's/^/        /'
+        printf "%s\n" "$(sanitize_block_for_terminal "$M")" | sed 's/^/        /'
         FILE_SUS=1
         ANY_SUSPICIOUS=1
       fi
@@ -590,9 +592,9 @@ else
       # Yarn lockfile uses different syntax (pkg@version: at start of line)
       MATCHES2=$(grep -nE "(^|[[:space:]])${pkg_for_grep}@" "$lockfile" 2>/dev/null | head -5 || true)
       if [ -n "$MATCHES" ] || [ -n "$MATCHES2" ]; then
-        printf "  FILE: %s\n  PKG: %s\n" "$lockfile" "$pkg" >> "$LOCK_HITS_FILE"
-        [ -n "$MATCHES" ] && printf "%s\n" "$MATCHES" | sed 's/^/    /' >> "$LOCK_HITS_FILE"
-        [ -n "$MATCHES2" ] && printf "%s\n" "$MATCHES2" | sed 's/^/    /' >> "$LOCK_HITS_FILE"
+        printf "  FILE: %s\n  PKG: %s\n" "$(sanitize_for_terminal "$lockfile")" "$(sanitize_for_terminal "$pkg")" >> "$LOCK_HITS_FILE"
+        [ -n "$MATCHES" ] && printf "%s\n" "$(sanitize_block_for_terminal "$MATCHES")" | sed 's/^/    /' >> "$LOCK_HITS_FILE"
+        [ -n "$MATCHES2" ] && printf "%s\n" "$(sanitize_block_for_terminal "$MATCHES2")" | sed 's/^/    /' >> "$LOCK_HITS_FILE"
         printf "\n" >> "$LOCK_HITS_FILE"
       fi
     done
@@ -636,7 +638,7 @@ if command -v gh >/dev/null 2>&1; then
         M=$(printf "%s" "$REPO_JSON" | grep -i "$pat" || true)
         if [ -n "$M" ]; then
           fail "Dead-drop pattern '$pat' found in your GitHub repos:"
-          printf "%s\n" "$M" | sed 's/^/      /'
+          printf "%s\n" "$(sanitize_block_for_terminal "$M")" | sed 's/^/      /'
           ANY_DEAD_DROP=1
         fi
       done
