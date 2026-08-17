@@ -19,7 +19,12 @@ const assert = require('node:assert/strict');
 // F10: shared require-cache stub helper — see the WR-01 ordering notes in
 // tests/helpers/module-stub.js (stubs must land in require.cache BEFORE
 // lib/audit.js is first required below).
-const { installStub } = require('./helpers/module-stub.js');
+const { installStub, stubHomedir } = require('./helpers/module-stub.js');
+// D-20-03 sensitivity proof only (break-proof 5, 20-03-PLAN.md Task 3) --
+// every OTHER test in this file uses the wholesale lib/scan.js stub below.
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 // ---- mutable stub state (reset in beforeEach) ----
 let currentBuildEnvelope;
@@ -857,5 +862,47 @@ describe('D-20-03 (G-1621): audit follows scan on the zero-default-root state', 
     const { logs, result } = await captureLog(() => audit({}));
     assert.ok(logs.some((l) => l.includes('No .env files found')), 'the green line must print for a complete, clean env scan');
     assert.equal(result.code, 0);
+  });
+
+  // SENSITIVITY PROOF (break-proof 5, 20-03-PLAN.md Task 3). Every case
+  // above hand-builds `zeroRootEnvDetail` and feeds it through the
+  // WHOLESALE lib/scan.js stub -- proving audit() renders/exits correctly
+  // GIVEN that shape, but proving nothing about whether the REAL
+  // scanForEnvFilesDetailed() (lib/scan.js, plan 20-01) actually PRODUCES
+  // that shape on a genuine zero-default-root run. This test bypasses the
+  // wholesale stub for one call, using the same os.homedir()-sandboxing
+  // technique tests/scan.test.js uses, to prove the real production
+  // function returns the exact shape the cases above assume.
+  it('SENSITIVITY: the REAL scanForEnvFilesDetailed() produces this exact shape on a genuine zero-root run', async () => {
+    const scanPath = require.resolve('../lib/scan.js');
+    const osPath = require.resolve('os');
+    const originalScanCacheEntry = require.cache[scanPath];
+    const originalOsCacheEntry = require.cache[osPath];
+    const sandboxHome = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-d2003-home-'));
+    const sandboxCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-d2003-cwd-'));
+    try {
+      // Deliberately NOT a project (no .git, no package.json) -- forces
+      // the incomplete/exit-2 half, not the cwd-fallback half.
+      const { scanForEnvFilesDetailed: realScanForEnvFilesDetailed } = stubHomedir(sandboxHome, scanPath);
+      const realDetail = realScanForEnvFilesDetailed({ cwd: sandboxCwd });
+
+      assert.equal(realDetail.incomplete, true, 'the REAL scanForEnvFilesDetailed() must report incomplete on a zero-root, non-project cwd -- if this fails, the hand-built fixture above is not proving anything about production code');
+      assert.ok(realDetail.rootResolution && realDetail.rootResolution.unresolved === true, `expected rootResolution.unresolved:true from the real function, got: ${JSON.stringify(realDetail.rootResolution)}`);
+      assert.deepEqual(realDetail.files, []);
+
+      // Now prove audit() consumes this REAL detail correctly too, closing
+      // the loop end to end.
+      currentEnvDetail = realDetail;
+      const out = JSON.parse((await captureLog(() => audit({ json: true }))).logs.join('\n'));
+      assert.equal(out.envIncomplete, true);
+      assert.ok(out.envCauses.includes('no-root'), `expected 'no-root' in envCauses from the real detail, got: ${JSON.stringify(out.envCauses)}`);
+    } finally {
+      if (originalScanCacheEntry === undefined) delete require.cache[scanPath];
+      else require.cache[scanPath] = originalScanCacheEntry;
+      if (originalOsCacheEntry === undefined) delete require.cache[osPath];
+      else require.cache[osPath] = originalOsCacheEntry;
+      fs.rmSync(sandboxHome, { recursive: true, force: true });
+      fs.rmSync(sandboxCwd, { recursive: true, force: true });
+    }
   });
 });

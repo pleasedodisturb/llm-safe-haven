@@ -16,7 +16,12 @@
 
 const { describe, it, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
-const { installStub } = require('./helpers/module-stub.js');
+const { installStub, stubHomedir } = require('./helpers/module-stub.js');
+// D-20-03 sensitivity proof only (break-proof 5, 20-03-PLAN.md Task 3) --
+// every OTHER test in this file uses the wholesale lib/scan.js stub below.
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 // ---- mutable stub state (reset in beforeEach) ----
 let currentBuildEnvelope;
@@ -258,5 +263,39 @@ describe('D-20-03 (G-1621): install follows scan on the zero-default-root state'
     };
     const { logs } = await captureLog(() => install({}));
     assert.ok(logs.some((l) => l.includes('No .env files found')), 'the green line must print for a complete, clean env scan');
+  });
+
+  // SENSITIVITY PROOF (break-proof 5, 20-03-PLAN.md Task 3) -- see the
+  // twin test in tests/audit.test.js for the full rationale. Bypasses the
+  // wholesale lib/scan.js stub for one call to prove the REAL
+  // scanForEnvFilesDetailed() actually produces the shape the hand-built
+  // fixtures above assume.
+  it('SENSITIVITY: the REAL scanForEnvFilesDetailed() produces this exact shape on a genuine zero-root run', async () => {
+    const scanPath = require.resolve('../lib/scan.js');
+    const osPath = require.resolve('os');
+    const originalScanCacheEntry = require.cache[scanPath];
+    const originalOsCacheEntry = require.cache[osPath];
+    const sandboxHome = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-d2003-home-'));
+    const sandboxCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-d2003-cwd-'));
+    try {
+      const { scanForEnvFilesDetailed: realScanForEnvFilesDetailed } = stubHomedir(sandboxHome, scanPath);
+      const realDetail = realScanForEnvFilesDetailed({ cwd: sandboxCwd });
+
+      assert.equal(realDetail.incomplete, true, 'the REAL scanForEnvFilesDetailed() must report incomplete on a zero-root, non-project cwd');
+      assert.ok(realDetail.rootResolution && realDetail.rootResolution.unresolved === true, `expected rootResolution.unresolved:true, got: ${JSON.stringify(realDetail.rootResolution)}`);
+
+      currentEnvDetail = realDetail;
+      const { logs, result } = await captureLog(() => install({}));
+      assert.equal(result, undefined);
+      assert.ok(!logs.some((l) => l.includes('No .env files found')), `no green check may print, got: ${logs.join('\n')}`);
+      assert.ok(logs.some((l) => l.includes(NO_SCAN_ROOT_CAUSE)), `expected the no-scan-root cause on stdout, got: ${logs.join('\n')}`);
+    } finally {
+      if (originalScanCacheEntry === undefined) delete require.cache[scanPath];
+      else require.cache[scanPath] = originalScanCacheEntry;
+      if (originalOsCacheEntry === undefined) delete require.cache[osPath];
+      else require.cache[osPath] = originalOsCacheEntry;
+      fs.rmSync(sandboxHome, { recursive: true, force: true });
+      fs.rmSync(sandboxCwd, { recursive: true, force: true });
+    }
   });
 });
