@@ -76,6 +76,31 @@ could not be read, because what was seen is a fact regardless of what was missed
 > correctly. Use `--json` (on `audit`) or check for `1` explicitly if you need to distinguish
 > "found something" from "could not run".
 
+#### Zero default scan roots
+
+`scan`, `audit`, `install`, and `scan --supply-chain` all resolve their scan scope from the same
+six default directory names under `$HOME` (`Projects`, `Developer`, `Code`, `src`, `repos`,
+`workspace`), or from `LSH_ROOTS` if you set it. A machine where **none** of the six exist used to
+report a silent all-clear — the scan examined zero bytes and still printed a green check.
+
+Now, when zero default roots resolve:
+
+- if the current directory looks like a project (it contains a `.git` entry or a `package.json`),
+  that directory becomes the sole scan root. Exactly one line is printed to stderr noting the
+  fallback, and the exit code follows findings as usual.
+- otherwise, the run is reported incomplete and exits `2` — never a silent `0`.
+
+A machine with one or more of the six default roots present is unaffected: no new stderr line, no
+exit-code change, byte-identical output to before this change.
+
+> **⚠ Behaviour change — if you run any of these commands in a container or CI runner whose code
+> lives outside `~/{Projects,Developer,Code,src,repos,workspace}`, read this.**
+> A container or CI runner whose working directory is not itself a project (no `.git`, no
+> `package.json`) will now exit `2` where it previously exited `0`. This is intentional: an exit
+> code of `0` is supposed to mean "the scan ran and found nothing" — it never meant "the scan ran
+> nowhere." If you hit this, either set `LSH_ROOTS` to the directory you want scanned, or run the
+> command from that directory.
+
 ## Security Levels
 
 | Level | Name | What It Means |
