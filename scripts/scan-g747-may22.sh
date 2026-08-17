@@ -503,35 +503,50 @@ if [ ${#AI_CONFIG_ROOTS[@]} -eq 0 ]; then
 elif ! command -v perl >/dev/null 2>&1; then
   warn "perl not available — skipping TrapDoor scan (perl is needed for Unicode regex)"
 else
-  AI_FILES=$(find "${AI_CONFIG_ROOTS[@]}" -type f \
-    \( -name "CLAUDE.md" -o -name ".cursorrules" -o -name "*.mdc" \
-       -o -name "AGENTS.md" -o -name "MEMORY.md" \
-       -o -name "SKILL.md" -o -name "SOUL.md" \) \
-    -not -path "*/node_modules/*" -not -path "*/.git/*" \
-    -not -path "*/.venv/*" -not -path "*/venv/*" 2>/dev/null \
-    | while IFS= read -r f; do is_excluded "$f" || printf "%s\n" "$f"; done)
-
-  N_AI=$(printf "%s\n" "$AI_FILES" | grep -c . || true)
-  info "Scanning $N_AI AI config files for U+200B / U+200C / U+200D / U+FEFF"
-
+  # CR-01/G-1549 (19-REVIEW.md): a SINGLE, per-root NUL-delimited loop --
+  # discovery, exclusion, counting, and the perl zero-width check all happen
+  # in ONE while/done construct fed by a NUL-delimited find (-print0),
+  # mirroring the GVFSD_HITS/DEBUG_HITS/NXC_BAD pattern elsewhere in this
+  # file (D-12/D-13, 19-08-PLAN.md). Pre-fix, this was a TWO-STAGE round trip
+  # through a
+  # newline-delimited variable ($AI_FILES): a hostile filename containing a
+  # real embedded newline byte in an ancestor directory component split into
+  # two non-existent path fragments at the FIRST stage, and perl's
+  # `open(...) or exit 0` treated "could not open" identically to "no hit"
+  # for both fragments -- the real file's content, including any genuine
+  # TrapDoor payload, was NEVER examined, and the section printed a false
+  # [PASS]. There is no accumulator variable to re-split here.
+  AI_FILES_FOUND=0
   TD_HITS=""
-  while IFS= read -r f; do
-    [ -z "$f" ] && continue
-    # Skip UTF-8 BOM at byte 0 (a legitimate file marker, not injection).
-    # Detect zero-width chars *past* the first 3 bytes.
-    if perl -CSD -e '
-      open(my $fh, "<:raw", $ARGV[0]) or exit 0;
-      read($fh, my $head, 3);
-      my $rest = do { local $/; <$fh> };
-      close($fh);
-      utf8::decode($rest);
-      exit (defined($rest) && $rest =~ /[\x{200B}\x{200C}\x{200D}\x{FEFF}]/ ? 1 : 0);
-    ' "$f" 2>/dev/null; then
-      :  # exit 0 = no hit
-    else
-      TD_HITS="${TD_HITS}$(sanitize_for_terminal "$f")"$'\n'
-    fi
-  done <<< "$AI_FILES"
+  for _acr in "${AI_CONFIG_ROOTS[@]}"; do
+    [ -d "$_acr" ] || continue
+    while IFS= read -r -d '' f; do
+      is_excluded "$f" && continue
+      AI_FILES_FOUND=$((AI_FILES_FOUND + 1))
+      [ -z "$f" ] && continue
+      # Skip UTF-8 BOM at byte 0 (a legitimate file marker, not injection).
+      # Detect zero-width chars *past* the first 3 bytes.
+      if perl -CSD -e '
+        open(my $fh, "<:raw", $ARGV[0]) or exit 0;
+        read($fh, my $head, 3);
+        my $rest = do { local $/; <$fh> };
+        close($fh);
+        utf8::decode($rest);
+        exit (defined($rest) && $rest =~ /[\x{200B}\x{200C}\x{200D}\x{FEFF}]/ ? 1 : 0);
+      ' "$f" 2>/dev/null; then
+        :  # exit 0 = no hit
+      else
+        TD_HITS="${TD_HITS}$(sanitize_for_terminal "$f")"$'\n'
+      fi
+    done < <(find "$_acr" -type f \
+        \( -name "CLAUDE.md" -o -name ".cursorrules" -o -name "*.mdc" \
+           -o -name "AGENTS.md" -o -name "MEMORY.md" \
+           -o -name "SKILL.md" -o -name "SOUL.md" \) \
+        -not -path "*/node_modules/*" -not -path "*/.git/*" \
+        -not -path "*/.venv/*" -not -path "*/venv/*" -print0 2>/dev/null)
+  done
+  N_AI="$AI_FILES_FOUND"
+  info "Scanning $N_AI AI config files for U+200B / U+200C / U+200D / U+FEFF"
 
   if [ -n "$TD_HITS" ]; then
     fail "Zero-width Unicode chars in AI config files (TrapDoor pattern):"
