@@ -108,6 +108,24 @@ severity. The attack operates in three stages:
 Patched in Cursor 3.0 (April 2, 2026). Cursor/Anysphere independently assessed the
 sandbox breakout as High severity via HackerOne and awarded a bounty.
 
+### CVE-2026-50548 / CVE-2026-50549 -- DuneSlide (CVSS 9.8 each)
+
+Cato Networks disclosed two critical vulnerabilities, collectively named DuneSlide, that
+let zero-click prompt injection escape Cursor's sandbox and achieve OS-level remote code
+execution. The flaws abuse Cursor's automatic terminal command execution inside the
+sandbox, which runs without a user approval prompt. Triggering it requires no action
+beyond Cursor's agent ingesting attacker-controlled content mid-session -- a poisoned web
+search result, a compromised MCP server response, a malicious code comment, a README, or
+dependency documentation. Both CVEs were patched in Cursor 3.0 (April 2, 2026) -- the same
+release that fixed NomShub above -- but were only publicly disclosed in July 2026.
+
+**Why this matters:** NomShub required a developer to open a malicious repository. DuneSlide
+can be triggered purely through content the agent reads mid-session, widening the injection
+surface beyond "don't open untrusted repos" to "don't let the agent read untrusted content
+at all" -- including search results and MCP responses from otherwise-trusted servers.
+
+Source: [Cato Networks -- DuneSlide: Two Critical RCE Vulnerabilities via Zero-Click Prompt Injection in Cursor IDE](https://www.catonetworks.com/blog/duneslide-two-critical-rce-vulnerabilities/) | [The Hacker News -- Critical Cursor Flaws Could Let Prompt Injection Escape Sandbox and Run Commands](https://thehackernews.com/2026/07/critical-cursor-flaws-could-let-prompt.html) | [SecurityWeek -- Critical Cursor AI Code Editor Flaws Could Lead to OS-Level Remote Code Execution](https://www.securityweek.com/critical-cursor-ai-ide-flaws-could-lead-to-os-level-remote-code-execution/) (all blocked by this session's egress proxy for direct fetch; search-confirmed live across Cato Networks, The Hacker News, SecurityWeek, byteiota, Shield53, Mallory, AI Weekly)
+
 ### Cursor Security Review Beta (April 30, 2026)
 
 Cursor launched a Security Review feature in beta for Teams and Enterprise plans. The Security Reviewer checks every PR for security vulnerabilities, auth regressions, privacy risks, agent tool auto-approvals, and prompt injection attacks. A Vulnerability Scanner runs scheduled scans for known vulnerabilities and outdated dependencies. Development Environment Security Controls (May 11, 2026) added per-environment secret scoping, audit logs for all team member actions, version history with rollback, and build secrets for Dockerfiles scoped to build steps only (not passed to the running agent's environment).
