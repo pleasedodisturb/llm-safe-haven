@@ -47,12 +47,22 @@ function writeFile(filePath, contents) {
   fs.writeFileSync(filePath, contents);
 }
 
-function runCli(args, extraEnv = {}) {
-  return spawnSync('node', [RUN_JS, ...args], {
+// G-1621 (EXIT-04, D-20-13): `cwd` is an OPTIONAL third parameter, defaulting
+// to `undefined` -- when omitted, `spawnSync`'s own `cwd` option is left
+// unset entirely, which is Node's documented "inherit the parent process's
+// cwd" behaviour, exactly matching every one of the ~20 pre-existing 2-arg
+// call sites above (they all keep inheriting this repository as their
+// working directory, byte-identical to before this change). Only the NEW
+// zero-default-root cases below pass an explicit sandbox as the third
+// argument.
+function runCli(args, extraEnv = {}, cwd) {
+  const spawnOpts = {
     encoding: 'utf8',
     timeout: 30_000, // non-functional -- every case must terminate well within this
     env: { PATH: process.env.PATH, HOME: process.env.HOME, ...extraEnv },
-  });
+  };
+  if (cwd !== undefined) spawnOpts.cwd = cwd;
+  return spawnSync('node', [RUN_JS, ...args], spawnOpts);
 }
 
 function readFindingsJson(resultsDir) {
@@ -384,6 +394,117 @@ describe('run.js — a configured-but-unreadable root is surfaced, distinctly fr
     assert.equal(res.stdout, '');
     assert.equal(res.stderr.includes('could not be read'), false);
     assert.equal(readFindingsJson(resultsDir).incomplete, false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// run.js — zero default roots (EXIT-04, G-1621, D-20-13). Research measured
+// this defect live: `HOME=<empty> LSH_ROOTS= node lib/traverse/run.js --spec
+// ... --results-dir ...` wrote `{ exitCode: 0, incomplete: false, roots: [] }`
+// and exited 0 -- a green result after examining zero bytes. This mirrors
+// 20-01's `scan() zero default roots` describe at the process boundary,
+// reusing the SAME shared constants (`CWD_FALLBACK_NOTICE`,
+// `NO_SCAN_ROOT_CAUSE`) from `lib/roots.js` rather than retyping their text.
+//
+// Every case below passes an explicit sandbox `cwd` (mkDir()) as runCli's
+// new third argument. Without it, every case would inherit this repository
+// as its cwd -- which has BOTH `.git` and `package.json` and would take the
+// fallback branch unconditionally the moment Task 2 lands, making the
+// non-project-cwd cases (exit 2) impossible to express at all.
+describe('run.js — zero default roots (EXIT-04, G-1621, D-20-13)', () => {
+  const { CWD_FALLBACK_NOTICE, NO_SCAN_ROOT_CAUSE } = require('../../lib/roots.js');
+
+  function emptySandboxHome() {
+    // A fresh mkdtemp'd directory contains none of DEFAULT_ROOT_NAMES
+    // ('Projects','Developer','Code','src','repos','workspace'), so a
+    // default-probe getRoots() call against it always resolves to zero.
+    return mkDir('run-cli-empty-home-');
+  }
+
+  it('empty HOME, no --roots, no LSH_ROOTS, NON-project cwd: exit 2; findings.json incomplete:true, roots:[]; stderr names the cause once', () => {
+    const resultsDir = mkDir('run-cli-results-');
+    const home = emptySandboxHome();
+    const nonProjectCwd = mkDir('run-cli-nonproject-cwd-');
+
+    const res = runCli(['--spec', SPEC_PATH, '--results-dir', resultsDir], { HOME: home }, nonProjectCwd);
+    assert.equal(res.status, 2);
+    const envelope = readFindingsJson(resultsDir);
+    assert.equal(envelope.incomplete, true);
+    assert.deepEqual(envelope.roots, []);
+    const causeLines = res.stderr.split('\n').filter((line) => line.includes(NO_SCAN_ROOT_CAUSE));
+    assert.equal(causeLines.length, 1, `expected the cause to be named exactly once on stderr, got: ${JSON.stringify(res.stderr)}`);
+  });
+
+  it('empty HOME, no --roots, no LSH_ROOTS, cwd contains package.json: exit 0; exactly one notice line prefixed "run.js: "; roots:[cwd], rootsWalked:1', () => {
+    const resultsDir = mkDir('run-cli-results-');
+    const home = emptySandboxHome();
+    const projectCwd = mkDir('run-cli-project-cwd-pkg-');
+    writeFile(path.join(projectCwd, 'package.json'), JSON.stringify({ name: 'fixture' }));
+
+    const res = runCli(['--spec', SPEC_PATH, '--results-dir', resultsDir], { HOME: home }, projectCwd);
+    assert.equal(res.status, 0);
+    const noticeLine = `run.js: ${CWD_FALLBACK_NOTICE}`;
+    const noticeLines = res.stderr.split('\n').filter((line) => line === noticeLine);
+    assert.equal(noticeLines.length, 1, `expected exactly one line "${noticeLine}" on stderr, got: ${JSON.stringify(res.stderr)}`);
+    const envelope = readFindingsJson(resultsDir);
+    assert.deepEqual(envelope.roots, [projectCwd]);
+    assert.equal(envelope.counts.rootsWalked, 1);
+  });
+
+  it('same, but cwd contains a .git DIRECTORY instead of package.json: identical outcome (the heuristic is the shared looksLikeProject, not a re-typed check)', () => {
+    const resultsDir = mkDir('run-cli-results-');
+    const home = emptySandboxHome();
+    const projectCwd = mkDir('run-cli-project-cwd-git-');
+    fs.mkdirSync(path.join(projectCwd, '.git'));
+
+    const res = runCli(['--spec', SPEC_PATH, '--results-dir', resultsDir], { HOME: home }, projectCwd);
+    assert.equal(res.status, 0);
+    const noticeLine = `run.js: ${CWD_FALLBACK_NOTICE}`;
+    const noticeLines = res.stderr.split('\n').filter((line) => line === noticeLine);
+    assert.equal(noticeLines.length, 1, `expected exactly one line "${noticeLine}" on stderr, got: ${JSON.stringify(res.stderr)}`);
+    const envelope = readFindingsJson(resultsDir);
+    assert.deepEqual(envelope.roots, [projectCwd]);
+    assert.equal(envelope.counts.rootsWalked, 1);
+  });
+
+  it('PAIRED CONTROL (D-20-02): HOME contains exactly one default root (Projects/), cwd is NOT a project: exit 0, roots is [HOME/Projects], no notice line', () => {
+    const resultsDir = mkDir('run-cli-results-');
+    const home = emptySandboxHome();
+    fs.mkdirSync(path.join(home, 'Projects'));
+    const nonProjectCwd = mkDir('run-cli-nonproject-cwd-');
+
+    const res = runCli(['--spec', SPEC_PATH, '--results-dir', resultsDir], { HOME: home }, nonProjectCwd);
+    assert.equal(res.status, 0);
+    assert.equal(res.stderr.includes(CWD_FALLBACK_NOTICE), false, 'no fallback notice line when a default root resolved');
+    const envelope = readFindingsJson(resultsDir);
+    assert.deepEqual(envelope.roots, [path.join(home, 'Projects')]);
+  });
+
+  it('explicit mode is unchanged: --roots <existing dir> from an empty HOME with a non-project cwd still walks that root, exits 0, no notice line', () => {
+    const resultsDir = mkDir('run-cli-results-');
+    const home = emptySandboxHome();
+    const nonProjectCwd = mkDir('run-cli-nonproject-cwd-');
+    const explicitRoot = mkDir('run-cli-root-');
+    writeFile(path.join(explicitRoot, 'clean.txt'), 'nothing interesting\n');
+
+    const res = runCli(['--spec', SPEC_PATH, '--results-dir', resultsDir, '--roots', explicitRoot], { HOME: home }, nonProjectCwd);
+    assert.equal(res.status, 0);
+    assert.equal(res.stderr.includes(CWD_FALLBACK_NOTICE), false);
+    const envelope = readFindingsJson(resultsDir);
+    assert.deepEqual(envelope.roots, [explicitRoot]);
+  });
+
+  it('explicit-and-missing is unchanged: --roots <missing> still exits 2 with the existing "does not exist" warning, and does NOT emit the new notice', () => {
+    const resultsDir = mkDir('run-cli-results-');
+    const home = emptySandboxHome();
+    const nonProjectCwd = mkDir('run-cli-nonproject-cwd-');
+    const missing = path.join(os.tmpdir(), `run-cli-missing-explicit-${Date.now()}`);
+
+    const res = runCli(['--spec', SPEC_PATH, '--results-dir', resultsDir, '--roots', missing], { HOME: home }, nonProjectCwd);
+    assert.equal(res.status, 2);
+    assert.match(res.stderr, /does not exist or is not a directory/);
+    assert.equal(res.stderr.includes(CWD_FALLBACK_NOTICE), false, 'explicit-mode misses must not trigger the default-probe fallback notice');
+    assert.equal(res.stderr.includes(NO_SCAN_ROOT_CAUSE), false, 'explicit-mode misses render through the existing "root" cause, not the new "no-root" one');
   });
 });
 
