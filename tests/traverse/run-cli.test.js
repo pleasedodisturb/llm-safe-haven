@@ -411,6 +411,17 @@ describe('run.js — a configured-but-unreadable root is surfaced, distinctly fr
 // as its cwd -- which has BOTH `.git` and `package.json` and would take the
 // fallback branch unconditionally the moment Task 2 lands, making the
 // non-project-cwd cases (exit 2) impossible to express at all.
+//
+// On macOS, `os.tmpdir()` returns a path under `/var/...`, which is itself a
+// symlink to `/private/var/...`. `resolveZeroRootFallback({ cwd:
+// process.cwd() })` inside the SPAWNED child reads `process.cwd()` AFTER an
+// actual `chdir()` into that sandbox, and the kernel's `getcwd()` returns
+// the SYMLINK-RESOLVED physical path -- so the fallback-root cases below
+// compare against `fs.realpathSync(projectCwd)`, not the raw mkdtemp
+// string. Every OTHER case in this describe compares against the raw
+// string, because those paths are never chdir'd into (they reach
+// `getRoots()` via `--roots`/`LSH_ROOTS`/`homedir()`, all of which use
+// `path.resolve()`, which does not resolve symlinks).
 describe('run.js — zero default roots (EXIT-04, G-1621, D-20-13)', () => {
   const { CWD_FALLBACK_NOTICE, NO_SCAN_ROOT_CAUSE } = require('../../lib/roots.js');
 
@@ -447,7 +458,7 @@ describe('run.js — zero default roots (EXIT-04, G-1621, D-20-13)', () => {
     const noticeLines = res.stderr.split('\n').filter((line) => line === noticeLine);
     assert.equal(noticeLines.length, 1, `expected exactly one line "${noticeLine}" on stderr, got: ${JSON.stringify(res.stderr)}`);
     const envelope = readFindingsJson(resultsDir);
-    assert.deepEqual(envelope.roots, [projectCwd]);
+    assert.deepEqual(envelope.roots, [fs.realpathSync(projectCwd)]);
     assert.equal(envelope.counts.rootsWalked, 1);
   });
 
@@ -463,7 +474,7 @@ describe('run.js — zero default roots (EXIT-04, G-1621, D-20-13)', () => {
     const noticeLines = res.stderr.split('\n').filter((line) => line === noticeLine);
     assert.equal(noticeLines.length, 1, `expected exactly one line "${noticeLine}" on stderr, got: ${JSON.stringify(res.stderr)}`);
     const envelope = readFindingsJson(resultsDir);
-    assert.deepEqual(envelope.roots, [projectCwd]);
+    assert.deepEqual(envelope.roots, [fs.realpathSync(projectCwd)]);
     assert.equal(envelope.counts.rootsWalked, 1);
   });
 
