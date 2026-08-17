@@ -181,6 +181,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 const { write, newHome, runScanner, hasBash, SEARCH_ROOT_NAMES, HOSTILE_NAMES, writeHostile, ghStub } = require('./helpers/chaindrop-fixtures.js');
 
@@ -728,6 +729,211 @@ describe('scan-shai-hulud-may2026.sh -- SCAN-02: tasks.json enumeration examines
   });
 });
 
+// ---------------------------------------------------------------------------
+// WR-01 gap closure (19-REVIEW.md): three `find`/`grep`-fed accumulators in
+// Section 1 (KITTY_LA, MIASMA_BUN, MIASMA_JS) were left on the pre-phase
+// `done <<< "$VAR"` (newline-delimited) idiom -- structurally invisible to
+// tests/find-loop-nul-delimiting.test.js's `done < <\(/g` guard, and never
+// converted by 19-08-PLAN.md. Unlike CR-01, `fail()` is unconditionally
+// called on the captured (non-empty) variable before the loop runs, so a
+// hostile newline does not produce a false-clean report -- but it DOES
+// inflate FINDINGS/the reprint block with phantom fragment entries (a
+// lower-severity instance of the same SCAN-01 report-forging class).
+//
+// KITTY_LA probes $HOME/Library/LaunchAgents -- honored via the isolated
+// HOME this suite already uses everywhere else, so it gets a full black-box
+// end-to-end test via run(). MIASMA_BUN and MIASMA_JS probe the LITERAL
+// path `/tmp` (never `$TMPDIR`), which this scanner does not parameterize --
+// planting real fixtures in the host's actual /tmp during a test run would
+// be both unsafe (shared, world-writable, other processes) and
+// non-deterministic (residue from other runs). Per 19-REVIEW.md's own
+// guidance for a literal-/tmp site, these two get a FUNCTION-LEVEL harness
+// instead: the real, committed Section 1 "Miasma Wave D IOC" text is
+// extracted verbatim from the script (by comment marker, not line number)
+// and driven against an isolated fixture directory via ONE surgical
+// substitution (`find /tmp -maxdepth` -> `find "$FAKE_TMP" -maxdepth`) --
+// the only textual change, everything else (the `while read`/`done <<<`
+// shape pre-fix, the `-print0`/`read -r -d ''` shape post-fix, `fail()`'s
+// message text) is the real code under test, unmodified. This is a
+// deliberate deviation from a pure verbatim-extraction harness (unlike
+// 19-03-SUMMARY.md's warn()/info() harness, which needed no substitution)
+// -- necessary because these two sites hardcode an absolute host path that
+// cannot otherwise be pointed at a throwaway fixture directory.
+// ---------------------------------------------------------------------------
+
+// Empirically measured on this machine (BSD grep, BSD grep 2.6.0-FreeBSD,
+// macOS), 2026-08-17: `grep -lir --null` against a directory holding a file
+// whose path embeds a real LF correctly emits NUL-delimited records (the
+// embedded LF survives INSIDE one record, verified via `od -c`) -- unlike
+// bare `-Z`, which BSD grep accepts, exits 0, but still emits
+// NEWLINE-delimited output (19-08-SUMMARY.md's break-proof 5, same
+// asymmetry, same conclusion: use --null, never -Z).
+function kittyFailLines(stdout) {
+  return stdout
+    .split('\n')
+    .filter((l) => l.startsWith("  [FAIL] LaunchAgent references 'kitty': "))
+    .map((l) => l.slice("  [FAIL] LaunchAgent references 'kitty': ".length));
+}
+
+describe('scan-shai-hulud-may2026.sh -- WR-01: Section 1 record-delimiter integrity (19-REVIEW.md, G-1549)', { skip: !hasBash ? 'bash unavailable' : false }, () => {
+  const built = [];
+  after(() => built.forEach((h) => fs.rmSync(h, { recursive: true, force: true })));
+
+  it('KITTY_LA (grep -lir): a LaunchAgent path carrying a real ancestor-dir LF does not fragment the report -- both the benign control and the poisoned (sanitized) path are reported exactly once each, no phantom fragment lines', () => {
+    const home = newHome(built, () => {});
+    const laDir = path.join(home, 'Library', 'LaunchAgents');
+    fs.mkdirSync(laDir, { recursive: true });
+    const controlPath = path.join(laDir, 'control.plist');
+    fs.writeFileSync(controlPath, '<key>Label</key><string>kitty-thing</string>\n');
+    const poisonedDir = path.join(laDir, `poison-la${HOSTILE_NAMES.LF}evil`);
+    fs.mkdirSync(poisonedDir, { recursive: true });
+    // Verify the hostile byte actually landed (19-VALIDATION.md's vacuity
+    // detector), mirroring writeHostileDir()'s own verification discipline.
+    const entries = fs.readdirSync(laDir);
+    assert.ok(
+      entries.some((e) => e.includes('poison-la') && e.includes('\n')),
+      `hostile ancestor directory name did not preserve the embedded LF\nentries: ${JSON.stringify(entries)}`
+    );
+    const poisonedPath = path.join(poisonedDir, 'evil.plist');
+    fs.writeFileSync(poisonedPath, '<key>Label</key><string>kitty-thing</string>\n');
+
+    const { res } = run(built, home);
+    assert.equal(res.status, 1, res.stdout);
+
+    const lines = kittyFailLines(res.stdout);
+    assert.ok(lines.includes(controlPath), `missing the benign positive control\ncontrol: ${JSON.stringify(controlPath)}\nlines: ${JSON.stringify(lines)}`);
+    const sanitizedPoisoned = poisonedPath.replace(HOSTILE_NAMES.LF, '�');
+    assert.ok(lines.includes(sanitizedPoisoned), `missing the poisoned entry (sanitized) in full\nexpected: ${JSON.stringify(sanitizedPoisoned)}\nlines: ${JSON.stringify(lines)}`);
+    assert.equal(lines.length, 2, `expected exactly 2 KITTY_LA fail lines (control + poisoned), found ${lines.length} -- pre-fix a real LF splits the poisoned record into phantom fragments\nlines: ${JSON.stringify(lines)}`);
+
+    const [fragPrefix, fragSuffix] = poisonedPath.split(HOSTILE_NAMES.LF);
+    assert.ok(!lines.includes(fragPrefix), `phantom PREFIX fragment reported as a standalone fail line\nfragment: ${JSON.stringify(fragPrefix)}\nlines: ${JSON.stringify(lines)}`);
+    assert.ok(!lines.includes(fragSuffix), `phantom SUFFIX fragment reported as a standalone fail line\nfragment: ${JSON.stringify(fragSuffix)}\nlines: ${JSON.stringify(lines)}`);
+  });
+
+  // ---------------------------------------------------------------------
+  // Function-level harness for MIASMA_BUN / MIASMA_JS (literal /tmp sites).
+  // ---------------------------------------------------------------------
+
+  // Extracts the real, committed "Miasma Wave D IOC" text verbatim (both
+  // the MIASMA_BUN and MIASMA_JS blocks together -- they are adjacent and
+  // share no state, so one harness invocation exercises both), bounded by
+  // its own comment marker (start) and the next section's `section "2.`
+  // call (end) -- pinned by MARKER TEXT, never by line number, matching
+  // every other source-extraction helper this phase's test files use.
+  function extractMiasmaTmpBlock(src) {
+    const startMarker = '# Miasma Wave D (June 1, 2026) IOC: Bun binary in /tmp/b-*/';
+    const endIdx = src.indexOf('section "2.');
+    const startIdx = src.indexOf(startMarker);
+    assert.ok(startIdx !== -1, 'could not find the MIASMA_BUN block start marker -- source drifted');
+    assert.ok(endIdx !== -1 && endIdx > startIdx, 'could not find the Section 2 boundary after the MIASMA_BUN/MIASMA_JS block -- source drifted');
+    return src.slice(startIdx, src.lastIndexOf('\n', src.lastIndexOf('\n', endIdx) - 1));
+  }
+
+  // The ONE surgical substitution documented in this block's header comment:
+  // point both `find /tmp -maxdepth ...` invocations at an isolated fixture
+  // directory instead of the real host /tmp. Asserts the substitution
+  // actually applied (non-vacuity) before returning.
+  function pointAtFakeTmp(block) {
+    const substituted = block.replace(/find \/tmp -maxdepth/g, 'find "$FAKE_TMP" -maxdepth');
+    assert.notEqual(substituted, block, 'expected at least one "find /tmp -maxdepth" substitution to apply -- source drifted, harness no longer isolates real /tmp');
+    return substituted;
+  }
+
+  // Minimal harness runtime: real sanitize_for_terminal()/fail()/pass()
+  // bodies (byte-identical to the script's own, reproduced here because
+  // this harness runs a SLICE of the script, not the whole file, and that
+  // slice does not itself define them) plus FINDINGS/FINDING_LOG init, then
+  // the extracted-and-substituted block. FAKE_TMP is passed as $1.
+  function runMiasmaTmpHarness(fakeTmp) {
+    const src = fs.readFileSync(SCRIPT, 'utf8');
+    const block = pointAtFakeTmp(extractMiasmaTmpBlock(src));
+    const harness = `
+set -u
+FINDINGS=0
+FINDING_LOG=""
+sanitize_for_terminal() {
+  local LC_ALL=C.UTF-8
+  printf '%s' "\${1//[[:cntrl:]]/�}"
+}
+fail() {
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  [FAIL] %s\\n" "$msg"
+  FINDINGS=$((FINDINGS + 1))
+  FINDING_LOG="\${FINDING_LOG}  - \${msg}"$'\\n'
+}
+pass() {
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  [PASS] %s\\n" "$msg"
+}
+FAKE_TMP="$1"
+${block}
+`;
+    return spawnSync('bash', ['-c', harness, 'harness', fakeTmp], { encoding: 'utf8', timeout: 30_000 });
+  }
+
+  function bunFailLines(stdout) {
+    const marker = 'Miasma Wave D IOC: Bun binary found at ';
+    return stdout
+      .split('\n')
+      .filter((l) => l.includes(marker))
+      .map((l) => l.slice(l.indexOf(marker) + marker.length).replace(/ \(Wave D.*$/, ''));
+  }
+
+  function jsFailLines(stdout) {
+    const marker = 'Miasma Wave D IOC: Possible payload JS at ';
+    return stdout
+      .split('\n')
+      .filter((l) => l.includes(marker))
+      .map((l) => l.slice(l.indexOf(marker) + marker.length).replace(/ \(p<base36>.*$/, ''));
+  }
+
+  it('MIASMA_BUN (find /tmp, function-level harness): a /tmp/b-<LF-ancestor>/bun path does not fragment the report -- both the benign control and the poisoned (sanitized) path are reported exactly once each, no phantom fragment lines', () => {
+    const fakeTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-miasma-bun-'));
+    built.push(fakeTmp);
+    const ctrlDir = path.join(fakeTmp, 'b-ctrl');
+    fs.mkdirSync(ctrlDir, { recursive: true });
+    const controlPath = path.join(ctrlDir, 'bun');
+    fs.writeFileSync(controlPath, '');
+    const poisonedDir = path.join(fakeTmp, `b-poison${HOSTILE_NAMES.LF}evil`);
+    fs.mkdirSync(poisonedDir, { recursive: true });
+    const entries = fs.readdirSync(fakeTmp);
+    assert.ok(entries.some((e) => e.includes('b-poison') && e.includes('\n')), `hostile ancestor directory did not preserve the embedded LF\nentries: ${JSON.stringify(entries)}`);
+    const poisonedPath = path.join(poisonedDir, 'bun');
+    fs.writeFileSync(poisonedPath, '');
+
+    const r = runMiasmaTmpHarness(fakeTmp);
+    const lines = bunFailLines(r.stdout);
+    assert.ok(lines.includes(controlPath), `missing the benign positive control\ncontrol: ${JSON.stringify(controlPath)}\nlines: ${JSON.stringify(lines)}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`);
+    const sanitizedPoisoned = poisonedPath.replace(HOSTILE_NAMES.LF, '�');
+    assert.ok(lines.includes(sanitizedPoisoned), `missing the poisoned entry (sanitized) in full\nexpected: ${JSON.stringify(sanitizedPoisoned)}\nlines: ${JSON.stringify(lines)}\nstdout:\n${r.stdout}`);
+    assert.equal(lines.length, 2, `expected exactly 2 MIASMA_BUN fail lines (control + poisoned), found ${lines.length}\nlines: ${JSON.stringify(lines)}`);
+    const [fragPrefix, fragSuffix] = poisonedPath.split(HOSTILE_NAMES.LF);
+    assert.ok(!lines.includes(fragPrefix), `phantom PREFIX fragment reported as a standalone fail line\nfragment: ${JSON.stringify(fragPrefix)}\nlines: ${JSON.stringify(lines)}`);
+    assert.ok(!lines.includes(fragSuffix), `phantom SUFFIX fragment reported as a standalone fail line\nfragment: ${JSON.stringify(fragSuffix)}\nlines: ${JSON.stringify(lines)}`);
+  });
+
+  it('MIASMA_JS (find /tmp, function-level harness): a /tmp/p<LF-basename>.js path does not fragment the report -- both the benign control and the poisoned (sanitized) path are reported exactly once each, no phantom fragment lines', () => {
+    const fakeTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-miasma-js-'));
+    built.push(fakeTmp);
+    const controlPath = path.join(fakeTmp, 'pctrl.js');
+    fs.writeFileSync(controlPath, '');
+    const poisonedPath = writeHostile(fakeTmp, `p${HOSTILE_NAMES.LF}evil.js`, '');
+
+    const r = runMiasmaTmpHarness(fakeTmp);
+    const lines = jsFailLines(r.stdout);
+    assert.ok(lines.includes(controlPath), `missing the benign positive control\ncontrol: ${JSON.stringify(controlPath)}\nlines: ${JSON.stringify(lines)}\nstdout:\n${r.stdout}\nstderr:\n${r.stderr}`);
+    const sanitizedPoisoned = poisonedPath.replace(HOSTILE_NAMES.LF, '�');
+    assert.ok(lines.includes(sanitizedPoisoned), `missing the poisoned entry (sanitized) in full\nexpected: ${JSON.stringify(sanitizedPoisoned)}\nlines: ${JSON.stringify(lines)}\nstdout:\n${r.stdout}`);
+    assert.equal(lines.length, 2, `expected exactly 2 MIASMA_JS fail lines (control + poisoned), found ${lines.length}\nlines: ${JSON.stringify(lines)}`);
+    const [fragPrefix, fragSuffix] = poisonedPath.split(HOSTILE_NAMES.LF);
+    assert.ok(!lines.includes(fragPrefix), `phantom PREFIX fragment reported as a standalone fail line\nfragment: ${JSON.stringify(fragPrefix)}\nlines: ${JSON.stringify(lines)}`);
+    assert.ok(!lines.includes(fragSuffix), `phantom SUFFIX fragment reported as a standalone fail line\nfragment: ${JSON.stringify(fragSuffix)}\nlines: ${JSON.stringify(lines)}`);
+  });
+});
+
 describe('shai-hulud source-level guard: printf "%b" fully removed, FOLDEROPEN_FILES deleted, tasks.json enumeration NUL-delimited (SCAN-02, D-11/D-12, G-1549)', () => {
   // Runs without a hasBash guard -- reading source text needs no bash.
   const src = fs.readFileSync(SCRIPT, 'utf8');
@@ -762,5 +968,41 @@ describe('shai-hulud source-level guard: printf "%b" fully removed, FOLDEROPEN_F
       .join('\n');
     assert.ok(/-print0/.test(section), `expected a -print0 flag on the tasks.json find in Section 2 (comment-stripped)\n${section}`);
     assert.ok(/read\s+-r\s+-d\s+''/.test(section), `expected a read -r -d '' (empty-string delimiter) in Section 2 (comment-stripped)\n${section}`);
+  });
+
+  // WR-01 gap closure (19-REVIEW.md): the three Section 1 accumulators
+  // pinned by MARKER TEXT (comment/variable-name-adjacent), never by line
+  // number -- consistent with every other source-level guard this phase
+  // adds, and necessary here because the fix itself shifts line numbers.
+  it('KITTY_LA (grep -lir) is NUL-delimited: --null on the producer (never bare -Z), -d \'\' on the read (WR-01)', () => {
+    const sectionMatch = src.match(/LA_DIR="\$HOME\/Library\/LaunchAgents"[\s\S]*?(?=\n# Miasma Wave D \(June 1, 2026\))/);
+    assert.ok(sectionMatch, 'could not extract the KITTY_LA block from the script -- source drifted, fix the extraction regex before trusting this guard');
+    const section = sectionMatch[0]
+      .split('\n')
+      .filter((l) => !/^\s*#/.test(l))
+      .join('\n');
+    assert.ok(/grep -lir --null "kitty"/.test(section), `expected grep -lir --null "kitty" on the KITTY_LA producer (comment-stripped)\n${section}`);
+    assert.ok(!/(^|[^-])-Z(\s|$)/.test(section), `found a bare -Z flag -- BSD grep on macOS accepts -Z, exits 0, and still emits NEWLINE-delimited records (measured 2026-08-17, same asymmetry as 19-08-SUMMARY.md's break-proof 5); use --null instead\n${section}`);
+    assert.ok(/read\s+-r\s+-d\s+''/.test(section), `expected a read -r -d '' (empty-string delimiter) on the KITTY_LA read (comment-stripped)\n${section}`);
+  });
+
+  it('MIASMA_BUN and MIASMA_JS (find /tmp) are both NUL-delimited: -print0 on each producer, -d \'\' on each read (WR-01)', () => {
+    const sectionMatch = src.match(/# Miasma Wave D \(June 1, 2026\) IOC: Bun binary in \/tmp\/b-\*\/[\s\S]*?(?=\nsection "2\.)/);
+    assert.ok(sectionMatch, 'could not extract the MIASMA_BUN/MIASMA_JS block from the script -- source drifted, fix the extraction regex before trusting this guard');
+    const section = sectionMatch[0]
+      .split('\n')
+      .filter((l) => !/^\s*#/.test(l))
+      .join('\n');
+    // Positive control: the real script still targets the literal host
+    // /tmp (never $TMPDIR) -- this fix converts the RECORD DELIMITER, not
+    // the search location; the test harness's own FAKE_TMP substitution is
+    // a test-only isolation mechanism (see this describe block's header
+    // comment) and must never leak into the asserted-against SCRIPT source.
+    const findTmpCount = (section.match(/find \/tmp -maxdepth/g) || []).length;
+    assert.equal(findTmpCount, 2, `expected exactly 2 "find /tmp -maxdepth" invocations (MIASMA_BUN, MIASMA_JS) still targeting the real host /tmp, found ${findTmpCount}\n${section}`);
+    const print0Count = (section.match(/-print0/g) || []).length;
+    assert.equal(print0Count, 2, `expected exactly 2 -print0 flags (one per find: MIASMA_BUN, MIASMA_JS), found ${print0Count} (comment-stripped)\n${section}`);
+    const readDCount = (section.match(/read\s+-r\s+-d\s+''/g) || []).length;
+    assert.equal(readDCount, 2, `expected exactly 2 read -r -d '' (empty-string delimiter) reads, found ${readDCount} (comment-stripped)\n${section}`);
   });
 });
