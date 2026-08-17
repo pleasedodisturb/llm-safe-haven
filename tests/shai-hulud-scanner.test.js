@@ -343,6 +343,33 @@ describe('scan-shai-hulud-may2026.sh -- report integrity, fail()/reprint + both 
     assert.equal(failCount, reprintCount, `live [FAIL] count (${failCount}) vs reprint "  - " count (${reprintCount})\n${res.stdout}`);
   });
 
+  // Coverage-gap fix, found during Task 3's break-proof 2 (mirrors g747's
+  // corpus-vehicle lesson, 19-03-SUMMARY.md): a real ESC/CR/C1 byte is
+  // already stripped by the ACCUMULATOR's sanitize_for_terminal call before
+  // the print site ever runs, so an ESC-based case cannot discriminate the
+  // print site's OWN `printf '%s'` vs `printf "%b"` format -- reverting only
+  // the print format (leaving the accumulator's sanitize call untouched)
+  // left every ESC-based case in this file passing, catching nothing.
+  // sanitize_for_terminal only strips control BYTES ([[:cntrl:]]); a literal,
+  // printable 2-character backslash-n sequence survives it unchanged and IS
+  // bash printf's %b escape-processor's exact target -- the same corpus
+  // vehicle g747's XOR_HITS site uses for the identical reason.
+  it('shell-history hit-list (site ~377): a beacon-literal line carrying a literal two-character backslash-n gains no fabricated extra line', () => {
+    const home = newHome(built, (h, p) => {
+      write(p('.zsh_history'), 'echo visiting m-kosche\\n now\n');
+    });
+    const { res } = run(built, home);
+    assert.equal(res.status, 1, res.stdout);
+    const block = extractHistHitBlock(res.stdout);
+    const hitLines = block.split('\n').filter((l) => /^\s*\d+:/.test(l));
+    assert.equal(
+      hitLines.length,
+      1,
+      `expected exactly 1 numbered hit line (the literal backslash-n must not be escape-processed into a fabricated extra line)\nlines: ${JSON.stringify(hitLines)}\nblock: ${JSON.stringify(block)}`
+    );
+    assert.ok(block.includes('m-kosche\\n now'), `expected the literal backslash-n sequence to survive verbatim\n${JSON.stringify(block)}`);
+  });
+
   it('both hit-list blocks preserve their sed \'s/^/      /\' six-space indentation on a benign multi-match fixture', () => {
     const home = newHome(built, (h, p) => {
       write(p('.zshrc'), 'echo kitty is a friendly monitor in this line\necho totally unrelated m-kosche mention\n');
