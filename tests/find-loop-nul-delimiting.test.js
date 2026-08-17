@@ -199,27 +199,33 @@ function assertLoopDiscrimination(items, controlItem, poisonedItem, poisonedOrig
   assert.ok(!items.includes(fragSuffix), `${label}: phantom SUFFIX fragment reported as a standalone entry\nfragment: ${JSON.stringify(fragSuffix)}\nitems: ${JSON.stringify(items)}`);
 }
 
-// The two lockfile loops (miasma:507, shai-hulud:557) dump `$lockfile` via
-// a DIRECT, UNSANITIZED `printf "  FILE: %s\n" "$lockfile"` -- never
-// through fail()/warn()/info()/pass()'s sanitize_for_terminal capture.
-// That is a deliberate, out-of-scope-for-this-plan property (these are two
-// of the "22 direct content-print sites" 19-06-SUMMARY.md and this plan's
-// own threat register defer to 19-09-PLAN.md/19-10-PLAN.md) -- so a real
-// LF embedded in the poisoned path is printed LITERALLY, not replaced with
-// U+FFFD, and the printed representation therefore spans what LOOKS like
-// two physical terminal lines even after the delimiter fix. A line-based
+// The two lockfile loops (miasma:507, shai-hulud:557) dump `$lockfile` via a
+// DIRECT `printf "  FILE: %s\n" "$lockfile"` -- never through
+// fail()/warn()/info()/pass()'s sanitize_for_terminal capture. At the time
+// this plan (19-08) landed, that print was UNSANITIZED at both sites (a
+// deliberate, out-of-scope-for-19-08 property, deferred to
+// 19-09-PLAN.md/19-10-PLAN.md's content-print class). 19-09-PLAN.md closes
+// the gap for MIASMA specifically (its "$lockfile"/"$pkg" values now route
+// through sanitize_for_terminal); shai-hulud's equivalent site remains open
+// until 19-10-PLAN.md. So this function takes the EXPECTED marker path as a
+// parameter rather than deriving it from the raw on-disk path internally --
+// the miasma call site below passes the SANITIZED representation (LF -> U+FFFD),
+// the shai-hulud call site still passes the raw, unsanitized one. A real LF
+// in an UNSANITIZED path prints LITERALLY and spans what LOOKS like two
+// physical terminal lines even after the delimiter fix -- a line-based
 // extraction (assertLoopDiscrimination's `items`) cannot see that as one
-// entry; a whole-stdout substring match can, because printf still writes
-// the bytes contiguously. This function asserts LOOP COMPLETENESS only
-// (the record was read whole, not split at read()-time) -- it does not,
-// and must not, assert sanitization, which is genuinely out of scope here.
-function assertLockfileLoopCompleteness(stdout, controlPath, poisonedPath, label) {
+// entry; a whole-stdout substring match can, because printf still writes the
+// bytes contiguously. This function asserts LOOP COMPLETENESS (the record
+// was read whole, not split at read()-time) for BOTH scripts, and correctness
+// of the CALLER-SUPPLIED marker representation (sanitized or not, per the
+// caller's own scope) -- it does not re-derive sanitization state itself.
+function assertLockfileLoopCompleteness(stdout, controlPath, expectedPoisonedMarkerPath, label) {
   const controlMarker = `  FILE: ${controlPath}`;
-  const poisonedMarker = `  FILE: ${poisonedPath}`;
+  const poisonedMarker = `  FILE: ${expectedPoisonedMarkerPath}`;
   assert.ok(stdout.includes(controlMarker), `${label}: missing the benign positive control\n${stdout}`);
   assert.ok(
     stdout.includes(poisonedMarker),
-    `${label}: missing the poisoned entry IN FULL (raw, unsanitized by design -- this direct content-print site's sanitization is 19-09/19-10's scope, not this plan's; only read-loop completeness is asserted here)\n${stdout}`
+    `${label}: missing the poisoned entry IN FULL (expected representation: ${JSON.stringify(expectedPoisonedMarkerPath)}) -- only read-loop completeness plus the caller's own expected marker are asserted here\n${stdout}`
   );
   const count = (stdout.match(/ {2}FILE: /g) || []).length;
   assert.equal(count, 2, `${label}: expected exactly 2 "  FILE: " entries (control + poisoned) -- pre-fix this loop SILENTLY DROPS the poisoned entry (existence-gated: grep on a garbage read()-split fragment path fails silently), so a count of 1 means the split still happens. Found ${count}\n${stdout}`);
@@ -609,7 +615,10 @@ describe('scan-miasma-june2026.sh -- 6 read loops (D-12/D-13, G-1549)', { skip: 
 
     const r = runMiasma(home);
     assert.equal(r.status, 1, r.stdout);
-    assertLockfileLoopCompleteness(r.stdout, controlPath, poisonedPath, 'miasma lockfile sweep');
+    // 19-09-PLAN.md sanitizes miasma's lockfile FILE:/PKG: append -- the
+    // ancestor-dir LF is now replaced with U+FFFD, not printed raw.
+    const sanitizedPoisoned = poisonedPath.replace(HOSTILE_NAMES.LF, '�');
+    assertLockfileLoopCompleteness(r.stdout, controlPath, sanitizedPoisoned, 'miasma lockfile sweep');
   });
 
   it('miasma clean tree: exit 0, ALL CLEAR, still true after the NUL-delimiting conversion', () => {

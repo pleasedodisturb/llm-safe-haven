@@ -107,6 +107,46 @@ sanitize_for_terminal() {
   printf '%s' "${1//[[:cntrl:]]/�}"
 }
 
+# sanitize_block_for_terminal -- LINE-PRESERVING sibling of sanitize_for_terminal,
+# for MULTI-LINE MATCHED FILE CONTENT only (19-09-PLAN.md/19-10-PLAN.md, SCAN-01,
+# D-01/D-02). Never call this on a single path/value -- a path is ONE value that
+# may itself contain an embedded newline byte; splitting it on that byte and
+# indenting each half would corrupt the exact bytes this phase exists to keep
+# intact (this script's `_emit_section_findings` marker-string arm below carries
+# this same reasoning as a code comment -- read it before choosing a function
+# per site).
+#
+# Four load-bearing properties, each required by a drift-guard assertion:
+#  1. The locale MUST be forced via a function-scoped `local`, never a
+#     command-prefix assignment -- same measured refutation as
+#     sanitize_for_terminal above (bash 3.2.57/5.3.15, review R1-1): the
+#     prefix form never reaches the substitution and leaves C1 unstripped.
+#  2. LF is PRESERVED as a record separator, but NOT because the character
+#     class below excludes it -- the class is BYTE-IDENTICAL to
+#     sanitize_for_terminal's [[:cntrl:]] class. `read` consumes each line's
+#     trailing LF as a boundary BEFORE the substitution ever runs, so $line
+#     can never contain LF. Do not "unify" the two functions by carving LF
+#     out of the shared class -- a reviewer proposed exactly that and it was
+#     rejected (19-03-PLAN.md): the g747 accumulators append one path per
+#     loop iteration and have nothing to collapse.
+#  3. TAB (0x09) becomes U+FFFD, consistently with the canonical Node
+#     sanitizeForTerminal()'s class -- an accepted, tested trade-off (D-05),
+#     not an oversight: indented JSON in a matched block renders with U+FFFD
+#     in place of its tabs, and the operator SEES that something was
+#     stripped. A TAB exception would fork this class from the canonical one
+#     and break the drift guard's class-parity assertion.
+#  4. Defined byte-identically in all four scanner scripts (pinned by the
+#     drift guard), even in the three that do not yet call it this wave --
+#     19-10-PLAN.md wires the remaining call sites in the next wave. Do not
+#     "clean up" an apparently-unused copy between waves.
+sanitize_block_for_terminal() {
+  local LC_ALL=C.UTF-8 line out=""
+  while IFS= read -r line; do
+    out="${out}${line//[[:cntrl:]]/�}"$'\n'
+  done <<< "$1"
+  printf '%s' "$out"
+}
+
 pass() {
   local msg
   msg="$(sanitize_for_terminal "$1")"
