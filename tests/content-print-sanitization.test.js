@@ -410,12 +410,10 @@ describe('scan-miasma-june2026.sh -- content-print class report integrity (SCAN-
     const { home } = buildUnknownFixture(built, ESC);
     const r = runMiasma(home);
     assert.match(r.stdout, /auto-runs an unrecognized command/, `expected the unrecognized-command WARN\n${r.stdout}`);
-    const lines = extractFindingsBlockLines(r.stdout);
     const indented = (r.stdout.match(/^ {9}\S/gm) || []).length;
     assert.ok(indented >= 3, `expected at least 3 indented matched lines (collapse detector)\n${r.stdout}`);
     noRawByte(r.stdout, 0x1b, 'ESC (0x1B)');
     assert.ok(r.stdout.includes('�'), `expected U+FFFD replacement\n${r.stdout}`);
-    void lines;
   });
 
   it('site 5 (settings-hook M, .claude/settings.json curl|bash pattern): a real ESC in a matched command is stripped, block is byte-stable across 3 lines', () => {
@@ -530,10 +528,6 @@ describe('scan-miasma-june2026.sh -- content-print class report integrity (SCAN-
     assert.ok(!r.stdout.includes('Findings:'), `unexpected Findings: block on a clean tree\n${r.stdout}`);
   });
 });
-
-function extractFindingsBlockLines(stdout) {
-  return extractFindingsBlock(stdout).split('\n');
-}
 
 // ===========================================================================
 // 19-10-PLAN.md: the remaining 12 sites (shai-hulud 7, chaindrop 4, g747 1).
