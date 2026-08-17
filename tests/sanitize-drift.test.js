@@ -308,32 +308,17 @@ describe('D-09: bash <-> Node sanitize_for_terminal() drift guard (SCAN-01, G-15
     }
   });
 
-  // KNOWN, DISCLOSED GAP -- see the file header comment and G-1640. miasma
-  // (19-01, tracer) and shai-hulud (19-04) already carry the full
-  // asymmetry-documenting text; chaindrop (19-02) and g747 (19-03) do not
-  // yet. Fixing those two scripts is out of this plan's scope (19-07's
-  // Task 2 explicitly forbids editing sibling-plan-owned scripts) -- routed
-  // to G-1640 instead of silently normalized here or left as a hard,
-  // whole-suite-breaking failure.
+  // G-1640 CLOSED (19-09-PLAN.md fold-in): all four scripts now carry the
+  // full asymmetry-documenting text above sanitize_for_terminal() -- miasma
+  // (19-01, tracer) and shai-hulud (19-04) always had it; chaindrop (19-02)
+  // and g747 (19-03) gained it here, comment-only (function bodies stay
+  // byte-identical, pinned separately above). No skip needed any more.
   for (const name of ['miasma', 'shaiHulud', 'chaindrop', 'g747']) {
-    const alreadyDocumented = name === 'miasma' || name === 'shaiHulud';
-    it(
-      `${name}: documenting comment mentions the format/bidi (RLO/U+202E) asymmetry and the lone-0x9B asymmetry`,
-      {
-        skip: alreadyDocumented
-          ? false
-          : `KNOWN GAP (G-1640): ${name}'s comment above sanitize_for_terminal() does not yet mention ` +
-            'the format/bidi or lone-0x9B asymmetries (only the byte-identical FUNCTION BODY is pinned ' +
-            'for this script, and that pin passes). This is not a violation of the plan that landed this ' +
-            'script (19-02/19-03) -- the requirement is introduced fresh by 19-07. Fix routed to G-1640; ' +
-            'un-skip this case once G-1640 lands.',
-      },
-      () => {
-        const win = extractDocCommentWindow(SCRIPT_PATHS[name]);
-        assert.match(win, /format\/bidi|RLO|202E/i, `${name}: documenting comment does not mention the format/bidi asymmetry`);
-        assert.match(win, /0x9B|lone.*byte/i, `${name}: documenting comment does not mention the lone-0x9B asymmetry`);
-      }
-    );
+    it(`${name}: documenting comment mentions the format/bidi (RLO/U+202E) asymmetry and the lone-0x9B asymmetry`, () => {
+      const win = extractDocCommentWindow(SCRIPT_PATHS[name]);
+      assert.match(win, /format\/bidi|RLO|202E/i, `${name}: documenting comment does not mention the format/bidi asymmetry`);
+      assert.match(win, /0x9B|lone.*byte/i, `${name}: documenting comment does not mention the lone-0x9B asymmetry`);
+    });
   }
 });
 

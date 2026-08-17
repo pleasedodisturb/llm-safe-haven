@@ -96,6 +96,17 @@ INCOMPLETE=0
 # asserts all four scanner copies stay byte-identical, so do not "tidy"
 # anything here, including the locale declaration below.
 #
+# Deliberate, tested asymmetries (not oversights): Unicode format/bidi
+# points (U+202E RLO) are NOT stripped on glibc -- [[:cntrl:]] reaches
+# category Cc only, never Cf (measured, 5 locales, Ubuntu 22.04/24.04;
+# Darwin's libc DOES strip U+202E). A LONE 0x9B byte (not the valid c2 9b
+# pair) also survives glibc in every locale; closing it needs a raw
+# 0x80-0x9F byte pass, which corrupts every CJK path (e.g. "服"=e6 9c 8d)
+# the same way `tr` did. Both pinned by a Linux-gated test, 19-07-PLAN.md.
+# (G-1640: this paragraph was missing from this script until 19-09-PLAN.md's
+# fold-in task -- comment-only addition, the function body above is
+# untouched and stays byte-identical.)
+#
 # The locale MUST be forced via a function-scoped `local`, never a
 # command-prefix assignment (`LC_ALL=C.UTF-8 printf ...`): POSIX expands a
 # simple command's words BEFORE its assignment prefixes, so the prefix form
