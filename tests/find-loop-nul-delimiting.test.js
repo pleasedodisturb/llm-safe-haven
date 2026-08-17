@@ -199,11 +199,37 @@ function assertLoopDiscrimination(items, controlItem, poisonedItem, poisonedOrig
   assert.ok(!items.includes(fragSuffix), `${label}: phantom SUFFIX fragment reported as a standalone entry\nfragment: ${JSON.stringify(fragSuffix)}\nitems: ${JSON.stringify(items)}`);
 }
 
+// The two lockfile loops (miasma:507, shai-hulud:557) dump `$lockfile` via
+// a DIRECT, UNSANITIZED `printf "  FILE: %s\n" "$lockfile"` -- never
+// through fail()/warn()/info()/pass()'s sanitize_for_terminal capture.
+// That is a deliberate, out-of-scope-for-this-plan property (these are two
+// of the "22 direct content-print sites" 19-06-SUMMARY.md and this plan's
+// own threat register defer to 19-09-PLAN.md/19-10-PLAN.md) -- so a real
+// LF embedded in the poisoned path is printed LITERALLY, not replaced with
+// U+FFFD, and the printed representation therefore spans what LOOKS like
+// two physical terminal lines even after the delimiter fix. A line-based
+// extraction (assertLoopDiscrimination's `items`) cannot see that as one
+// entry; a whole-stdout substring match can, because printf still writes
+// the bytes contiguously. This function asserts LOOP COMPLETENESS only
+// (the record was read whole, not split at read()-time) -- it does not,
+// and must not, assert sanitization, which is genuinely out of scope here.
+function assertLockfileLoopCompleteness(stdout, controlPath, poisonedPath, label) {
+  const controlMarker = `  FILE: ${controlPath}`;
+  const poisonedMarker = `  FILE: ${poisonedPath}`;
+  assert.ok(stdout.includes(controlMarker), `${label}: missing the benign positive control\n${stdout}`);
+  assert.ok(
+    stdout.includes(poisonedMarker),
+    `${label}: missing the poisoned entry IN FULL (raw, unsanitized by design -- this direct content-print site's sanitization is 19-09/19-10's scope, not this plan's; only read-loop completeness is asserted here)\n${stdout}`
+  );
+  const count = (stdout.match(/ {2}FILE: /g) || []).length;
+  assert.equal(count, 2, `${label}: expected exactly 2 "  FILE: " entries (control + poisoned) -- pre-fix this loop SILENTLY DROPS the poisoned entry (existence-gated: grep on a garbage read()-split fragment path fails silently), so a count of 1 means the split still happens. Found ${count}\n${stdout}`);
+}
+
 // Read the Laravel-Lang XOR key literal FROM THE SCRIPT (never retyped), so
 // this fixture cannot silently stop matching if the literal ever changes.
 function readXorKeyLiteral() {
   const src = fs.readFileSync(SCRIPT_G747, 'utf8');
-  const m = src.match(/grep -rlF "([^"]+)"/);
+  const m = src.match(/grep -rlF(?:\s+--null)? "([^"]+)"/);
   assert.ok(m, 'could not extract the Laravel-Lang XOR key literal from scripts/scan-g747-may22.sh');
   return m[1];
 }
@@ -583,9 +609,7 @@ describe('scan-miasma-june2026.sh -- 6 read loops (D-12/D-13, G-1549)', { skip: 
 
     const r = runMiasma(home);
     assert.equal(r.status, 1, r.stdout);
-    const sanitizedPoisoned = poisonedPath.replace(HOSTILE_NAMES.LF, '�');
-    const items = reportedPaths(r.stdout, '  FILE: ');
-    assertLoopDiscrimination(items, controlPath, sanitizedPoisoned, poisonedPath, HOSTILE_NAMES.LF, 'miasma lockfile sweep');
+    assertLockfileLoopCompleteness(r.stdout, controlPath, poisonedPath, 'miasma lockfile sweep');
   });
 
   it('miasma clean tree: exit 0, ALL CLEAR, still true after the NUL-delimiting conversion', () => {
@@ -639,9 +663,7 @@ describe('scan-shai-hulud-may2026.sh -- 2 read loops (D-12/D-13, G-1549)', { ski
     fs.writeFileSync(poisonedPath, lockContent);
 
     const res = runShaiHulud(home, built);
-    const sanitizedPoisoned = poisonedPath.replace(HOSTILE_NAMES.LF, '�');
-    const items = reportedPaths(res.stdout, '  FILE: ');
-    assertLoopDiscrimination(items, controlPath, sanitizedPoisoned, poisonedPath, HOSTILE_NAMES.LF, 'shai-hulud lockfile sweep');
+    assertLockfileLoopCompleteness(res.stdout, controlPath, poisonedPath, 'shai-hulud lockfile sweep');
   });
 
   it('shai-hulud clean tree: exit 0, ALL CLEAR, still true after the NUL-delimiting conversion', () => {
@@ -686,7 +708,10 @@ describe('grep -Z is never used anywhere in the four scanner scripts (BSD/GNU me
       .split('\n')
       .filter((l) => !/^\s*#/.test(l))
       .join('\n');
-    assert.ok(/grep -rlF "[^"]+"[\s\S]{0,300}--null/.test(stripped), `expected --null on the grep -rlF XOR_HITS producer (comment-stripped)\n${stripped}`);
+    assert.ok(
+      /grep -rlF[\s\S]{0,20}--null "[^"]+"|grep -rlF "[^"]+"[\s\S]{0,300}--null/.test(stripped),
+      `expected --null on the grep -rlF XOR_HITS producer (comment-stripped)\n${stripped}`
+    );
   });
 });
 

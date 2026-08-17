@@ -149,9 +149,11 @@ fi
 GVFSD_HITS=""
 for loc in /tmp /usr/local/bin "$HOME/.local/bin" "$HOME/bin"; do
   [ -d "$loc" ] || continue
-  while IFS= read -r f; do
+  # D-12/D-13 (19-08-PLAN.md): NUL-delimited so a real newline in a
+  # sibling path can never split this record and drop the file after it.
+  while IFS= read -r -d '' f; do
     [ -n "$f" ] && GVFSD_HITS="${GVFSD_HITS}$(sanitize_for_terminal "$f")"$'\n'
-  done < <(find "$loc" -maxdepth 2 -name "gvfsd-network" 2>/dev/null)
+  done < <(find "$loc" -maxdepth 2 -name "gvfsd-network" -print0 2>/dev/null)
 done
 if [ -n "$GVFSD_HITS" ]; then
   fail "gvfsd-network binary found:"
@@ -221,9 +223,10 @@ fi
 
 # DebugChromium.exe Windows artifact — unlikely on macOS but cheap to check
 DEBUG_HITS=""
-while IFS= read -r f; do
+# D-12/D-13 (19-08-PLAN.md): NUL-delimited (see the GVFSD_HITS comment above).
+while IFS= read -r -d '' f; do
   [ -n "$f" ] && DEBUG_HITS="${DEBUG_HITS}$(sanitize_for_terminal "$f")"$'\n'
-done < <(find "$HOME" -maxdepth 4 -name "DebugChromium.exe" 2>/dev/null)
+done < <(find "$HOME" -maxdepth 4 -name "DebugChromium.exe" -print0 2>/dev/null)
 if [ -n "$DEBUG_HITS" ]; then
   fail "DebugChromium.exe Windows artifact found:"
   printf '%s' "$DEBUG_HITS"
@@ -236,11 +239,18 @@ if [ ${#SEARCH_ROOTS[@]} -eq 0 ]; then
   info "No code roots — skipping XOR-key string search"
 else
   XOR_HITS=""
-  while IFS= read -r f; do
+  # D-12/D-13 (19-08-PLAN.md, review R2-2): NUL-delimited via --null, NEVER
+  # -Z. Measured 2026-08-17 against a file whose name embeds a real
+  # newline: BSD grep (macOS) accepts -Z, exits 0, and emits
+  # NEWLINE-delimited records -- silently useless, so a flag-capability
+  # probe would report "supported" while this loop still fails open. GNU
+  # grep treats -Z as an alias for --null and is fine, but --null is
+  # correct on BOTH platforms. Do not "simplify" this to -Z.
+  while IFS= read -r -d '' f; do
     [ -n "$f" ] || continue
     is_excluded "$f" && continue
     XOR_HITS="${XOR_HITS}$(sanitize_for_terminal "$f")"$'\n'
-  done < <(grep -rlF "k9X2mP7vL4nQ8wR1" "${SEARCH_ROOTS[@]}" \
+  done < <(grep -rlF --null "k9X2mP7vL4nQ8wR1" "${SEARCH_ROOTS[@]}" \
               --exclude-dir=node_modules --exclude-dir=.git \
               --exclude-dir=vendor --exclude-dir=.venv --exclude-dir=venv \
               2>/dev/null)
@@ -268,11 +278,12 @@ NXC_INSTALLED=""
 NXC_BAD=""
 for d in "${EXT_DIRS[@]}"; do
   [ -d "$d" ] || continue
-  while IFS= read -r ext; do
+  # D-12/D-13 (19-08-PLAN.md): NUL-delimited (see the GVFSD_HITS comment above).
+  while IFS= read -r -d '' ext; do
     [ -n "$ext" ] || continue
     NXC_INSTALLED="${NXC_INSTALLED}$(sanitize_for_terminal "$ext")"$'\n'
     case "$ext" in *18.95.0*) NXC_BAD="${NXC_BAD}$(sanitize_for_terminal "$ext")"$'\n' ;; esac
-  done < <(find "$d" -maxdepth 1 -type d -name "nrwl.angular-console-*" 2>/dev/null)
+  done < <(find "$d" -maxdepth 1 -type d -name "nrwl.angular-console-*" -print0 2>/dev/null)
 done
 if [ -n "$NXC_BAD" ]; then
   fail "Nx Console v18.95.0 (compromised) installed:"

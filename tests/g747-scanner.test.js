@@ -55,7 +55,7 @@ function runG747(home, extraEnv = {}) {
 // scan-g747-may22.sh's XOR_HITS build site.
 function readXorKeyLiteral() {
   const src = fs.readFileSync(SCRIPT, 'utf8');
-  const m = src.match(/grep -rlF "([^"]+)"/);
+  const m = src.match(/grep -rlF(?:\s+--null)? "([^"]+)"/);
   assert.ok(m, 'could not extract the Laravel-Lang XOR key literal from scripts/scan-g747-may22.sh (grep -rlF pattern not found)');
   return m[1];
 }

@@ -258,9 +258,11 @@ for f in "$HOME/.claude/settings.json" "$HOME/.claude/settings.local.json"; do
   [ -f "$f" ] && SETTINGS_FILES+=("$f")
 done
 for root in "${SEARCH_ROOTS[@]}"; do
-  while IFS= read -r f; do
+  # D-12/D-13 (19-08-PLAN.md): NUL-delimited so a real newline in a
+  # sibling path can never split this record and drop the file after it.
+  while IFS= read -r -d '' f; do
     [ -n "$f" ] && SETTINGS_FILES+=("$f")
-  done < <(find "$root" -type f \( -path '*/.claude/settings.json' -o -path '*/.claude/settings.local.json' \) 2>/dev/null)
+  done < <(find "$root" -type f \( -path '*/.claude/settings.json' -o -path '*/.claude/settings.local.json' \) -print0 2>/dev/null)
 done
 
 # extract_session_start_block: prints just the SessionStart array from a JSON
@@ -538,7 +540,8 @@ else
   : > "$LOCK_HITS_FILE"
 
   # Find all lockfiles, skip node_modules
-  while IFS= read -r lockfile; do
+  # D-12/D-13 (19-08-PLAN.md): NUL-delimited (see the settings.json comment above).
+  while IFS= read -r -d '' lockfile; do
     [ -z "$lockfile" ] && continue
     for pkg in "${COMPROMISED_PKGS[@]}"; do
       # Match "package-name" within the lockfile (quoted form catches both
@@ -554,7 +557,7 @@ else
         printf "\n" >> "$LOCK_HITS_FILE"
       fi
     done
-  done < <(find "${SEARCH_ROOTS[@]}" \( -name node_modules -prune \) -o \( -type f \( -name 'package-lock.json' -o -name 'yarn.lock' -o -name 'pnpm-lock.yaml' \) -print \) 2>/dev/null)
+  done < <(find "${SEARCH_ROOTS[@]}" \( -name node_modules -prune \) -o \( -type f \( -name 'package-lock.json' -o -name 'yarn.lock' -o -name 'pnpm-lock.yaml' \) -print0 \) 2>/dev/null)
 
   if [ -s "$LOCK_HITS_FILE" ]; then
     HIT_LINES=$(grep -c '^  FILE:' "$LOCK_HITS_FILE" || echo 0)

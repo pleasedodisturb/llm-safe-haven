@@ -191,7 +191,9 @@ if [ ${#SEARCH_ROOTS[@]} -eq 0 ]; then
 else
   info "Scanning for binding.gyp under: ${SEARCH_ROOTS[*]}"
   GYP_ANY=0
-  while IFS= read -r gyp; do
+  # D-12/D-13 (19-08-PLAN.md): NUL-delimited so a real newline in a
+  # sibling path can never split this record and drop the file after it.
+  while IFS= read -r -d '' gyp; do
     [ -z "$gyp" ] && continue
     GYP_ANY=1
     pkgdir=$(dirname "$gyp")
@@ -237,7 +239,7 @@ else
         fi
         ;;
     esac
-  done < <(find "${SEARCH_ROOTS[@]}" \( \( "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f -name 'binding.gyp' -print \) 2>/dev/null)
+  done < <(find "${SEARCH_ROOTS[@]}" \( \( "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f -name 'binding.gyp' -print0 \) 2>/dev/null)
 
   if [ "$GYP_ANY" -eq 0 ]; then
     pass "No binding.gyp files found under code roots"
@@ -266,7 +268,8 @@ if [ ${#SEARCH_ROOTS[@]} -eq 0 ]; then
   info "No code roots — skipping workflow scan"
 else
   WF_ANY=0
-  while IFS= read -r wf; do
+  # D-12/D-13 (19-08-PLAN.md): NUL-delimited (see the binding.gyp comment above).
+  while IFS= read -r -d '' wf; do
     [ -z "$wf" ] && continue
     # Skip this scanner's own repo (its workflows are detection data / legit CI).
     if [ -n "$SELF_ROOT" ]; then case "$wf" in "$SELF_ROOT"/*) continue;; esac; fi
@@ -313,7 +316,7 @@ else
        && grep -Eq '^[[:space:]]*run:' "$wf" 2>/dev/null; then
       info "Workflow interpolates github.event.* near run: (review for script injection) — $wf"
     fi
-  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f -path '*/.github/workflows/*' \( -name '*.yml' -o -name '*.yaml' \) -print \) 2>/dev/null)
+  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f -path '*/.github/workflows/*' \( -name '*.yml' -o -name '*.yaml' \) -print0 \) 2>/dev/null)
 
   if [ "$WF_ANY" -eq 0 ]; then
     pass "No GitHub Actions workflow files found under code roots"
@@ -338,7 +341,8 @@ if [ ${#SEARCH_ROOTS[@]} -eq 0 ]; then
   info "No code roots — skipping tasks.json scan"
 else
   TASK_ANY=0
-  while IFS= read -r f; do
+  # D-12/D-13 (19-08-PLAN.md): NUL-delimited (see the binding.gyp comment above).
+  while IFS= read -r -d '' f; do
     [ -z "$f" ] && continue
     grep -lq '"runOn"[[:space:]]*:[[:space:]]*"folderOpen"' "$f" 2>/dev/null || continue
     TASK_ANY=1
@@ -358,7 +362,7 @@ else
     else
       info "tasks.json runOn:folderOpen with recognized dev command — $f"
     fi
-  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f -path '*/.vscode/tasks.json' -print \) 2>/dev/null)
+  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f -path '*/.vscode/tasks.json' -print0 \) 2>/dev/null)
 
   if [ "$TASK_ANY" -eq 0 ]; then
     pass "No tasks.json files with runOn:folderOpen found"
@@ -394,9 +398,10 @@ for f in "$HOME/.claude/settings.json" "$HOME/.claude/settings.local.json"; do
 done
 if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
   for root in "${SEARCH_ROOTS[@]}"; do
-    while IFS= read -r f; do
+    # D-12/D-13 (19-08-PLAN.md): NUL-delimited (see the binding.gyp comment above).
+    while IFS= read -r -d '' f; do
       [ -n "$f" ] && SETTINGS_FILES+=("$f")
-    done < <(find "$root" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -path '*/.claude/settings.json' -o -path '*/.claude/settings.local.json' \) -print \) 2>/dev/null)
+    done < <(find "$root" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -path '*/.claude/settings.json' -o -path '*/.claude/settings.local.json' \) -print0 \) 2>/dev/null)
   done
 fi
 
@@ -436,7 +441,8 @@ fi
 section "4b. Cursor / agent rules files (instruction injection)"
 RULES_FOUND=0
 if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
-  while IFS= read -r rf; do
+  # D-12/D-13 (19-08-PLAN.md): NUL-delimited (see the binding.gyp comment above).
+  while IFS= read -r -d '' rf; do
     [ -z "$rf" ] && continue
     RULES_FOUND=1
     # Zero-width / bidi / tag chars (high signal — legit rules are plain text).
@@ -450,7 +456,7 @@ if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
     if grep -Eiq 'ignore (all |the )?previous instructions|you are now|exfiltrat|send .*(secret|token|credential)|run this (command|silently)|disable (safety|security)' "$rf" 2>/dev/null; then
       warn "Rules file contains injection-style imperatives — review: $rf"
     fi
-  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -name '.cursorrules' -o -name '.clinerules' -o -path '*/.cursor/rules/*.mdc' \) -print \) 2>/dev/null)
+  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -name '.cursorrules' -o -name '.clinerules' -o -path '*/.cursor/rules/*.mdc' \) -print0 \) 2>/dev/null)
 fi
 [ "$RULES_FOUND" -eq 0 ] && info "No Cursor/Cline rules files found under code roots"
 
@@ -494,7 +500,8 @@ fi
 if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
   LOCK_HITS=$(mktemp -t miasma-lock-hits.XXXXXX)
   : > "$LOCK_HITS"
-  while IFS= read -r lockfile; do
+  # D-12/D-13 (19-08-PLAN.md): NUL-delimited (see the binding.gyp comment above).
+  while IFS= read -r -d '' lockfile; do
     [ -z "$lockfile" ] && continue
     for pkg in "${COMPROMISED_PKGS[@]}"; do
       pkg_for_grep=$(printf '%s' "$pkg" | sed 's/[.[\*^$()+?{|/]/\\&/g')
@@ -504,7 +511,7 @@ if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
         printf "%s\n\n" "$M" | sed 's/^/    /' >> "$LOCK_HITS"
       fi
     done
-  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -name 'package-lock.json' -o -name 'yarn.lock' -o -name 'pnpm-lock.yaml' \) -print \) 2>/dev/null)
+  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -name 'package-lock.json' -o -name 'yarn.lock' -o -name 'pnpm-lock.yaml' \) -print0 \) 2>/dev/null)
   if [ -s "$LOCK_HITS" ]; then
     N=$(grep -c '^  FILE:' "$LOCK_HITS" || echo 0)
     fail "$N lockfile/package combination(s) reference compromised packages"
