@@ -796,3 +796,66 @@ describe('computeScorecardLevel — the fourth env parameter fails closed on omi
     assert.ok(caps.some((c) => c.id === 'env-incomplete'), `expected an env-incomplete cap, got: ${JSON.stringify(caps)}`);
   });
 });
+
+// ---------------------------------------------------------------------
+// D-20-03 (G-1621): audit follows scan on the zero-default-root state.
+// scanForEnvFilesDetailed() (lib/scan.js) already produces this shape as
+// of plan 20-01 -- audit() consumes it through the same stubbed
+// scanForEnvFilesDetailed() every other test in this file uses, so this
+// coverage PASSES the moment it is written (no behaviour here is new).
+// That is not a TDD violation: the sensitivity proof is the break-proof
+// (Task 3 of 20-03-PLAN.md, recorded in 20-03-SUMMARY.md), not a RED
+// commit for this describe.
+// ---------------------------------------------------------------------
+describe('D-20-03 (G-1621): audit follows scan on the zero-default-root state', () => {
+  const { NO_SCAN_ROOT_CAUSE } = require('../lib/roots.js');
+
+  // The exact shape 20-01's scanForEnvFilesDetailed() returns when zero
+  // default roots resolved and the cwd did not look like a project: no
+  // files, incomplete, and rootResolution.unresolved -- read from the
+  // real module rather than retyped, so a future rename of the shape is
+  // caught here too.
+  const zeroRootEnvDetail = {
+    files: [], incomplete: true, anomalyCount: 0,
+    anomalyReasons: { unreadable: 0, budget: 0 },
+    rootFailures: { missing: 0, unreadable: 0 },
+    rootResolution: { unresolved: true, cwdFallback: null },
+  };
+
+  beforeEach(() => {
+    currentBuildEnvelope = () => Promise.resolve(envelope());
+    currentAgents = [fakeAgent()];
+    currentEnvFiles = [];
+    currentEnvIncomplete = false;
+    currentEnvDetail = undefined;
+  });
+
+  it('the human render prints no green check and the no-scan-root cause, through the real renderer', async () => {
+    currentEnvDetail = zeroRootEnvDetail;
+    const { logs, result } = await captureLog(() => audit({}));
+    assert.ok(!logs.some((l) => l.includes('No .env files found')), `no captured line may print the green check, got: ${logs.join('\n')}`);
+    assert.ok(logs.some((l) => l.includes(NO_SCAN_ROOT_CAUSE)), `expected the no-scan-root cause on stdout, got: ${logs.join('\n')}`);
+    assert.equal(result.code, 2, 'a zero-root, non-project run must exit 2 through audit');
+  });
+
+  it('audit --json ties EXIT-04\'s no-root cause to EXIT-05\'s env-incomplete cap in one record', async () => {
+    currentEnvDetail = zeroRootEnvDetail;
+    const out = JSON.parse((await captureLog(() => audit({ json: true }))).logs.join('\n'));
+    assert.equal(out.envIncomplete, true);
+    assert.ok(out.envCauses.includes('no-root'), `expected 'no-root' in envCauses, got: ${JSON.stringify(out.envCauses)}`);
+    assert.ok(out.overallLevel <= 2, `overallLevel must be capped at 2, got ${out.overallLevel}`);
+    assert.ok(out.levelCaps.some((c) => c.id === 'env-incomplete'), `expected an env-incomplete levelCaps entry, got: ${JSON.stringify(out.levelCaps)}`);
+  });
+
+  it('PAIRED CONTROL: a complete, clean env detail prints the green check and exits per the normal contract', async () => {
+    currentEnvDetail = {
+      files: [], incomplete: false, anomalyCount: 0,
+      anomalyReasons: { unreadable: 0, budget: 0 },
+      rootFailures: { missing: 0, unreadable: 0 },
+      rootResolution: { unresolved: false, cwdFallback: null },
+    };
+    const { logs, result } = await captureLog(() => audit({}));
+    assert.ok(logs.some((l) => l.includes('No .env files found')), 'the green line must print for a complete, clean env scan');
+    assert.equal(result.code, 0);
+  });
+});

@@ -218,3 +218,45 @@ describe('EXIT-05 (G-1623): install() renders the capped level under an incomple
     assert.ok(!logs.some((l) => /Level capped at/.test(l)), 'no cap line must print for a complete, clean env scan');
   });
 });
+
+// D-20-03 (G-1621): install follows scan on the zero-default-root state.
+// install() has no exit code of its own -- its render IS its verdict
+// channel -- so "no green check" is the entire contract here. This
+// coverage passes the moment it is written (lib/scan.js already produces
+// the shape as of plan 20-01); the sensitivity proof is Task 3's
+// break-proof 5, recorded in 20-03-SUMMARY.md, not a RED commit.
+describe('D-20-03 (G-1621): install follows scan on the zero-default-root state', () => {
+  const { NO_SCAN_ROOT_CAUSE } = require('../lib/roots.js');
+
+  beforeEach(() => {
+    currentBuildEnvelope = () => Promise.resolve(envelope());
+    currentAgents = [fakeAgent()];
+    currentEnvFiles = [];
+    currentEnvIncomplete = false;
+    currentEnvDetail = undefined;
+  });
+
+  it('still bare-returns while printing no green check and the no-scan-root cause', async () => {
+    currentEnvDetail = {
+      files: [], incomplete: true, anomalyCount: 0,
+      anomalyReasons: { unreadable: 0, budget: 0 },
+      rootFailures: { missing: 0, unreadable: 0 },
+      rootResolution: { unresolved: true, cwdFallback: null },
+    };
+    const { logs, result } = await captureLog(() => install({}));
+    assert.equal(result, undefined, 'install() still bare-returns -- it has no exit code of its own');
+    assert.ok(!logs.some((l) => l.includes('No .env files found')), `no captured line may print the green check, got: ${logs.join('\n')}`);
+    assert.ok(logs.some((l) => l.includes(NO_SCAN_ROOT_CAUSE)), `expected the no-scan-root cause on stdout, got: ${logs.join('\n')}`);
+  });
+
+  it('PAIRED CONTROL: a complete, clean env detail prints the green check as usual', async () => {
+    currentEnvDetail = {
+      files: [], incomplete: false, anomalyCount: 0,
+      anomalyReasons: { unreadable: 0, budget: 0 },
+      rootFailures: { missing: 0, unreadable: 0 },
+      rootResolution: { unresolved: false, cwdFallback: null },
+    };
+    const { logs } = await captureLog(() => install({}));
+    assert.ok(logs.some((l) => l.includes('No .env files found')), 'the green line must print for a complete, clean env scan');
+  });
+});
