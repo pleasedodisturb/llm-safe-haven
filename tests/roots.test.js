@@ -522,3 +522,101 @@ describe('getRoots — onUnreadableRoot (EXIT-02, D-07b)', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// getRoots — onNoDefaultRoots (EXIT-04, G-1621)
+//
+// D-20-05: the third additive callback sibling of onMissingRoot/
+// onUnreadableRoot above — fires ONLY when the DEFAULT probe (not explicit
+// LSH_ROOTS) resolves to zero roots. It reports the FACT that zero default
+// roots resolved; it never decides what to do about it (that decision, the
+// cwd fallback, lives in the CALLER — see tests/scan.test.js "scan() zero
+// default roots"). Mirrors the onMissingRoot describe above case for case.
+// ---------------------------------------------------------------------------
+describe('getRoots — onNoDefaultRoots (EXIT-04, G-1621)', () => {
+  function statSyncThrowing(code) {
+    return () => {
+      const err = new Error(`simulated ${code}`);
+      err.code = code;
+      throw err;
+    };
+  }
+
+  let sandboxHome;
+
+  afterEach(() => {
+    if (sandboxHome) fs.rmSync(sandboxHome, { recursive: true, force: true });
+    sandboxHome = undefined;
+  });
+
+  it('fires onNoDefaultRoots exactly ONCE, with no arguments (arity 0), when none of the six default roots exist', () => {
+    sandboxHome = mkTmp('roots-nodefault-empty-');
+    const calls = [];
+    const roots = getRoots({
+      env: {},
+      homedir: () => sandboxHome,
+      onNoDefaultRoots: (...args) => calls.push(args),
+    });
+
+    assert.deepEqual(roots, []);
+    assert.equal(calls.length, 1, 'onNoDefaultRoots must fire exactly once');
+    assert.deepEqual(calls[0], [], 'onNoDefaultRoots is arity-0 — it must be called with no arguments');
+  });
+
+  it('PAIRED CONTROL (D-20-02): a HOME with exactly one default root (Projects) fires onNoDefaultRoots ZERO times', () => {
+    sandboxHome = mkTmp('roots-nodefault-onepresent-');
+    fs.mkdirSync(path.join(sandboxHome, 'Projects'));
+
+    const calls = [];
+    const roots = getRoots({
+      env: {},
+      homedir: () => sandboxHome,
+      onNoDefaultRoots: () => calls.push(true),
+    });
+
+    assert.deepEqual(roots, [path.resolve(sandboxHome, 'Projects')]);
+    assert.deepEqual(calls, [], 'a HOME with 1..5 of 6 default roots must never fire onNoDefaultRoots — D-20-02');
+  });
+
+  it('explicit LSH_ROOTS mode with every entry missing fires onNoDefaultRoots ZERO times, while still firing onMissingRoot per occurrence', () => {
+    const missingA = path.join(os.tmpdir(), 'roots-nodefault-explicit-missing-a-does-not-exist');
+    const missingB = path.join(os.tmpdir(), 'roots-nodefault-explicit-missing-b-does-not-exist');
+
+    const noDefaultCalls = [];
+    const missingCalls = [];
+    const roots = getRoots({
+      env: { LSH_ROOTS: `${missingA}:${missingB}` },
+      homedir: () => '/home/fake',
+      onMissingRoot: (candidate) => missingCalls.push(candidate),
+      onNoDefaultRoots: () => noDefaultCalls.push(true),
+    });
+
+    assert.deepEqual(roots, []);
+    assert.deepEqual(noDefaultCalls, [], 'explicit LSH_ROOTS mode must never fire onNoDefaultRoots, even when every entry is missing');
+    assert.deepEqual(missingCalls, [missingA, missingB], 'onMissingRoot must still fire per occurrence in explicit mode, unchanged');
+  });
+
+  it('getRoots() with NO onNoDefaultRoots supplied behaves byte-identically to today (no throw, same bare string[] return)', () => {
+    sandboxHome = mkTmp('roots-nodefault-noop-');
+    assert.doesNotThrow(() => {
+      const roots = getRoots({ env: {}, homedir: () => sandboxHome });
+      assert.deepEqual(roots, []);
+    });
+  });
+
+  it('all six default candidates throwing EACCES fires onNoDefaultRoots (the result IS empty) AND onUnreadableRoot six times — the callback reports the FACT, the caller partitions on WHY', () => {
+    const noDefaultCalls = [];
+    const unreadableCalls = [];
+    const roots = getRoots({
+      env: {},
+      homedir: () => '/home/fake',
+      fs: { statSync: statSyncThrowing('EACCES') },
+      onNoDefaultRoots: () => noDefaultCalls.push(true),
+      onUnreadableRoot: (candidate, code) => unreadableCalls.push([candidate, code]),
+    });
+
+    assert.deepEqual(roots, []);
+    assert.equal(noDefaultCalls.length, 1, 'onNoDefaultRoots fires once even when every candidate failed as unreadable, not merely absent');
+    assert.equal(unreadableCalls.length, DEFAULT_ROOT_NAMES.length, 'onUnreadableRoot must still fire once per unreadable default-probe candidate');
+  });
+});
