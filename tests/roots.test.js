@@ -15,7 +15,10 @@ const os = require('os');
 
 const { stubHomedir, restoreHomedir } = require('./helpers/module-stub.js');
 
-const { getRoots, parseRootsEnv, DEFAULT_ROOT_NAMES } = require('../lib/roots.js');
+const {
+  getRoots, parseRootsEnv, DEFAULT_ROOT_NAMES,
+  looksLikeProject, resolveZeroRootFallback,
+} = require('../lib/roots.js');
 
 function mkTmp(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -618,5 +621,48 @@ describe('getRoots — onNoDefaultRoots (EXIT-04, G-1621)', () => {
     assert.deepEqual(roots, []);
     assert.equal(noDefaultCalls.length, 1, 'onNoDefaultRoots fires once even when every candidate failed as unreadable, not merely absent');
     assert.equal(unreadableCalls.length, DEFAULT_ROOT_NAMES.length, 'onUnreadableRoot must still fire once per unreadable default-probe candidate');
+  });
+});
+
+// 20-REVIEW.md WR-02 (G-1621): `looksLikeProject()` / `resolveZeroRootFallback()`
+// document an injectable `fs` seam "for testing" that nothing in the suite
+// exercised -- only real-disk integration coverage existed. These cases drive
+// the seam with a stub `fs` (the same DI convention `getRoots()`'s own tests
+// use above), so the seam is load-bearing rather than decorative. What would
+// make them fail: the helpers reading the real `fs` module instead of the
+// injected one (a stub that reports `.git` present would then be ignored and
+// `looksLikeProject` would answer from the real disk).
+describe('looksLikeProject / resolveZeroRootFallback — injectable fs seam (WR-02)', () => {
+  // A stub whose whole world is the set of paths passed in. Anything else
+  // does not exist. Real fs is never consulted.
+  function fsWithOnly(existingPaths) {
+    const set = new Set(existingPaths.map((p) => path.normalize(p)));
+    return { existsSync: (p) => set.has(path.normalize(p)) };
+  }
+
+  const dir = path.join(path.sep, 'nonexistent-fake-root', 'proj');
+
+  it('`.git` present via the stub ⇒ project (a real-disk check would say NO — the dir does not exist)', () => {
+    assert.equal(fs.existsSync(dir), false, 'precondition: the fake dir must NOT exist on the real disk, or this case proves nothing');
+    assert.equal(looksLikeProject(dir, fsWithOnly([path.join(dir, '.git')])), true);
+  });
+
+  it('`.git` as a FILE (worktree/submodule `gitdir:` pointer) counts too — the seam is existsSync, not isDirectory', () => {
+    // The stub has no isDirectory at all; if the helper ever started calling
+    // statSync().isDirectory() this would throw rather than pass.
+    assert.equal(looksLikeProject(dir, fsWithOnly([path.join(dir, '.git')])), true);
+  });
+
+  it('`package.json` alone ⇒ project', () => {
+    assert.equal(looksLikeProject(dir, fsWithOnly([path.join(dir, 'package.json')])), true);
+  });
+
+  it('neither marker ⇒ not a project, even when the directory itself "exists" in the stub', () => {
+    assert.equal(looksLikeProject(dir, fsWithOnly([dir])), false);
+  });
+
+  it('resolveZeroRootFallback returns the resolved cwd when the stub says project, null when it does not — real disk never consulted', () => {
+    assert.equal(resolveZeroRootFallback({ cwd: dir, fs: fsWithOnly([path.join(dir, 'package.json')]) }), path.resolve(dir));
+    assert.equal(resolveZeroRootFallback({ cwd: dir, fs: fsWithOnly([]) }), null);
   });
 });
