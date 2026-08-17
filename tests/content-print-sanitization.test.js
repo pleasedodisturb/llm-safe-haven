@@ -308,6 +308,65 @@ function buildTabFixture(built) {
 }
 
 // ---------------------------------------------------------------------------
+// G-1641 fold-in (this plan, 19-10): two ADDITIONAL miasma content-print
+// sites discovered by plan 19-09's authoring but OUTSIDE its stated 10-site
+// inventory -- direct `grep | head -N | sed` pipes with NO intermediate
+// variable at all, so neither 19-09's <objective> table nor its acceptance
+// criteria's negative-gate regex (scoped to a bare "$VAR" shape) could see
+// them. Same defect class, same fix shape as 19-09's other 8 named sites:
+// route the grep pipe's OUTPUT through sanitize_block_for_terminal before
+// piping to head/sed. Filed and disclosed as G-1641 rather than silently
+// fixed inside 19-09 (would have changed that plan's site count).
+// ---------------------------------------------------------------------------
+
+// G-1641 site 1: GYP_EXEC_RE -- binding.gyp action/rule arrays that shell out
+// or fetch the network (the WARN arm, Section 1(c)). Content deliberately
+// has NO `<!(...)` command-substitution syntax, so it does not match
+// GYP_SUBST_RE and trip arm (b)'s FAIL+continue first -- arm (c) is reached
+// directly. 3 matched action lines, one hostile.
+function buildGypExecFixture(built, hostileChar) {
+  const home = newHome(built, () => {});
+  const dir = path.join(home, 'Projects', 'x');
+  const content =
+    '{\n' +
+    '  "targets": [\n' +
+    '    {\n' +
+    '      "target_name": "x",\n' +
+    '      "actions": [\n' +
+    '        {"action": ["sh", "-c", "echo one"]},\n' +
+    `        {"action": ["bash", "-c", "echo tw${hostileChar}o"]},\n` +
+    '        {"action": ["curl", "-s", "http://x"]}\n' +
+    '      ]\n' +
+    '    }\n' +
+    '  ]\n' +
+    '}\n';
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'binding.gyp'), content);
+  return { home };
+}
+
+// G-1641 site 2: WF_SCRAPE_RE -- GitHub Actions workflow secret-scrape/
+// dead-drop signature (the FAIL arm, Section 2(c)). 3 matched lines carrying
+// the literal `"isSecret": true` substring, one hostile (byte placed
+// elsewhere on the line so the required substring stays intact).
+function buildWfScrapeFixture(built, hostileChar) {
+  const home = newHome(built, () => {});
+  const dir = path.join(home, 'Projects', 'x', '.github', 'workflows');
+  const content =
+    'name: CI\n' +
+    'on: push\n' +
+    'jobs:\n' +
+    '  build:\n' +
+    '    steps:\n' +
+    '      - run: echo grab-a "isSecret": true\n' +
+    `      - run: echo grab-b${hostileChar} "isSecret": true\n` +
+    '      - run: echo grab-c "isSecret": true\n';
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'ci.yml'), content);
+  return { home };
+}
+
+// ---------------------------------------------------------------------------
 
 describe('scan-miasma-june2026.sh -- content-print class report integrity (SCAN-01, G-1635, plan 19-09)', { skip: !hasBash ? 'bash unavailable' : false }, () => {
   const built = [];
@@ -439,6 +498,26 @@ describe('scan-miasma-june2026.sh -- content-print class report integrity (SCAN-
     // "  - " line -- it must carry the section's 9-space indent instead.
     assert.doesNotMatch(r.stdout, /^ {2}- Workflow named 'FAKE'/m, `fake content line escaped as a top-level finding line\n${r.stdout}`);
     assert.match(r.stdout, / {9}.*Workflow named 'FAKE'/, `expected the fake line to still appear, indented\n${r.stdout}`);
+  });
+
+  it('G-1641 site 1 (GYP_EXEC_RE, binding.gyp shell/downloader action arrays): a real ESC in a matched action line is stripped, block is byte-stable across 3 matched lines', () => {
+    const { home } = buildGypExecFixture(built, ESC);
+    const r = runMiasma(home);
+    assert.match(r.stdout, /invokes a shell\/downloader in a build step/, `expected the GYP_EXEC_RE WARN\n${r.stdout}`);
+    const indented = (r.stdout.match(/^ {9}\S.*"action"/gm) || []).length;
+    assert.equal(indented, 3, `expected 3 indented matched lines (collapse detector)\n${r.stdout}`);
+    noRawByte(r.stdout, 0x1b, 'ESC (0x1B)');
+    assert.ok(r.stdout.includes('�'), `expected U+FFFD replacement\n${r.stdout}`);
+  });
+
+  it('G-1641 site 2 (WF_SCRAPE_RE, GitHub Actions workflow secret-scrape signature): a real ESC in a matched line is stripped, block is byte-stable across 3 matched lines', () => {
+    const { home } = buildWfScrapeFixture(built, ESC);
+    const r = runMiasma(home);
+    assert.match(r.stdout, /scrapes\/exfiltrates secrets \(Miasma signature\)/, `expected the WF_SCRAPE_RE FAIL\n${r.stdout}`);
+    const indented = (r.stdout.match(/^ {9}\S.*isSecret/gm) || []).length;
+    assert.equal(indented, 3, `expected 3 indented matched lines (collapse detector)\n${r.stdout}`);
+    noRawByte(r.stdout, 0x1b, 'ESC (0x1B)');
+    assert.ok(r.stdout.includes('�'), `expected U+FFFD replacement\n${r.stdout}`);
   });
 
   it('a benign fixture tree with zero findings still exits 0, prints ALL CLEAR, emits no Findings: block', () => {
@@ -826,7 +905,7 @@ function findNear(lines, anchorNeedle, targetNeedles, span = 8) {
 }
 
 describe('content-print source guard, all four scanner scripts (no bash required)', () => {
-  it('all 22 content-print candidate sites across the four scanner scripts are located by nearby anchor text, and each routes through a sanitizer (sanitize_block_for_terminal or sanitize_for_terminal) -- miasma 10 (plan 19-09) + shai-hulud 7 + chaindrop 4 + g747 1 (this plan) = 22', () => {
+  it('all 24 content-print candidate sites across the four scanner scripts are located by nearby anchor text, and each routes through a sanitizer (sanitize_block_for_terminal or sanitize_for_terminal) -- miasma 10 (plan 19-09) + 2 (G-1641 fold-in) + shai-hulud 7 + chaindrop 4 + g747 1 (this plan) = 24', () => {
     const miasmaLines = fs.readFileSync(MIASMA_SCRIPT, 'utf8').split('\n');
     const shaiLines = fs.readFileSync(SHAI_SCRIPT, 'utf8').split('\n');
     const chaindropLines = fs.readFileSync(CHAINDROP_SCRIPT, 'utf8').split('\n');
@@ -885,6 +964,17 @@ describe('content-print source guard, all four scanner scripts (no bash required
       {
         name: 'miasma LOCK_HITS matched lines (multi-line append)',
         line: findNear(miasmaLines, '%s\\n\\n', ['"$M"', '>> "$LOCK_HITS"']),
+      },
+      {
+        // G-1641 fold-in (this plan): discovered by 19-09's authoring,
+        // outside that plan's stated 10-site inventory -- a direct
+        // `grep | head -N | sed` pipe with no intermediate variable.
+        name: 'miasma GYP_EXEC_RE (G-1641 site 1, binding.gyp shell/downloader action arrays)',
+        line: findNear(miasmaLines, 'invokes a shell/downloader in a build step', ['printf', '"$GYP_EXEC_RE"']),
+      },
+      {
+        name: 'miasma WF_SCRAPE_RE (G-1641 site 2, GitHub Actions workflow secret-scrape signature)',
+        line: findNear(miasmaLines, 'scrapes/exfiltrates secrets (Miasma signature)', ['printf', '"$WF_SCRAPE_RE"']),
       },
     ];
 
@@ -963,8 +1053,8 @@ describe('content-print source guard, all four scanner scripts (no bash required
       candidates.every((c) => c.line),
       `extraction produced a MISSING candidate -- site list or script drifted:\n${JSON.stringify(candidates.map((c) => [c.name, c.line]), null, 2)}`
     );
-    assert.equal(candidates.length, 22, `expected exactly 22 content-print candidates (miasma 10 + shai-hulud 7 + chaindrop 4 + g747 1), found ${candidates.length}`);
-    assert.equal(miasmaCandidates.length, 10, 'miasma candidate count drifted from 10');
+    assert.equal(candidates.length, 24, `expected exactly 24 content-print candidates (miasma 12 [10 + G-1641's 2] + shai-hulud 7 + chaindrop 4 + g747 1), found ${candidates.length}`);
+    assert.equal(miasmaCandidates.length, 12, 'miasma candidate count drifted from 12 (10 + G-1641 fold-in\'s 2)');
     assert.equal(shaiCandidates.length, 7, 'shai-hulud candidate count drifted from 7');
     assert.equal(chaindropCandidates.length, 4, 'chaindrop candidate count drifted from 4');
     assert.equal(g747Candidates.length, 1, 'g747 candidate count drifted from 1');
