@@ -96,7 +96,7 @@ const { captureLog } = require('./helpers/capture-log.js');
 
 // audit.js is required AFTER the stubs exist, so its top-level bindings
 // resolve to the stubs above.
-const { audit, getMcpInputs, normalizeAuditResult, auditExitCode } = require('../lib/audit.js');
+const { audit, getMcpInputs, normalizeAuditResult, auditExitCode, computeScorecardLevel } = require('../lib/audit.js');
 
 describe('audit --json frozen contract (D-11) and containment', () => {
   beforeEach(() => {
@@ -676,5 +676,123 @@ describe('audit --json keeps the env-incompleteness signal when a finding wins p
       assert.ok(Object.prototype.hasOwnProperty.call(j, key), `frozen key '${key}' disappeared from the envelope`);
     }
     assert.equal(j.envIncomplete, false);
+
+    // FROZEN ORDER (D-20-09): the first six keys, in SOURCE order, are the
+    // frozen top-level `--json` envelope contract -- until this plan,
+    // nothing enforced the ORDER, only presence (the loop above).
+    assert.deepEqual(
+      Object.keys(j).slice(0, 6),
+      ['agents', 'envFiles', 'envFileCount', 'overallLevel', 'mcp', 'levelCaps'],
+      'the first six top-level keys, in source order, are the frozen --json contract'
+    );
+
+    // BYTE-IDENTICAL PAIRED CONTROL (D-20-09, T-20-REGRESS): a COMPLETE,
+    // clean scan's overallLevel/levelCaps must be unchanged by the
+    // env-incomplete cap this plan adds. Captured from the pre-phase code at
+    // commit 9a2c8f8915c56592a983aea6b74f53ee823cd1be (20-02's final commit,
+    // before this plan's changes) -- hardcoded literals, not recomputed from
+    // the code under test (a control that recomputes the expectation from
+    // the code under test agrees with whatever ships).
+    assert.equal(j.overallLevel, 3, 'PRE-PHASE CAPTURE (9a2c8f8915c56592a983aea6b74f53ee823cd1be): overallLevel was 3');
+    assert.deepEqual(j.levelCaps, [], 'PRE-PHASE CAPTURE (9a2c8f8915c56592a983aea6b74f53ee823cd1be): levelCaps was []');
+  });
+});
+
+// ---------------------------------------------------------------------
+// EXIT-05 (G-1623, D-20-06..D-20-09). computeSecurityLevel() gains an `env`
+// input, a structural clone of the existing `mcp` input (see
+// tests/scorecard.test.js's "WR-02 for env" describe for the unit-level
+// cases). This section proves the signal reaches `audit --json`'s
+// overallLevel/levelCaps keys -- the keys a CI consumer's
+// `process.exit(overallLevel >= 2 ? 0 : 1)` pattern actually reads -- and
+// that the SINGLE `computeScorecardLevel()` choke point fails closed when
+// its fourth argument is omitted (research Pitfall 4: two of three call
+// sites updated is the exact failure mode this plan must avoid).
+// ---------------------------------------------------------------------
+describe('EXIT-05 (G-1623): env incompleteness caps the posture keys', () => {
+  const completeEnvDetail = {
+    files: [], incomplete: false, anomalyCount: 0,
+    anomalyReasons: { unreadable: 0, budget: 0 },
+    rootFailures: { missing: 0, unreadable: 0 },
+  };
+  const incompleteEnvDetail = {
+    files: [], incomplete: true, anomalyCount: 1,
+    anomalyReasons: { unreadable: 1, budget: 0 },
+    rootFailures: { missing: 0, unreadable: 0 },
+  };
+
+  beforeEach(() => {
+    currentBuildEnvelope = () => Promise.resolve(envelope());
+    // Agents at level 4 (well above the ceiling of 2) so the cap is
+    // REQUIRED to fire -- see the non-vacuity test below, which proves this
+    // fixture's uncapped base BEFORE any cap test relies on it meaning
+    // anything.
+    currentAgents = [fakeAgent({ audit: () => ({ checks: [], level: 4 }) })];
+    currentEnvFiles = [];
+    currentEnvIncomplete = false;
+    currentEnvDetail = undefined;
+  });
+
+  it('non-vacuity: the driving fixture (agent level 4) is uncapped above the ceiling on a COMPLETE scan', async () => {
+    currentEnvDetail = completeEnvDetail;
+    const out = JSON.parse((await captureLog(() => audit({ json: true }))).logs.join('\n'));
+    assert.equal(out.overallLevel, 4, "the driving fixture's uncapped base must be 4 (above the ceiling of 2) -- otherwise the cap test below would prove nothing");
+  });
+
+  it('an INCOMPLETE env scan caps overallLevel at 2 and records an env-incomplete levelCaps entry', async () => {
+    currentEnvDetail = incompleteEnvDetail;
+    const out = JSON.parse((await captureLog(() => audit({ json: true }))).logs.join('\n'));
+    assert.equal(out.envIncomplete, true);
+    assert.ok(out.overallLevel <= 2, `overallLevel must be capped at 2, got ${out.overallLevel}`);
+    const cap = out.levelCaps.find((c) => c.id === 'env-incomplete');
+    assert.ok(cap, `expected an env-incomplete levelCaps entry, got: ${JSON.stringify(out.levelCaps)}`);
+    assert.equal(cap.cappedTo, 2);
+  });
+
+  it('CONSISTENCY (D-20-07): envIncomplete === true implies overallLevel <= 2, across a table of env states', async () => {
+    const table = [
+      { label: 'complete, clean', detail: completeEnvDetail, expectIncomplete: false },
+      { label: 'incomplete: unreadable path', detail: incompleteEnvDetail, expectIncomplete: true },
+      {
+        label: 'incomplete: zero default roots resolved (D-20-03 shape)',
+        detail: {
+          files: [], incomplete: true, anomalyCount: 0,
+          anomalyReasons: { unreadable: 0, budget: 0 },
+          rootFailures: { missing: 0, unreadable: 0 },
+          rootResolution: { unresolved: true, cwdFallback: null },
+        },
+        expectIncomplete: true,
+      },
+    ];
+
+    // Non-vacuity guards (T-20-VACUOUS): an empty table, or one missing
+    // either polarity, would let the implication below pass on nothing.
+    // Proven during authoring: temporarily emptying `table` makes both
+    // `.some()` guards below throw instead of silently passing.
+    assert.ok(table.length > 0, 'the state table must not be empty');
+    assert.ok(table.some((s) => s.expectIncomplete === true), 'the table must include at least one envIncomplete:true case');
+    assert.ok(table.some((s) => s.expectIncomplete === false), 'the table must include at least one envIncomplete:false case');
+
+    for (const state of table) {
+      currentEnvDetail = state.detail;
+      const out = JSON.parse((await captureLog(() => audit({ json: true }))).logs.join('\n'));
+      assert.equal(out.envIncomplete, state.expectIncomplete, `envIncomplete mismatch for ${state.label}`);
+      if (out.envIncomplete === true) {
+        assert.ok(out.overallLevel <= 2, `envIncomplete true but overallLevel ${out.overallLevel} > 2 for ${state.label}`);
+        assert.ok(out.levelCaps.some((c) => c.id === 'env-incomplete'), `expected an env-incomplete levelCaps entry for ${state.label}`);
+      }
+    }
+  });
+});
+
+describe('computeScorecardLevel — the fourth env parameter fails closed on omission (EXIT-05, G-1623, research Pitfall 4)', () => {
+  beforeEach(() => {
+    currentBuildEnvelope = () => Promise.resolve(envelope());
+  });
+
+  it('computeScorecardLevel(flags, [4], 0) with the env argument OMITTED fails closed to the capped level', async () => {
+    const { level, caps } = await computeScorecardLevel({}, [4], 0);
+    assert.equal(level, 2, 'the choke point must not invent a complete default for the env signal');
+    assert.ok(caps.some((c) => c.id === 'env-incomplete'), `expected an env-incomplete cap, got: ${JSON.stringify(caps)}`);
   });
 });

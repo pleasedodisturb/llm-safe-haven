@@ -175,3 +175,46 @@ describe('install() orchestration (TQ-02, D-13)', () => {
     assert.ok(!logs.some((l) => l.includes('could not verify')), 'a complete, clean env scan must never print the could-not-verify line');
   });
 });
+
+// EXIT-05 (G-1623, D-20-08): the human renderer must not print an uncapped
+// `Security Level: N` line beneath the `◆ could not verify` env block --
+// install() especially, since it has no exit code of its own and its render
+// IS its verdict channel (D-20-03).
+describe('EXIT-05 (G-1623): install() renders the capped level under an incomplete env scan', () => {
+  beforeEach(() => {
+    currentBuildEnvelope = () => Promise.resolve(envelope());
+    // Agent level 4 -- well above the ceiling of 2 -- so an uncapped render
+    // would print "Security Level: 4 of 4" if the cap failed to fire.
+    currentAgents = [fakeAgent({ audit: () => ({ checks: [], level: 4 }) })];
+    currentEnvFiles = [];
+    currentEnvIncomplete = false;
+    currentEnvDetail = undefined;
+  });
+
+  it('an incomplete env scan prints no uncapped level, prints the capped Security Level: 2, and the cap reason line', async () => {
+    currentEnvDetail = {
+      files: [], incomplete: true, anomalyCount: 1,
+      anomalyReasons: { unreadable: 1, budget: 0 },
+      rootFailures: { missing: 0, unreadable: 0 },
+    };
+
+    const { logs } = await captureLog(() => install({}));
+    assert.ok(!logs.some((l) => l.includes('Security Level: 3')), `no uncapped Security Level: 3 line, got: ${logs.join('\n')}`);
+    assert.ok(!logs.some((l) => l.includes('Security Level: 4')), `no uncapped Security Level: 4 line, got: ${logs.join('\n')}`);
+    assert.ok(logs.some((l) => l.includes('Security Level: 2')), `expected the capped Security Level: 2 line, got: ${logs.join('\n')}`);
+    assert.ok(logs.some((l) => /Level capped at 2/.test(l)), `expected the cap's reason line, got: ${logs.join('\n')}`);
+    assert.ok(logs.some((l) => l.includes('could not verify')), 'the could-not-verify block must still print');
+  });
+
+  it('MUST-STILL-PASS TWIN: a complete, clean env detail still prints Security Level: 4 with no env cap line', async () => {
+    currentEnvDetail = {
+      files: [], incomplete: false, anomalyCount: 0,
+      anomalyReasons: { unreadable: 0, budget: 0 },
+      rootFailures: { missing: 0, unreadable: 0 },
+    };
+
+    const { logs } = await captureLog(() => install({}));
+    assert.ok(logs.some((l) => l.includes('Security Level: 4 of 4')), `expected the uncapped Security Level: 4, got: ${logs.join('\n')}`);
+    assert.ok(!logs.some((l) => /Level capped at/.test(l)), 'no cap line must print for a complete, clean env scan');
+  });
+});
