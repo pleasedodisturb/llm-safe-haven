@@ -86,15 +86,50 @@ FINDINGS=0
 FINDING_LOG=""
 INCOMPLETE=0
 
-pass() { printf "  ${GREEN}[PASS]${RESET} %s\n" "$1"; }
-fail() {
-  printf "  ${RED}[FAIL]${RESET} %s\n" "$1"
-  FINDINGS=$((FINDINGS + 1))
-  FINDING_LOG="${FINDING_LOG}  - $1\n"
+# CR-01/CWE-150 -- bash half of ONE contract; canonical def is
+# lib/scorecard.js's sanitizeForTerminal() (lib/scorecard.js:147-162),
+# pinned by a bidirectional drift guard (19-07-PLAN.md). Strips C0
+# (0x00-0x1F) + DEL (0x7F) + C1 (0x80-0x9F) so a hostile filename can never
+# move the cursor, repaint a line, or forge a report row. Byte-identical
+# copy of scripts/scan-miasma-june2026.sh's sanitize_for_terminal()
+# (plan 19-01, the phase's tracer) -- a drift guard in 19-07-PLAN.md
+# asserts all four scanner copies stay byte-identical, so do not "tidy"
+# anything here, including the locale declaration below.
+#
+# The locale MUST be forced via a function-scoped `local`, never a
+# command-prefix assignment (`LC_ALL=C.UTF-8 printf ...`): POSIX expands a
+# simple command's words BEFORE its assignment prefixes, so the prefix form
+# is NON-FUNCTIONAL here -- it never reaches the substitution below and
+# leaves C1 (U+009B) unstripped under the caller's ambient C/POSIX locale
+# (measured on bash 3.2.57 and 5.3.15; 19-01-PLAN.md's objective).
+sanitize_for_terminal() {
+  local LC_ALL=C.UTF-8
+  printf '%s' "${1//[[:cntrl:]]/�}"
 }
-warn() { printf "  ${YELLOW}[WARN]${RESET} %s\n" "$1"; }
-info() { printf "  ${BOLD}[INFO]${RESET} %s\n" "$1"; }
-section() { printf "\n${BOLD}== %s ==${RESET}\n" "$1"; }
+
+pass() {
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${GREEN}[PASS]${RESET} %s\n" "$msg"
+}
+fail() {
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${RED}[FAIL]${RESET} %s\n" "$msg"
+  FINDINGS=$((FINDINGS + 1))
+  FINDING_LOG="${FINDING_LOG}  - ${msg}"$'\n'
+}
+warn() {
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${YELLOW}[WARN]${RESET} %s\n" "$msg"
+}
+info() {
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${BOLD}[INFO]${RESET} %s\n" "$msg"
+}
+section() { printf "\n${BOLD}== %s ==${RESET}\n" "$1"; }  # no sanitize_for_terminal call: all 34 section() call sites across the four scanner scripts are literal strings, asserted by a source guard in tests/miasma-scanner.test.js
 
 # ============================================================================
 # Header
@@ -663,7 +698,7 @@ if [ "$FINDINGS" -eq 0 ] && [ "$INCOMPLETE" -eq 0 ]; then
 elif [ "$FINDINGS" -gt 0 ]; then
   printf "${RED}${BOLD}%d FINDING(S) — INVESTIGATE${RESET}\n" "$FINDINGS"
   printf "\nFindings:\n"
-  printf "%b" "$FINDING_LOG"
+  printf '%s' "$FINDING_LOG"
   if [ "$INCOMPLETE" -eq 1 ]; then
     printf "\n${YELLOW}${BOLD}INCOMPLETE${RESET} — results retained at %s\n" "$RESULTS_DIR"
   fi
