@@ -278,6 +278,184 @@ describe(
   }
 );
 
+// ---------------------------------------------------------------------------
+// Section E: TrapDoor zero-width Unicode detector (19-REVIEW.md CR-01/WR-02,
+// G-1549 gap closure). Before this closure, Section E had ZERO test coverage
+// of any kind (confirmed by grep: no hits for "TrapDoor"/"zero-width"/"200B"/
+// "FEFF" anywhere in the test suite) -- that gap is what let CR-01 ship
+// undetected. Three cases per WR-02's minimum: (1) positive path, (2)
+// negative path, (3) the CR-01 hostile-ancestor regression itself.
+//
+// Section E's file-discovery loop, pre-fix, is a TWO-STAGE newline-delimited
+// round trip through a variable (`find | while read` into $AI_FILES, then
+// `while read <<< "$AI_FILES"`), unlike every sibling find-fed loop in this
+// same file (already NUL-delimited by 19-08-PLAN.md). A real embedded LF in
+// an ancestor directory component is split by the FIRST stage into two
+// non-existent path fragments; the SECOND stage's perl reader treats
+// "could not open" (both fragments) identically to "no hit" (`exit 0`), so
+// the real file's actual content -- including any genuine zero-width
+// payload -- is NEVER examined, and the section prints a false [PASS].
+// -----------------------------------------------------------------------
+// Directory-write counterpart to writeHostile() -- Section E's predicate is
+// an EXACT basename match (CLAUDE.md, .cursorrules, *.mdc, AGENTS.md,
+// MEMORY.md, SKILL.md, SOUL.md), so the hostile LF cannot live in the
+// basename without breaking the match; it lives in an ANCESTOR directory
+// component instead, exactly like 10 of the 12 loops
+// tests/find-loop-nul-delimiting.test.js covers. Mirrors that file's own
+// local writeHostileDir (and tests/shai-hulud-scanner.test.js's) exactly --
+// verifies the hostile byte actually landed on disk before the scanner runs
+// rather than trusting the write call.
+function writeHostileDir(parentAbs, name) {
+  fs.mkdirSync(parentAbs, { recursive: true });
+  fs.mkdirSync(path.join(parentAbs, name), { recursive: true });
+  const entries = fs.readdirSync(parentAbs);
+  const controlChars = [...name].filter((ch) => {
+    const cp = ch.codePointAt(0);
+    return cp <= 0x1f || (cp >= 0x7f && cp <= 0x9f) || cp === 0x202e;
+  });
+  const match = entries.find((entry) => {
+    const hasAllControls = controlChars.every((ch) => entry.includes(ch));
+    const nfcMatches = entry.normalize('NFC') === name.normalize('NFC');
+    return hasAllControls && nfcMatches;
+  });
+  if (!match) {
+    throw new Error(
+      'writeHostileDir: on-disk entry did not preserve the hostile name.\n' +
+        `  wrote (hex): ${Buffer.from(name, 'utf8').toString('hex')}\n` +
+        `  found (hex): ${entries.map((e) => Buffer.from(e, 'utf8').toString('hex')).join(', ')}`
+    );
+  }
+  return path.join(parentAbs, match);
+}
+
+// Writes a CLAUDE.md-named AI config file under dirAbs. `hasZeroWidth` picks
+// between a genuine TrapDoor payload (a real U+200B ZERO WIDTH SPACE, past
+// the perl detector's 3-byte BOM-skip offset) and ordinary clean content.
+function buildTrapDoorFile(dirAbs, hasZeroWidth) {
+  fs.mkdirSync(dirAbs, { recursive: true });
+  const content = hasZeroWidth
+    ? '# Project notes\n\nSome instructions​ hidden here.\n'
+    : '# Project notes\n\nOrdinary content, nothing hidden.\n';
+  const filePath = path.join(dirAbs, 'CLAUDE.md');
+  fs.writeFileSync(filePath, content);
+  return filePath;
+}
+
+// Section E's hit-list dump (TD_HITS), extracted the same way
+// extractXorHitListBlock() extracts XOR_HITS above: the text between the
+// fail() header line and the next section() header (a blank-line boundary).
+function extractTrapDoorHitListBlock(stdout) {
+  const marker = 'Zero-width Unicode chars in AI config files (TrapDoor pattern):';
+  const markerIdx = stdout.indexOf(marker);
+  assert.ok(markerIdx !== -1, `TrapDoor fail() header line not found in stdout\n${stdout}`);
+  const lineEnd = stdout.indexOf('\n', markerIdx);
+  assert.ok(lineEnd !== -1, `TrapDoor fail() header line has no trailing newline\n${stdout}`);
+  const dumpStart = lineEnd + 1;
+  const nextBlank = stdout.indexOf('\n\n', dumpStart);
+  const dumpEnd = nextBlank === -1 ? stdout.length : nextBlank;
+  return stdout.slice(dumpStart, dumpEnd);
+}
+
+function trapDoorHitListLines(stdout) {
+  return extractTrapDoorHitListBlock(stdout)
+    .split('\n')
+    .filter((l) => l.length > 0);
+}
+
+// Section E's own scanned-file-count claim: `info "Scanning $N_AI AI config
+// files for ..."`. Pre-fix, a hostile-ancestor-split path inflates this
+// count (each non-existent fragment counted as its own "file"); post-fix it
+// must equal the number of REAL files discovered, never inflated.
+function extractScanCount(stdout) {
+  const m = stdout.match(/Scanning (\d+) AI config files for/);
+  assert.ok(m, `"Scanning N AI config files" line not found in stdout\n${stdout}`);
+  return Number(m[1]);
+}
+
+describe(
+  'scan-g747-may22.sh -- Section E TrapDoor zero-width Unicode detector (SCAN-02, 19-REVIEW.md CR-01/WR-02, G-1549)',
+  { skip: !hasBash ? 'bash unavailable' : false },
+  () => {
+    const built = [];
+    after(() => built.forEach((h) => fs.rmSync(h, { recursive: true, force: true })));
+
+    it('positive path (WR-02): a benign directory containing a CLAUDE.md with an embedded U+200B is FAILed', () => {
+      const home = newHome(built, () => {});
+      const dir = path.join(home, SEARCH_ROOT_NAMES.g747[0], 'proj');
+      const filePath = buildTrapDoorFile(dir, true);
+
+      const r = runG747(home);
+      assert.equal(r.status, 1, r.stdout);
+      assert.match(r.stdout, /Zero-width Unicode chars in AI config files \(TrapDoor pattern\):/, r.stdout);
+      const lines = trapDoorHitListLines(r.stdout);
+      assert.ok(lines.includes(filePath), `expected ${filePath} in the TrapDoor hit list\nlines: ${JSON.stringify(lines)}\n${r.stdout}`);
+      assert.equal(lines.length, 1, `expected exactly 1 TrapDoor hit-list line, found ${lines.length}\nlines: ${JSON.stringify(lines)}`);
+      assert.equal(extractScanCount(r.stdout), 1, `expected N_AI == 1 (one real file, not inflated)\n${r.stdout}`);
+    });
+
+    it('negative path (WR-02): the same file with no zero-width chars PASSes', () => {
+      const home = newHome(built, () => {});
+      const dir = path.join(home, SEARCH_ROOT_NAMES.g747[0], 'proj');
+      buildTrapDoorFile(dir, false);
+
+      const r = runG747(home);
+      assert.equal(r.status, 0, r.stdout);
+      assert.match(r.stdout, /No zero-width Unicode injection detected in 1 AI config files/, r.stdout);
+      assert.ok(!r.stdout.includes('Zero-width Unicode chars in AI config files'), `unexpected TrapDoor FAIL on a clean file\n${r.stdout}`);
+    });
+
+    // CR-01: the hostile-ancestor regression itself. BOTH the control and
+    // the poisoned CLAUDE.md carry a real U+200B (so both are independently
+    // FAIL-worthy) -- this is what makes the count/discrimination assertions
+    // below meaningful: pre-fix, the poisoned entry's real content is NEVER
+    // examined (silently treated as "no hit"), so it is ABSENT from TD_HITS
+    // entirely (a false negative, not merely a phantom-count inflation) --
+    // while N_AI still reports an INFLATED count (3, not 2) because the
+    // first discovery stage's own newline-delimited split already happened
+    // before the perl check ever ran. Post-fix, both real files are
+    // examined, both entries appear (poisoned one sanitized), and the count
+    // is exact.
+    it('hostile-ancestor regression (CR-01): a Projects/<LF-ancestor>/CLAUDE.md with U+200B, plus a benign-with-U+200B control sibling, both FAIL -- both paths present, exactly 2 hit-list lines (not inflated), no phantom fragment lines, and the scanned-file count is exact', () => {
+      const home = newHome(built, () => {});
+      const root = path.join(home, SEARCH_ROOT_NAMES.g747[0]);
+      const controlPath = buildTrapDoorFile(path.join(root, 'ctrl-td'), true);
+      const poisonedParent = writeHostileDir(root, `poison-td${HOSTILE_NAMES.LF}evil`);
+      const poisonedPath = buildTrapDoorFile(poisonedParent, true);
+
+      const r = runG747(home);
+      assert.equal(r.status, 1, r.stdout);
+
+      // Positive control BEFORE any negative assertion (19-VALIDATION.md's
+      // vacuity table): a scanner that reports nothing satisfies every
+      // "does not inject" claim below unless the control's own presence is
+      // checked first.
+      const lines = trapDoorHitListLines(r.stdout);
+      assert.ok(lines.includes(controlPath), `missing the benign positive control\ncontrol: ${JSON.stringify(controlPath)}\nlines: ${JSON.stringify(lines)}`);
+
+      const sanitizedPoisoned = poisonedPath.replace(HOSTILE_NAMES.LF, '�');
+      assert.ok(
+        lines.includes(sanitizedPoisoned),
+        `missing the poisoned entry (sanitized) in full -- this is CR-01 itself: pre-fix, the real file's content is never examined and the finding is silently dropped\nexpected: ${JSON.stringify(sanitizedPoisoned)}\nlines: ${JSON.stringify(lines)}\n${r.stdout}`
+      );
+      assert.equal(
+        lines.length,
+        2,
+        `expected exactly 2 TrapDoor hit-list lines (control + poisoned), found ${lines.length} -- pre-fix this is either 1 (poisoned dropped) or inflated by a phantom fragment\nlines: ${JSON.stringify(lines)}`
+      );
+
+      const [fragPrefix, fragSuffix] = poisonedPath.split(HOSTILE_NAMES.LF);
+      assert.ok(!lines.includes(fragPrefix), `phantom PREFIX fragment reported as a standalone hit-list entry\nfragment: ${JSON.stringify(fragPrefix)}\nlines: ${JSON.stringify(lines)}`);
+      assert.ok(!lines.includes(fragSuffix), `phantom SUFFIX fragment reported as a standalone hit-list entry\nfragment: ${JSON.stringify(fragSuffix)}\nlines: ${JSON.stringify(lines)}`);
+
+      assert.equal(
+        extractScanCount(r.stdout),
+        2,
+        `expected N_AI == 2 (two real files, not inflated by counting the poisoned path's split fragments as extra "files")\n${r.stdout}`
+      );
+    });
+  }
+);
+
 describe('g747 source-level guard: 16 variable-as-format-string sites, pinned by ACCUMULATOR NAME (never by line number)', () => {
   // Pinned by name, not by line, because this plan's own fix inserts
   // sanitize_for_terminal() above fail(), shifting every pre-edit line

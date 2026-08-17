@@ -30,6 +30,18 @@
 //   structural guard in this file covers EVERY `done < <(...)` construct,
 //   not only the find-fed ones, which is exactly the scoping this file
 //   widens relative to that previous revision.
+//
+//   G-1549 gap closure (19-REVIEW.md CR-01, post-phase): the phase's own
+//   closure inventory MISSED scan-g747-may22.sh's Section E (TrapDoor
+//   zero-width-Unicode detector) -- it stayed on a two-stage
+//   `find | while read` + `while read <<< "$VAR"` (newline-delimited)
+//   shape, never `done < <(...)` at all, so it was invisible to BOTH this
+//   guard's regex and every existing test. CR-01's fix converts it to a
+//   single `done < <(find ... -print0)` construct (per AI_CONFIG_ROOTS
+//   entry, same textual construct), ADDING a 14th surviving construct on
+//   top of the 13 this plan closed -- covered behaviourally by
+//   tests/g747-scanner.test.js's own TrapDoor describe block, not
+//   duplicated here. The guard below now asserts 14, not 13.
 // -----------------------------------------------------------------------
 //
 // Reachability (review R1-4): three of the twelve loops search directories
@@ -789,15 +801,15 @@ describe('structural guard: every done < <(...) construct across the four scanne
     allConstructs.push(...extractConstructs(src, path.basename(script)));
   }
 
-  it('the extracted construct list is non-empty and has length exactly 13 -- 14 pre-phase (12 find-fed + 1 grep-fed + 1 printf-fed) minus the 1 printf-fed construct plan 19-06 deleted (D-11); the surviving 13 include the 1 find-fed construct plan 19-06 already converted, plus the 12 this plan converts', () => {
+  it('the extracted construct list is non-empty and has length exactly 14 -- 14 pre-phase (12 find-fed + 1 grep-fed + 1 printf-fed) minus the 1 printf-fed construct plan 19-06 deleted (D-11), plus the 1 NEW construct G-1549 gap-closure (CR-01) introduces converting g747 Section E (TrapDoor) from a two-stage newline-delimited read into a single done < <(find ... -print0) construct; the surviving 14 = 13 (19-06/19-08) + 1 (CR-01)', () => {
     assert.ok(
       allConstructs.length > 0,
       'extraction produced ZERO done < <(...) constructs -- the extraction regex or the scripts drifted; a stopped-matching regex must fail this test, not iterate an empty list and pass'
     );
     assert.equal(
       allConstructs.length,
-      13,
-      `expected exactly 13 surviving done < <(...) constructs, found ${allConstructs.length}: ${JSON.stringify(allConstructs.map((c) => `${c.scriptLabel}:${c.lineNo}`))}`
+      14,
+      `expected exactly 14 surviving done < <(...) constructs, found ${allConstructs.length}: ${JSON.stringify(allConstructs.map((c) => `${c.scriptLabel}:${c.lineNo}`))}`
     );
   });
 
