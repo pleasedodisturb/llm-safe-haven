@@ -54,15 +54,50 @@ fi
 FINDINGS=0
 FINDING_LOG=""
 
-pass() { printf "  ${GREEN}[PASS]${RESET} %s\n" "$1"; }
-fail() {
-  printf "  ${RED}[FAIL]${RESET} %s\n" "$1"
-  FINDINGS=$((FINDINGS + 1))
-  FINDING_LOG="${FINDING_LOG}  - $1\n"
+# CR-01/CWE-150 -- bash half of ONE contract; canonical def is
+# lib/scorecard.js's sanitizeForTerminal() (lib/scorecard.js:147-162),
+# pinned by a bidirectional drift guard (19-07-PLAN.md). Strips C0
+# (0x00-0x1F) + DEL (0x7F) + C1 (0x80-0x9F) so a hostile filename can never
+# move the cursor, repaint a line, or forge a report row. Byte-identical
+# copy of scripts/scan-miasma-june2026.sh's sanitize_for_terminal()
+# (plan 19-01, the phase's tracer) -- a drift guard in 19-07-PLAN.md
+# asserts all four scanner copies stay byte-identical, so do not "tidy"
+# anything here, including the locale declaration below.
+#
+# The locale MUST be forced via a function-scoped `local`, never a
+# command-prefix assignment (`LC_ALL=C.UTF-8 printf ...`): POSIX expands a
+# simple command's words BEFORE its assignment prefixes, so the prefix form
+# is NON-FUNCTIONAL here -- it never reaches the substitution below and
+# leaves C1 (U+009B) unstripped under the caller's ambient C/POSIX locale
+# (measured on bash 3.2.57 and 5.3.15; 19-01-PLAN.md's objective).
+sanitize_for_terminal() {
+  local LC_ALL=C.UTF-8
+  printf '%s' "${1//[[:cntrl:]]/�}"
 }
-warn() { printf "  ${YELLOW}[WARN]${RESET} %s\n" "$1"; }
-info() { printf "  ${BOLD}[INFO]${RESET} %s\n" "$1"; }
-section() { printf "\n${BOLD}== %s ==${RESET}\n" "$1"; }
+
+pass() {
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${GREEN}[PASS]${RESET} %s\n" "$msg"
+}
+fail() {
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${RED}[FAIL]${RESET} %s\n" "$msg"
+  FINDINGS=$((FINDINGS + 1))
+  FINDING_LOG="${FINDING_LOG}  - ${msg}"$'\n'
+}
+warn() {
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${YELLOW}[WARN]${RESET} %s\n" "$msg"
+}
+info() {
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${BOLD}[INFO]${RESET} %s\n" "$msg"
+}
+section() { printf "\n${BOLD}== %s ==${RESET}\n" "$1"; }  # no sanitize_for_terminal call: all 34 section() call sites across the four scanner scripts are literal strings, asserted by a source guard in tests/miasma-scanner.test.js
 
 # Exclusion patterns for IOC string searches inside project trees.
 #
@@ -115,12 +150,12 @@ GVFSD_HITS=""
 for loc in /tmp /usr/local/bin "$HOME/.local/bin" "$HOME/bin"; do
   [ -d "$loc" ] || continue
   while IFS= read -r f; do
-    [ -n "$f" ] && GVFSD_HITS="${GVFSD_HITS}${f}\n"
+    [ -n "$f" ] && GVFSD_HITS="${GVFSD_HITS}$(sanitize_for_terminal "$f")"$'\n'
   done < <(find "$loc" -maxdepth 2 -name "gvfsd-network" 2>/dev/null)
 done
 if [ -n "$GVFSD_HITS" ]; then
   fail "gvfsd-network binary found:"
-  printf "$GVFSD_HITS"
+  printf '%s' "$GVFSD_HITS"
 else
   pass "gvfsd-network binary absent from /tmp, /usr/local/bin, ~/.local/bin, ~/bin"
 fi
@@ -138,12 +173,12 @@ PARIKH_HITS=""
 for h in "$HOME/.zsh_history" "$HOME/.bash_history" "$HOME/.history" "$HOME/.gitconfig"; do
   [ -f "$h" ] || continue
   if grep -q "parikhpreyash4\|systemd-network-helper-aa5c751f" "$h" 2>/dev/null; then
-    PARIKH_HITS="${PARIKH_HITS}${h}\n"
+    PARIKH_HITS="${PARIKH_HITS}$(sanitize_for_terminal "$h")"$'\n'
   fi
 done
 if [ -n "$PARIKH_HITS" ]; then
   warn "parikhpreyash4 / systemd-network-helper-aa5c751f references found in:"
-  printf "$PARIKH_HITS"
+  printf '%s' "$PARIKH_HITS"
 else
   pass "No parikhpreyash4 references in shell history / git config"
 fi
@@ -157,12 +192,12 @@ FLIPBOX_HITS=""
 for h in "$HOME/.zsh_history" "$HOME/.bash_history" "$HOME/.history"; do
   [ -f "$h" ] || continue
   if grep -q "flipboxstudio" "$h" 2>/dev/null; then
-    FLIPBOX_HITS="${FLIPBOX_HITS}${h}\n"
+    FLIPBOX_HITS="${FLIPBOX_HITS}$(sanitize_for_terminal "$h")"$'\n'
   fi
 done
 if [ -n "$FLIPBOX_HITS" ]; then
   fail "flipboxstudio reference in shell history:"
-  printf "$FLIPBOX_HITS"
+  printf '%s' "$FLIPBOX_HITS"
 else
   pass "No flipboxstudio reference in shell history"
 fi
@@ -187,11 +222,11 @@ fi
 # DebugChromium.exe Windows artifact — unlikely on macOS but cheap to check
 DEBUG_HITS=""
 while IFS= read -r f; do
-  [ -n "$f" ] && DEBUG_HITS="${DEBUG_HITS}${f}\n"
+  [ -n "$f" ] && DEBUG_HITS="${DEBUG_HITS}$(sanitize_for_terminal "$f")"$'\n'
 done < <(find "$HOME" -maxdepth 4 -name "DebugChromium.exe" 2>/dev/null)
 if [ -n "$DEBUG_HITS" ]; then
   fail "DebugChromium.exe Windows artifact found:"
-  printf "$DEBUG_HITS"
+  printf '%s' "$DEBUG_HITS"
 else
   pass "DebugChromium.exe absent (macOS expected)"
 fi
@@ -204,14 +239,14 @@ else
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     is_excluded "$f" && continue
-    XOR_HITS="${XOR_HITS}${f}\n"
+    XOR_HITS="${XOR_HITS}$(sanitize_for_terminal "$f")"$'\n'
   done < <(grep -rlF "k9X2mP7vL4nQ8wR1" "${SEARCH_ROOTS[@]}" \
               --exclude-dir=node_modules --exclude-dir=.git \
               --exclude-dir=vendor --exclude-dir=.venv --exclude-dir=venv \
               2>/dev/null)
   if [ -n "$XOR_HITS" ]; then
     fail "Laravel-Lang XOR key string 'k9X2mP7vL4nQ8wR1' found in:"
-    printf "$XOR_HITS"
+    printf '%s' "$XOR_HITS"
   else
     pass "Laravel-Lang XOR key string not found in project trees"
   fi
@@ -235,16 +270,16 @@ for d in "${EXT_DIRS[@]}"; do
   [ -d "$d" ] || continue
   while IFS= read -r ext; do
     [ -n "$ext" ] || continue
-    NXC_INSTALLED="${NXC_INSTALLED}${ext}\n"
-    case "$ext" in *18.95.0*) NXC_BAD="${NXC_BAD}${ext}\n" ;; esac
+    NXC_INSTALLED="${NXC_INSTALLED}$(sanitize_for_terminal "$ext")"$'\n'
+    case "$ext" in *18.95.0*) NXC_BAD="${NXC_BAD}$(sanitize_for_terminal "$ext")"$'\n' ;; esac
   done < <(find "$d" -maxdepth 1 -type d -name "nrwl.angular-console-*" 2>/dev/null)
 done
 if [ -n "$NXC_BAD" ]; then
   fail "Nx Console v18.95.0 (compromised) installed:"
-  printf "$NXC_BAD"
+  printf '%s' "$NXC_BAD"
 elif [ -n "$NXC_INSTALLED" ]; then
   info "Nx Console installed (not v18.95.0 — verify version manually):"
-  printf "$NXC_INSTALLED"
+  printf '%s' "$NXC_INSTALLED"
   pass "Compromised v18.95.0 not present"
 else
   pass "Nx Console (nrwl.angular-console) not installed in known IDE extension dirs"
@@ -280,11 +315,11 @@ else
   TS_HITS=""
   while IFS= read -r f; do
     bad=$(grep -nE '"@tanstack/[^"]+":[[:space:]]*"?\^?1\.169\.(5|8)"?' "$f" 2>/dev/null)
-    [ -n "$bad" ] && TS_HITS="${TS_HITS}${f}\n"
+    [ -n "$bad" ] && TS_HITS="${TS_HITS}$(sanitize_for_terminal "$f")"$'\n'
   done < "$MANIFESTS"
   if [ -n "$TS_HITS" ]; then
     fail "Compromised @tanstack/* version (1.169.5 or 1.169.8) in:"
-    printf "$TS_HITS"
+    printf '%s' "$TS_HITS"
   else
     pass "No compromised @tanstack/* version pinned in any manifest"
   fi
@@ -293,11 +328,11 @@ else
   ML_HITS=""
   while IFS= read -r f; do
     bad=$(grep -nE '"@mistralai/mistralai":[[:space:]]*"?\^?2\.2\.(3|4)"?|"@opensearch-project/opensearch":[[:space:]]*"?\^?3\.6\.2"?' "$f" 2>/dev/null)
-    [ -n "$bad" ] && ML_HITS="${ML_HITS}${f}\n"
+    [ -n "$bad" ] && ML_HITS="${ML_HITS}$(sanitize_for_terminal "$f")"$'\n'
   done < "$MANIFESTS"
   if [ -n "$ML_HITS" ]; then
     fail "Compromised npm package (mistralai/opensearch) in:"
-    printf "$ML_HITS"
+    printf '%s' "$ML_HITS"
   else
     pass "No compromised @mistralai/* or @opensearch-project/* version pinned"
   fi
@@ -305,11 +340,11 @@ else
   # D3: @antv/* (entire ecosystem — audit needed)
   AV_HITS=""
   while IFS= read -r f; do
-    grep -q '"@antv/' "$f" 2>/dev/null && AV_HITS="${AV_HITS}${f}\n"
+    grep -q '"@antv/' "$f" 2>/dev/null && AV_HITS="${AV_HITS}$(sanitize_for_terminal "$f")"$'\n'
   done < "$MANIFESTS"
   if [ -n "$AV_HITS" ]; then
     warn "@antv/* package present (audit version against May 18-19 compromised list):"
-    printf "$AV_HITS"
+    printf '%s' "$AV_HITS"
   else
     pass "No @antv/* dependencies"
   fi
@@ -319,12 +354,12 @@ else
   while IFS= read -r f; do
     case "$f" in *.txt|*.toml|*.lock)
       bad=$(grep -nE "^mistralai==2\.4\.6|^guardrails-ai==0\.10\.1|name = \"mistralai\".*2\.4\.6|name = \"guardrails-ai\".*0\.10\.1" "$f" 2>/dev/null)
-      [ -n "$bad" ] && PY_HITS="${PY_HITS}${f}\n"
+      [ -n "$bad" ] && PY_HITS="${PY_HITS}$(sanitize_for_terminal "$f")"$'\n'
     ;; esac
   done < "$MANIFESTS"
   if [ -n "$PY_HITS" ]; then
     fail "Compromised PyPI package (mistralai 2.4.6 / guardrails-ai 0.10.1) in:"
-    printf "$PY_HITS"
+    printf '%s' "$PY_HITS"
   else
     pass "No compromised PyPI mistralai / guardrails-ai version pinned"
   fi
@@ -334,12 +369,12 @@ else
   while IFS= read -r f; do
     case "$f" in *composer.json|*composer.lock)
       bad=$(grep -nE '"laravel-lang/(lang|http-statuses|attributes|actions)"' "$f" 2>/dev/null)
-      [ -n "$bad" ] && LL_HITS="${LL_HITS}${f}\n"
+      [ -n "$bad" ] && LL_HITS="${LL_HITS}$(sanitize_for_terminal "$f")"$'\n'
     ;; esac
   done < "$MANIFESTS"
   if [ -n "$LL_HITS" ]; then
     fail "Laravel-Lang package present (no clean tag exists — pin to commit SHA before 2026-05-22 22:32 UTC):"
-    printf "$LL_HITS"
+    printf '%s' "$LL_HITS"
   else
     pass "No laravel-lang/* packages in any composer manifest"
   fi
@@ -354,18 +389,18 @@ else
     esac
     pkg_lines=$(grep -nE "\"($PK_LIST)\"" "$f" 2>/dev/null)
     [ -z "$pkg_lines" ] && continue
-    PK_HITS="${PK_HITS}${f}\n"
+    PK_HITS="${PK_HITS}$(sanitize_for_terminal "$f")"$'\n'
     # Flag FAIL if the constraint is dev-main / dev-master / 3.x-dev (the
     # branch-tracking constraints that the campaign actually compromised).
     bad_constraint=$(printf "%s\n" "$pkg_lines" | grep -E "dev-(main|master)|3\.x-dev")
-    [ -n "$bad_constraint" ] && PK_FAILS="${PK_FAILS}${f}\n"
+    [ -n "$bad_constraint" ] && PK_FAILS="${PK_FAILS}$(sanitize_for_terminal "$f")"$'\n'
   done < "$MANIFESTS"
   if [ -n "$PK_FAILS" ]; then
     fail "parikhpreyash4-affected Packagist package on a dev-* branch constraint (compromised) in:"
-    printf "$PK_FAILS"
+    printf '%s' "$PK_FAILS"
   elif [ -n "$PK_HITS" ]; then
     warn "parikhpreyash4-listed Packagist package present (constraint is NOT dev-*, so likely safe — verify manually):"
-    printf "$PK_HITS"
+    printf '%s' "$PK_HITS"
   else
     pass "None of the 8 parikhpreyash4-affected Packagist packages present"
   fi
@@ -378,12 +413,12 @@ else
     esac
     # Scope the autoload check to the autoload block (rough but cheap).
     if grep -A40 '"autoload"' "$f" 2>/dev/null | grep -E 'src/helpers\.php' >/dev/null; then
-      AL_HITS="${AL_HITS}${f}\n"
+      AL_HITS="${AL_HITS}$(sanitize_for_terminal "$f")"$'\n'
     fi
   done < "$MANIFESTS"
   if [ -n "$AL_HITS" ]; then
     warn "composer.json with autoload.files: src/helpers.php — verify provenance (Laravel-Lang attack pattern, not necessarily malicious in YOUR repo):"
-    printf "$AL_HITS"
+    printf '%s' "$AL_HITS"
   else
     pass "No composer.json autoload.files: src/helpers.php pattern found"
   fi
@@ -433,13 +468,13 @@ else
     ' "$f" 2>/dev/null; then
       :  # exit 0 = no hit
     else
-      TD_HITS="${TD_HITS}${f}\n"
+      TD_HITS="${TD_HITS}$(sanitize_for_terminal "$f")"$'\n'
     fi
   done <<< "$AI_FILES"
 
   if [ -n "$TD_HITS" ]; then
     fail "Zero-width Unicode chars in AI config files (TrapDoor pattern):"
-    printf "$TD_HITS"
+    printf '%s' "$TD_HITS"
   else
     pass "No zero-width Unicode injection detected in $N_AI AI config files"
   fi
@@ -459,7 +494,7 @@ if [ "$FINDINGS" -eq 0 ]; then
   exit 0
 else
   printf "${RED}${BOLD}FINDINGS: %s${RESET}\n" "$FINDINGS"
-  printf "%b" "$FINDING_LOG"
+  printf '%s' "$FINDING_LOG"
   printf "\nNext steps:\n"
   printf "  - Treat affected hosts as potentially compromised.\n"
   printf "  - Rotate credentials accessible from the host (npm/GitHub/cloud/SSH/AI tool keys).\n"

@@ -153,15 +153,45 @@ describe(
     const built = [];
     after(() => built.forEach((h) => fs.rmSync(h, { recursive: true, force: true })));
 
-    it('a name carrying a real LF (0x0A): the XOR hit list gains no fabricated extra line -- exactly 2 lines (control + poisoned), not 3', () => {
-      const { home, controlPath } = buildXorFixture(built, HOSTILE_NAMES.LF);
+    // Corpus-vehicle note (Rule 1 -- same category of fixture-design bug as
+    // 19-02-PLAN.md's marker-string substitution): the plan's <behavior>
+    // text asks for "a real 0x0A in the NAME" as this claim's vehicle.
+    // Verified empirically (manual `grep -rlF` runs against a real on-disk
+    // fixture, recorded in this plan's execution session) that a REAL raw
+    // LF byte inside a filename is ALREADY split into two separate reads by
+    // the `while IFS= read -r f; do ... done < <(grep -rlF ...)` loop that
+    // BUILDS XOR_HITS -- grep's own newline-delimited output stream cannot
+    // distinguish an embedded 0x0A inside a matched filename from its own
+    // record separator, so `read` returns two fragments, NEITHER of which
+    // contains any control byte by the time it reaches sanitize_for_terminal
+    // or the print site. That split is the T-19-GREPLOOP loop-delimiter
+    // fail-open this SAME plan's <objective> explicitly names OUT OF SCOPE
+    // (deferred to 19-08-PLAN.md, review R2-2) -- using a real LF as this
+    // claim's vehicle would make "no fabricated extra line" structurally
+    // unwinnable by Task 2's print-layer fix alone, an unwinnable RED that
+    // could never turn GREEN within this plan's file list.
+    //
+    // The literal 2-character sequence `\n` (HOSTILE_NAMES.BS_N -- backslash
+    // then 'n', not a real 0x0A) is NOT read()-delimiter-sensitive (it is
+    // two ordinary printable bytes, not a control byte), so it survives the
+    // read loop as ONE intact fragment -- but it IS bash printf's
+    // format-string escape processor's exact target (RESEARCH.md's
+    // "Site-Inventory Corrections": "the literal 2-char `\n` sequence --
+    // bash's format-string escape processor recognizes it too"). Pre-fix,
+    // `printf "$XOR_HITS"` unconditionally escape-processes that literal
+    // sequence into a real newline, splitting the entry exactly as %b would
+    // -- entirely at the PRINT layer, entirely within this plan's scope.
+    // Post-fix, `printf '%s' "$XOR_HITS"` never escape-processes its
+    // argument, so the literal `\n` renders as two literal characters.
+    it('a name carrying a literal two-character backslash-n: the XOR hit list gains no fabricated extra line -- exactly 2 lines (control + poisoned), not 3', () => {
+      const { home, controlPath } = buildXorFixture(built, HOSTILE_NAMES.BS_N);
       const r = runG747(home);
       assertBaseline(r, controlPath);
       const lines = xorHitListLines(r.stdout);
       assert.equal(
         lines.length,
         2,
-        `expected exactly 2 XOR hit-list lines (control + poisoned), the embedded LF must not split the poisoned entry into an extra fabricated line\nlines: ${JSON.stringify(lines)}\nstdout:\n${r.stdout}`
+        `expected exactly 2 XOR hit-list lines (control + poisoned), the literal backslash-n must not be escape-processed into a fabricated extra line\nlines: ${JSON.stringify(lines)}\nstdout:\n${r.stdout}`
       );
     });
 
