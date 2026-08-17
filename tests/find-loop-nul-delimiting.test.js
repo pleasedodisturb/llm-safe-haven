@@ -822,10 +822,20 @@ describe('structural guard: every done < <(...) construct across the four scanne
   it("every construct's loop BODY references the variable name its own read line binds -- form (producer/delimiter) plus EFFECT (review R2-6): a body emptied by a bad merge must fail this, not pass a shape-only check", () => {
     for (const c of allConstructs) {
       const { varName } = readVarAndDelimiter(c.readLine);
+      // Comment-stripped BEFORE checking (break-proof 7 caught this as a
+      // real vacuous-guard bug, the exact same class 19-06-SUMMARY.md's own
+      // break-proof 2 found in ITS structural guard): an explanatory
+      // comment inside an emptied body mentioning the variable name in
+      // prose (e.g. "does not reference $f") satisfies an unstripped
+      // regex even though the CODE never consumes it.
+      const strippedBody = c.bodyText
+        .split('\n')
+        .map((l) => l.replace(/#.*$/, ''))
+        .join('\n');
       const re = new RegExp('\\$\\{?' + varName + '\\b');
       assert.ok(
-        re.test(c.bodyText),
-        `${c.scriptLabel}:${c.lineNo}: loop body never references its own read variable "${varName}" -- an emptied body must fail this assertion. body (first 200 chars): ${JSON.stringify(c.bodyText.slice(0, 200))}`
+        re.test(strippedBody),
+        `${c.scriptLabel}:${c.lineNo}: loop body never references its own read variable "${varName}" (comment-stripped) -- an emptied body must fail this assertion. body (first 200 chars): ${JSON.stringify(strippedBody.slice(0, 200))}`
       );
     }
   });
