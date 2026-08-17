@@ -751,8 +751,16 @@ describe('shai-hulud source-level guard: printf "%b" fully removed, FOLDEROPEN_F
   it('the tasks.json enumeration (Section 2) is NUL-delimited: `find` carries -print0 and its `read` uses an empty-string -d delimiter, in the same section (D-12)', () => {
     const sectionMatch = src.match(/# 2\. VSCode autorun task IOC[\s\S]*?(?=\n# =+\n# 3\.)/);
     assert.ok(sectionMatch, 'could not extract Section 2 (VSCode autorun task IOC) from the script -- section header text drifted, fix the extraction regex before trusting this guard');
-    const section = sectionMatch[0];
-    assert.ok(/-print0/.test(section), `expected a -print0 flag on the tasks.json find in Section 2\n${section}`);
-    assert.ok(/read\s+-r\s+-d\s+''/.test(section), `expected a read -r -d '' (empty-string delimiter) in Section 2\n${section}`);
+    // Comment-stripped (break-proof 2 caught this as a real vacuous-guard
+    // bug: this plan's own explanatory comment above the loop mentions
+    // `-print0`/`read -r -d ''` in backticks, so an uncommented-code-blind
+    // check kept passing even after the CODE was reverted back to the old
+    // newline-delimited shape -- the comment alone satisfied it).
+    const section = sectionMatch[0]
+      .split('\n')
+      .filter((l) => !/^\s*#/.test(l))
+      .join('\n');
+    assert.ok(/-print0/.test(section), `expected a -print0 flag on the tasks.json find in Section 2 (comment-stripped)\n${section}`);
+    assert.ok(/read\s+-r\s+-d\s+''/.test(section), `expected a read -r -d '' (empty-string delimiter) in Section 2 (comment-stripped)\n${section}`);
   });
 });
