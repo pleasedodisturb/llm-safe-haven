@@ -34,7 +34,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawnSync } = require('child_process');
 
-const { write, newHome, runScanner, hasBash } = require('./helpers/chaindrop-fixtures.js');
+const { write, newHome, runScanner, hasBash, HOSTILE_NAMES, writeHostile } = require('./helpers/chaindrop-fixtures.js');
 const { initRepo } = require('./helpers/git-fixture.js');
 const { SKIP_REASONS } = require('../lib/traverse/index.js');
 
@@ -49,6 +49,128 @@ function flattenPoisoned(poisonedMap) {
     for (const v of versions) flat.add(`${pkg}@${v}`);
   }
   return flat;
+}
+
+// ---------------------------------------------------------------------------
+// D-01..D-07 (SCAN-01, G-1549, plan 19-02): hostile-byte report-integrity
+// helpers.
+//
+// Vehicle choice, recorded here because it deviates from a literal reading
+// of 19-02-PLAN.md's Task 1 action text (which describes reusing the
+// existing T-17-10/B5 pin's marker-string fixture for the new corpus).
+// Verified empirically before writing this file (manual runs of the
+// pre-fix script, recorded in the plan-19-02 execution session): the
+// marker-string finding id's path is printed via a DIRECT, unsanitized
+// `printf '         %s\n' "$fpath"` inside `_emit_section_findings` — one
+// of the four content-print sites 19-02-PLAN.md's <objective> explicitly
+// names OUT OF SCOPE (T-19-CONTENT below, disposition "transfer", deferred
+// to 19-10-PLAN.md). A hostile ESC byte in a marker-string-triggering
+// filename reaches stdout raw via that exact site regardless of whether
+// fail()/warn()/info() are sanitized — using it as this plan's corpus
+// vehicle would make the "zero raw bytes over the WHOLE stdout" assertion
+// structurally unsatisfiable by Task 2's fix (an unwinnable RED that could
+// never turn GREEN). The file-marker finding id (Section 1, exact literal
+// filename "Math_Symbol.js") instead routes its whole path through
+// `_msg_for_id`'s "%s — %s" template into `fail()`, which Task 2 DOES
+// sanitize — so the hostile byte lives in a PARENT DIRECTORY of a
+// literally-named Math_Symbol.js file (file-marker matching requires the
+// EXACT basename). The warn-arm case below uses a different, more
+// permissive vehicle (`matchSimpleGlob`'s Math_*.js variant glob) that
+// tolerates the hostile byte directly inside the file's own basename, per
+// the plan's literal "triggering file's NAME" instruction.
+
+// Directory-write counterpart to chaindrop-fixtures.js's writeHostile() —
+// that helper writes a FILE named `name`; file-marker's exact-basename
+// requirement means the hostile byte here must live in an ancestor
+// DIRECTORY instead, so this mirrors writeHostile's own verification
+// (control-code-point presence + NFC-normalized match) for a directory
+// entry rather than a file.
+function writeHostileDir(parentAbs, name) {
+  fs.mkdirSync(parentAbs, { recursive: true });
+  fs.mkdirSync(path.join(parentAbs, name), { recursive: true });
+  const entries = fs.readdirSync(parentAbs);
+  const controlChars = [...name].filter((ch) => {
+    const cp = ch.codePointAt(0);
+    return cp <= 0x1f || (cp >= 0x7f && cp <= 0x9f) || cp === 0x202e;
+  });
+  const match = entries.find((entry) => {
+    const hasAllControls = controlChars.every((ch) => entry.includes(ch));
+    const nfcMatches = entry.normalize('NFC') === name.normalize('NFC');
+    return hasAllControls && nfcMatches;
+  });
+  if (!match) {
+    throw new Error(
+      'writeHostileDir: on-disk entry did not preserve the hostile directory name.\n' +
+        `  wrote (hex): ${Buffer.from(name, 'utf8').toString('hex')}\n` +
+        `  found (hex): ${entries.map((e) => Buffer.from(e, 'utf8').toString('hex')).join(', ')}`
+    );
+  }
+  return path.join(parentAbs, match);
+}
+
+// Count live "  [FAIL] " lines on stdout. Colour codes are gated on
+// `[ -t 1 ]` in the scanner, and spawnSync gives it no TTY, so a piped run
+// emits no ANSI of its own — the literal two-space prefix is unambiguous.
+function countFailLines(stdout) {
+  const m = stdout.match(/^ {2}\[FAIL\] /gm);
+  return m ? m.length : 0;
+}
+
+// The "Findings:" reprint block runs from the literal marker to EOF.
+function extractFindingsBlock(stdout) {
+  const idx = stdout.indexOf('Findings:');
+  return idx === -1 ? '' : stdout.slice(idx);
+}
+
+// Count "  - " lines inside the reprint block only (never the whole
+// stdout, which would double-count the live [FAIL] lines too).
+function countReprintLines(stdout) {
+  const block = extractFindingsBlock(stdout);
+  const m = block.match(/^ {2}- /gm);
+  return m ? m.length : 0;
+}
+
+function findingLines(stdout) {
+  return extractFindingsBlock(stdout)
+    .split('\n')
+    .filter((l) => l.startsWith('  - '));
+}
+
+// Builds Projects/x/node_modules/{control,<hostileDirName>}/Math_Symbol.js
+// — a benign control finding (plain directory name) plus the poisoned one
+// (hostile directory name), both file-marker FAILs, both under the SAME
+// node_modules parent so the scanner examines the whole directory rather
+// than stopping after the first entry.
+function buildFileMarkerFixture(built, hostileDirName) {
+  const home = newHome(built, () => {});
+  const modulesDir = path.join(home, 'Projects', 'x', 'node_modules');
+  const controlDir = path.join(modulesDir, 'control');
+  fs.mkdirSync(controlDir, { recursive: true });
+  fs.writeFileSync(path.join(controlDir, 'Math_Symbol.js'), '/* stub */\n');
+  const hostileDir = writeHostileDir(modulesDir, hostileDirName);
+  fs.writeFileSync(path.join(hostileDir, 'Math_Symbol.js'), '/* stub */\n');
+  return { home };
+}
+
+// Asserts, in the plan's own order: r.status is 1; the benign control
+// appears in the reprint; the live-vs-reprint count agreement (2: control +
+// poisoned); the poisoned line's completeness through its final
+// "Math_Symbol.js" suffix. Returns the poisoned reprint line so callers can
+// make byte-level assertions on it.
+function assertFileMarkerPair(r) {
+  assert.equal(r.status, 1, r.stdout);
+  assert.ok(r.stdout.includes('/control/Math_Symbol.js'), `missing benign control finding\n${r.stdout}`);
+  const failCount = countFailLines(r.stdout);
+  const reprintCount = countReprintLines(r.stdout);
+  assert.equal(failCount, 2, `live [FAIL] line count\n${r.stdout}`);
+  assert.equal(reprintCount, 2, `reprint "  - " line count\n${r.stdout}`);
+  const poisoned = findingLines(r.stdout).find((l) => !l.includes('/control/Math_Symbol.js'));
+  assert.ok(poisoned, `no poisoned reprint line found\n${r.stdout}`);
+  assert.ok(
+    poisoned.trimEnd().endsWith('Math_Symbol.js'),
+    `poisoned line was truncated before its Math_Symbol.js suffix\n${JSON.stringify(poisoned)}`
+  );
+  return poisoned;
 }
 
 describe('scan-chaindrop-aug2026.sh — functional: each IOC path', { skip: !hasBash ? 'bash unavailable' : false }, () => {
@@ -560,16 +682,175 @@ describe('scan-chaindrop-aug2026.sh — non-functional contract', { skip: !hasBa
     assert.equal(invocationCount, 1, 'expected the traversal engine to be invoked exactly once');
   });
 
-  it('a finding whose path contains a literal TAB and newline is reported byte-identically (scanner-level T-17-10/B5 guard)', () => {
+  // ---------------------------------------------------------------------
+  // FLIPPED 2026-08-17 by plan 19-02 (D-01/D-06): scan-chaindrop-aug2026.sh's
+  // fail()/warn()/info()/pass() now sanitize at entry (sanitize_for_terminal,
+  // U+FFFD in place of every C0/DEL/C1 byte), so a finding path carrying
+  // control bytes is no longer reported byte-identically. The OLD
+  // T-17-10/B5 guard pinned the OPPOSITE, pre-fix behaviour. This flip
+  // retires that byte-identical reporting contract INTENTIONALLY (D-06,
+  // rated one-way by the phase's checkpoint gate, selected as option-a) — a
+  // future reader must not mistake this flip for an undocumented
+  // regression.
+  //
+  // The fixture is also changed from the marker-string vehicle the
+  // original guard used to the file-marker vehicle documented above the
+  // first describe block in this file: marker-string's path is printed via
+  // a raw, unsanitized `printf` that this plan deliberately leaves
+  // untouched (T-19-CONTENT, deferred to 19-10-PLAN.md) — reusing it here
+  // would make this assertion unsatisfiable. The TAB/newline bytes
+  // themselves are otherwise unchanged from the original pin. Per D-17
+  // (19-CONTEXT.md), this flipped case is still NOT counted as coverage of
+  // the sanitization class itself — the "hostile-byte report integrity"
+  // describe block above is the real coverage (ESC/CR/C1/CJK/warn/info).
+  // ---------------------------------------------------------------------
+  it('a finding whose path contains control bytes (TAB + newline) is now SANITIZED, no longer reported byte-identical (D-01/D-06, flipped by plan 19-02 — retires the T-17-10/B5 byte-identical contract)', () => {
+    const weirdDirName = 'loader\tweird\nname';
+    const { home } = buildFileMarkerFixture(built, weirdDirName);
+    const r = runScanner(home);
+    const poisoned = assertFileMarkerPair(r);
+    assert.ok(
+      !r.stdout.includes(weirdDirName),
+      `expected the hostile directory name to be sanitized, no longer reported byte-identical\n${JSON.stringify(r.stdout)}`
+    );
+    assert.ok(poisoned.includes('�'), `expected U+FFFD replacement in the poisoned line\n${poisoned}`);
+  });
+});
+
+describe('scan-chaindrop-aug2026.sh — hostile-byte report integrity (D-01..D-07, SCAN-01, G-1549, plan 19-02)', { skip: !hasBash ? 'bash unavailable' : false }, () => {
+  const built = [];
+  after(() => built.forEach((h) => fs.rmSync(h, { recursive: true, force: true })));
+
+  it('a name carrying a real ESC (0x1B) is reported with U+FFFD in place of it, and stdout holds zero raw ESC bytes — measured over the WHOLE stdout, including the live [FAIL] line', () => {
+    const { home } = buildFileMarkerFixture(built, HOSTILE_NAMES.ESC);
+    const r = runScanner(home);
+    const poisoned = assertFileMarkerPair(r);
+    assert.ok(
+      !Buffer.from(r.stdout, 'utf8').includes(0x1b),
+      `raw ESC (0x1B) byte reached stdout\n${JSON.stringify(r.stdout)}`
+    );
+    assert.ok(poisoned.includes('�'), `expected U+FFFD replacement in the poisoned line\n${poisoned}`);
+  });
+
+  it('a name carrying a real CR (0x0D) is reported with zero raw CR bytes in stdout', () => {
+    const { home } = buildFileMarkerFixture(built, HOSTILE_NAMES.CR);
+    const r = runScanner(home);
+    const poisoned = assertFileMarkerPair(r);
+    assert.ok(
+      !Buffer.from(r.stdout, 'utf8').includes(0x0d),
+      `raw CR (0x0D) byte reached stdout\n${JSON.stringify(r.stdout)}`
+    );
+    assert.ok(poisoned.includes('�'), `expected U+FFFD replacement in the poisoned line\n${poisoned}`);
+  });
+
+  it('a name carrying a real C1 U+009B is reported with U+FFFD in place of it, zero raw C1 bytes in stdout', () => {
+    const { home } = buildFileMarkerFixture(built, HOSTILE_NAMES.C1);
+    const r = runScanner(home);
+    const poisoned = assertFileMarkerPair(r);
+    assert.ok(
+      !Buffer.from(r.stdout, 'utf8').includes(Buffer.from([0xc2, 0x9b])),
+      `raw C1 (c2 9b) bytes reached stdout\n${JSON.stringify(r.stdout)}`
+    );
+    assert.ok(poisoned.includes('�'), `expected U+FFFD replacement in the poisoned line\n${poisoned}`);
+  });
+
+  it('a name carrying a literal two-character backslash-c: the poisoned reprint line still ends with the full name through its Math_Symbol.js suffix (no %b truncation)', () => {
+    const { home } = buildFileMarkerFixture(built, HOSTILE_NAMES.BS_C);
+    const r = runScanner(home);
+    assertFileMarkerPair(r);
+  });
+
+  it('a name carrying a literal two-character backslash-n: the reprint gains no extra "  - " line (no %b injection)', () => {
+    const { home } = buildFileMarkerFixture(built, HOSTILE_NAMES.BS_N);
+    const r = runScanner(home);
+    // The count-agreement assertion inside assertFileMarkerPair IS the
+    // injection check: %b would have turned the literal \n into a real
+    // newline inside FINDING_LOG, adding a 3rd "  - "-prefixed line.
+    assertFileMarkerPair(r);
+  });
+
+  it('a name carrying café-服务器 plus a real ESC: the CJK/accented text survives NFC-equal while the ESC becomes U+FFFD, with zero raw ESC bytes in stdout', () => {
+    const hostileDirName = HOSTILE_NAMES.CJK + HOSTILE_NAMES.ESC;
+    const { home } = buildFileMarkerFixture(built, hostileDirName);
+    const r = runScanner(home);
+    const poisoned = assertFileMarkerPair(r);
+    assert.ok(
+      poisoned.normalize('NFC').includes('café-服务器'),
+      `CJK/accented text did not survive NFC-equal\n${JSON.stringify(poisoned)}`
+    );
+    assert.ok(
+      !Buffer.from(r.stdout, 'utf8').includes(0x1b),
+      `raw ESC byte reached stdout\n${JSON.stringify(r.stdout)}`
+    );
+    assert.ok(poisoned.includes('�'), `expected U+FFFD replacement for the ESC byte\n${poisoned}`);
+  });
+
+  // R2-1 widening: a hostile path reaching the terminal through warn() or
+  // info() rather than fail() — the payload-variant-warn arm (small
+  // Math_*.js variant) and the vscode-task-info arm (benign folderOpen dev
+  // task) were both excluded from sanitization by a prior plan revision
+  // (review R2-1). The hostile byte sits directly in the triggering file's
+  // own basename for the warn arm (matchSimpleGlob's Math_*.js pattern
+  // matches regardless of what falls between the "Math_" prefix and ".js"
+  // suffix); for the info arm it must sit in an ANCESTOR directory instead,
+  // because agentConfigMatch (lib/traverse/classify.js) requires the EXACT
+  // literal basename "tasks.json".
+  it('R2-1: a filename carrying a real ESC reaches stdout with zero raw ESC bytes via the warn() path (payload-variant-warn arm)', () => {
     const home = newHome(built, () => {});
     const dir = path.join(home, 'Projects', 'x');
-    fs.mkdirSync(dir, { recursive: true });
-    const weirdName = 'loader\tweird\nname.js';
-    fs.writeFileSync(path.join(dir, weirdName), 'const c2 = "npm-cache.com";\n');
-
+    writeHostile(dir, `Math_${HOSTILE_NAMES.ESC}variant.js`, 'export const add = (a,b) => a+b;\n');
     const r = runScanner(home);
+    assert.equal(r.status, 0, r.stdout);
+    assert.match(r.stdout, /\[WARN\]/, `expected a [WARN] line\n${r.stdout}`);
+    assert.ok(
+      !Buffer.from(r.stdout, 'utf8').includes(0x1b),
+      `raw ESC byte reached stdout via warn()\n${JSON.stringify(r.stdout)}`
+    );
+    assert.ok(r.stdout.includes('�'), `expected U+FFFD replacement in the warn() line\n${r.stdout}`);
+  });
+
+  it('R2-1: a filename carrying a real ESC reaches stdout with zero raw ESC bytes via the info() path (vscode-task-info arm)', () => {
+    const home = newHome(built, () => {});
+    const parentDir = writeHostileDir(path.join(home, 'Projects'), `x${HOSTILE_NAMES.ESC}`);
+    const vscodeDir = path.join(parentDir, '.vscode');
+    fs.mkdirSync(vscodeDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(vscodeDir, 'tasks.json'),
+      JSON.stringify({
+        version: '2.0.0',
+        tasks: [{ label: 'dev', type: 'shell', command: 'npm run dev', runOptions: { runOn: 'folderOpen' } }],
+      })
+    );
+    const r = runScanner(home);
+    assert.equal(r.status, 0, r.stdout);
+    assert.match(r.stdout, /\[INFO\]/, `expected an [INFO] line\n${r.stdout}`);
+    assert.ok(
+      !Buffer.from(r.stdout, 'utf8').includes(0x1b),
+      `raw ESC byte reached stdout via info()\n${JSON.stringify(r.stdout)}`
+    );
+    assert.ok(r.stdout.includes('�'), `expected U+FFFD replacement in the info() line\n${r.stdout}`);
+  });
+
+  it('D-07: the true, unsubstituted bytes of a flagged hostile path remain recoverable through RESULTS_DIR after a run that reported it', () => {
+    const { home } = buildFileMarkerFixture(built, HOSTILE_NAMES.ESC);
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-cd-tmp-'));
+    built.push(tmp);
+    const r = spawnSync('bash', [SCRIPT], {
+      encoding: 'utf8',
+      timeout: 60_000,
+      env: { HOME: home, TMPDIR: tmp, PATH: process.env.PATH, LSH_NO_NETWORK: '1' },
+    });
     assert.equal(r.status, 1, r.stdout);
-    assert.ok(r.stdout.includes(weirdName), `expected the hostile filename to appear byte-identically in stdout\n${JSON.stringify(r.stdout)}`);
+    const m = r.stderr.match(/Results directory retained: (\S+)/);
+    assert.ok(m, `expected a "Results directory retained" line on stderr\n${r.stderr}`);
+    const resultsDir = m[1];
+    const findingsPath = path.join(resultsDir, 'lists', 'findings.z');
+    assert.ok(fs.existsSync(findingsPath), `findings.z not found in retained results dir: ${findingsPath}`);
+    const buf = fs.readFileSync(findingsPath);
+    assert.ok(
+      buf.includes(Buffer.from(HOSTILE_NAMES.ESC, 'utf8')),
+      'the true, unsubstituted hostile bytes were not recoverable from RESULTS_DIR/lists/findings.z'
+    );
   });
 });
 
