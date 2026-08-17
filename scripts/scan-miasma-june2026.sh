@@ -62,26 +62,59 @@ fi
 FINDINGS=0
 FINDING_LOG=""
 
+# CR-01/CWE-150 -- bash half of ONE contract; canonical def is
+# lib/scorecard.js's sanitizeForTerminal() (lib/scorecard.js:147-162),
+# pinned by a bidirectional drift guard in tests/miasma-scanner.test.js.
+# Strips C0 (0x00-0x1F) + DEL (0x7F) + C1 (0x80-0x9F) so a hostile filename
+# can never move the cursor, repaint a line, or forge a report row.
+#
+# Deliberate, tested asymmetries (not oversights): Unicode format/bidi
+# points (U+202E RLO) are NOT stripped on glibc -- [[:cntrl:]] reaches
+# category Cc only, never Cf (measured, 5 locales, Ubuntu 22.04/24.04;
+# Darwin's libc DOES strip U+202E). A LONE 0x9B byte (not the valid c2 9b
+# pair) also survives glibc in every locale; closing it needs a raw
+# 0x80-0x9F byte pass, which corrupts every CJK path (e.g. "服"=e6 9c 8d)
+# the same way `tr` did. Both pinned by a Linux-gated test, 19-07-PLAN.md.
+#
+# The locale MUST be forced via a function-scoped `local`, never a
+# command-prefix assignment (`LC_ALL=C.UTF-8 printf ...`): POSIX expands a
+# simple command's words BEFORE its assignment prefixes, so the prefix form
+# is NON-FUNCTIONAL here -- it never reaches the substitution below and
+# leaves C1 (U+009B) unstripped under the caller's ambient C/POSIX locale
+# (measured on bash 3.2.57 and 5.3.15; 19-01-PLAN.md's objective).
+sanitize_for_terminal() {
+  local LC_ALL=C.UTF-8
+  printf '%s' "${1//[[:cntrl:]]/�}"
+}
+
 pass() {
-  printf "  ${GREEN}[PASS]${RESET} %s\n" "$1"
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${GREEN}[PASS]${RESET} %s\n" "$msg"
 }
 
 fail() {
-  printf "  ${RED}[FAIL]${RESET} %s\n" "$1"
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${RED}[FAIL]${RESET} %s\n" "$msg"
   FINDINGS=$((FINDINGS + 1))
-  FINDING_LOG="${FINDING_LOG}  - $1\n"
+  FINDING_LOG="${FINDING_LOG}  - ${msg}"$'\n'
 }
 
 warn() {
-  printf "  ${YELLOW}[WARN]${RESET} %s\n" "$1"
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${YELLOW}[WARN]${RESET} %s\n" "$msg"
 }
 
 info() {
-  printf "  ${BOLD}[INFO]${RESET} %s\n" "$1"
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${BOLD}[INFO]${RESET} %s\n" "$msg"
 }
 
 section() {
-  printf "\n${BOLD}== %s ==${RESET}\n" "$1"
+  printf "\n${BOLD}== %s ==${RESET}\n" "$1"  # no sanitize_for_terminal call: all 34 section() call sites are literal strings, asserted by a source guard in tests/miasma-scanner.test.js
 }
 
 # sha256_of FILE — prints hex digest, or empty string if no hashing tool.
@@ -580,7 +613,7 @@ if [ "$FINDINGS" -eq 0 ]; then
 else
   printf "${RED}${BOLD}%d FINDING(S) — INVESTIGATE${RESET}\n" "$FINDINGS"
   printf "\nFindings:\n"
-  printf "%b" "$FINDING_LOG"
+  printf '%s' "$FINDING_LOG"
   printf "\n"
   printf "${BOLD}What to do if FAIL:${RESET}\n"
   printf "  1. DO NOT panic-delete. Capture evidence first (copy flagged files to isolated storage).\n"
