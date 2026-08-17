@@ -76,8 +76,17 @@ const CANONICAL_NAME = 'scan-miasma-june2026.sh (plan 19-01, the phase tracer)';
 // Deliberately hostile ambient locale -- does NOT inherit process.env
 // wholesale (only PATH), because a runner whose own locale happens to be
 // UTF-8-aware would make the "the function forces its OWN locale" claim
-// unfalsifiable.
-const HOSTILE_LOCALE_ENV = Object.freeze({ LANG: 'C', LC_ALL: 'C', PATH: process.env.PATH });
+// unfalsifiable. Returns a FRESH object per call, never frozen/shared:
+// under `npm run test:coverage` (--experimental-test-coverage), Node's
+// child_process internals inject NODE_V8_COVERAGE into a spawned child's
+// `env` object in place (copyProcessEnvToEnv) so subprocess coverage is
+// also collected -- a frozen/shared env object throws
+// "TypeError: Cannot add property NODE_V8_COVERAGE, object is not
+// extensible" the moment that happens. Caught empirically: this file
+// passed under plain `npm test` but failed under `npm run test:coverage`.
+function hostileLocaleEnv() {
+  return { LANG: 'C', LC_ALL: 'C', PATH: process.env.PATH };
+}
 
 // ---------------------------------------------------------------------------
 // Extraction (pure JS, mirrors `sed -n '/^sanitize_for_terminal/,/^}/p'`)
@@ -127,7 +136,7 @@ function runBashSanitizeBatch(scriptPath, probes) {
       'definition must FAIL this guard, not silently pass it'
   );
   const bashScript = `${body}\nfor p in "$@"; do\n  sanitize_for_terminal "$p"\n  printf '\\0'\ndone\n`;
-  const res = spawnSync('bash', ['-c', bashScript, '_', ...probes], { env: HOSTILE_LOCALE_ENV });
+  const res = spawnSync('bash', ['-c', bashScript, '_', ...probes], { env: hostileLocaleEnv() });
   assert.equal(
     res.status,
     0,
@@ -280,7 +289,7 @@ describe('D-09: bash <-> Node sanitize_for_terminal() drift guard (SCAN-01, G-15
       // invalid byte through a JS string / spawnSync argv, which would force
       // a UTF-8 re-encode and could not represent the lone byte at all).
       const bashScript = `${body}\nfor f in "$2"/*; do\n  sanitize_for_terminal "$(basename "$f")"\ndone\n`;
-      const res = spawnSync('bash', ['-c', bashScript, '_', CANONICAL, dir], { env: HOSTILE_LOCALE_ENV });
+      const res = spawnSync('bash', ['-c', bashScript, '_', CANONICAL, dir], { env: hostileLocaleEnv() });
       assert.equal(res.status, 0, res.stderr ? res.stderr.toString() : '');
       assert.ok(
         res.stdout.includes(0x9b),
