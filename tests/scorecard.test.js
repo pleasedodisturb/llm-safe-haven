@@ -804,6 +804,7 @@ describe('computeSecurityLevel', () => {
       agentLevels: [3],
       envFileCount: 0,
       mcp: { ran: true, exitCode: EXIT.CLEAN, verifiedCount: 0, unverifiedCount: 0 },
+      env: { ran: true, incomplete: false },
     });
     assert.deepStrictEqual(result, { level: 3, caps: [] });
   });
@@ -813,6 +814,7 @@ describe('computeSecurityLevel', () => {
       agentLevels: [3],
       envFileCount: 2,
       mcp: { ran: true, exitCode: EXIT.CLEAN, verifiedCount: 0, unverifiedCount: 0 },
+      env: { ran: true, incomplete: false },
     });
     assert.equal(result.level, 1);
     assert.equal(result.caps.length, 1);
@@ -827,6 +829,7 @@ describe('computeSecurityLevel', () => {
       agentLevels: [4],
       envFileCount: 0,
       mcp: { ran: true, exitCode: EXIT.FINDINGS, verifiedCount: 1, unverifiedCount: 0 },
+      env: { ran: true, incomplete: false },
     });
     assert.equal(result.level, 2);
     assert.equal(result.caps.length, 1);
@@ -841,6 +844,7 @@ describe('computeSecurityLevel', () => {
       agentLevels: [3],
       envFileCount: 0,
       mcp: { ran: false, exitCode: EXIT.INCOMPLETE, verifiedCount: 0, unverifiedCount: 0 },
+      env: { ran: true, incomplete: false },
     });
     assert.equal(result.level, 2);
     assert.equal(result.caps.length, 1);
@@ -853,6 +857,7 @@ describe('computeSecurityLevel', () => {
       agentLevels: [3],
       envFileCount: 0,
       mcp: { ran: true, exitCode: EXIT.INCOMPLETE, verifiedCount: 0, unverifiedCount: 0 },
+      env: { ran: true, incomplete: false },
     });
     assert.equal(result.level, 2);
     assert.equal(result.caps.length, 1);
@@ -865,6 +870,7 @@ describe('computeSecurityLevel', () => {
       agentLevels: [3],
       envFileCount: 0,
       mcp: { ran: true, exitCode: EXIT.CLEAN, verifiedCount: 0, unverifiedCount: 5 },
+      env: { ran: true, incomplete: false },
     });
     assert.equal(result.level, 3);
     assert.equal(result.caps.length, 0, 'unverified-only findings must never produce a cap');
@@ -875,6 +881,7 @@ describe('computeSecurityLevel', () => {
       agentLevels: [3],
       envFileCount: 1,
       mcp: { ran: true, exitCode: EXIT.FINDINGS, verifiedCount: 1, unverifiedCount: 0 },
+      env: { ran: true, incomplete: false },
     });
     assert.equal(result.level, 1, 'the lower ceiling (env-files at 1) must win');
     assert.equal(result.caps.length, 2);
@@ -911,6 +918,7 @@ describe('computeSecurityLevel', () => {
       agentLevels: [1, 4, 2],
       envFileCount: 0,
       mcp: { ran: true, exitCode: EXIT.CLEAN, verifiedCount: 0, unverifiedCount: 0 },
+      env: { ran: true, incomplete: false },
     });
     assert.equal(result.level, 4);
     assert.equal(result.caps.length, 0);
@@ -921,6 +929,7 @@ describe('computeSecurityLevel', () => {
       agentLevels: [3],
       envFileCount: 0,
       mcp: { ran: false, exitCode: EXIT.INCOMPLETE, verifiedCount: 4, unverifiedCount: 0 },
+      env: { ran: true, incomplete: false },
     });
     assert.equal(result.level, 2);
     assert.equal(result.caps.length, 1, 'exactly one cap must be recorded on incomplete precedence');
@@ -933,7 +942,11 @@ describe('computeSecurityLevel', () => {
 
   describe('WR-02: fail closed when mcp input is absent or shapeless', () => {
     it('omitted mcp: base 4, env 0 -> level 2 with an mcp-incomplete cap (never an uncapped 4)', () => {
-      const result = computeSecurityLevel({ agentLevels: [4], envFileCount: 0 });
+      // A complete env input isolates the MCP half being tested here --
+      // without it, the env-incomplete fail-closed default (below) would
+      // ALSO fire on this same omission and this case would no longer
+      // isolate what it claims to.
+      const result = computeSecurityLevel({ agentLevels: [4], envFileCount: 0, env: { ran: true, incomplete: false } });
       assert.equal(result.level, 2, 'unknown MCP state must never be scored as scanned-and-clean');
       assert.equal(result.caps.length, 1);
       assert.equal(result.caps[0].id, 'mcp-incomplete');
@@ -941,7 +954,7 @@ describe('computeSecurityLevel', () => {
     });
 
     it('shapeless mcp ({} — no boolean ran): base 3 -> level 2 with an mcp-incomplete cap', () => {
-      const result = computeSecurityLevel({ agentLevels: [3], envFileCount: 0, mcp: {} });
+      const result = computeSecurityLevel({ agentLevels: [3], envFileCount: 0, mcp: {}, env: { ran: true, incomplete: false } });
       assert.equal(result.level, 2);
       assert.equal(result.caps.length, 1);
       assert.equal(result.caps[0].id, 'mcp-incomplete');
