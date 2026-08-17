@@ -116,9 +116,9 @@ describe('getRoots() consumer sweep (EXIT-04, G-1621, D-20-05) — discovery-bas
 // EXPLICIT mode, which D-20-01 locks as unchanged for this phase. This is
 // documented here as CURRENT, not endorsed, behaviour — not silently
 // deferred (per this project's "never defer ticket creation" rule): the
-// residual is filed as TICKET: (Task 3 fills in the real Linear ID here).
+// residual is filed as G-1645.
 describe('getRoots() — explicit LSH_ROOTS zero-candidates pin (G-1621 sweep finding, out of scope by D-20-01)', () => {
-  it('PIN: a non-empty LSH_ROOTS of only separators (":::" ) resolves to zero roots, firing neither onMissingRoot nor onNoDefaultRoots — TICKET: (filled by Task 3)', () => {
+  it('PIN: a non-empty LSH_ROOTS of only separators (":::" ) resolves to zero roots, firing neither onMissingRoot nor onNoDefaultRoots — G-1645', () => {
     const { getRoots } = require('../lib/roots.js');
     let missingFired = 0;
     let unreadableFired = 0;
