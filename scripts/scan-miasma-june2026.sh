@@ -261,7 +261,7 @@ else
     # (c) action/rule arrays that shell out or fetch the network.
     if grep -Eq "$GYP_EXEC_RE" "$gyp" 2>/dev/null; then
       warn "binding.gyp invokes a shell/downloader in a build step — review: $gyp"
-      grep -nE "$GYP_EXEC_RE" "$gyp" 2>/dev/null | head -5 | sed 's/^/         /'
+      printf "%s\n" "$(sanitize_block_for_terminal "$(grep -nE "$GYP_EXEC_RE" "$gyp" 2>/dev/null)")" | head -5 | sed 's/^/         /'
     fi
 
     # (d) binding.gyp present in a package that ships no native sources.
@@ -331,7 +331,7 @@ else
     # (c) Secret-scrape / dead-drop signatures in run: steps — real IOC.
     if grep -Eq "$WF_SCRAPE_RE" "$wf" 2>/dev/null; then
       fail "Workflow scrapes/exfiltrates secrets (Miasma signature) — $wf"
-      grep -nE "$WF_SCRAPE_RE" "$wf" 2>/dev/null | head -3 | sed 's/^/         /'
+      printf "%s\n" "$(sanitize_block_for_terminal "$(grep -nE "$WF_SCRAPE_RE" "$wf" 2>/dev/null)")" | head -3 | sed 's/^/         /'
       wf_bad=1
     fi
 
