@@ -30,26 +30,30 @@ LLM Safe Haven -- Security Scorecard
 
 ## Supported Agents
 
-`llm-safe-haven` detects and hardens 16 agents. **The tier reflects what each agent's own
-platform lets us do — not how much we care about it.** Only agents that expose a hook /
-interception system can reach **Full**; agents that reliably honor a committed ignore-file land at
-**Solid**; the rest — code that runs off-machine, opaque IDE config, or only best-effort ignore
-handling — we detect and guide (**Advise**), writing an ignore-file or reading a setting where one
-exists but never depending on it. We'd rather tell you the honest ceiling than imply a protection
-the agent can't actually enforce.
+`llm-safe-haven` detects and hardens 16 agents. **The tier reflects what the tool actually
+configures for each agent today** — not how much we care about it, and (with one known exception
+below) not more than the platform allows. **Full** means we wire the agent's own hook / interception
+system to block actions and verify our own integrity. **Solid** means an ignore-file plus
+agent-specific guidance. **Advise** means we can't depend on any repo-local control, so we detect the
+agent and give guidance. Two honesty notes: ignore files are *best-effort context exclusion, not a
+hard secret boundary* — each agent's hardening guide says so, and we write them anyway because
+shrinking what an agent ingests is still worth doing; and where a platform allows more than we
+currently wire — **Codex CLI ships a Claude-Code-style hook system
+(`PreToolUse`/`PostToolUse`/`PermissionRequest`) we do not use yet** — the agent is listed by what we
+configure today, with raising it to Full on the roadmap.
 
-### Full — interception + verification (the agent exposes a hook system)
+### Full — interception + verification (we wire the agent's hook system)
 
 | Agent | What It Configures |
 |-------|--------------------|
 | Claude Code | Hooks (bash-firewall, secret-guard, config-guard, audit-logger), `settings.json` wiring, SHA256 hook-integrity verification, audit-log freshness check |
 
-### Solid — repo-local controls the agent honors (ignore-file + tailored guidance; no hook system)
+### Solid — ignore-file + tailored guidance (best-effort context exclusion, not a hard boundary)
 
 | Agent | What It Configures |
 |-------|--------------------|
 | Cursor | `.cursorignore`; workspace-trust + auto-run guidance |
-| Codex CLI | `.codexignore`; sandbox / approval-mode guidance |
+| Codex CLI | `.codexignore`; sandbox / approval-mode guidance _(has a hook system — Full-capable; not yet wired)_ |
 | Windsurf | `.codeiumignore`; limitation warnings (no sandbox, no hooks) |
 | Cline | `.clineignore` |
 | Continue.dev | `.continueignore`; config API-key warning |
