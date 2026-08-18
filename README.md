@@ -58,7 +58,7 @@ configure today, with raising it to Full on the roadmap.
 | Windsurf | `.codeiumignore`; limitation warnings (no sandbox, no hooks) |
 | Cline | `.clineignore` |
 | Continue.dev | `.continueignore`; config API-key warning |
-| Aider | `.aiderignore`; scans the project `.env` for exposed keys |
+| Aider | `.aiderignore`; scans the project `.env` for exposed keys _(deprecated — unmaintained upstream; no security fixes expected)_ |
 | Goose | `.gooseignore`; `config.yaml` extension / env-key review |
 | Antigravity | `.antigravityignore` |
 
@@ -69,7 +69,7 @@ configure today, with raising it to Full on the roadmap.
 | GitHub Copilot | `.copilotignore`; reads the VS Code `security.workspace.trust` setting |
 | Gemini CLI | `.geminiignore`; config-review guidance |
 | Augment | Guidance only (no ignore-file mechanism) |
-| Amazon Q | IAM / AWS access guidance |
+| Amazon Q | IAM / AWS access guidance _(deprecated — AWS end-of-support 2027-04-30)_ |
 | JetBrains AI | Guidance only (settings are an opaque IDE blob) |
 | Replit Agent | Guidance only (code executes off-machine) |
 | Zed AI | Guidance only (tool permissions are user-scope; a repo tool must not set them) |
