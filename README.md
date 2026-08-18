@@ -30,15 +30,62 @@ LLM Safe Haven -- Security Scorecard
 
 ## Supported Agents
 
-| Agent | Tier | What It Configures |
-|-------|------|--------------------|
-| Claude Code | Full | Hooks (bash-firewall, secret-guard, config-guard, audit-logger), settings.json, sandbox, audit logging |
-| Cursor | Solid | .cursorignore, workspace trust guidance |
-| Windsurf | Solid | .codeiumignore, limitation warnings |
-| Cline | Solid | .clineignore |
-| Continue.dev | Solid | .continueignore |
-| Aider | Solid | .aiderignore, .env warnings |
-| Codex CLI | Solid | .codexignore, sandbox guidance |
+`llm-safe-haven` detects and hardens 16 agents. **The tier reflects what the tool actually
+configures for each agent today** — not how much we care about it, and (with one known exception
+below) not more than the platform allows. **Full** means we wire the agent's own hook / interception
+system to block actions and verify our own integrity. **Solid** means an ignore-file plus
+agent-specific guidance. **Advise** means we can't depend on any repo-local control, so we detect the
+agent and give guidance. Two honesty notes: ignore files are *best-effort context exclusion, not a
+hard secret boundary* — our Cursor, Windsurf and Aider hardening guides say so explicitly, and we
+write them anyway because shrinking what an agent ingests is still worth doing; and where a platform
+allows more than we
+currently wire — **Codex CLI ships a Claude-Code-style hook system
+(`PreToolUse`/`PostToolUse`/`PermissionRequest`) we do not use yet** — the agent is listed by what we
+configure today, with raising it to Full on the roadmap.
+
+### Full — interception + verification (we wire the agent's hook system)
+
+| Agent | What It Configures |
+|-------|--------------------|
+| Claude Code | Hooks (bash-firewall, secret-guard, config-guard, audit-logger), `settings.json` wiring, SHA256 hook-integrity verification, audit-log freshness check |
+
+### Solid — ignore-file + tailored guidance (best-effort context exclusion, not a hard boundary)
+
+| Agent | What It Configures |
+|-------|--------------------|
+| Cursor | `.cursorignore`; workspace-trust + auto-run guidance |
+| Codex CLI | `.codexignore`; sandbox / approval-mode guidance _(has a hook system — Full-capable; not yet wired)_ |
+| Windsurf | `.codeiumignore`; limitation warnings (no sandbox, no hooks) |
+| Cline | `.clineignore` |
+| Continue.dev | `.continueignore`; config API-key warning |
+| Aider | `.aiderignore`; scans the project `.env` for exposed keys |
+| Goose | `.gooseignore`; `config.yaml` extension / env-key review |
+| Antigravity | `.antigravityignore` |
+
+### Advise — detection + guidance (no repo-local control we can depend on)
+
+| Agent | What It Configures |
+|-------|--------------------|
+| GitHub Copilot | `.copilotignore`; reads the VS Code `security.workspace.trust` setting |
+| Gemini CLI | `.geminiignore`; config-review guidance |
+| Augment | Guidance only (no ignore-file mechanism) |
+| Amazon Q | IAM / AWS access guidance |
+| JetBrains AI | Guidance only (settings are an opaque IDE blob) |
+| Replit Agent | Guidance only (code executes off-machine) |
+| Zed AI | Guidance only (tool permissions are user-scope; a repo tool must not set them) |
+
+> **The Solid/Advise boundary is a judgment call, and two of these are borderline.** By the
+> ignore-file criterion alone, **Gemini CLI** (`.geminiignore`) and **GitHub Copilot**
+> (`.copilotignore`) look like Solid — we do write those files. They sit in Advise pending
+> verification that the agent actually honors the file it's handed (Copilot's supported exclusion is
+> configured server-side in GitHub, not via a local file it reads). Re-tiering them, and codifying
+> the exact Solid-vs-Advise rule in the module contract, is tracked as a follow-up — not asserted
+> here as fact.
+
+> More agents are on the roadmap. **Codex CLI is the nearest path to a second Full tier** — it
+> already exposes the hooks (above); we just haven't wired them yet. Beyond it, the other agents that
+> expose Claude-Code-compatible hooks (OpenHands, Droid, CodeBuddy, Crush, Trae) are the remaining
+> paths to **Full**, and `pi` (the largest CLI population) is next for **Solid** coverage.
 
 ## Commands
 
