@@ -74,6 +74,14 @@ configure today, with raising it to Full on the roadmap.
 | Replit Agent | Guidance only (code executes off-machine) |
 | Zed AI | Guidance only (tool permissions are user-scope; a repo tool must not set them) |
 
+> **The Solid/Advise boundary is a judgment call, and two of these are borderline.** By the
+> ignore-file criterion alone, **Gemini CLI** (`.geminiignore`) and **GitHub Copilot**
+> (`.copilotignore`) look like Solid — we do write those files. They sit in Advise pending
+> verification that the agent actually honors the file it's handed (Copilot's supported exclusion is
+> configured server-side in GitHub, not via a local file it reads). Re-tiering them, and codifying
+> the exact Solid-vs-Advise rule in the module contract, is tracked as a follow-up — not asserted
+> here as fact.
+
 > More agents are on the roadmap. **Codex CLI is the nearest path to a second Full tier** — it
 > already exposes the hooks (above); we just haven't wired them yet. Beyond it, the other agents that
 > expose Claude-Code-compatible hooks (OpenHands, Droid, CodeBuddy, Crush, Trae) are the remaining
