@@ -218,17 +218,20 @@ The Security Level rules, in priority order:
    takes precedence and `audit` exits `1`. An unfinished scan (parse error, unreadable
    config) is never treated as clean, because you don't actually know what it would have
    found.
-
-   Note the current limitation: the level cap covers the **MCP** half of incompleteness
-   only. An incomplete `.env` scan is reported in the exit code and in `audit --json`'s
-   `envIncomplete` field, but does **not** yet cap `overallLevel` / `levelCaps`. If you
-   gate CI on `overallLevel` alone, also check `envIncomplete`. Tracked as G-1623.
-2. **A verified MCP finding caps the level at 2** — regardless of severity, a verified
+2. **An incomplete `.env` scan ALSO caps the level at 2** (G-1623, closed) — the same cap,
+   mirrored for the other scan half: `overallLevel` / `levelCaps` gain an `env-incomplete`
+   entry whenever the `.env` scan did not finish, exactly like the MCP-incomplete cap
+   above (same ceiling, same fail-closed-on-absence shape). The level cap now covers
+   **both** halves of incompleteness, so gating CI on `overallLevel` alone is sufficient
+   for the incompleteness question — `envIncomplete` remains in the `audit --json`
+   envelope as the machine-readable detail for *why*, not as a second signal you need to
+   check separately.
+3. **A verified MCP finding caps the level at 2** — regardless of severity, a verified
    finding means the scan found something concrete to fix.
-3. **Unverified findings never cap the level.** An offline-degraded "unverified" result
+4. **Unverified findings never cap the level.** An offline-degraded "unverified" result
    (e.g. provenance not checked because you didn't pass `--online`) is informational,
    not a gate — the scan didn't fail, it just didn't check everything it could.
-4. **The existing `.env`-exposure cap (Level 1) is independent.** If both the `.env`
+5. **The existing `.env`-exposure cap (Level 1) is independent.** If both the `.env`
    cap and an MCP cap are active, both reasons render — they don't override each other.
 
 The Security Level line names the specific cause and the command to run for details, so

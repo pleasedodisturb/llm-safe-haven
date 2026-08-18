@@ -176,10 +176,20 @@ describe('scan() dangerous-file block', () => {
   const scanPath = require.resolve('../lib/scan.js');
 
   let sandboxHome;
+  let cwdSandbox;
   let originalOsEntry;
 
   beforeEach(() => {
     sandboxHome = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-dangerous-home-'));
+    // G-1621: an explicit, independent, non-project cwd sandbox. Once the
+    // zero-default-root cwd fallback (D-20-01) lands, an empty sandbox HOME
+    // resolves zero default roots — without this, these tests would run
+    // with the REAL llm-safe-haven repo as `process.cwd()` (it has both
+    // .git and package.json) and silently start scanning the actual
+    // working tree instead of the fixture this describe block controls
+    // (research Pitfall 1). Neither marker exists here, so the fallback
+    // does not fire and the run reports incomplete/no-root instead.
+    cwdSandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-dangerous-cwd-'));
     originalOsEntry = require.cache[osPath];
   });
 
@@ -191,18 +201,31 @@ describe('scan() dangerous-file block', () => {
     delete require.cache[scanPath];
 
     fs.rmSync(sandboxHome, { recursive: true, force: true });
+    fs.rmSync(cwdSandbox, { recursive: true, force: true });
   });
 
-  it('dangerous-file block: zero found (empty sandbox HOME, header absent)', async () => {
+  it('dangerous-file block: zero found (empty sandbox HOME, header absent) [G-1621: pins an explicit non-project cwd — the prior pin let a naive zero-root fallback silently scan the real repo]', async () => {
     const { scan } = stubHomedir(sandboxHome, scanPath);
 
-    const { logs } = await captureLog(() => scan({}, {}));
+    const { logs, result } = await captureLog(() => scan({}, { cwd: cwdSandbox }));
 
     const output = logs.join('\n');
     assert.ok(!output.includes('Credential files accessible to agents:'), 'the dangerous-file header must NOT print when nothing is found');
+    // G-1621 / break-proof 5 (20-01-SUMMARY.md): this scan() call is driven
+    // through the same public API a real invocation uses, with an explicit
+    // cwd that is deliberately NOT a project (no .git, no package.json).
+    // If scan() ever stopped forwarding opts.cwd to
+    // scanForEnvFilesDetailed(), the fallback would silently read
+    // process.cwd() instead -- and because THIS TEST PROCESS runs inside
+    // the real llm-safe-haven repo (which IS a project), the run would
+    // flip from "no scan root could be resolved" / exit 2 to a clean scan
+    // of the real working tree. These two assertions are the ones that
+    // actually catch that regression; the header assertion above does not.
+    assert.ok(output.includes('no scan root could be resolved'), `expected the D-20-01(2) no-root cause (proves the SANDBOX cwd was used, not the real repo), got: ${output}`);
+    assert.deepEqual(result, { code: 2 }, 'a non-project sandbox cwd with zero default roots must exit 2 -- a silent fallback to the real repo cwd would exit 0/undefined instead');
   });
 
-  it('dangerous-file block: one or more found (seeded sandbox HOME, header + both paths present)', async () => {
+  it('dangerous-file block: one or more found (seeded sandbox HOME, header + both paths present) [G-1621: same explicit non-project cwd as the previous case]', async () => {
     const { scan } = stubHomedir(sandboxHome, scanPath);
 
     const awsDir = path.join(sandboxHome, '.aws');
@@ -213,7 +236,7 @@ describe('scan() dangerous-file block', () => {
     const npmrc = path.join(sandboxHome, '.npmrc');
     fs.writeFileSync(npmrc, '//registry.npmjs.org/:_authToken=FAKE\n');
 
-    const { logs } = await captureLog(() => scan({}, {}));
+    const { logs } = await captureLog(() => scan({}, { cwd: cwdSandbox }));
 
     const output = logs.join('\n');
     assert.ok(output.includes('Credential files accessible to agents:'), 'the dangerous-file header must print when seeded files are found');
@@ -221,9 +244,14 @@ describe('scan() dangerous-file block', () => {
     assert.ok(output.includes(npmrc), 'the seeded .npmrc path must be listed');
   });
 
-  it('scanForEnvFiles() also resolves deterministically against the sandbox (SCAN_DIRS do not exist there)', () => {
-    const { scanForEnvFiles } = stubHomedir(sandboxHome, scanPath);
-    assert.deepEqual(scanForEnvFiles(), [], 'none of the six SCAN_DIRS exist in an empty sandbox HOME');
+  it('scanForEnvFiles() also resolves deterministically against the sandbox (SCAN_DIRS do not exist there) [G-1621: the [] this returns is no longer readable as "clean" on its own — asserted alongside scanForEnvFilesDetailed() in the same case, which now reports incomplete]', () => {
+    const { scanForEnvFiles, scanForEnvFilesDetailed } = stubHomedir(sandboxHome, scanPath);
+    assert.deepEqual(scanForEnvFiles({ cwd: cwdSandbox }), [], 'none of the six SCAN_DIRS exist in an empty sandbox HOME');
+
+    const detail = scanForEnvFilesDetailed({ cwd: cwdSandbox });
+    assert.deepEqual(detail.files, [], 'the detailed accessor agrees on the empty file list');
+    assert.equal(detail.incomplete, true, 'G-1621: zero default roots plus a non-project cwd must be incomplete, never silently clean');
+    assert.equal(detail.rootResolution.unresolved, true, 'the run must record that no scan root could be resolved');
   });
 });
 
@@ -1147,6 +1175,267 @@ describe('EXIT-02 — an unreadable configured root is surfaced, distinctly from
 
     assert.ok(detailUnreadable.rootFailures.unreadable > 0, `expected rootFailures.unreadable > 0, got ${detailUnreadable.rootFailures.unreadable}`);
     assert.equal(detailReadable.rootFailures.unreadable, 0, 'a readable root must report rootFailures.unreadable === 0');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// scan() zero default roots (EXIT-04, G-1621)
+//
+// D-20-01: when explicit LSH_ROOTS is NOT set and none of the six default
+// root names exist, `scan` either scans `process.cwd()` (if it looks like a
+// project — `.git` dir/file OR `package.json`) with exactly one stderr
+// note, or reports incomplete/exit 2 through the EXISTING computeExit()
+// plumbing. D-20-02: a HOME with 1..5 of 6 default roots present stays
+// byte-identical to before this phase (mandatory paired control below).
+//
+// Structural rule (research Pitfall 1): every case here builds TWO
+// independent fs.mkdtempSync sandboxes — one for HOME, one for cwd — so the
+// project heuristic is controlled by the test, never by wherever this test
+// PROCESS happens to run (the real repo has both .git and package.json, so
+// an implicit cwd would silently start scanning it the moment the fallback
+// lands).
+// ---------------------------------------------------------------------------
+describe('scan() zero default roots (EXIT-04, G-1621)', () => {
+  const osPath = require.resolve('os');
+  const scanPath = require.resolve('../lib/scan.js');
+
+  let sandboxHome;
+  let cwdSandbox;
+  let originalOsEntry;
+
+  function mkSandbox(prefix) {
+    return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  }
+
+  beforeEach(() => {
+    sandboxHome = mkSandbox('scan-nodefault-home-');
+    originalOsEntry = require.cache[osPath];
+  });
+
+  afterEach(() => {
+    if (originalOsEntry === undefined) delete require.cache[osPath];
+    else require.cache[osPath] = originalOsEntry;
+    delete require.cache[scanPath];
+
+    fs.rmSync(sandboxHome, { recursive: true, force: true });
+    if (cwdSandbox) fs.rmSync(cwdSandbox, { recursive: true, force: true });
+    cwdSandbox = undefined;
+  });
+
+  // Mirrors the existing local `runScanWithStderr` idiom at :721-731
+  // (snapshot console.error, replace, restore in finally), parameterized
+  // with the opts object so `cwd` can be threaded through per case.
+  async function runScanWithStderr(sandboxedScan, opts) {
+    const originalError = console.error;
+    const stderrLines = [];
+    console.error = (msg) => { stderrLines.push(String(msg)); };
+    try {
+      const { logs, result } = await captureLog(() => sandboxedScan({}, opts));
+      return { logs, result, stderrLines };
+    } finally {
+      console.error = originalError;
+    }
+  }
+
+  it('scanForEnvFilesDetailed({ cwd }) against a non-project cwd, empty sandbox HOME: [], incomplete, rootResolution.unresolved', () => {
+    cwdSandbox = mkSandbox('scan-nodefault-nonproject-');
+    const { scanForEnvFilesDetailed } = stubHomedir(sandboxHome, scanPath);
+
+    const detail = scanForEnvFilesDetailed({ cwd: cwdSandbox });
+
+    assert.deepEqual(detail.files, []);
+    assert.equal(detail.incomplete, true);
+    assert.deepEqual(detail.rootResolution, { unresolved: true, cwdFallback: null });
+  });
+
+  it('scanForEnvFilesDetailed({ cwd }) against a project cwd (package.json), empty sandbox HOME: reports the seeded .env, not incomplete', () => {
+    cwdSandbox = mkSandbox('scan-nodefault-project-pkg-');
+    fs.writeFileSync(path.join(cwdSandbox, 'package.json'), '{}\n');
+    fs.writeFileSync(path.join(cwdSandbox, '.env'), 'SECRET=1\n');
+
+    const { scanForEnvFilesDetailed } = stubHomedir(sandboxHome, scanPath);
+    const detail = scanForEnvFilesDetailed({ cwd: cwdSandbox });
+
+    assert.deepEqual(detail.files, [path.join(cwdSandbox, '.env')]);
+    assert.equal(detail.incomplete, false);
+    assert.deepEqual(detail.rootResolution, { unresolved: false, cwdFallback: path.resolve(cwdSandbox) });
+  });
+
+  it('T-20-WRONGCAUSE: all six default roots unreadable (real mode-000 sandbox HOME) keeps the EXISTING rootFailures/root-clause cause — the cwd-fallback gate must not also fire', { skip: process.platform === 'win32' || runningAsRoot }, async () => {
+    // Real EACCES fixture, mirroring tests/roots.test.js's "real
+    // filesystem: a child under a mode-000 parent" pattern: chmod
+    // sandboxHome ITSELF to 0000 so statSync on every one of the six
+    // DEFAULT_ROOT_NAMES candidates throws EACCES before existence can even
+    // be determined -- the getRoots() onNoDefaultRoots seam still fires
+    // (the result IS empty), but so does onUnreadableRoot, six times. The
+    // fallback decision must be gated on unreadableRoots.length === 0, or
+    // this run would ALSO render the 'no-root' cause on top of the
+    // accurate 'root' one -- found by break-proof 3 (20-01-SUMMARY.md).
+    cwdSandbox = mkSandbox('scan-nodefault-alleacces-cwd-');
+    fs.chmodSync(sandboxHome, 0o000);
+
+    const { scan: sandboxedScan, scanForEnvFilesDetailed } = stubHomedir(sandboxHome, scanPath);
+
+    try {
+      const detail = scanForEnvFilesDetailed({ cwd: cwdSandbox });
+      assert.equal(detail.incomplete, true, 'an all-unreadable-default-roots run must still be incomplete');
+      assert.equal(detail.rootFailures.unreadable, 6, 'all six default candidates must be recorded as unreadable');
+      assert.deepEqual(
+        detail.rootResolution, { unresolved: false, cwdFallback: null },
+        'the cwd-fallback gate must NOT fire when the default roots were unreadable, not merely absent'
+      );
+
+      const clauses = buildCauseClauses(detail);
+      assert.equal(clauses[0].id, 'root', "the unreadable-root cause must render, not 'no-root' — conflating them would print the wrong remedy");
+
+      const { logs, result, stderrLines } = await runScanWithStderr(sandboxedScan, { cwd: cwdSandbox });
+      // 6 per-root "could not be read" warnings (one per unreadable default
+      // candidate, unchanged from before this phase) + the existing
+      // general "did not finish ... results are incomplete" diagnostic —
+      // never a 7th line naming the no-root cause.
+      assert.equal(stderrLines.length, 7, `expected 6 per-root warnings + 1 incomplete diagnostic, got: ${stderrLines}`);
+      assert.ok(stderrLines.every((l) => !l.includes('no scan root could be resolved')), 'must never render the D-20-01(2) no-root cause for an unreadable-root run');
+      assert.ok(!logs.some((l) => l.includes('no scan root could be resolved')), 'must never render the D-20-01(2) no-root cause for an unreadable-root run');
+      assert.deepEqual(result, { code: 2 });
+    } finally {
+      fs.chmodSync(sandboxHome, 0o755);
+    }
+  });
+
+  it('scan({}, { cwd }) against a non-project cwd, empty sandbox HOME: no green check, "could not verify" + the D-20-01(2) cause text, exit 2, exactly one matching stderr line', async () => {
+    cwdSandbox = mkSandbox('scan-nodefault-nonproject-cmd-');
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+
+    const { logs, result, stderrLines } = await runScanWithStderr(sandboxedScan, { cwd: cwdSandbox });
+
+    const output = logs.join('\n');
+    assert.ok(!output.includes('No .env files found'), 'a run that examined zero roots must never print the green check');
+    assert.ok(output.includes('could not verify'), `expected a could-not-verify line, got: ${output}`);
+    assert.ok(output.includes('no scan root could be resolved'), `expected the D-20-01(2) cause text verbatim, got: ${output}`);
+    // review C-4 twin: the no-root cause must render its own clause, never
+    // the budget/unreadable/root wording that fires from unrelated causes.
+    assert.ok(!output.includes('configured scan root(s) could not be resolved'), 'must not render the existing root-clause wording for a zero-default-root cause');
+    assert.ok(!output.includes('stopped early'), 'must not render the budget clause');
+    assert.ok(!output.includes('path(s) could not be read'), 'must not render the unreadable clause');
+    assert.deepEqual(result, { code: 2 }, 'zero roots resolved and no project cwd fallback must exit 2 through computeExit()');
+    assert.equal(stderrLines.length, 1, `expected exactly one stderr line, got: ${stderrLines}`);
+    assert.ok(stderrLines[0].includes('no scan root could be resolved'), `expected the stderr diagnostic to name the same cause, got: ${stderrLines[0]}`);
+  });
+
+  it('scan({}, { cwd }) against a project cwd (package.json, seeded .env), empty sandbox HOME: exactly one stderr note verbatim, the .env is reported, exit 1', async () => {
+    cwdSandbox = mkSandbox('scan-nodefault-project-cmd-');
+    fs.writeFileSync(path.join(cwdSandbox, 'package.json'), '{}\n');
+    fs.writeFileSync(path.join(cwdSandbox, '.env'), 'SECRET=1\n');
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+    const { logs, result, stderrLines } = await runScanWithStderr(sandboxedScan, { cwd: cwdSandbox });
+
+    assert.equal(stderrLines.length, 1, `expected exactly one stderr line, got: ${stderrLines}`);
+    assert.equal(stderrLines[0], 'llm-safe-haven: scanning current directory (no default scan root found)');
+    assert.ok(logs.some((l) => l.includes(path.join(cwdSandbox, '.env'))), `expected the seeded .env to be reported, got: ${logs.join('\n')}`);
+    assert.deepEqual(result, { code: 1 }, 'a .env found via the cwd fallback must exit 1 — findings beat incompleteness');
+  });
+
+  it('scan({}, { cwd }) against a project cwd with NO .env, empty sandbox HOME: green check prints, returns undefined, one stderr note still present', async () => {
+    cwdSandbox = mkSandbox('scan-nodefault-project-clean-');
+    fs.writeFileSync(path.join(cwdSandbox, 'package.json'), '{}\n');
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+    const { logs, result, stderrLines } = await runScanWithStderr(sandboxedScan, { cwd: cwdSandbox });
+
+    assert.ok(logs.some((l) => l.includes('No .env files found')), `expected the green check, got: ${logs.join('\n')}`);
+    assert.equal(result, undefined, 'a clean cwd-fallback scan must return undefined, exactly like a clean default-root scan');
+    assert.equal(stderrLines.length, 1, `expected exactly one stderr line, got: ${stderrLines}`);
+    assert.equal(stderrLines[0], 'llm-safe-haven: scanning current directory (no default scan root found)');
+  });
+
+  it('cwd containing a .git DIRECTORY (no package.json) is also recognised as a project', async () => {
+    cwdSandbox = mkSandbox('scan-nodefault-project-gitdir-');
+    fs.mkdirSync(path.join(cwdSandbox, '.git'));
+    fs.writeFileSync(path.join(cwdSandbox, '.env'), 'SECRET=1\n');
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+    const { logs, result, stderrLines } = await runScanWithStderr(sandboxedScan, { cwd: cwdSandbox });
+
+    assert.equal(stderrLines.length, 1);
+    assert.equal(stderrLines[0], 'llm-safe-haven: scanning current directory (no default scan root found)');
+    assert.ok(logs.some((l) => l.includes(path.join(cwdSandbox, '.env'))));
+    assert.deepEqual(result, { code: 1 });
+  });
+
+  it('cwd containing a .git FILE (worktree/submodule shape, no package.json) is also recognised as a project — distinct from the directory case', async () => {
+    cwdSandbox = mkSandbox('scan-nodefault-project-gitfile-');
+    fs.writeFileSync(path.join(cwdSandbox, '.git'), 'gitdir: /somewhere/else/.git/worktrees/foo\n');
+    fs.writeFileSync(path.join(cwdSandbox, '.env'), 'SECRET=1\n');
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+    const { logs, result, stderrLines } = await runScanWithStderr(sandboxedScan, { cwd: cwdSandbox });
+
+    assert.equal(stderrLines.length, 1);
+    assert.equal(stderrLines[0], 'llm-safe-haven: scanning current directory (no default scan root found)');
+    assert.ok(logs.some((l) => l.includes(path.join(cwdSandbox, '.env'))));
+    assert.deepEqual(result, { code: 1 });
+  });
+
+  it('PAIRED CONTROL (D-20-02): a HOME with exactly one default root (Projects), non-project cwd — byte-identical to the pre-phase render, undefined, zero stderr lines', async () => {
+    // Captured against commit c62301f0800b58dbf93a0c2a0c6897d1a5a0f56e (the
+    // phase-19 head, immediately pre-phase-20) via:
+    //   node -e "... stubHomedir(sandboxHome-with-only-Projects/, scanPath) ...
+    //     captureLog(() => scan({}, {}))"
+    // A control that RE-DERIVES this render from the code under test would
+    // agree with whatever ships and detect nothing — this is a hardcoded
+    // literal compared with deepEqual, not a smoke test.
+    const EXPECTED_PRE_PHASE_RENDER = [
+      '',
+      '  \u{1F512} LLM Safe Haven — Security Scorecard',
+      '',
+      '  Scanning for exposed secrets...',
+      '',
+      '',
+      '  Project scan:',
+      '    ✓ No .env files found',
+      '',
+      '  Next steps:',
+      '    Set up a credential proxy (see docs/credential-management.md)',
+      '    Docs: https://github.com/pleasedodisturb/llm-safe-haven',
+      '',
+    ];
+
+    fs.mkdirSync(path.join(sandboxHome, 'Projects'));
+    cwdSandbox = mkSandbox('scan-nodefault-paired-control-cwd-');
+
+    const { scan: sandboxedScan } = stubHomedir(sandboxHome, scanPath);
+    const { logs, result, stderrLines } = await runScanWithStderr(sandboxedScan, { cwd: cwdSandbox });
+
+    assert.deepEqual(logs, EXPECTED_PRE_PHASE_RENDER, 'D-20-02: 1..5-of-6 default roots present must render byte-identically to before this phase');
+    assert.equal(result, undefined);
+    assert.equal(stderrLines.length, 0, 'D-20-02: no new stderr line for the 1..5-of-6 case');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildCauseClauses — the 'no-root' clause (EXIT-04, G-1621, D-20-01(2))
+// ---------------------------------------------------------------------------
+describe("buildCauseClauses — the 'no-root' clause (EXIT-04, G-1621)", () => {
+  it("a detail with rootResolution.unresolved=true produces exactly one clause, id 'no-root', the D-20-01(2) text verbatim — never the existing 'root' wording", () => {
+    const clauses = buildCauseClauses({
+      anomalyReasons: {},
+      rootFailures: { missing: 0, unreadable: 0 },
+      rootResolution: { unresolved: true, cwdFallback: null },
+    });
+    assert.equal(clauses.length, 1);
+    assert.equal(clauses[0].id, 'no-root');
+    assert.equal(clauses[0].text, 'no scan root could be resolved');
+  });
+
+  it('MUST-STILL-PASS TWIN (G-1617): a detail with NO rootResolution field behaves exactly as today — the no-root clause never fires on its absence', () => {
+    const withRootFailure = buildCauseClauses({ anomalyReasons: {}, rootFailures: { missing: 1, unreadable: 0 } });
+    assert.equal(withRootFailure.length, 1);
+    assert.equal(withRootFailure[0].id, 'root', 'a detail with no rootResolution field must default to the non-firing shape, never the unresolved one');
+
+    const withNothing = buildCauseClauses({ anomalyReasons: {}, rootFailures: { missing: 0, unreadable: 0 } });
+    assert.equal(withNothing.length, 1);
+    assert.equal(withNothing[0].id, 'unknown', 'the G-1617 fallback must still be the only clause when nothing fired and rootResolution is absent');
   });
 });
 

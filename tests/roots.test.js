@@ -15,7 +15,10 @@ const os = require('os');
 
 const { stubHomedir, restoreHomedir } = require('./helpers/module-stub.js');
 
-const { getRoots, parseRootsEnv, DEFAULT_ROOT_NAMES } = require('../lib/roots.js');
+const {
+  getRoots, parseRootsEnv, DEFAULT_ROOT_NAMES,
+  looksLikeProject, resolveZeroRootFallback,
+} = require('../lib/roots.js');
 
 function mkTmp(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -520,5 +523,146 @@ describe('getRoots — onUnreadableRoot (EXIT-02, D-07b)', () => {
         fs.chmodSync(parentDir, 0o755);
       }
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getRoots — onNoDefaultRoots (EXIT-04, G-1621)
+//
+// D-20-05: the third additive callback sibling of onMissingRoot/
+// onUnreadableRoot above — fires ONLY when the DEFAULT probe (not explicit
+// LSH_ROOTS) resolves to zero roots. It reports the FACT that zero default
+// roots resolved; it never decides what to do about it (that decision, the
+// cwd fallback, lives in the CALLER — see tests/scan.test.js "scan() zero
+// default roots"). Mirrors the onMissingRoot describe above case for case.
+// ---------------------------------------------------------------------------
+describe('getRoots — onNoDefaultRoots (EXIT-04, G-1621)', () => {
+  function statSyncThrowing(code) {
+    return () => {
+      const err = new Error(`simulated ${code}`);
+      err.code = code;
+      throw err;
+    };
+  }
+
+  let sandboxHome;
+
+  afterEach(() => {
+    if (sandboxHome) fs.rmSync(sandboxHome, { recursive: true, force: true });
+    sandboxHome = undefined;
+  });
+
+  it('fires onNoDefaultRoots exactly ONCE, with no arguments (arity 0), when none of the six default roots exist', () => {
+    sandboxHome = mkTmp('roots-nodefault-empty-');
+    const calls = [];
+    const roots = getRoots({
+      env: {},
+      homedir: () => sandboxHome,
+      onNoDefaultRoots: (...args) => calls.push(args),
+    });
+
+    assert.deepEqual(roots, []);
+    assert.equal(calls.length, 1, 'onNoDefaultRoots must fire exactly once');
+    assert.deepEqual(calls[0], [], 'onNoDefaultRoots is arity-0 — it must be called with no arguments');
+  });
+
+  it('PAIRED CONTROL (D-20-02): a HOME with exactly one default root (Projects) fires onNoDefaultRoots ZERO times', () => {
+    sandboxHome = mkTmp('roots-nodefault-onepresent-');
+    fs.mkdirSync(path.join(sandboxHome, 'Projects'));
+
+    const calls = [];
+    const roots = getRoots({
+      env: {},
+      homedir: () => sandboxHome,
+      onNoDefaultRoots: () => calls.push(true),
+    });
+
+    assert.deepEqual(roots, [path.resolve(sandboxHome, 'Projects')]);
+    assert.deepEqual(calls, [], 'a HOME with 1..5 of 6 default roots must never fire onNoDefaultRoots — D-20-02');
+  });
+
+  it('explicit LSH_ROOTS mode with every entry missing fires onNoDefaultRoots ZERO times, while still firing onMissingRoot per occurrence', () => {
+    const missingA = path.join(os.tmpdir(), 'roots-nodefault-explicit-missing-a-does-not-exist');
+    const missingB = path.join(os.tmpdir(), 'roots-nodefault-explicit-missing-b-does-not-exist');
+
+    const noDefaultCalls = [];
+    const missingCalls = [];
+    const roots = getRoots({
+      env: { LSH_ROOTS: `${missingA}:${missingB}` },
+      homedir: () => '/home/fake',
+      onMissingRoot: (candidate) => missingCalls.push(candidate),
+      onNoDefaultRoots: () => noDefaultCalls.push(true),
+    });
+
+    assert.deepEqual(roots, []);
+    assert.deepEqual(noDefaultCalls, [], 'explicit LSH_ROOTS mode must never fire onNoDefaultRoots, even when every entry is missing');
+    assert.deepEqual(missingCalls, [missingA, missingB], 'onMissingRoot must still fire per occurrence in explicit mode, unchanged');
+  });
+
+  it('getRoots() with NO onNoDefaultRoots supplied behaves byte-identically to today (no throw, same bare string[] return)', () => {
+    sandboxHome = mkTmp('roots-nodefault-noop-');
+    assert.doesNotThrow(() => {
+      const roots = getRoots({ env: {}, homedir: () => sandboxHome });
+      assert.deepEqual(roots, []);
+    });
+  });
+
+  it('all six default candidates throwing EACCES fires onNoDefaultRoots (the result IS empty) AND onUnreadableRoot six times — the callback reports the FACT, the caller partitions on WHY', () => {
+    const noDefaultCalls = [];
+    const unreadableCalls = [];
+    const roots = getRoots({
+      env: {},
+      homedir: () => '/home/fake',
+      fs: { statSync: statSyncThrowing('EACCES') },
+      onNoDefaultRoots: () => noDefaultCalls.push(true),
+      onUnreadableRoot: (candidate, code) => unreadableCalls.push([candidate, code]),
+    });
+
+    assert.deepEqual(roots, []);
+    assert.equal(noDefaultCalls.length, 1, 'onNoDefaultRoots fires once even when every candidate failed as unreadable, not merely absent');
+    assert.equal(unreadableCalls.length, DEFAULT_ROOT_NAMES.length, 'onUnreadableRoot must still fire once per unreadable default-probe candidate');
+  });
+});
+
+// 20-REVIEW.md WR-02 (G-1621): `looksLikeProject()` / `resolveZeroRootFallback()`
+// document an injectable `fs` seam "for testing" that nothing in the suite
+// exercised -- only real-disk integration coverage existed. These cases drive
+// the seam with a stub `fs` (the same DI convention `getRoots()`'s own tests
+// use above), so the seam is load-bearing rather than decorative. What would
+// make them fail: the helpers reading the real `fs` module instead of the
+// injected one (a stub that reports `.git` present would then be ignored and
+// `looksLikeProject` would answer from the real disk).
+describe('looksLikeProject / resolveZeroRootFallback — injectable fs seam (WR-02)', () => {
+  // A stub whose whole world is the set of paths passed in. Anything else
+  // does not exist. Real fs is never consulted.
+  function fsWithOnly(existingPaths) {
+    const set = new Set(existingPaths.map((p) => path.normalize(p)));
+    return { existsSync: (p) => set.has(path.normalize(p)) };
+  }
+
+  const dir = path.join(path.sep, 'nonexistent-fake-root', 'proj');
+
+  it('`.git` present via the stub ⇒ project (a real-disk check would say NO — the dir does not exist)', () => {
+    assert.equal(fs.existsSync(dir), false, 'precondition: the fake dir must NOT exist on the real disk, or this case proves nothing');
+    assert.equal(looksLikeProject(dir, fsWithOnly([path.join(dir, '.git')])), true);
+  });
+
+  it('`.git` as a FILE (worktree/submodule `gitdir:` pointer) counts too — the seam is existsSync, not isDirectory', () => {
+    // The stub has no isDirectory at all; if the helper ever started calling
+    // statSync().isDirectory() this would throw rather than pass.
+    assert.equal(looksLikeProject(dir, fsWithOnly([path.join(dir, '.git')])), true);
+  });
+
+  it('`package.json` alone ⇒ project', () => {
+    assert.equal(looksLikeProject(dir, fsWithOnly([path.join(dir, 'package.json')])), true);
+  });
+
+  it('neither marker ⇒ not a project, even when the directory itself "exists" in the stub', () => {
+    assert.equal(looksLikeProject(dir, fsWithOnly([dir])), false);
+  });
+
+  it('resolveZeroRootFallback returns the resolved cwd when the stub says project, null when it does not — real disk never consulted', () => {
+    assert.equal(resolveZeroRootFallback({ cwd: dir, fs: fsWithOnly([path.join(dir, 'package.json')]) }), path.resolve(dir));
+    assert.equal(resolveZeroRootFallback({ cwd: dir, fs: fsWithOnly([]) }), null);
   });
 });

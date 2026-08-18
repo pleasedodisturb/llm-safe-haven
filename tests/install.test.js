@@ -16,7 +16,12 @@
 
 const { describe, it, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
-const { installStub } = require('./helpers/module-stub.js');
+const { installStub, stubHomedir } = require('./helpers/module-stub.js');
+// D-20-03 sensitivity proof only (break-proof 5, 20-03-PLAN.md Task 3) --
+// every OTHER test in this file uses the wholesale lib/scan.js stub below.
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 // ---- mutable stub state (reset in beforeEach) ----
 let currentBuildEnvelope;
@@ -173,5 +178,124 @@ describe('install() orchestration (TQ-02, D-13)', () => {
     const { logs } = await captureLog(() => install({}));
     assert.ok(logs.some((l) => l.includes('No .env files found')), 'the green line must still print for a complete, clean env scan');
     assert.ok(!logs.some((l) => l.includes('could not verify')), 'a complete, clean env scan must never print the could-not-verify line');
+  });
+});
+
+// EXIT-05 (G-1623, D-20-08): the human renderer must not print an uncapped
+// `Security Level: N` line beneath the `◆ could not verify` env block --
+// install() especially, since it has no exit code of its own and its render
+// IS its verdict channel (D-20-03).
+describe('EXIT-05 (G-1623): install() renders the capped level under an incomplete env scan', () => {
+  beforeEach(() => {
+    currentBuildEnvelope = () => Promise.resolve(envelope());
+    // Agent level 4 -- well above the ceiling of 2 -- so an uncapped render
+    // would print "Security Level: 4 of 4" if the cap failed to fire.
+    currentAgents = [fakeAgent({ audit: () => ({ checks: [], level: 4 }) })];
+    currentEnvFiles = [];
+    currentEnvIncomplete = false;
+    currentEnvDetail = undefined;
+  });
+
+  it('an incomplete env scan prints no uncapped level, prints the capped Security Level: 2, and the cap reason line', async () => {
+    currentEnvDetail = {
+      files: [], incomplete: true, anomalyCount: 1,
+      anomalyReasons: { unreadable: 1, budget: 0 },
+      rootFailures: { missing: 0, unreadable: 0 },
+    };
+
+    const { logs } = await captureLog(() => install({}));
+    assert.ok(!logs.some((l) => l.includes('Security Level: 3')), `no uncapped Security Level: 3 line, got: ${logs.join('\n')}`);
+    assert.ok(!logs.some((l) => l.includes('Security Level: 4')), `no uncapped Security Level: 4 line, got: ${logs.join('\n')}`);
+    assert.ok(logs.some((l) => l.includes('Security Level: 2')), `expected the capped Security Level: 2 line, got: ${logs.join('\n')}`);
+    assert.ok(logs.some((l) => /Level capped at 2/.test(l)), `expected the cap's reason line, got: ${logs.join('\n')}`);
+    assert.ok(logs.some((l) => l.includes('could not verify')), 'the could-not-verify block must still print');
+  });
+
+  it('MUST-STILL-PASS TWIN: a complete, clean env detail still prints Security Level: 4 with no env cap line', async () => {
+    currentEnvDetail = {
+      files: [], incomplete: false, anomalyCount: 0,
+      anomalyReasons: { unreadable: 0, budget: 0 },
+      rootFailures: { missing: 0, unreadable: 0 },
+    };
+
+    const { logs } = await captureLog(() => install({}));
+    assert.ok(logs.some((l) => l.includes('Security Level: 4 of 4')), `expected the uncapped Security Level: 4, got: ${logs.join('\n')}`);
+    assert.ok(!logs.some((l) => /Level capped at/.test(l)), 'no cap line must print for a complete, clean env scan');
+  });
+});
+
+// D-20-03 (G-1621): install follows scan on the zero-default-root state.
+// install() has no exit code of its own -- its render IS its verdict
+// channel -- so "no green check" is the entire contract here. This
+// coverage passes the moment it is written (lib/scan.js already produces
+// the shape as of plan 20-01); the sensitivity proof is Task 3's
+// break-proof 5, recorded in 20-03-SUMMARY.md, not a RED commit.
+describe('D-20-03 (G-1621): install follows scan on the zero-default-root state', () => {
+  const { NO_SCAN_ROOT_CAUSE } = require('../lib/roots.js');
+
+  beforeEach(() => {
+    currentBuildEnvelope = () => Promise.resolve(envelope());
+    currentAgents = [fakeAgent()];
+    currentEnvFiles = [];
+    currentEnvIncomplete = false;
+    currentEnvDetail = undefined;
+  });
+
+  it('still bare-returns while printing no green check and the no-scan-root cause', async () => {
+    currentEnvDetail = {
+      files: [], incomplete: true, anomalyCount: 0,
+      anomalyReasons: { unreadable: 0, budget: 0 },
+      rootFailures: { missing: 0, unreadable: 0 },
+      rootResolution: { unresolved: true, cwdFallback: null },
+    };
+    const { logs, result } = await captureLog(() => install({}));
+    assert.equal(result, undefined, 'install() still bare-returns -- it has no exit code of its own');
+    assert.ok(!logs.some((l) => l.includes('No .env files found')), `no captured line may print the green check, got: ${logs.join('\n')}`);
+    assert.ok(logs.some((l) => l.includes(NO_SCAN_ROOT_CAUSE)), `expected the no-scan-root cause on stdout, got: ${logs.join('\n')}`);
+  });
+
+  it('PAIRED CONTROL: a complete, clean env detail prints the green check as usual', async () => {
+    currentEnvDetail = {
+      files: [], incomplete: false, anomalyCount: 0,
+      anomalyReasons: { unreadable: 0, budget: 0 },
+      rootFailures: { missing: 0, unreadable: 0 },
+      rootResolution: { unresolved: false, cwdFallback: null },
+    };
+    const { logs } = await captureLog(() => install({}));
+    assert.ok(logs.some((l) => l.includes('No .env files found')), 'the green line must print for a complete, clean env scan');
+  });
+
+  // SENSITIVITY PROOF (break-proof 5, 20-03-PLAN.md Task 3) -- see the
+  // twin test in tests/audit.test.js for the full rationale. Bypasses the
+  // wholesale lib/scan.js stub for one call to prove the REAL
+  // scanForEnvFilesDetailed() actually produces the shape the hand-built
+  // fixtures above assume.
+  it('SENSITIVITY: the REAL scanForEnvFilesDetailed() produces this exact shape on a genuine zero-root run', async () => {
+    const scanPath = require.resolve('../lib/scan.js');
+    const osPath = require.resolve('os');
+    const originalScanCacheEntry = require.cache[scanPath];
+    const originalOsCacheEntry = require.cache[osPath];
+    const sandboxHome = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-d2003-home-'));
+    const sandboxCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-d2003-cwd-'));
+    try {
+      const { scanForEnvFilesDetailed: realScanForEnvFilesDetailed } = stubHomedir(sandboxHome, scanPath);
+      const realDetail = realScanForEnvFilesDetailed({ cwd: sandboxCwd });
+
+      assert.equal(realDetail.incomplete, true, 'the REAL scanForEnvFilesDetailed() must report incomplete on a zero-root, non-project cwd');
+      assert.ok(realDetail.rootResolution && realDetail.rootResolution.unresolved === true, `expected rootResolution.unresolved:true, got: ${JSON.stringify(realDetail.rootResolution)}`);
+
+      currentEnvDetail = realDetail;
+      const { logs, result } = await captureLog(() => install({}));
+      assert.equal(result, undefined);
+      assert.ok(!logs.some((l) => l.includes('No .env files found')), `no green check may print, got: ${logs.join('\n')}`);
+      assert.ok(logs.some((l) => l.includes(NO_SCAN_ROOT_CAUSE)), `expected the no-scan-root cause on stdout, got: ${logs.join('\n')}`);
+    } finally {
+      if (originalScanCacheEntry === undefined) delete require.cache[scanPath];
+      else require.cache[scanPath] = originalScanCacheEntry;
+      if (originalOsCacheEntry === undefined) delete require.cache[osPath];
+      else require.cache[osPath] = originalOsCacheEntry;
+      fs.rmSync(sandboxHome, { recursive: true, force: true });
+      fs.rmSync(sandboxCwd, { recursive: true, force: true });
+    }
   });
 });

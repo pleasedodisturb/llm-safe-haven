@@ -19,7 +19,12 @@ const assert = require('node:assert/strict');
 // F10: shared require-cache stub helper — see the WR-01 ordering notes in
 // tests/helpers/module-stub.js (stubs must land in require.cache BEFORE
 // lib/audit.js is first required below).
-const { installStub } = require('./helpers/module-stub.js');
+const { installStub, stubHomedir } = require('./helpers/module-stub.js');
+// D-20-03 sensitivity proof only (break-proof 5, 20-03-PLAN.md Task 3) --
+// every OTHER test in this file uses the wholesale lib/scan.js stub below.
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 // ---- mutable stub state (reset in beforeEach) ----
 let currentBuildEnvelope;
@@ -96,7 +101,7 @@ const { captureLog } = require('./helpers/capture-log.js');
 
 // audit.js is required AFTER the stubs exist, so its top-level bindings
 // resolve to the stubs above.
-const { audit, getMcpInputs, normalizeAuditResult, auditExitCode } = require('../lib/audit.js');
+const { audit, getMcpInputs, normalizeAuditResult, auditExitCode, computeScorecardLevel } = require('../lib/audit.js');
 
 describe('audit --json frozen contract (D-11) and containment', () => {
   beforeEach(() => {
@@ -676,5 +681,228 @@ describe('audit --json keeps the env-incompleteness signal when a finding wins p
       assert.ok(Object.prototype.hasOwnProperty.call(j, key), `frozen key '${key}' disappeared from the envelope`);
     }
     assert.equal(j.envIncomplete, false);
+
+    // FROZEN ORDER (D-20-09): the first six keys, in SOURCE order, are the
+    // frozen top-level `--json` envelope contract -- until this plan,
+    // nothing enforced the ORDER, only presence (the loop above).
+    assert.deepEqual(
+      Object.keys(j).slice(0, 6),
+      ['agents', 'envFiles', 'envFileCount', 'overallLevel', 'mcp', 'levelCaps'],
+      'the first six top-level keys, in source order, are the frozen --json contract'
+    );
+
+    // BYTE-IDENTICAL PAIRED CONTROL (D-20-09, T-20-REGRESS): a COMPLETE,
+    // clean scan's overallLevel/levelCaps must be unchanged by the
+    // env-incomplete cap this plan adds. Captured from the pre-phase code at
+    // commit 9a2c8f8915c56592a983aea6b74f53ee823cd1be (20-02's final commit,
+    // before this plan's changes) -- hardcoded literals, not recomputed from
+    // the code under test (a control that recomputes the expectation from
+    // the code under test agrees with whatever ships).
+    assert.equal(j.overallLevel, 3, 'PRE-PHASE CAPTURE (9a2c8f8915c56592a983aea6b74f53ee823cd1be): overallLevel was 3');
+    assert.deepEqual(j.levelCaps, [], 'PRE-PHASE CAPTURE (9a2c8f8915c56592a983aea6b74f53ee823cd1be): levelCaps was []');
+  });
+});
+
+// ---------------------------------------------------------------------
+// EXIT-05 (G-1623, D-20-06..D-20-09). computeSecurityLevel() gains an `env`
+// input, a structural clone of the existing `mcp` input (see
+// tests/scorecard.test.js's "WR-02 for env" describe for the unit-level
+// cases). This section proves the signal reaches `audit --json`'s
+// overallLevel/levelCaps keys -- the keys a CI consumer's
+// `process.exit(overallLevel >= 2 ? 0 : 1)` pattern actually reads -- and
+// that the SINGLE `computeScorecardLevel()` choke point fails closed when
+// its fourth argument is omitted (research Pitfall 4: two of three call
+// sites updated is the exact failure mode this plan must avoid).
+// ---------------------------------------------------------------------
+describe('EXIT-05 (G-1623): env incompleteness caps the posture keys', () => {
+  const completeEnvDetail = {
+    files: [], incomplete: false, anomalyCount: 0,
+    anomalyReasons: { unreadable: 0, budget: 0 },
+    rootFailures: { missing: 0, unreadable: 0 },
+  };
+  const incompleteEnvDetail = {
+    files: [], incomplete: true, anomalyCount: 1,
+    anomalyReasons: { unreadable: 1, budget: 0 },
+    rootFailures: { missing: 0, unreadable: 0 },
+  };
+
+  beforeEach(() => {
+    currentBuildEnvelope = () => Promise.resolve(envelope());
+    // Agents at level 4 (well above the ceiling of 2) so the cap is
+    // REQUIRED to fire -- see the non-vacuity test below, which proves this
+    // fixture's uncapped base BEFORE any cap test relies on it meaning
+    // anything.
+    currentAgents = [fakeAgent({ audit: () => ({ checks: [], level: 4 }) })];
+    currentEnvFiles = [];
+    currentEnvIncomplete = false;
+    currentEnvDetail = undefined;
+  });
+
+  it('non-vacuity: the driving fixture (agent level 4) is uncapped above the ceiling on a COMPLETE scan', async () => {
+    currentEnvDetail = completeEnvDetail;
+    const out = JSON.parse((await captureLog(() => audit({ json: true }))).logs.join('\n'));
+    assert.equal(out.overallLevel, 4, "the driving fixture's uncapped base must be 4 (above the ceiling of 2) -- otherwise the cap test below would prove nothing");
+  });
+
+  it('an INCOMPLETE env scan caps overallLevel at 2 and records an env-incomplete levelCaps entry', async () => {
+    currentEnvDetail = incompleteEnvDetail;
+    const out = JSON.parse((await captureLog(() => audit({ json: true }))).logs.join('\n'));
+    assert.equal(out.envIncomplete, true);
+    assert.ok(out.overallLevel <= 2, `overallLevel must be capped at 2, got ${out.overallLevel}`);
+    const cap = out.levelCaps.find((c) => c.id === 'env-incomplete');
+    assert.ok(cap, `expected an env-incomplete levelCaps entry, got: ${JSON.stringify(out.levelCaps)}`);
+    assert.equal(cap.cappedTo, 2);
+  });
+
+  it('CONSISTENCY (D-20-07): envIncomplete === true implies overallLevel <= 2, across a table of env states', async () => {
+    const table = [
+      { label: 'complete, clean', detail: completeEnvDetail, expectIncomplete: false },
+      { label: 'incomplete: unreadable path', detail: incompleteEnvDetail, expectIncomplete: true },
+      {
+        label: 'incomplete: zero default roots resolved (D-20-03 shape)',
+        detail: {
+          files: [], incomplete: true, anomalyCount: 0,
+          anomalyReasons: { unreadable: 0, budget: 0 },
+          rootFailures: { missing: 0, unreadable: 0 },
+          rootResolution: { unresolved: true, cwdFallback: null },
+        },
+        expectIncomplete: true,
+      },
+    ];
+
+    // Non-vacuity guards (T-20-VACUOUS): an empty table, or one missing
+    // either polarity, would let the implication below pass on nothing.
+    // Proven during authoring: temporarily emptying `table` makes both
+    // `.some()` guards below throw instead of silently passing.
+    assert.ok(table.length > 0, 'the state table must not be empty');
+    assert.ok(table.some((s) => s.expectIncomplete === true), 'the table must include at least one envIncomplete:true case');
+    assert.ok(table.some((s) => s.expectIncomplete === false), 'the table must include at least one envIncomplete:false case');
+
+    for (const state of table) {
+      currentEnvDetail = state.detail;
+      const out = JSON.parse((await captureLog(() => audit({ json: true }))).logs.join('\n'));
+      assert.equal(out.envIncomplete, state.expectIncomplete, `envIncomplete mismatch for ${state.label}`);
+      if (out.envIncomplete === true) {
+        assert.ok(out.overallLevel <= 2, `envIncomplete true but overallLevel ${out.overallLevel} > 2 for ${state.label}`);
+        assert.ok(out.levelCaps.some((c) => c.id === 'env-incomplete'), `expected an env-incomplete levelCaps entry for ${state.label}`);
+      }
+    }
+  });
+});
+
+describe('computeScorecardLevel — the fourth env parameter fails closed on omission (EXIT-05, G-1623, research Pitfall 4)', () => {
+  beforeEach(() => {
+    currentBuildEnvelope = () => Promise.resolve(envelope());
+  });
+
+  it('computeScorecardLevel(flags, [4], 0) with the env argument OMITTED fails closed to the capped level', async () => {
+    const { level, caps } = await computeScorecardLevel({}, [4], 0);
+    assert.equal(level, 2, 'the choke point must not invent a complete default for the env signal');
+    assert.ok(caps.some((c) => c.id === 'env-incomplete'), `expected an env-incomplete cap, got: ${JSON.stringify(caps)}`);
+  });
+});
+
+// ---------------------------------------------------------------------
+// D-20-03 (G-1621): audit follows scan on the zero-default-root state.
+// scanForEnvFilesDetailed() (lib/scan.js) already produces this shape as
+// of plan 20-01 -- audit() consumes it through the same stubbed
+// scanForEnvFilesDetailed() every other test in this file uses, so this
+// coverage PASSES the moment it is written (no behaviour here is new).
+// That is not a TDD violation: the sensitivity proof is the break-proof
+// (Task 3 of 20-03-PLAN.md, recorded in 20-03-SUMMARY.md), not a RED
+// commit for this describe.
+// ---------------------------------------------------------------------
+describe('D-20-03 (G-1621): audit follows scan on the zero-default-root state', () => {
+  const { NO_SCAN_ROOT_CAUSE } = require('../lib/roots.js');
+
+  // The exact shape 20-01's scanForEnvFilesDetailed() returns when zero
+  // default roots resolved and the cwd did not look like a project: no
+  // files, incomplete, and rootResolution.unresolved -- read from the
+  // real module rather than retyped, so a future rename of the shape is
+  // caught here too.
+  const zeroRootEnvDetail = {
+    files: [], incomplete: true, anomalyCount: 0,
+    anomalyReasons: { unreadable: 0, budget: 0 },
+    rootFailures: { missing: 0, unreadable: 0 },
+    rootResolution: { unresolved: true, cwdFallback: null },
+  };
+
+  beforeEach(() => {
+    currentBuildEnvelope = () => Promise.resolve(envelope());
+    currentAgents = [fakeAgent()];
+    currentEnvFiles = [];
+    currentEnvIncomplete = false;
+    currentEnvDetail = undefined;
+  });
+
+  it('the human render prints no green check and the no-scan-root cause, through the real renderer', async () => {
+    currentEnvDetail = zeroRootEnvDetail;
+    const { logs, result } = await captureLog(() => audit({}));
+    assert.ok(!logs.some((l) => l.includes('No .env files found')), `no captured line may print the green check, got: ${logs.join('\n')}`);
+    assert.ok(logs.some((l) => l.includes(NO_SCAN_ROOT_CAUSE)), `expected the no-scan-root cause on stdout, got: ${logs.join('\n')}`);
+    assert.equal(result.code, 2, 'a zero-root, non-project run must exit 2 through audit');
+  });
+
+  it('audit --json ties EXIT-04\'s no-root cause to EXIT-05\'s env-incomplete cap in one record', async () => {
+    currentEnvDetail = zeroRootEnvDetail;
+    const out = JSON.parse((await captureLog(() => audit({ json: true }))).logs.join('\n'));
+    assert.equal(out.envIncomplete, true);
+    assert.ok(out.envCauses.includes('no-root'), `expected 'no-root' in envCauses, got: ${JSON.stringify(out.envCauses)}`);
+    assert.ok(out.overallLevel <= 2, `overallLevel must be capped at 2, got ${out.overallLevel}`);
+    assert.ok(out.levelCaps.some((c) => c.id === 'env-incomplete'), `expected an env-incomplete levelCaps entry, got: ${JSON.stringify(out.levelCaps)}`);
+  });
+
+  it('PAIRED CONTROL: a complete, clean env detail prints the green check and exits per the normal contract', async () => {
+    currentEnvDetail = {
+      files: [], incomplete: false, anomalyCount: 0,
+      anomalyReasons: { unreadable: 0, budget: 0 },
+      rootFailures: { missing: 0, unreadable: 0 },
+      rootResolution: { unresolved: false, cwdFallback: null },
+    };
+    const { logs, result } = await captureLog(() => audit({}));
+    assert.ok(logs.some((l) => l.includes('No .env files found')), 'the green line must print for a complete, clean env scan');
+    assert.equal(result.code, 0);
+  });
+
+  // SENSITIVITY PROOF (break-proof 5, 20-03-PLAN.md Task 3). Every case
+  // above hand-builds `zeroRootEnvDetail` and feeds it through the
+  // WHOLESALE lib/scan.js stub -- proving audit() renders/exits correctly
+  // GIVEN that shape, but proving nothing about whether the REAL
+  // scanForEnvFilesDetailed() (lib/scan.js, plan 20-01) actually PRODUCES
+  // that shape on a genuine zero-default-root run. This test bypasses the
+  // wholesale stub for one call, using the same os.homedir()-sandboxing
+  // technique tests/scan.test.js uses, to prove the real production
+  // function returns the exact shape the cases above assume.
+  it('SENSITIVITY: the REAL scanForEnvFilesDetailed() produces this exact shape on a genuine zero-root run', async () => {
+    const scanPath = require.resolve('../lib/scan.js');
+    const osPath = require.resolve('os');
+    const originalScanCacheEntry = require.cache[scanPath];
+    const originalOsCacheEntry = require.cache[osPath];
+    const sandboxHome = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-d2003-home-'));
+    const sandboxCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-d2003-cwd-'));
+    try {
+      // Deliberately NOT a project (no .git, no package.json) -- forces
+      // the incomplete/exit-2 half, not the cwd-fallback half.
+      const { scanForEnvFilesDetailed: realScanForEnvFilesDetailed } = stubHomedir(sandboxHome, scanPath);
+      const realDetail = realScanForEnvFilesDetailed({ cwd: sandboxCwd });
+
+      assert.equal(realDetail.incomplete, true, 'the REAL scanForEnvFilesDetailed() must report incomplete on a zero-root, non-project cwd -- if this fails, the hand-built fixture above is not proving anything about production code');
+      assert.ok(realDetail.rootResolution && realDetail.rootResolution.unresolved === true, `expected rootResolution.unresolved:true from the real function, got: ${JSON.stringify(realDetail.rootResolution)}`);
+      assert.deepEqual(realDetail.files, []);
+
+      // Now prove audit() consumes this REAL detail correctly too, closing
+      // the loop end to end.
+      currentEnvDetail = realDetail;
+      const out = JSON.parse((await captureLog(() => audit({ json: true }))).logs.join('\n'));
+      assert.equal(out.envIncomplete, true);
+      assert.ok(out.envCauses.includes('no-root'), `expected 'no-root' in envCauses from the real detail, got: ${JSON.stringify(out.envCauses)}`);
+    } finally {
+      if (originalScanCacheEntry === undefined) delete require.cache[scanPath];
+      else require.cache[scanPath] = originalScanCacheEntry;
+      if (originalOsCacheEntry === undefined) delete require.cache[osPath];
+      else require.cache[osPath] = originalOsCacheEntry;
+      fs.rmSync(sandboxHome, { recursive: true, force: true });
+      fs.rmSync(sandboxCwd, { recursive: true, force: true });
+    }
   });
 });
