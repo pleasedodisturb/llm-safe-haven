@@ -54,15 +54,100 @@ fi
 FINDINGS=0
 FINDING_LOG=""
 
-pass() { printf "  ${GREEN}[PASS]${RESET} %s\n" "$1"; }
-fail() {
-  printf "  ${RED}[FAIL]${RESET} %s\n" "$1"
-  FINDINGS=$((FINDINGS + 1))
-  FINDING_LOG="${FINDING_LOG}  - $1\n"
+# CR-01/CWE-150 -- bash half of ONE contract; canonical def is
+# lib/scorecard.js's sanitizeForTerminal() (lib/scorecard.js:147-162),
+# pinned by a bidirectional drift guard (19-07-PLAN.md). Strips C0
+# (0x00-0x1F) + DEL (0x7F) + C1 (0x80-0x9F) so a hostile filename can never
+# move the cursor, repaint a line, or forge a report row. Byte-identical
+# copy of scripts/scan-miasma-june2026.sh's sanitize_for_terminal()
+# (plan 19-01, the phase's tracer) -- a drift guard in 19-07-PLAN.md
+# asserts all four scanner copies stay byte-identical, so do not "tidy"
+# anything here, including the locale declaration below.
+#
+# Deliberate, tested asymmetries (not oversights): Unicode format/bidi
+# points (U+202E RLO) are NOT stripped on glibc -- [[:cntrl:]] reaches
+# category Cc only, never Cf (measured, 5 locales, Ubuntu 22.04/24.04;
+# Darwin's libc DOES strip U+202E). A LONE 0x9B byte (not the valid c2 9b
+# pair) also survives glibc in every locale; closing it needs a raw
+# 0x80-0x9F byte pass, which corrupts every CJK path (e.g. "服"=e6 9c 8d)
+# the same way `tr` did. Both pinned by a Linux-gated test, 19-07-PLAN.md.
+# (G-1640: this paragraph was missing from this script until 19-09-PLAN.md's
+# fold-in task -- comment-only addition, the function body above is
+# untouched and stays byte-identical.)
+#
+# The locale MUST be forced via a function-scoped `local`, never a
+# command-prefix assignment (`LC_ALL=C.UTF-8 printf ...`): POSIX expands a
+# simple command's words BEFORE its assignment prefixes, so the prefix form
+# is NON-FUNCTIONAL here -- it never reaches the substitution below and
+# leaves C1 (U+009B) unstripped under the caller's ambient C/POSIX locale
+# (measured on bash 3.2.57 and 5.3.15; 19-01-PLAN.md's objective).
+sanitize_for_terminal() {
+  local LC_ALL=C.UTF-8
+  printf '%s' "${1//[[:cntrl:]]/�}"
 }
-warn() { printf "  ${YELLOW}[WARN]${RESET} %s\n" "$1"; }
-info() { printf "  ${BOLD}[INFO]${RESET} %s\n" "$1"; }
-section() { printf "\n${BOLD}== %s ==${RESET}\n" "$1"; }
+
+# sanitize_block_for_terminal -- LINE-PRESERVING sibling of sanitize_for_terminal,
+# for MULTI-LINE MATCHED FILE CONTENT only (19-09-PLAN.md/19-10-PLAN.md, SCAN-01,
+# D-01/D-02). Never call this on a single path/value -- a path is ONE value that
+# may itself contain an embedded newline byte; splitting it on that byte and
+# indenting each half would corrupt the exact bytes this phase exists to keep
+# intact (scripts/scan-chaindrop-aug2026.sh's marker-string arm carries this same
+# reasoning as a code comment -- read it before choosing a function per site).
+#
+# Four load-bearing properties, each required by a drift-guard assertion:
+#  1. The locale MUST be forced via a function-scoped `local`, never a
+#     command-prefix assignment -- same measured refutation as
+#     sanitize_for_terminal above (bash 3.2.57/5.3.15, review R1-1): the
+#     prefix form never reaches the substitution and leaves C1 unstripped.
+#  2. LF is PRESERVED as a record separator, but NOT because the character
+#     class below excludes it -- the class is BYTE-IDENTICAL to
+#     sanitize_for_terminal's [[:cntrl:]] class. `read` consumes each line's
+#     trailing LF as a boundary BEFORE the substitution ever runs, so $line
+#     can never contain LF. Do not "unify" the two functions by carving LF
+#     out of the shared class -- a reviewer proposed exactly that and it was
+#     rejected (19-03-PLAN.md): the g747 accumulators append one path per
+#     loop iteration and have nothing to collapse.
+#  3. TAB (0x09) becomes U+FFFD, consistently with the canonical Node
+#     sanitizeForTerminal()'s class -- an accepted, tested trade-off (D-05),
+#     not an oversight: indented JSON in a matched block renders with U+FFFD
+#     in place of its tabs, and the operator SEES that something was
+#     stripped. A TAB exception would fork this class from the canonical one
+#     and break the drift guard's class-parity assertion.
+#  4. Defined byte-identically in all four scanner scripts (pinned by the
+#     drift guard), even in the three that do not yet call it this wave --
+#     19-10-PLAN.md wires the remaining call sites in the next wave. Do not
+#     "clean up" an apparently-unused copy between waves.
+sanitize_block_for_terminal() {
+  local LC_ALL=C.UTF-8 line out=""
+  while IFS= read -r line; do
+    out="${out}${line//[[:cntrl:]]/�}"$'\n'
+  done <<< "$1"
+  printf '%s' "$out"
+}
+
+pass() {
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${GREEN}[PASS]${RESET} %s\n" "$msg"
+}
+fail() {
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${RED}[FAIL]${RESET} %s\n" "$msg"
+  FINDINGS=$((FINDINGS + 1))
+  FINDING_LOG="${FINDING_LOG}  - ${msg}"$'\n'
+}
+warn() {
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${YELLOW}[WARN]${RESET} %s\n" "$msg"
+}
+info() {
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${BOLD}[INFO]${RESET} %s\n" "$msg"
+}
+section() { printf "\n${BOLD}== %s ==${RESET}\n" "$1"; }  # no sanitize_for_terminal call: all 34 section() call sites across the four scanner scripts are literal strings, asserted by a source guard in tests/miasma-scanner.test.js
 
 # Exclusion patterns for IOC string searches inside project trees.
 #
@@ -114,13 +199,15 @@ fi
 GVFSD_HITS=""
 for loc in /tmp /usr/local/bin "$HOME/.local/bin" "$HOME/bin"; do
   [ -d "$loc" ] || continue
-  while IFS= read -r f; do
-    [ -n "$f" ] && GVFSD_HITS="${GVFSD_HITS}${f}\n"
-  done < <(find "$loc" -maxdepth 2 -name "gvfsd-network" 2>/dev/null)
+  # D-12/D-13 (19-08-PLAN.md): NUL-delimited so a real newline in a
+  # sibling path can never split this record and drop the file after it.
+  while IFS= read -r -d '' f; do
+    [ -n "$f" ] && GVFSD_HITS="${GVFSD_HITS}$(sanitize_for_terminal "$f")"$'\n'
+  done < <(find "$loc" -maxdepth 2 -name "gvfsd-network" -print0 2>/dev/null)
 done
 if [ -n "$GVFSD_HITS" ]; then
   fail "gvfsd-network binary found:"
-  printf "$GVFSD_HITS"
+  printf '%s' "$GVFSD_HITS"
 else
   pass "gvfsd-network binary absent from /tmp, /usr/local/bin, ~/.local/bin, ~/bin"
 fi
@@ -128,7 +215,7 @@ fi
 PROC_HITS=$(ps -axo command 2>/dev/null | grep -E "gvfsd-network|/tmp/\.sshd" | grep -v grep || true)
 if [ -n "$PROC_HITS" ]; then
   fail "Suspicious processes running:"
-  printf "%s\n" "$PROC_HITS"
+  printf "%s\n" "$(sanitize_block_for_terminal "$PROC_HITS")"
 else
   pass "No gvfsd-network or /tmp/.sshd processes running"
 fi
@@ -138,12 +225,12 @@ PARIKH_HITS=""
 for h in "$HOME/.zsh_history" "$HOME/.bash_history" "$HOME/.history" "$HOME/.gitconfig"; do
   [ -f "$h" ] || continue
   if grep -q "parikhpreyash4\|systemd-network-helper-aa5c751f" "$h" 2>/dev/null; then
-    PARIKH_HITS="${PARIKH_HITS}${h}\n"
+    PARIKH_HITS="${PARIKH_HITS}$(sanitize_for_terminal "$h")"$'\n'
   fi
 done
 if [ -n "$PARIKH_HITS" ]; then
   warn "parikhpreyash4 / systemd-network-helper-aa5c751f references found in:"
-  printf "$PARIKH_HITS"
+  printf '%s' "$PARIKH_HITS"
 else
   pass "No parikhpreyash4 references in shell history / git config"
 fi
@@ -157,12 +244,12 @@ FLIPBOX_HITS=""
 for h in "$HOME/.zsh_history" "$HOME/.bash_history" "$HOME/.history"; do
   [ -f "$h" ] || continue
   if grep -q "flipboxstudio" "$h" 2>/dev/null; then
-    FLIPBOX_HITS="${FLIPBOX_HITS}${h}\n"
+    FLIPBOX_HITS="${FLIPBOX_HITS}$(sanitize_for_terminal "$h")"$'\n'
   fi
 done
 if [ -n "$FLIPBOX_HITS" ]; then
   fail "flipboxstudio reference in shell history:"
-  printf "$FLIPBOX_HITS"
+  printf '%s' "$FLIPBOX_HITS"
 else
   pass "No flipboxstudio reference in shell history"
 fi
@@ -186,12 +273,13 @@ fi
 
 # DebugChromium.exe Windows artifact — unlikely on macOS but cheap to check
 DEBUG_HITS=""
-while IFS= read -r f; do
-  [ -n "$f" ] && DEBUG_HITS="${DEBUG_HITS}${f}\n"
-done < <(find "$HOME" -maxdepth 4 -name "DebugChromium.exe" 2>/dev/null)
+# D-12/D-13 (19-08-PLAN.md): NUL-delimited (see the GVFSD_HITS comment above).
+while IFS= read -r -d '' f; do
+  [ -n "$f" ] && DEBUG_HITS="${DEBUG_HITS}$(sanitize_for_terminal "$f")"$'\n'
+done < <(find "$HOME" -maxdepth 4 -name "DebugChromium.exe" -print0 2>/dev/null)
 if [ -n "$DEBUG_HITS" ]; then
   fail "DebugChromium.exe Windows artifact found:"
-  printf "$DEBUG_HITS"
+  printf '%s' "$DEBUG_HITS"
 else
   pass "DebugChromium.exe absent (macOS expected)"
 fi
@@ -201,17 +289,24 @@ if [ ${#SEARCH_ROOTS[@]} -eq 0 ]; then
   info "No code roots — skipping XOR-key string search"
 else
   XOR_HITS=""
-  while IFS= read -r f; do
+  # D-12/D-13 (19-08-PLAN.md, review R2-2): NUL-delimited via --null, NEVER
+  # -Z. Measured 2026-08-17 against a file whose name embeds a real
+  # newline: BSD grep (macOS) accepts -Z, exits 0, and emits
+  # NEWLINE-delimited records -- silently useless, so a flag-capability
+  # probe would report "supported" while this loop still fails open. GNU
+  # grep treats -Z as an alias for --null and is fine, but --null is
+  # correct on BOTH platforms. Do not "simplify" this to -Z.
+  while IFS= read -r -d '' f; do
     [ -n "$f" ] || continue
     is_excluded "$f" && continue
-    XOR_HITS="${XOR_HITS}${f}\n"
-  done < <(grep -rlF "k9X2mP7vL4nQ8wR1" "${SEARCH_ROOTS[@]}" \
+    XOR_HITS="${XOR_HITS}$(sanitize_for_terminal "$f")"$'\n'
+  done < <(grep -rlF --null "k9X2mP7vL4nQ8wR1" "${SEARCH_ROOTS[@]}" \
               --exclude-dir=node_modules --exclude-dir=.git \
               --exclude-dir=vendor --exclude-dir=.venv --exclude-dir=venv \
               2>/dev/null)
   if [ -n "$XOR_HITS" ]; then
     fail "Laravel-Lang XOR key string 'k9X2mP7vL4nQ8wR1' found in:"
-    printf "$XOR_HITS"
+    printf '%s' "$XOR_HITS"
   else
     pass "Laravel-Lang XOR key string not found in project trees"
   fi
@@ -233,18 +328,19 @@ NXC_INSTALLED=""
 NXC_BAD=""
 for d in "${EXT_DIRS[@]}"; do
   [ -d "$d" ] || continue
-  while IFS= read -r ext; do
+  # D-12/D-13 (19-08-PLAN.md): NUL-delimited (see the GVFSD_HITS comment above).
+  while IFS= read -r -d '' ext; do
     [ -n "$ext" ] || continue
-    NXC_INSTALLED="${NXC_INSTALLED}${ext}\n"
-    case "$ext" in *18.95.0*) NXC_BAD="${NXC_BAD}${ext}\n" ;; esac
-  done < <(find "$d" -maxdepth 1 -type d -name "nrwl.angular-console-*" 2>/dev/null)
+    NXC_INSTALLED="${NXC_INSTALLED}$(sanitize_for_terminal "$ext")"$'\n'
+    case "$ext" in *18.95.0*) NXC_BAD="${NXC_BAD}$(sanitize_for_terminal "$ext")"$'\n' ;; esac
+  done < <(find "$d" -maxdepth 1 -type d -name "nrwl.angular-console-*" -print0 2>/dev/null)
 done
 if [ -n "$NXC_BAD" ]; then
   fail "Nx Console v18.95.0 (compromised) installed:"
-  printf "$NXC_BAD"
+  printf '%s' "$NXC_BAD"
 elif [ -n "$NXC_INSTALLED" ]; then
   info "Nx Console installed (not v18.95.0 — verify version manually):"
-  printf "$NXC_INSTALLED"
+  printf '%s' "$NXC_INSTALLED"
   pass "Compromised v18.95.0 not present"
 else
   pass "Nx Console (nrwl.angular-console) not installed in known IDE extension dirs"
@@ -280,11 +376,11 @@ else
   TS_HITS=""
   while IFS= read -r f; do
     bad=$(grep -nE '"@tanstack/[^"]+":[[:space:]]*"?\^?1\.169\.(5|8)"?' "$f" 2>/dev/null)
-    [ -n "$bad" ] && TS_HITS="${TS_HITS}${f}\n"
+    [ -n "$bad" ] && TS_HITS="${TS_HITS}$(sanitize_for_terminal "$f")"$'\n'
   done < "$MANIFESTS"
   if [ -n "$TS_HITS" ]; then
     fail "Compromised @tanstack/* version (1.169.5 or 1.169.8) in:"
-    printf "$TS_HITS"
+    printf '%s' "$TS_HITS"
   else
     pass "No compromised @tanstack/* version pinned in any manifest"
   fi
@@ -293,11 +389,11 @@ else
   ML_HITS=""
   while IFS= read -r f; do
     bad=$(grep -nE '"@mistralai/mistralai":[[:space:]]*"?\^?2\.2\.(3|4)"?|"@opensearch-project/opensearch":[[:space:]]*"?\^?3\.6\.2"?' "$f" 2>/dev/null)
-    [ -n "$bad" ] && ML_HITS="${ML_HITS}${f}\n"
+    [ -n "$bad" ] && ML_HITS="${ML_HITS}$(sanitize_for_terminal "$f")"$'\n'
   done < "$MANIFESTS"
   if [ -n "$ML_HITS" ]; then
     fail "Compromised npm package (mistralai/opensearch) in:"
-    printf "$ML_HITS"
+    printf '%s' "$ML_HITS"
   else
     pass "No compromised @mistralai/* or @opensearch-project/* version pinned"
   fi
@@ -305,11 +401,11 @@ else
   # D3: @antv/* (entire ecosystem — audit needed)
   AV_HITS=""
   while IFS= read -r f; do
-    grep -q '"@antv/' "$f" 2>/dev/null && AV_HITS="${AV_HITS}${f}\n"
+    grep -q '"@antv/' "$f" 2>/dev/null && AV_HITS="${AV_HITS}$(sanitize_for_terminal "$f")"$'\n'
   done < "$MANIFESTS"
   if [ -n "$AV_HITS" ]; then
     warn "@antv/* package present (audit version against May 18-19 compromised list):"
-    printf "$AV_HITS"
+    printf '%s' "$AV_HITS"
   else
     pass "No @antv/* dependencies"
   fi
@@ -319,12 +415,12 @@ else
   while IFS= read -r f; do
     case "$f" in *.txt|*.toml|*.lock)
       bad=$(grep -nE "^mistralai==2\.4\.6|^guardrails-ai==0\.10\.1|name = \"mistralai\".*2\.4\.6|name = \"guardrails-ai\".*0\.10\.1" "$f" 2>/dev/null)
-      [ -n "$bad" ] && PY_HITS="${PY_HITS}${f}\n"
+      [ -n "$bad" ] && PY_HITS="${PY_HITS}$(sanitize_for_terminal "$f")"$'\n'
     ;; esac
   done < "$MANIFESTS"
   if [ -n "$PY_HITS" ]; then
     fail "Compromised PyPI package (mistralai 2.4.6 / guardrails-ai 0.10.1) in:"
-    printf "$PY_HITS"
+    printf '%s' "$PY_HITS"
   else
     pass "No compromised PyPI mistralai / guardrails-ai version pinned"
   fi
@@ -334,12 +430,12 @@ else
   while IFS= read -r f; do
     case "$f" in *composer.json|*composer.lock)
       bad=$(grep -nE '"laravel-lang/(lang|http-statuses|attributes|actions)"' "$f" 2>/dev/null)
-      [ -n "$bad" ] && LL_HITS="${LL_HITS}${f}\n"
+      [ -n "$bad" ] && LL_HITS="${LL_HITS}$(sanitize_for_terminal "$f")"$'\n'
     ;; esac
   done < "$MANIFESTS"
   if [ -n "$LL_HITS" ]; then
     fail "Laravel-Lang package present (no clean tag exists — pin to commit SHA before 2026-05-22 22:32 UTC):"
-    printf "$LL_HITS"
+    printf '%s' "$LL_HITS"
   else
     pass "No laravel-lang/* packages in any composer manifest"
   fi
@@ -354,18 +450,18 @@ else
     esac
     pkg_lines=$(grep -nE "\"($PK_LIST)\"" "$f" 2>/dev/null)
     [ -z "$pkg_lines" ] && continue
-    PK_HITS="${PK_HITS}${f}\n"
+    PK_HITS="${PK_HITS}$(sanitize_for_terminal "$f")"$'\n'
     # Flag FAIL if the constraint is dev-main / dev-master / 3.x-dev (the
     # branch-tracking constraints that the campaign actually compromised).
     bad_constraint=$(printf "%s\n" "$pkg_lines" | grep -E "dev-(main|master)|3\.x-dev")
-    [ -n "$bad_constraint" ] && PK_FAILS="${PK_FAILS}${f}\n"
+    [ -n "$bad_constraint" ] && PK_FAILS="${PK_FAILS}$(sanitize_for_terminal "$f")"$'\n'
   done < "$MANIFESTS"
   if [ -n "$PK_FAILS" ]; then
     fail "parikhpreyash4-affected Packagist package on a dev-* branch constraint (compromised) in:"
-    printf "$PK_FAILS"
+    printf '%s' "$PK_FAILS"
   elif [ -n "$PK_HITS" ]; then
     warn "parikhpreyash4-listed Packagist package present (constraint is NOT dev-*, so likely safe — verify manually):"
-    printf "$PK_HITS"
+    printf '%s' "$PK_HITS"
   else
     pass "None of the 8 parikhpreyash4-affected Packagist packages present"
   fi
@@ -378,12 +474,12 @@ else
     esac
     # Scope the autoload check to the autoload block (rough but cheap).
     if grep -A40 '"autoload"' "$f" 2>/dev/null | grep -E 'src/helpers\.php' >/dev/null; then
-      AL_HITS="${AL_HITS}${f}\n"
+      AL_HITS="${AL_HITS}$(sanitize_for_terminal "$f")"$'\n'
     fi
   done < "$MANIFESTS"
   if [ -n "$AL_HITS" ]; then
     warn "composer.json with autoload.files: src/helpers.php — verify provenance (Laravel-Lang attack pattern, not necessarily malicious in YOUR repo):"
-    printf "$AL_HITS"
+    printf '%s' "$AL_HITS"
   else
     pass "No composer.json autoload.files: src/helpers.php pattern found"
   fi
@@ -407,39 +503,54 @@ if [ ${#AI_CONFIG_ROOTS[@]} -eq 0 ]; then
 elif ! command -v perl >/dev/null 2>&1; then
   warn "perl not available — skipping TrapDoor scan (perl is needed for Unicode regex)"
 else
-  AI_FILES=$(find "${AI_CONFIG_ROOTS[@]}" -type f \
-    \( -name "CLAUDE.md" -o -name ".cursorrules" -o -name "*.mdc" \
-       -o -name "AGENTS.md" -o -name "MEMORY.md" \
-       -o -name "SKILL.md" -o -name "SOUL.md" \) \
-    -not -path "*/node_modules/*" -not -path "*/.git/*" \
-    -not -path "*/.venv/*" -not -path "*/venv/*" 2>/dev/null \
-    | while IFS= read -r f; do is_excluded "$f" || printf "%s\n" "$f"; done)
-
-  N_AI=$(printf "%s\n" "$AI_FILES" | grep -c . || true)
-  info "Scanning $N_AI AI config files for U+200B / U+200C / U+200D / U+FEFF"
-
+  # CR-01/G-1549 (19-REVIEW.md): a SINGLE, per-root NUL-delimited loop --
+  # discovery, exclusion, counting, and the perl zero-width check all happen
+  # in ONE while/done construct fed by a NUL-delimited find (-print0),
+  # mirroring the GVFSD_HITS/DEBUG_HITS/NXC_BAD pattern elsewhere in this
+  # file (D-12/D-13, 19-08-PLAN.md). Pre-fix, this was a TWO-STAGE round trip
+  # through a
+  # newline-delimited variable ($AI_FILES): a hostile filename containing a
+  # real embedded newline byte in an ancestor directory component split into
+  # two non-existent path fragments at the FIRST stage, and perl's
+  # `open(...) or exit 0` treated "could not open" identically to "no hit"
+  # for both fragments -- the real file's content, including any genuine
+  # TrapDoor payload, was NEVER examined, and the section printed a false
+  # [PASS]. There is no accumulator variable to re-split here.
+  AI_FILES_FOUND=0
   TD_HITS=""
-  while IFS= read -r f; do
-    [ -z "$f" ] && continue
-    # Skip UTF-8 BOM at byte 0 (a legitimate file marker, not injection).
-    # Detect zero-width chars *past* the first 3 bytes.
-    if perl -CSD -e '
-      open(my $fh, "<:raw", $ARGV[0]) or exit 0;
-      read($fh, my $head, 3);
-      my $rest = do { local $/; <$fh> };
-      close($fh);
-      utf8::decode($rest);
-      exit (defined($rest) && $rest =~ /[\x{200B}\x{200C}\x{200D}\x{FEFF}]/ ? 1 : 0);
-    ' "$f" 2>/dev/null; then
-      :  # exit 0 = no hit
-    else
-      TD_HITS="${TD_HITS}${f}\n"
-    fi
-  done <<< "$AI_FILES"
+  for _acr in "${AI_CONFIG_ROOTS[@]}"; do
+    [ -d "$_acr" ] || continue
+    while IFS= read -r -d '' f; do
+      is_excluded "$f" && continue
+      AI_FILES_FOUND=$((AI_FILES_FOUND + 1))
+      [ -z "$f" ] && continue
+      # Skip UTF-8 BOM at byte 0 (a legitimate file marker, not injection).
+      # Detect zero-width chars *past* the first 3 bytes.
+      if perl -CSD -e '
+        open(my $fh, "<:raw", $ARGV[0]) or exit 0;
+        read($fh, my $head, 3);
+        my $rest = do { local $/; <$fh> };
+        close($fh);
+        utf8::decode($rest);
+        exit (defined($rest) && $rest =~ /[\x{200B}\x{200C}\x{200D}\x{FEFF}]/ ? 1 : 0);
+      ' "$f" 2>/dev/null; then
+        :  # exit 0 = no hit
+      else
+        TD_HITS="${TD_HITS}$(sanitize_for_terminal "$f")"$'\n'
+      fi
+    done < <(find "$_acr" -type f \
+        \( -name "CLAUDE.md" -o -name ".cursorrules" -o -name "*.mdc" \
+           -o -name "AGENTS.md" -o -name "MEMORY.md" \
+           -o -name "SKILL.md" -o -name "SOUL.md" \) \
+        -not -path "*/node_modules/*" -not -path "*/.git/*" \
+        -not -path "*/.venv/*" -not -path "*/venv/*" -print0 2>/dev/null)
+  done
+  N_AI="$AI_FILES_FOUND"
+  info "Scanning $N_AI AI config files for U+200B / U+200C / U+200D / U+FEFF"
 
   if [ -n "$TD_HITS" ]; then
     fail "Zero-width Unicode chars in AI config files (TrapDoor pattern):"
-    printf "$TD_HITS"
+    printf '%s' "$TD_HITS"
   else
     pass "No zero-width Unicode injection detected in $N_AI AI config files"
   fi
@@ -459,7 +570,7 @@ if [ "$FINDINGS" -eq 0 ]; then
   exit 0
 else
   printf "${RED}${BOLD}FINDINGS: %s${RESET}\n" "$FINDINGS"
-  printf "%b" "$FINDING_LOG"
+  printf '%s' "$FINDING_LOG"
   printf "\nNext steps:\n"
   printf "  - Treat affected hosts as potentially compromised.\n"
   printf "  - Rotate credentials accessible from the host (npm/GitHub/cloud/SSH/AI tool keys).\n"

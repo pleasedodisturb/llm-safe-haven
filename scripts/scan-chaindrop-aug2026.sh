@@ -86,15 +86,101 @@ FINDINGS=0
 FINDING_LOG=""
 INCOMPLETE=0
 
-pass() { printf "  ${GREEN}[PASS]${RESET} %s\n" "$1"; }
-fail() {
-  printf "  ${RED}[FAIL]${RESET} %s\n" "$1"
-  FINDINGS=$((FINDINGS + 1))
-  FINDING_LOG="${FINDING_LOG}  - $1\n"
+# CR-01/CWE-150 -- bash half of ONE contract; canonical def is
+# lib/scorecard.js's sanitizeForTerminal() (lib/scorecard.js:147-162),
+# pinned by a bidirectional drift guard (19-07-PLAN.md). Strips C0
+# (0x00-0x1F) + DEL (0x7F) + C1 (0x80-0x9F) so a hostile filename can never
+# move the cursor, repaint a line, or forge a report row. Byte-identical
+# copy of scripts/scan-miasma-june2026.sh's sanitize_for_terminal()
+# (plan 19-01, the phase's tracer) -- a drift guard in 19-07-PLAN.md
+# asserts all four scanner copies stay byte-identical, so do not "tidy"
+# anything here, including the locale declaration below.
+#
+# Deliberate, tested asymmetries (not oversights): Unicode format/bidi
+# points (U+202E RLO) are NOT stripped on glibc -- [[:cntrl:]] reaches
+# category Cc only, never Cf (measured, 5 locales, Ubuntu 22.04/24.04;
+# Darwin's libc DOES strip U+202E). A LONE 0x9B byte (not the valid c2 9b
+# pair) also survives glibc in every locale; closing it needs a raw
+# 0x80-0x9F byte pass, which corrupts every CJK path (e.g. "服"=e6 9c 8d)
+# the same way `tr` did. Both pinned by a Linux-gated test, 19-07-PLAN.md.
+# (G-1640: this paragraph was missing from this script until 19-09-PLAN.md's
+# fold-in task -- comment-only addition, the function body above is
+# untouched and stays byte-identical.)
+#
+# The locale MUST be forced via a function-scoped `local`, never a
+# command-prefix assignment (`LC_ALL=C.UTF-8 printf ...`): POSIX expands a
+# simple command's words BEFORE its assignment prefixes, so the prefix form
+# is NON-FUNCTIONAL here -- it never reaches the substitution below and
+# leaves C1 (U+009B) unstripped under the caller's ambient C/POSIX locale
+# (measured on bash 3.2.57 and 5.3.15; 19-01-PLAN.md's objective).
+sanitize_for_terminal() {
+  local LC_ALL=C.UTF-8
+  printf '%s' "${1//[[:cntrl:]]/�}"
 }
-warn() { printf "  ${YELLOW}[WARN]${RESET} %s\n" "$1"; }
-info() { printf "  ${BOLD}[INFO]${RESET} %s\n" "$1"; }
-section() { printf "\n${BOLD}== %s ==${RESET}\n" "$1"; }
+
+# sanitize_block_for_terminal -- LINE-PRESERVING sibling of sanitize_for_terminal,
+# for MULTI-LINE MATCHED FILE CONTENT only (19-09-PLAN.md/19-10-PLAN.md, SCAN-01,
+# D-01/D-02). Never call this on a single path/value -- a path is ONE value that
+# may itself contain an embedded newline byte; splitting it on that byte and
+# indenting each half would corrupt the exact bytes this phase exists to keep
+# intact (this script's `_emit_section_findings` marker-string arm below carries
+# this same reasoning as a code comment -- read it before choosing a function
+# per site).
+#
+# Four load-bearing properties, each required by a drift-guard assertion:
+#  1. The locale MUST be forced via a function-scoped `local`, never a
+#     command-prefix assignment -- same measured refutation as
+#     sanitize_for_terminal above (bash 3.2.57/5.3.15, review R1-1): the
+#     prefix form never reaches the substitution and leaves C1 unstripped.
+#  2. LF is PRESERVED as a record separator, but NOT because the character
+#     class below excludes it -- the class is BYTE-IDENTICAL to
+#     sanitize_for_terminal's [[:cntrl:]] class. `read` consumes each line's
+#     trailing LF as a boundary BEFORE the substitution ever runs, so $line
+#     can never contain LF. Do not "unify" the two functions by carving LF
+#     out of the shared class -- a reviewer proposed exactly that and it was
+#     rejected (19-03-PLAN.md): the g747 accumulators append one path per
+#     loop iteration and have nothing to collapse.
+#  3. TAB (0x09) becomes U+FFFD, consistently with the canonical Node
+#     sanitizeForTerminal()'s class -- an accepted, tested trade-off (D-05),
+#     not an oversight: indented JSON in a matched block renders with U+FFFD
+#     in place of its tabs, and the operator SEES that something was
+#     stripped. A TAB exception would fork this class from the canonical one
+#     and break the drift guard's class-parity assertion.
+#  4. Defined byte-identically in all four scanner scripts (pinned by the
+#     drift guard), even in the three that do not yet call it this wave --
+#     19-10-PLAN.md wires the remaining call sites in the next wave. Do not
+#     "clean up" an apparently-unused copy between waves.
+sanitize_block_for_terminal() {
+  local LC_ALL=C.UTF-8 line out=""
+  while IFS= read -r line; do
+    out="${out}${line//[[:cntrl:]]/�}"$'\n'
+  done <<< "$1"
+  printf '%s' "$out"
+}
+
+pass() {
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${GREEN}[PASS]${RESET} %s\n" "$msg"
+}
+fail() {
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${RED}[FAIL]${RESET} %s\n" "$msg"
+  FINDINGS=$((FINDINGS + 1))
+  FINDING_LOG="${FINDING_LOG}  - ${msg}"$'\n'
+}
+warn() {
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${YELLOW}[WARN]${RESET} %s\n" "$msg"
+}
+info() {
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${BOLD}[INFO]${RESET} %s\n" "$msg"
+}
+section() { printf "\n${BOLD}== %s ==${RESET}\n" "$1"; }  # no sanitize_for_terminal call: all 34 section() call sites across the four scanner scripts are literal strings, asserted by a source guard in tests/miasma-scanner.test.js
 
 # ============================================================================
 # Header
@@ -345,7 +431,7 @@ _emit_section_findings() {
         ;;
     esac
     case "$fid" in
-      claude-hook) printf '%s\n' "$fdetail" | head -5 | sed 's/^/        /' ;;
+      claude-hook) printf '%s\n' "$(sanitize_block_for_terminal "$fdetail")" | head -5 | sed 's/^/        /' ;;
       # A single `printf` substitution, NOT `... | sed 's/^/  /'` — a path is
       # ONE value that may itself contain a literal embedded newline byte
       # (T-17-10/B5); piping it through sed would re-split on that embedded
@@ -353,8 +439,11 @@ _emit_section_findings() {
       # this NUL-delimited protocol exists to keep intact. (claude-hook,
       # below, is intentionally different: `fdetail` there is already
       # several independent matched-line strings the OLD bash also indented
-      # one per line — not a single path.)
-      marker-string) printf '         %s\n' "$fpath" ;;
+      # one per line — not a single path.) 19-10-PLAN.md: this is the reason
+      # this arm uses sanitize_for_terminal (single-line), never
+      # sanitize_block_for_terminal (block) -- the block function's LF-preserving
+      # design would re-split an embedded-newline path exactly like `sed` would.
+      marker-string) printf '         %s\n' "$(sanitize_for_terminal "$fpath")" ;;
     esac
   done < "$RESULTS_DIR/lists/findings.z"
 }
@@ -528,7 +617,7 @@ for _sf in "$HOME/.claude/settings.json" "$HOME/.claude/settings.local.json"; do
   fi
   if [ -n "$_m" ]; then
     fail "Suspicious hook command in $_sf (ChainDrop persistence)"
-    printf "%s\n" "$_m" | head -5 | sed 's/^/        /'
+    printf "%s\n" "$(sanitize_block_for_terminal "$_m")" | head -5 | sed 's/^/        /'
     HOOK_ANY=1
   fi
 done
@@ -597,7 +686,7 @@ elif command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
   else
     if printf "%s" "$REPO_JSON" | grep -qi "Shai-Hulud: Here We Go Again\|Shai-Hulud"; then
       fail "A repo in your account carries a Shai-Hulud dead-drop description:"
-      printf "%s" "$REPO_JSON" | grep -i "Shai-Hulud" | sed 's/^/      /'
+      printf "%s" "$(sanitize_block_for_terminal "$REPO_JSON")" | grep -i "Shai-Hulud" | sed 's/^/      /'
     else
       pass "No repos match the ChainDrop dead-drop description"
     fi
@@ -663,7 +752,7 @@ if [ "$FINDINGS" -eq 0 ] && [ "$INCOMPLETE" -eq 0 ]; then
 elif [ "$FINDINGS" -gt 0 ]; then
   printf "${RED}${BOLD}%d FINDING(S) — INVESTIGATE${RESET}\n" "$FINDINGS"
   printf "\nFindings:\n"
-  printf "%b" "$FINDING_LOG"
+  printf '%s' "$FINDING_LOG"
   if [ "$INCOMPLETE" -eq 1 ]; then
     printf "\n${YELLOW}${BOLD}INCOMPLETE${RESET} — results retained at %s\n" "$RESULTS_DIR"
   fi

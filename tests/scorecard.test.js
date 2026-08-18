@@ -433,6 +433,359 @@ describe('printMcpScan', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// D-08/G-1622: printEnvScan renders scanned-tree .env paths raw at
+// lib/scorecard.js:76, one line below the tool's own
+// "N .env file(s) found:" verdict -- a hostile directory name containing a
+// carriage return plus an erase-line sequence can overwrite that verdict.
+// lib/scan.js's printEnvScanResult doc comment already says paths are never
+// printed BECAUSE sanitizeForTerminal is not applied here -- this is that
+// gap closed at the renderer, plus reachability proof from all three
+// commands that call it (scan/audit/install).
+// ---------------------------------------------------------------------------
+describe('printEnvScan (D-08/G-1622): scanned-tree .env paths must not repaint the tool\'s own verdict line', () => {
+  const { printEnvScan } = require('../lib/scorecard.js');
+  const { HOSTILE_NAMES } = require('./helpers/chaindrop-fixtures.js');
+
+  it('a path carrying a real 0x0D followed by an erase-line sequence renders with zero raw CR/ESC bytes, U+FFFD visible, and the verdict line intact', async () => {
+    // HOSTILE_NAMES sourced from the shared 19-01 corpus (real \u escapes,
+    // never a bash printf round-trip) so the Node and bash halves of this
+    // phase exercise one shared byte-class vocabulary.
+    const hostileSegment = HOSTILE_NAMES.CR + HOSTILE_NAMES.ESC; // real 0x0D, then ESC[2K
+    const hostilePath = `/Users/x/Projects/${hostileSegment}evil/.env`;
+
+    const { logs } = await captureLog(() => printEnvScan([hostilePath]));
+
+    const raw = Buffer.from(logs.join('\n'), 'utf8');
+    assert.equal(raw.indexOf(0x0d), -1, 'no raw CR (0x0D) byte may reach the rendered output');
+    assert.equal(raw.indexOf(0x1b), -1, 'no raw ESC (0x1B) byte may reach the rendered output');
+
+    const pathLine = logs.find((l) => l.includes('evil') && l.includes('.env'));
+    assert.ok(pathLine, `expected the rendered path line, got: ${logs.join('\n')}`);
+    assert.ok(pathLine.includes('�'), 'stripped control bytes must be replaced with U+FFFD so the operator sees tampering');
+
+    // Must-still-pass twin: the tool's OWN verdict line, printed immediately
+    // before this path loop, must still be present and intact in the SAME
+    // capture -- this is what makes the defect a verdict-forgery, not a
+    // cosmetic one, and proves the fix did not simply suppress output.
+    assert.ok(
+      logs.some((l) => l.includes('1 .env file(s) found:')),
+      `expected the intact verdict line in the same capture, got: ${logs.join('\n')}`
+    );
+  });
+
+  it('printEnvScan([]) still prints the "No .env files found" pass line, unchanged', async () => {
+    const { logs } = await captureLog(() => printEnvScan([]));
+    assert.ok(logs.some((l) => l.includes('No .env files found')), `expected the pass line, got: ${logs.join('\n')}`);
+  });
+
+  it('more than 10 entries still prints the "...and N more" line, unchanged', async () => {
+    const files = Array.from({ length: 13 }, (_, i) => `/tmp/root${i}/.env`);
+    const { logs } = await captureLog(() => printEnvScan(files));
+
+    assert.ok(logs.some((l) => l.includes('...and 3 more')), `expected the overflow line, got: ${logs.join('\n')}`);
+    for (let i = 0; i < 10; i++) {
+      assert.ok(logs.some((l) => l.includes(`/tmp/root${i}/.env`)), `expected path root${i} to be individually rendered`);
+    }
+    assert.ok(
+      !logs.some((l) => l.includes('/tmp/root10/.env')),
+      'the 11th path must NOT be individually rendered -- it is folded into "...and N more"'
+    );
+  });
+
+  it('a path containing U+202E (RLO) is rendered with U+FFFD -- the Node side strips format/bidi code points, unlike the bash side', async () => {
+    const hostilePath = `/Users/x/Projects/evil${HOSTILE_NAMES.RLO}name/.env`;
+    const { logs } = await captureLog(() => printEnvScan([hostilePath]));
+
+    assert.ok(logs.length > 0, 'expected rendered output');
+    assert.ok(!logs.some((l) => l.includes(HOSTILE_NAMES.RLO)), 'no rendered line may contain the raw RLO character');
+    assert.ok(logs.some((l) => l.includes('�')), 'the RLO must be replaced with U+FFFD');
+    assert.ok(
+      logs.some((l) => l.includes('1 .env file(s) found:')),
+      `expected the intact verdict line, got: ${logs.join('\n')}`
+    );
+  });
+
+  it('a path containing café-服务器 survives NFC-equal (this class is NOT hostile and must render intact)', async () => {
+    const hostilePath = `/Users/x/Projects/${HOSTILE_NAMES.CJK}/.env`;
+    const { logs } = await captureLog(() => printEnvScan([hostilePath]));
+
+    const pathLine = logs.find((l) => l.includes('.env') && l.includes('Projects'));
+    assert.ok(pathLine, `expected the rendered path line, got: ${logs.join('\n')}`);
+    assert.ok(
+      pathLine.normalize('NFC').includes(HOSTILE_NAMES.CJK.normalize('NFC')),
+      'café-服务器 must survive NFC-equal, never be stripped or mangled by the sanitizer'
+    );
+    assert.ok(
+      logs.some((l) => l.includes('1 .env file(s) found:')),
+      `expected the intact verdict line, got: ${logs.join('\n')}`
+    );
+  });
+
+  // Narrowly-scoped structural regression guard (review R1-6). A previous
+  // revision of this plan asked for a FILE-WIDE claim (that printEnvScan
+  // was the single remaining unsanitized console.log site in
+  // lib/scorecard.js) via a bare-identifier regex; a reviewer showed that
+  // cannot work, because the file also interpolates property accesses,
+  // call results and ternaries a
+  // bare-identifier regex cannot classify. That claim is retired. This
+  // guard pins ONE site only -- printEnvScan's path-list console.log -- and
+  // says, in its own title and failure message, exactly what it does NOT
+  // establish: it is not evidence that no other unsanitized print site
+  // remains anywhere else in this file.
+  describe('regression guard scoped to the printEnvScan path-list site only (review R1-6 — not a file-wide claim)', () => {
+    const fs = require('fs');
+    const path = require('path');
+
+    // Extracts the printEnvScan function body by brace-balancing from its
+    // declaration. Returns '' if the declaration cannot be found at all --
+    // a renamed or unparseable declaration must FAIL the guard below, not
+    // silently pass it (hence the separate non-emptiness assertion, which
+    // must run and pass BEFORE the wrapping assertion is even attempted).
+    function extractPrintEnvScanBody(source) {
+      const marker = 'function printEnvScan(';
+      const startIdx = source.indexOf(marker);
+      if (startIdx === -1) return '';
+      const braceStart = source.indexOf('{', startIdx);
+      if (braceStart === -1) return '';
+      let depth = 0;
+      let i = braceStart;
+      for (; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') {
+          depth--;
+          if (depth === 0) {
+            i++;
+            break;
+          }
+        }
+      }
+      return source.slice(braceStart, i);
+    }
+
+    it('GUARD SCOPE: pins ONLY the printEnvScan path-list console.log -- this is NOT evidence that no unsanitized print site remains anywhere else in lib/scorecard.js (review R1-6)', () => {
+      const source = fs.readFileSync(path.join(__dirname, '..', 'lib', 'scorecard.js'), 'utf8');
+      const body = extractPrintEnvScanBody(source);
+
+      // Positive control 1: extraction must be non-empty. A renamed or
+      // unparseable declaration must FAIL here, not silently pass by
+      // measuring an empty string (the exact vacuity class this repo has
+      // already been burned by).
+      assert.ok(
+        body.length > 0,
+        'printEnvScan\'s declaration could not be found/extracted from lib/scorecard.js -- a renamed or unparseable declaration must FAIL this guard, not silently pass it'
+      );
+
+      // Positive control 2: the path-list loop and its console.log call
+      // must actually be present in the extracted body, BEFORE the wrapping
+      // assertion runs -- otherwise a wrong extraction could let the guard
+      // pass while measuring nothing.
+      const loopMarker = 'for (const f of envFiles.slice(0, 10))';
+      const loopIdx = body.indexOf(loopMarker);
+      assert.ok(
+        loopIdx !== -1,
+        `expected the path-list loop ("${loopMarker}") inside printEnvScan -- if this line moved or was renamed, this guard must FAIL, not silently pass`
+      );
+      const logIdx = body.indexOf('console.log(', loopIdx);
+      assert.ok(logIdx !== -1, 'expected a console.log(...) call inside the path-list loop');
+      const logCallEnd = body.indexOf(');', logIdx);
+      const logCall = body.slice(logIdx, logCallEnd);
+
+      // The actual claim: that ONE console.log's interpolation is wrapped
+      // in sanitizeForTerminal(. Not a claim about the rest of the file --
+      // the file also interpolates property accesses, call results and
+      // ternaries a bare-identifier regex cannot classify (review R1-6),
+      // and establishing a file-wide sanitization property needs data-flow
+      // reasoning this guard does not attempt.
+      assert.ok(
+        logCall.includes('sanitizeForTerminal('),
+        `GUARD SCOPE: this only proves the printEnvScan path-list interpolation is wrapped in sanitizeForTerminal -- it establishes NOTHING about any other print site in lib/scorecard.js. Found unwrapped: ${logCall}`
+      );
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D-08/G-1622: reachability. printEnvScanResult is called from THREE
+// commands (lib/scan.js:418, lib/audit.js:163, lib/install.js:119), and two
+// of its three branches call printEnvScan(detail.files) -- a fix proven only
+// at the renderer would leave two of three commands unproven. Each case
+// below drives the REAL command function, with its env-scan dependency
+// stubbed to return a detail object whose files array holds one hostile
+// path, using the require-cache stubbing order (WR-01) this repo already
+// relies on for hermeticity -- audit's/install's own test suites use the
+// identical pattern. scan()'s own scanForEnvFilesDetailed is a local
+// function (not a destructured top-level import), so its case instead
+// stubs os.homedir() (the existing stubHomedir seam, also already used
+// throughout tests/scan.test.js) and writes one real hostile-named
+// directory under the sandboxed HOME -- no new seam invented either way.
+// ---------------------------------------------------------------------------
+describe('D-08/G-1622: printEnvScan is reachable (and sanitized) from all three commands that call printEnvScanResult', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const { installStub, stubHomedir } = require('./helpers/module-stub.js');
+  const { HOSTILE_NAMES } = require('./helpers/chaindrop-fixtures.js');
+  const { fakeAgent, envelope } = require('./helpers/audit-fixtures.js');
+
+  // Captured once, BEFORE any lib/scan.js require-cache stubbing happens
+  // below, so the audit/install cases can delegate to the REAL renderer
+  // (the code under test) rather than a mock of it -- same pattern as
+  // tests/audit.test.js / tests/install.test.js.
+  const { printEnvScanResult: realPrintEnvScanResult, buildCauseClauses: realBuildCauseClauses } = require('../lib/scan.js');
+
+  it('scan: a hostile .env path discovered under a scanned root is sanitized in the rendered report', async () => {
+    const scanPath = require.resolve('../lib/scan.js');
+    const osPath = require.resolve('os');
+    const originalOsEntry = require.cache[osPath];
+    const sandboxHome = fs.mkdtempSync(path.join(os.tmpdir(), 'scorecard-scan-cmd-'));
+
+    try {
+      const hostileDirName = HOSTILE_NAMES.CR + HOSTILE_NAMES.ESC + 'evil';
+      const hostileDirAbs = path.join(sandboxHome, 'Projects', hostileDirName);
+      fs.mkdirSync(hostileDirAbs, { recursive: true });
+      fs.writeFileSync(path.join(hostileDirAbs, '.env'), 'SECRET=1\n');
+
+      const { scan } = stubHomedir(sandboxHome, scanPath);
+      const { logs } = await captureLog(() => scan({}, {}));
+
+      const raw = Buffer.from(logs.join('\n'), 'utf8');
+      assert.equal(raw.indexOf(0x0d), -1, 'scan: no raw CR (0x0D) byte may reach stdout');
+      assert.equal(raw.indexOf(0x1b), -1, 'scan: no raw ESC (0x1B) byte may reach stdout');
+      assert.ok(
+        logs.some((l) => l.includes('1 .env file(s) found:')),
+        `scan: expected the intact verdict line, got: ${logs.join('\n')}`
+      );
+      assert.ok(
+        logs.some((l) => l.includes('�') && l.includes('evil')),
+        `scan: expected the sanitized path line with U+FFFD, got: ${logs.join('\n')}`
+      );
+    } finally {
+      if (originalOsEntry === undefined) delete require.cache[osPath];
+      else require.cache[osPath] = originalOsEntry;
+      delete require.cache[scanPath];
+      fs.rmSync(sandboxHome, { recursive: true, force: true });
+    }
+  });
+
+  it('audit: a hostile .env path from the env scan is sanitized in the rendered report', async () => {
+    const scanPath = require.resolve('../lib/scan.js');
+    const agentsPath = require.resolve('../lib/agents/index.js');
+    const scanMcpPath = require.resolve('../lib/scan-mcp.js');
+    const auditPath = require.resolve('../lib/audit.js');
+    const hostilePath = `/Users/x/Code/${HOSTILE_NAMES.CR}${HOSTILE_NAMES.ESC}evil/.env`;
+
+    delete require.cache[scanPath];
+    delete require.cache[agentsPath];
+    delete require.cache[scanMcpPath];
+    delete require.cache[auditPath];
+
+    try {
+      installStub(scanPath, {
+        scanForEnvFiles: () => [hostilePath],
+        scanForEnvFilesDetailed: () => ({
+          files: [hostilePath],
+          incomplete: false,
+          anomalyCount: 0,
+          anomalyReasons: { unreadable: 0, budget: 0, swapped: 0 },
+          rootFailures: { missing: 0, unreadable: 0 },
+        }),
+        printEnvScanResult: (...args) => realPrintEnvScanResult(...args),
+        buildCauseClauses: (...args) => realBuildCauseClauses(...args),
+      });
+      installStub(agentsPath, {
+        detectAll: () => [fakeAgent()],
+        getByIds: () => [],
+      });
+      installStub(scanMcpPath, {
+        buildEnvelope: () => Promise.resolve(envelope()),
+        scanMcp: () => Promise.reject(new Error('unused by audit — present for shape parity')),
+        findingsExitCode: () => 0,
+      });
+
+      const { audit } = require('../lib/audit.js');
+      const { logs } = await captureLog(() => audit({}));
+
+      const raw = Buffer.from(logs.join('\n'), 'utf8');
+      assert.equal(raw.indexOf(0x0d), -1, 'audit: no raw CR (0x0D) byte may reach stdout');
+      assert.equal(raw.indexOf(0x1b), -1, 'audit: no raw ESC (0x1B) byte may reach stdout');
+      assert.ok(
+        logs.some((l) => l.includes('1 .env file(s) found:')),
+        `audit: expected the intact verdict line, got: ${logs.join('\n')}`
+      );
+      assert.ok(
+        logs.some((l) => l.includes('�') && l.includes('evil')),
+        `audit: expected the sanitized path line with U+FFFD, got: ${logs.join('\n')}`
+      );
+    } finally {
+      delete require.cache[scanPath];
+      delete require.cache[agentsPath];
+      delete require.cache[scanMcpPath];
+      delete require.cache[auditPath];
+    }
+  });
+
+  it('install: a hostile .env path from the env scan is sanitized in the rendered report', async () => {
+    const scanPath = require.resolve('../lib/scan.js');
+    const agentsPath = require.resolve('../lib/agents/index.js');
+    const scanMcpPath = require.resolve('../lib/scan-mcp.js');
+    const auditPath = require.resolve('../lib/audit.js');
+    const installPath = require.resolve('../lib/install.js');
+    const hostilePath = `/Users/x/src/${HOSTILE_NAMES.CR}${HOSTILE_NAMES.ESC}evil/.env`;
+
+    delete require.cache[scanPath];
+    delete require.cache[agentsPath];
+    delete require.cache[scanMcpPath];
+    delete require.cache[auditPath];
+    delete require.cache[installPath];
+
+    try {
+      installStub(scanPath, {
+        scanForEnvFiles: () => [hostilePath],
+        scanForEnvFilesDetailed: () => ({
+          files: [hostilePath],
+          incomplete: false,
+          anomalyCount: 0,
+          anomalyReasons: { unreadable: 0, budget: 0, swapped: 0 },
+          rootFailures: { missing: 0, unreadable: 0 },
+        }),
+        printEnvScanResult: (...args) => realPrintEnvScanResult(...args),
+        buildCauseClauses: (...args) => realBuildCauseClauses(...args),
+      });
+      installStub(agentsPath, {
+        detectAll: () => [fakeAgent()],
+        getByIds: () => [],
+      });
+      installStub(scanMcpPath, {
+        buildEnvelope: () => Promise.resolve(envelope()),
+        scanMcp: () => Promise.reject(new Error('unused by install — present for shape parity')),
+        findingsExitCode: () => 0,
+      });
+
+      const { install } = require('../lib/install.js');
+      const { logs } = await captureLog(() => install({}));
+
+      const raw = Buffer.from(logs.join('\n'), 'utf8');
+      assert.equal(raw.indexOf(0x0d), -1, 'install: no raw CR (0x0D) byte may reach stdout');
+      assert.equal(raw.indexOf(0x1b), -1, 'install: no raw ESC (0x1B) byte may reach stdout');
+      assert.ok(
+        logs.some((l) => l.includes('1 .env file(s) found:')),
+        `install: expected the intact verdict line, got: ${logs.join('\n')}`
+      );
+      assert.ok(
+        logs.some((l) => l.includes('�') && l.includes('evil')),
+        `install: expected the sanitized path line with U+FFFD, got: ${logs.join('\n')}`
+      );
+    } finally {
+      delete require.cache[scanPath];
+      delete require.cache[agentsPath];
+      delete require.cache[scanMcpPath];
+      delete require.cache[auditPath];
+      delete require.cache[installPath];
+    }
+  });
+});
+
 describe('computeSecurityLevel', () => {
   const { EXIT, CONFIDENCE } = require('../lib/mcp/base.js');
   const { computeSecurityLevel } = require('../lib/scorecard.js');

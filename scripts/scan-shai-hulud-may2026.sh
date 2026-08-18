@@ -48,26 +48,98 @@ fi
 FINDINGS=0
 FINDING_LOG=""
 
+# CR-01/CWE-150 -- bash half of ONE contract; canonical def is
+# lib/scorecard.js's sanitizeForTerminal() (lib/scorecard.js:147-162),
+# pinned by a bidirectional drift guard in tests/miasma-scanner.test.js.
+# Strips C0 (0x00-0x1F) + DEL (0x7F) + C1 (0x80-0x9F) so a hostile filename
+# can never move the cursor, repaint a line, or forge a report row.
+#
+# Deliberate, tested asymmetries (not oversights): Unicode format/bidi
+# points (U+202E RLO) are NOT stripped on glibc -- [[:cntrl:]] reaches
+# category Cc only, never Cf (measured, 5 locales, Ubuntu 22.04/24.04;
+# Darwin's libc DOES strip U+202E). A LONE 0x9B byte (not the valid c2 9b
+# pair) also survives glibc in every locale; closing it needs a raw
+# 0x80-0x9F byte pass, which corrupts every CJK path (e.g. "服"=e6 9c 8d)
+# the same way `tr` did. Both pinned by a Linux-gated test, 19-07-PLAN.md.
+#
+# The locale MUST be forced via a function-scoped `local`, never a
+# command-prefix assignment (`LC_ALL=C.UTF-8 printf ...`): POSIX expands a
+# simple command's words BEFORE its assignment prefixes, so the prefix form
+# is NON-FUNCTIONAL here -- it never reaches the substitution below and
+# leaves C1 (U+009B) unstripped under the caller's ambient C/POSIX locale
+# (measured on bash 3.2.57 and 5.3.15; 19-01-PLAN.md's objective).
+sanitize_for_terminal() {
+  local LC_ALL=C.UTF-8
+  printf '%s' "${1//[[:cntrl:]]/�}"
+}
+
+# sanitize_block_for_terminal -- LINE-PRESERVING sibling of sanitize_for_terminal,
+# for MULTI-LINE MATCHED FILE CONTENT only (19-09-PLAN.md/19-10-PLAN.md, SCAN-01,
+# D-01/D-02). Never call this on a single path/value -- a path is ONE value that
+# may itself contain an embedded newline byte; splitting it on that byte and
+# indenting each half would corrupt the exact bytes this phase exists to keep
+# intact (scripts/scan-chaindrop-aug2026.sh's marker-string arm carries this same
+# reasoning as a code comment -- read it before choosing a function per site).
+#
+# Four load-bearing properties, each required by a drift-guard assertion:
+#  1. The locale MUST be forced via a function-scoped `local`, never a
+#     command-prefix assignment -- same measured refutation as
+#     sanitize_for_terminal above (bash 3.2.57/5.3.15, review R1-1): the
+#     prefix form never reaches the substitution and leaves C1 unstripped.
+#  2. LF is PRESERVED as a record separator, but NOT because the character
+#     class below excludes it -- the class is BYTE-IDENTICAL to
+#     sanitize_for_terminal's [[:cntrl:]] class. `read` consumes each line's
+#     trailing LF as a boundary BEFORE the substitution ever runs, so $line
+#     can never contain LF. Do not "unify" the two functions by carving LF
+#     out of the shared class -- a reviewer proposed exactly that and it was
+#     rejected (19-03-PLAN.md): the g747 accumulators append one path per
+#     loop iteration and have nothing to collapse.
+#  3. TAB (0x09) becomes U+FFFD, consistently with the canonical Node
+#     sanitizeForTerminal()'s class -- an accepted, tested trade-off (D-05),
+#     not an oversight: indented JSON in a matched block renders with U+FFFD
+#     in place of its tabs, and the operator SEES that something was
+#     stripped. A TAB exception would fork this class from the canonical one
+#     and break the drift guard's class-parity assertion.
+#  4. Defined byte-identically in all four scanner scripts (pinned by the
+#     drift guard), even in the three that do not yet call it this wave --
+#     19-10-PLAN.md wires the remaining call sites in the next wave. Do not
+#     "clean up" an apparently-unused copy between waves.
+sanitize_block_for_terminal() {
+  local LC_ALL=C.UTF-8 line out=""
+  while IFS= read -r line; do
+    out="${out}${line//[[:cntrl:]]/�}"$'\n'
+  done <<< "$1"
+  printf '%s' "$out"
+}
+
 pass() {
-  printf "  ${GREEN}[PASS]${RESET} %s\n" "$1"
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${GREEN}[PASS]${RESET} %s\n" "$msg"
 }
 
 fail() {
-  printf "  ${RED}[FAIL]${RESET} %s\n" "$1"
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${RED}[FAIL]${RESET} %s\n" "$msg"
   FINDINGS=$((FINDINGS + 1))
-  FINDING_LOG="${FINDING_LOG}  - $1\n"
+  FINDING_LOG="${FINDING_LOG}  - ${msg}"$'\n'
 }
 
 warn() {
-  printf "  ${YELLOW}[WARN]${RESET} %s\n" "$1"
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${YELLOW}[WARN]${RESET} %s\n" "$msg"
 }
 
 info() {
-  printf "  ${BOLD}[INFO]${RESET} %s\n" "$1"
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${BOLD}[INFO]${RESET} %s\n" "$msg"
 }
 
 section() {
-  printf "\n${BOLD}== %s ==${RESET}\n" "$1"
+  printf "\n${BOLD}== %s ==${RESET}\n" "$1"  # no sanitize_for_terminal call: all section() call sites are literal strings, asserted by the source guard shared across this phase's four scanner scripts
 }
 
 # ============================================================================
@@ -101,14 +173,20 @@ check_file_absent "$HOME/.config/systemd/user/kitty-monitor.service" "Linux syst
 check_file_absent "/tmp/tmp.987654321.lock" "older Shai-Hulud lock file"
 
 # Also scan all LaunchAgents for anything kitty-related, in case the name varies
+# WR-01/G-1549 (19-REVIEW.md): NUL-delimited (--null, never bare -Z --
+# measured 2026-08-17 on this machine's BSD grep: -Z is accepted, exits 0,
+# but still emits NEWLINE-delimited records, silently useless; --null is
+# correct on both BSD and GNU grep, same conclusion as the g747 XOR_HITS
+# site) so a real newline in a matched path can never split one record into
+# two phantom fail() calls.
 LA_DIR="$HOME/Library/LaunchAgents"
 if [ -d "$LA_DIR" ]; then
-  KITTY_LA=$(grep -lir "kitty" "$LA_DIR" 2>/dev/null || true)
-  if [ -n "$KITTY_LA" ]; then
-    while IFS= read -r f; do
-      fail "LaunchAgent references 'kitty': $f"
-    done <<< "$KITTY_LA"
-  else
+  KITTY_LA_COUNT=0
+  while IFS= read -r -d '' f; do
+    KITTY_LA_COUNT=$((KITTY_LA_COUNT + 1))
+    fail "LaunchAgent references 'kitty': $f"
+  done < <(grep -lir --null "kitty" "$LA_DIR" 2>/dev/null || true)
+  if [ "$KITTY_LA_COUNT" -eq 0 ]; then
     pass "No LaunchAgents reference 'kitty'"
   fi
 else
@@ -117,23 +195,28 @@ fi
 
 # Miasma Wave D (June 1, 2026) IOC: Bun binary in /tmp/b-*/
 # Payload downloads Bun runtime to a random temp dir matching /tmp/b-<random>/bun
-MIASMA_BUN=$(find /tmp -maxdepth 2 -name "bun" -path "*/b-*" -type f 2>/dev/null || true)
-if [ -n "$MIASMA_BUN" ]; then
-  while IFS= read -r f; do
-    fail "Miasma Wave D IOC: Bun binary found at $f (Wave D / RHSB-2026-006 — payload may have crashed)"
-  done <<< "$MIASMA_BUN"
-else
+# WR-01/G-1549 (19-REVIEW.md): NUL-delimited (-print0/-d ''), no
+# intermediate accumulator variable to re-split -- fail() is called directly
+# per matched record, counted via MIASMA_BUN_COUNT.
+MIASMA_BUN_COUNT=0
+while IFS= read -r -d '' f; do
+  MIASMA_BUN_COUNT=$((MIASMA_BUN_COUNT + 1))
+  fail "Miasma Wave D IOC: Bun binary found at $f (Wave D / RHSB-2026-006 — payload may have crashed)"
+done < <(find /tmp -maxdepth 2 -name "bun" -path "*/b-*" -type f -print0 2>/dev/null)
+if [ "$MIASMA_BUN_COUNT" -eq 0 ]; then
   pass "No Miasma Wave D Bun binary found in /tmp/b-*/"
 fi
 
 # Miasma Wave D IOC: JS payload file in /tmp/p*.js
 # Payload writes a JS file matching /tmp/p<base36>.js; removed on success, persists on crash
-MIASMA_JS=$(find /tmp -maxdepth 1 -name "p*.js" -type f 2>/dev/null || true)
-if [ -n "$MIASMA_JS" ]; then
-  while IFS= read -r f; do
-    fail "Miasma Wave D IOC: Possible payload JS at $f (p<base36>.js pattern — Wave D / RHSB-2026-006)"
-  done <<< "$MIASMA_JS"
-else
+# WR-01/G-1549 (19-REVIEW.md): NUL-delimited (-print0/-d ''), same pattern
+# as MIASMA_BUN above.
+MIASMA_JS_COUNT=0
+while IFS= read -r -d '' f; do
+  MIASMA_JS_COUNT=$((MIASMA_JS_COUNT + 1))
+  fail "Miasma Wave D IOC: Possible payload JS at $f (p<base36>.js pattern — Wave D / RHSB-2026-006)"
+done < <(find /tmp -maxdepth 1 -name "p*.js" -type f -print0 2>/dev/null)
+if [ "$MIASMA_JS_COUNT" -eq 0 ]; then
   pass "No Miasma Wave D payload JS file found in /tmp/p*.js"
 fi
 
@@ -159,27 +242,27 @@ else
   # etc.) are not worm IOCs even though they use runOn:folderOpen.
   WORM_CMD_RE='curl[^|&;]+\|[[:space:]]*(ba)?sh|wget[^|&;]+\|[[:space:]]*(ba)?sh|base64[[:space:]]+-d[^|]*\|[[:space:]]*(ba)?sh|eval[[:space:]]+.*curl|m-kosche|kitty-monitor|gh-token-monitor|/tmp/[^"[:space:]]*\.(sh|py|lock)|\.local/share/kitty|LaunchAgents/.+\.plist'
 
-  FOLDEROPEN_FILES=""
-  while IFS= read -r f; do
-    if [ -n "$f" ] && grep -l '"runOn"[[:space:]]*:[[:space:]]*"folderOpen"' "$f" >/dev/null 2>&1; then
-      FOLDEROPEN_FILES="${FOLDEROPEN_FILES}${f}\n"
-    fi
-  done < <(find "${SEARCH_ROOTS[@]}" -type f -path '*/.vscode/tasks.json' 2>/dev/null)
-
-  if [ -z "$FOLDEROPEN_FILES" ]; then
-    pass "No tasks.json files with runOn:folderOpen found"
-  else
-    # Triage each file: FAIL if any command matches worm patterns, else INFO.
-    while IFS= read -r f; do
-      [ -z "$f" ] && continue
+  # D-11: no intermediate accumulator. Triage happens inline, in the SAME
+  # loop that discovers each tasks.json -- the two-loop shape this replaces
+  # accumulated every discovered path into one growing string using a
+  # 2-character escape-sequence separator, then re-interpreted that whole
+  # string's escape sequences into a second `while read`. That
+  # escape-reinterpreting control-flow site is deleted, not hardened
+  # (SCAN-02). D-12: the `find` feeding this loop is NUL-delimited
+  # (`-print0` / `read -r -d ''`), so a real newline embedded in a path can
+  # never split one record into two -- every discovered tasks.json is
+  # examined, including any file discovered after a poisoned one.
+  folderopen_count=0
+  while IFS= read -r -d '' f; do
+    if grep -l '"runOn"[[:space:]]*:[[:space:]]*"folderOpen"' "$f" >/dev/null 2>&1; then
+      folderopen_count=$((folderopen_count + 1))
       # Extract every "command": "..." value from the file
       bad_cmds=$(grep -oE '"command"[[:space:]]*:[[:space:]]*"[^"]*"' "$f" 2>/dev/null \
                   | grep -iE "$WORM_CMD_RE" || true)
       if [ -n "$bad_cmds" ]; then
         fail "tasks.json runOn:folderOpen with worm-pattern command — $f"
         printf "       Matched commands:\n"
-        printf "%s\n" "$bad_cmds" | sed 's/^/         /'
-        FINDING_LOG="${FINDING_LOG}  - VSCode tasks.json worm-pattern folderOpen: $f\n"
+        printf "%s\n" "$(sanitize_block_for_terminal "$bad_cmds")" | sed 's/^/         /'
       else
         # folderOpen present but commands look like normal dev tasks
         info "tasks.json has runOn:folderOpen but commands look legitimate — $f"
@@ -187,7 +270,11 @@ else
         grep -oE '"command"[[:space:]]*:[[:space:]]*"[^"]*"' "$f" 2>/dev/null \
           | sed 's/^/         /'
       fi
-    done < <(printf "%b" "$FOLDEROPEN_FILES")
+    fi
+  done < <(find "${SEARCH_ROOTS[@]}" -type f -path '*/.vscode/tasks.json' -print0 2>/dev/null)
+
+  if [ "$folderopen_count" -eq 0 ]; then
+    pass "No tasks.json files with runOn:folderOpen found"
   fi
 fi
 
@@ -220,10 +307,19 @@ SETTINGS_FILES=()
 for f in "$HOME/.claude/settings.json" "$HOME/.claude/settings.local.json"; do
   [ -f "$f" ] && SETTINGS_FILES+=("$f")
 done
-for root in "${SEARCH_ROOTS[@]}"; do
-  while IFS= read -r f; do
+# bash 3.2 (stock macOS /bin/bash) raises a fatal "unbound variable" on
+# "${arr[@]}" when arr is EMPTY under `set -u`; bash >= 4.4 treats it as no
+# args. On a host with no common code dirs SEARCH_ROOTS is empty, so guard the
+# expansion: `${arr[@]+"${arr[@]}"}` is the quoted elements when non-empty and
+# nothing (loop skipped) when empty — identical semantics, safe on 3.2..5.x.
+# An empty SEARCH_ROOTS here only means "no code roots to walk"; the $HOME
+# settings.json seeded above is still audited. (G-1549 stock-macOS regression.)
+for root in ${SEARCH_ROOTS[@]+"${SEARCH_ROOTS[@]}"}; do
+  # D-12/D-13 (19-08-PLAN.md): NUL-delimited so a real newline in a
+  # sibling path can never split this record and drop the file after it.
+  while IFS= read -r -d '' f; do
     [ -n "$f" ] && SETTINGS_FILES+=("$f")
-  done < <(find "$root" -type f \( -path '*/.claude/settings.json' -o -path '*/.claude/settings.local.json' \) 2>/dev/null)
+  done < <(find "$root" -type f \( -path '*/.claude/settings.json' -o -path '*/.claude/settings.local.json' \) -print0 2>/dev/null)
 done
 
 # extract_session_start_block: prints just the SessionStart array from a JSON
@@ -280,15 +376,17 @@ else
       continue
     fi
     info "SessionStart hook commands in: $sf"
-    # Print each "command" entry in the block for transparency
-    printf "%s\n" "$BLOCK" | grep -nE '"command"[[:space:]]*:' | sed -E 's/^/      /' || true
+    # Print each "command" entry in the block for transparency. Sanitized on
+    # the way IN, BEFORE the grep -nE filter -- sanitizing after would be
+    # sanitizing at the print site, which D-02 rejects.
+    printf "%s\n" "$(sanitize_block_for_terminal "$BLOCK")" | grep -nE '"command"[[:space:]]*:' | sed -E 's/^/      /' || true
     # Flag suspicious patterns within the block
     FILE_SUS=0
     for pat in "${SUSPICIOUS_HOOK_PATTERNS[@]}"; do
       M=$(printf "%s" "$BLOCK" | grep -nE "$pat" || true)
       if [ -n "$M" ]; then
         fail "Suspicious SessionStart pattern in $sf (matches: $pat)"
-        printf "%s\n" "$M" | sed 's/^/        /'
+        printf "%s\n" "$(sanitize_block_for_terminal "$M")" | sed 's/^/        /'
         FILE_SUS=1
         ANY_SUSPICIOUS=1
       fi
@@ -335,19 +433,19 @@ for rc in "${RC_FILES[@]}"; do
   for pat in "${RC_BAD_PATTERNS[@]}"; do
     M=$(grep -nE "$pat" "$rc" 2>/dev/null || true)
     if [ -n "$M" ]; then
-      HITS="${HITS}\n  pattern: ${pat}\n${M}\n"
+      HITS="${HITS}"$'\n'"  pattern: ${pat}"$'\n'"$(sanitize_for_terminal "$M")"$'\n'
     fi
   done
   # Heredoc tags with random 8+ char identifiers (a common obfuscation): looks like <<XYZ12345
   # We grep for <<[A-Za-z0-9_]{8,}
   HEREDOC=$(grep -nE '<<[A-Za-z0-9_]{8,}' "$rc" 2>/dev/null || true)
   if [ -n "$HEREDOC" ]; then
-    HITS="${HITS}\n  pattern: random-tag heredoc\n${HEREDOC}\n"
+    HITS="${HITS}"$'\n'"  pattern: random-tag heredoc"$'\n'"$(sanitize_for_terminal "$HEREDOC")"$'\n'
   fi
 
   if [ -n "$HITS" ]; then
     fail "Suspicious patterns in $rc"
-    printf "%b" "$HITS" | sed 's/^/      /'
+    printf '%s' "$HITS" | sed 's/^/      /'
   else
     pass "$rc clean"
   fi
@@ -369,12 +467,12 @@ for hf in "${HIST_FILES[@]}"; do
   for pat in "${HIST_PATTERNS[@]}"; do
     M=$(grep -n "$pat" "$hf" 2>/dev/null || true)
     if [ -n "$M" ]; then
-      HITS="${HITS}\n  pattern: ${pat}\n${M}\n"
+      HITS="${HITS}"$'\n'"  pattern: ${pat}"$'\n'"$(sanitize_for_terminal "$M")"$'\n'
     fi
   done
   if [ -n "$HITS" ]; then
     fail "Beacon strings in $hf"
-    printf "%b" "$HITS" | sed 's/^/      /'
+    printf '%s' "$HITS" | sed 's/^/      /'
   else
     pass "$hf clean"
   fi
@@ -501,7 +599,8 @@ else
   : > "$LOCK_HITS_FILE"
 
   # Find all lockfiles, skip node_modules
-  while IFS= read -r lockfile; do
+  # D-12/D-13 (19-08-PLAN.md): NUL-delimited (see the settings.json comment above).
+  while IFS= read -r -d '' lockfile; do
     [ -z "$lockfile" ] && continue
     for pkg in "${COMPROMISED_PKGS[@]}"; do
       # Match "package-name" within the lockfile (quoted form catches both
@@ -511,13 +610,13 @@ else
       # Yarn lockfile uses different syntax (pkg@version: at start of line)
       MATCHES2=$(grep -nE "(^|[[:space:]])${pkg_for_grep}@" "$lockfile" 2>/dev/null | head -5 || true)
       if [ -n "$MATCHES" ] || [ -n "$MATCHES2" ]; then
-        printf "  FILE: %s\n  PKG: %s\n" "$lockfile" "$pkg" >> "$LOCK_HITS_FILE"
-        [ -n "$MATCHES" ] && printf "%s\n" "$MATCHES" | sed 's/^/    /' >> "$LOCK_HITS_FILE"
-        [ -n "$MATCHES2" ] && printf "%s\n" "$MATCHES2" | sed 's/^/    /' >> "$LOCK_HITS_FILE"
+        printf "  FILE: %s\n  PKG: %s\n" "$(sanitize_for_terminal "$lockfile")" "$(sanitize_for_terminal "$pkg")" >> "$LOCK_HITS_FILE"
+        [ -n "$MATCHES" ] && printf "%s\n" "$(sanitize_block_for_terminal "$MATCHES")" | sed 's/^/    /' >> "$LOCK_HITS_FILE"
+        [ -n "$MATCHES2" ] && printf "%s\n" "$(sanitize_block_for_terminal "$MATCHES2")" | sed 's/^/    /' >> "$LOCK_HITS_FILE"
         printf "\n" >> "$LOCK_HITS_FILE"
       fi
     done
-  done < <(find "${SEARCH_ROOTS[@]}" \( -name node_modules -prune \) -o \( -type f \( -name 'package-lock.json' -o -name 'yarn.lock' -o -name 'pnpm-lock.yaml' \) -print \) 2>/dev/null)
+  done < <(find "${SEARCH_ROOTS[@]}" \( -name node_modules -prune \) -o \( -type f \( -name 'package-lock.json' -o -name 'yarn.lock' -o -name 'pnpm-lock.yaml' \) -print0 \) 2>/dev/null)
 
   if [ -s "$LOCK_HITS_FILE" ]; then
     HIT_LINES=$(grep -c '^  FILE:' "$LOCK_HITS_FILE" || echo 0)
@@ -557,7 +656,7 @@ if command -v gh >/dev/null 2>&1; then
         M=$(printf "%s" "$REPO_JSON" | grep -i "$pat" || true)
         if [ -n "$M" ]; then
           fail "Dead-drop pattern '$pat' found in your GitHub repos:"
-          printf "%s\n" "$M" | sed 's/^/      /'
+          printf "%s\n" "$(sanitize_block_for_terminal "$M")" | sed 's/^/      /'
           ANY_DEAD_DROP=1
         fi
       done
@@ -586,7 +685,7 @@ if [ "$FINDINGS" -eq 0 ]; then
 else
   printf "${RED}${BOLD}%d FINDING(S) — INVESTIGATE${RESET}\n" "$FINDINGS"
   printf "\nFindings:\n"
-  printf "%b" "$FINDING_LOG"
+  printf '%s' "$FINDING_LOG"
   printf "\n"
   printf "${BOLD}What to do if FAIL:${RESET}\n"
   printf "  1. DO NOT panic-delete. Capture evidence first:\n"

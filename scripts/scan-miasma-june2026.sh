@@ -62,26 +62,98 @@ fi
 FINDINGS=0
 FINDING_LOG=""
 
+# CR-01/CWE-150 -- bash half of ONE contract; canonical def is
+# lib/scorecard.js's sanitizeForTerminal() (lib/scorecard.js:147-162),
+# pinned by a bidirectional drift guard in tests/miasma-scanner.test.js.
+# Strips C0 (0x00-0x1F) + DEL (0x7F) + C1 (0x80-0x9F) so a hostile filename
+# can never move the cursor, repaint a line, or forge a report row.
+#
+# Deliberate, tested asymmetries (not oversights): Unicode format/bidi
+# points (U+202E RLO) are NOT stripped on glibc -- [[:cntrl:]] reaches
+# category Cc only, never Cf (measured, 5 locales, Ubuntu 22.04/24.04;
+# Darwin's libc DOES strip U+202E). A LONE 0x9B byte (not the valid c2 9b
+# pair) also survives glibc in every locale; closing it needs a raw
+# 0x80-0x9F byte pass, which corrupts every CJK path (e.g. "服"=e6 9c 8d)
+# the same way `tr` did. Both pinned by a Linux-gated test, 19-07-PLAN.md.
+#
+# The locale MUST be forced via a function-scoped `local`, never a
+# command-prefix assignment (`LC_ALL=C.UTF-8 printf ...`): POSIX expands a
+# simple command's words BEFORE its assignment prefixes, so the prefix form
+# is NON-FUNCTIONAL here -- it never reaches the substitution below and
+# leaves C1 (U+009B) unstripped under the caller's ambient C/POSIX locale
+# (measured on bash 3.2.57 and 5.3.15; 19-01-PLAN.md's objective).
+sanitize_for_terminal() {
+  local LC_ALL=C.UTF-8
+  printf '%s' "${1//[[:cntrl:]]/�}"
+}
+
+# sanitize_block_for_terminal -- LINE-PRESERVING sibling of sanitize_for_terminal,
+# for MULTI-LINE MATCHED FILE CONTENT only (19-09-PLAN.md/19-10-PLAN.md, SCAN-01,
+# D-01/D-02). Never call this on a single path/value -- a path is ONE value that
+# may itself contain an embedded newline byte; splitting it on that byte and
+# indenting each half would corrupt the exact bytes this phase exists to keep
+# intact (scripts/scan-chaindrop-aug2026.sh's marker-string arm carries this same
+# reasoning as a code comment -- read it before choosing a function per site).
+#
+# Four load-bearing properties, each required by a drift-guard assertion:
+#  1. The locale MUST be forced via a function-scoped `local`, never a
+#     command-prefix assignment -- same measured refutation as
+#     sanitize_for_terminal above (bash 3.2.57/5.3.15, review R1-1): the
+#     prefix form never reaches the substitution and leaves C1 unstripped.
+#  2. LF is PRESERVED as a record separator, but NOT because the character
+#     class below excludes it -- the class is BYTE-IDENTICAL to
+#     sanitize_for_terminal's [[:cntrl:]] class. `read` consumes each line's
+#     trailing LF as a boundary BEFORE the substitution ever runs, so $line
+#     can never contain LF. Do not "unify" the two functions by carving LF
+#     out of the shared class -- a reviewer proposed exactly that and it was
+#     rejected (19-03-PLAN.md): the g747 accumulators append one path per
+#     loop iteration and have nothing to collapse.
+#  3. TAB (0x09) becomes U+FFFD, consistently with the canonical Node
+#     sanitizeForTerminal()'s class -- an accepted, tested trade-off (D-05),
+#     not an oversight: indented JSON in a matched block renders with U+FFFD
+#     in place of its tabs, and the operator SEES that something was
+#     stripped. A TAB exception would fork this class from the canonical one
+#     and break the drift guard's class-parity assertion.
+#  4. Defined byte-identically in all four scanner scripts (pinned by the
+#     drift guard), even in the three that do not yet call it this wave --
+#     19-10-PLAN.md wires the remaining call sites in the next wave. Do not
+#     "clean up" an apparently-unused copy between waves.
+sanitize_block_for_terminal() {
+  local LC_ALL=C.UTF-8 line out=""
+  while IFS= read -r line; do
+    out="${out}${line//[[:cntrl:]]/�}"$'\n'
+  done <<< "$1"
+  printf '%s' "$out"
+}
+
 pass() {
-  printf "  ${GREEN}[PASS]${RESET} %s\n" "$1"
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${GREEN}[PASS]${RESET} %s\n" "$msg"
 }
 
 fail() {
-  printf "  ${RED}[FAIL]${RESET} %s\n" "$1"
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${RED}[FAIL]${RESET} %s\n" "$msg"
   FINDINGS=$((FINDINGS + 1))
-  FINDING_LOG="${FINDING_LOG}  - $1\n"
+  FINDING_LOG="${FINDING_LOG}  - ${msg}"$'\n'
 }
 
 warn() {
-  printf "  ${YELLOW}[WARN]${RESET} %s\n" "$1"
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${YELLOW}[WARN]${RESET} %s\n" "$msg"
 }
 
 info() {
-  printf "  ${BOLD}[INFO]${RESET} %s\n" "$1"
+  local msg
+  msg="$(sanitize_for_terminal "$1")"
+  printf "  ${BOLD}[INFO]${RESET} %s\n" "$msg"
 }
 
 section() {
-  printf "\n${BOLD}== %s ==${RESET}\n" "$1"
+  printf "\n${BOLD}== %s ==${RESET}\n" "$1"  # no sanitize_for_terminal call: all 34 section() call sites are literal strings, asserted by a source guard in tests/miasma-scanner.test.js
 }
 
 # sha256_of FILE — prints hex digest, or empty string if no hashing tool.
@@ -158,7 +230,9 @@ if [ ${#SEARCH_ROOTS[@]} -eq 0 ]; then
 else
   info "Scanning for binding.gyp under: ${SEARCH_ROOTS[*]}"
   GYP_ANY=0
-  while IFS= read -r gyp; do
+  # D-12/D-13 (19-08-PLAN.md): NUL-delimited so a real newline in a
+  # sibling path can never split this record and drop the file after it.
+  while IFS= read -r -d '' gyp; do
     [ -z "$gyp" ] && continue
     GYP_ANY=1
     pkgdir=$(dirname "$gyp")
@@ -176,7 +250,7 @@ else
       danger=$(printf "%s\n" "$subst_lines" | grep -Ei "$GYP_DANGER_RE" || true)
       if [ -n "$danger" ]; then
         fail "binding.gyp command-substitution runs a suspicious command (Phantom Gyp) — $gyp"
-        printf "%s\n" "$danger" | head -5 | sed 's/^/         /'
+        printf "%s\n" "$(sanitize_block_for_terminal "$danger")" | head -5 | sed 's/^/         /'
         continue
       else
         # Benign <!() — common in real native addons (sharp, etc.). Note, don't fail.
@@ -187,7 +261,7 @@ else
     # (c) action/rule arrays that shell out or fetch the network.
     if grep -Eq "$GYP_EXEC_RE" "$gyp" 2>/dev/null; then
       warn "binding.gyp invokes a shell/downloader in a build step — review: $gyp"
-      grep -nE "$GYP_EXEC_RE" "$gyp" 2>/dev/null | head -5 | sed 's/^/         /'
+      printf "%s\n" "$(sanitize_block_for_terminal "$(grep -nE "$GYP_EXEC_RE" "$gyp" 2>/dev/null)")" | head -5 | sed 's/^/         /'
     fi
 
     # (d) binding.gyp present in a package that ships no native sources.
@@ -204,7 +278,7 @@ else
         fi
         ;;
     esac
-  done < <(find "${SEARCH_ROOTS[@]}" \( \( "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f -name 'binding.gyp' -print \) 2>/dev/null)
+  done < <(find "${SEARCH_ROOTS[@]}" \( \( "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f -name 'binding.gyp' -print0 \) 2>/dev/null)
 
   if [ "$GYP_ANY" -eq 0 ]; then
     pass "No binding.gyp files found under code roots"
@@ -233,7 +307,8 @@ if [ ${#SEARCH_ROOTS[@]} -eq 0 ]; then
   info "No code roots — skipping workflow scan"
 else
   WF_ANY=0
-  while IFS= read -r wf; do
+  # D-12/D-13 (19-08-PLAN.md): NUL-delimited (see the binding.gyp comment above).
+  while IFS= read -r -d '' wf; do
     [ -z "$wf" ] && continue
     # Skip this scanner's own repo (its workflows are detection data / legit CI).
     if [ -n "$SELF_ROOT" ]; then case "$wf" in "$SELF_ROOT"/*) continue;; esac; fi
@@ -256,7 +331,7 @@ else
     # (c) Secret-scrape / dead-drop signatures in run: steps — real IOC.
     if grep -Eq "$WF_SCRAPE_RE" "$wf" 2>/dev/null; then
       fail "Workflow scrapes/exfiltrates secrets (Miasma signature) — $wf"
-      grep -nE "$WF_SCRAPE_RE" "$wf" 2>/dev/null | head -3 | sed 's/^/         /'
+      printf "%s\n" "$(sanitize_block_for_terminal "$(grep -nE "$WF_SCRAPE_RE" "$wf" 2>/dev/null)")" | head -3 | sed 's/^/         /'
       wf_bad=1
     fi
 
@@ -268,7 +343,7 @@ else
                     | grep -vE 'echo|GITHUB_STEP_SUMMARY|^[[:space:]]*[0-9]+:[[:space:]]*#' || true)
       if [ -n "$pipe_lines" ]; then
         warn "Workflow pipes a download to a shell (legit installer or implant?) — review: $wf"
-        printf "%s\n" "$pipe_lines" | head -3 | sed 's/^/         /'
+        printf "%s\n" "$(sanitize_block_for_terminal "$pipe_lines")" | head -3 | sed 's/^/         /'
       fi
     fi
 
@@ -280,7 +355,7 @@ else
        && grep -Eq '^[[:space:]]*run:' "$wf" 2>/dev/null; then
       info "Workflow interpolates github.event.* near run: (review for script injection) — $wf"
     fi
-  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f -path '*/.github/workflows/*' \( -name '*.yml' -o -name '*.yaml' \) -print \) 2>/dev/null)
+  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f -path '*/.github/workflows/*' \( -name '*.yml' -o -name '*.yaml' \) -print0 \) 2>/dev/null)
 
   if [ "$WF_ANY" -eq 0 ]; then
     pass "No GitHub Actions workflow files found under code roots"
@@ -305,7 +380,8 @@ if [ ${#SEARCH_ROOTS[@]} -eq 0 ]; then
   info "No code roots — skipping tasks.json scan"
 else
   TASK_ANY=0
-  while IFS= read -r f; do
+  # D-12/D-13 (19-08-PLAN.md): NUL-delimited (see the binding.gyp comment above).
+  while IFS= read -r -d '' f; do
     [ -z "$f" ] && continue
     grep -lq '"runOn"[[:space:]]*:[[:space:]]*"folderOpen"' "$f" 2>/dev/null || continue
     TASK_ANY=1
@@ -313,7 +389,7 @@ else
     bad=$(printf "%s\n" "$cmds" | grep -iE "$WORM_CMD_RE" || true)
     if [ -n "$bad" ]; then
       fail "tasks.json runOn:folderOpen with worm-pattern command — $f"
-      printf "%s\n" "$bad" | sed 's/^/         /'
+      printf "%s\n" "$(sanitize_block_for_terminal "$bad")" | sed 's/^/         /'
       continue
     fi
     # Strip the "command": "..." wrapper to test the bare command against allowlist.
@@ -321,11 +397,11 @@ else
     unknown=$(printf "%s\n" "$bare" | grep -vE "$BENIGN_TASK_RE" | grep -v '^[[:space:]]*$' || true)
     if [ -n "$unknown" ]; then
       warn "tasks.json runOn:folderOpen auto-runs an unrecognized command — review: $f"
-      printf "%s\n" "$unknown" | sed 's/^/         /'
+      printf "%s\n" "$(sanitize_block_for_terminal "$unknown")" | sed 's/^/         /'
     else
       info "tasks.json runOn:folderOpen with recognized dev command — $f"
     fi
-  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f -path '*/.vscode/tasks.json' -print \) 2>/dev/null)
+  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f -path '*/.vscode/tasks.json' -print0 \) 2>/dev/null)
 
   if [ "$TASK_ANY" -eq 0 ]; then
     pass "No tasks.json files with runOn:folderOpen found"
@@ -361,9 +437,10 @@ for f in "$HOME/.claude/settings.json" "$HOME/.claude/settings.local.json"; do
 done
 if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
   for root in "${SEARCH_ROOTS[@]}"; do
-    while IFS= read -r f; do
+    # D-12/D-13 (19-08-PLAN.md): NUL-delimited (see the binding.gyp comment above).
+    while IFS= read -r -d '' f; do
       [ -n "$f" ] && SETTINGS_FILES+=("$f")
-    done < <(find "$root" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -path '*/.claude/settings.json' -o -path '*/.claude/settings.local.json' \) -print \) 2>/dev/null)
+    done < <(find "$root" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -path '*/.claude/settings.json' -o -path '*/.claude/settings.local.json' \) -print0 \) 2>/dev/null)
   done
 fi
 
@@ -381,7 +458,7 @@ else
       M=$(printf "%s\n" "$cmd_lines" | grep -nE "$pat" || true)
       if [ -n "$M" ]; then
         fail "Suspicious hook command in $sf (matches: $pat)"
-        printf "%s\n" "$M" | sed 's/^/        /'
+        printf "%s\n" "$(sanitize_block_for_terminal "$M")" | sed 's/^/        /'
         file_sus=1; ANY_SUS=1
       fi
     done
@@ -391,7 +468,7 @@ else
       OFFBOX=$(grep -nE '"url"[[:space:]]*:[[:space:]]*"https?://[^"]*"' "$sf" 2>/dev/null | grep -vE 'localhost|127\.0\.0\.1' || true)
       if [ -n "$OFFBOX" ]; then
         warn "settings.json has an http hook posting off-box — review: $sf"
-        printf "%s\n" "$OFFBOX" | sed 's/^/        /'
+        printf "%s\n" "$(sanitize_block_for_terminal "$OFFBOX")" | sed 's/^/        /'
       fi
     fi
     [ "$file_sus" -eq 0 ] && pass "No worm-pattern hook commands in $sf"
@@ -403,7 +480,8 @@ fi
 section "4b. Cursor / agent rules files (instruction injection)"
 RULES_FOUND=0
 if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
-  while IFS= read -r rf; do
+  # D-12/D-13 (19-08-PLAN.md): NUL-delimited (see the binding.gyp comment above).
+  while IFS= read -r -d '' rf; do
     [ -z "$rf" ] && continue
     RULES_FOUND=1
     # Zero-width / bidi / tag chars (high signal — legit rules are plain text).
@@ -417,7 +495,7 @@ if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
     if grep -Eiq 'ignore (all |the )?previous instructions|you are now|exfiltrat|send .*(secret|token|credential)|run this (command|silently)|disable (safety|security)' "$rf" 2>/dev/null; then
       warn "Rules file contains injection-style imperatives — review: $rf"
     fi
-  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -name '.cursorrules' -o -name '.clinerules' -o -path '*/.cursor/rules/*.mdc' \) -print \) 2>/dev/null)
+  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -name '.cursorrules' -o -name '.clinerules' -o -path '*/.cursor/rules/*.mdc' \) -print0 \) 2>/dev/null)
 fi
 [ "$RULES_FOUND" -eq 0 ] && info "No Cursor/Cline rules files found under code roots"
 
@@ -461,17 +539,18 @@ fi
 if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
   LOCK_HITS=$(mktemp -t miasma-lock-hits.XXXXXX)
   : > "$LOCK_HITS"
-  while IFS= read -r lockfile; do
+  # D-12/D-13 (19-08-PLAN.md): NUL-delimited (see the binding.gyp comment above).
+  while IFS= read -r -d '' lockfile; do
     [ -z "$lockfile" ] && continue
     for pkg in "${COMPROMISED_PKGS[@]}"; do
       pkg_for_grep=$(printf '%s' "$pkg" | sed 's/[.[\*^$()+?{|/]/\\&/g')
       M=$(grep -nE "\"${pkg_for_grep}\"|(^|[[:space:]])${pkg_for_grep}@" "$lockfile" 2>/dev/null | head -3 || true)
       if [ -n "$M" ]; then
-        printf "  FILE: %s\n  PKG: %s\n" "$lockfile" "$pkg" >> "$LOCK_HITS"
-        printf "%s\n\n" "$M" | sed 's/^/    /' >> "$LOCK_HITS"
+        printf "  FILE: %s\n  PKG: %s\n" "$(sanitize_for_terminal "$lockfile")" "$(sanitize_for_terminal "$pkg")" >> "$LOCK_HITS"
+        printf "%s\n\n" "$(sanitize_block_for_terminal "$M")" | sed 's/^/    /' >> "$LOCK_HITS"
       fi
     done
-  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -name 'package-lock.json' -o -name 'yarn.lock' -o -name 'pnpm-lock.yaml' \) -print \) 2>/dev/null)
+  done < <(find "${SEARCH_ROOTS[@]}" \( \( -name node_modules -o "${PRUNE_COMMON[@]}" \) -prune \) -o \( -type f \( -name 'package-lock.json' -o -name 'yarn.lock' -o -name 'pnpm-lock.yaml' \) -print0 \) 2>/dev/null)
   if [ -s "$LOCK_HITS" ]; then
     N=$(grep -c '^  FILE:' "$LOCK_HITS" || echo 0)
     fail "$N lockfile/package combination(s) reference compromised packages"
@@ -525,7 +604,7 @@ if [ ${#SEARCH_ROOTS[@]} -gt 0 ]; then
   HIT=$(printf "%s\n" "$HIT" | grep -v '^[[:space:]]*$' | head -10 || true)
   if [ -n "$HIT" ]; then
     fail "Campaign marker string(s) found in files:"
-    printf "%s\n" "$HIT" | sed 's/^/         /'
+    printf "%s\n" "$(sanitize_block_for_terminal "$HIT")" | sed 's/^/         /'
     MARK_HITS=1
   fi
 fi
@@ -555,7 +634,7 @@ elif command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
       M=$(printf "%s" "$REPO_JSON" | grep -i "$pat" || true)
       if [ -n "$M" ]; then
         fail "Dead-drop pattern '$pat' in your GitHub repos:"
-        printf "%s\n" "$M" | sed 's/^/      /'
+        printf "%s\n" "$(sanitize_block_for_terminal "$M")" | sed 's/^/      /'
         ANY=1
       fi
     done
@@ -580,7 +659,7 @@ if [ "$FINDINGS" -eq 0 ]; then
 else
   printf "${RED}${BOLD}%d FINDING(S) — INVESTIGATE${RESET}\n" "$FINDINGS"
   printf "\nFindings:\n"
-  printf "%b" "$FINDING_LOG"
+  printf '%s' "$FINDING_LOG"
   printf "\n"
   printf "${BOLD}What to do if FAIL:${RESET}\n"
   printf "  1. DO NOT panic-delete. Capture evidence first (copy flagged files to isolated storage).\n"
