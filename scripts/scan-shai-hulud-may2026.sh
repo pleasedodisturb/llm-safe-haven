@@ -307,7 +307,14 @@ SETTINGS_FILES=()
 for f in "$HOME/.claude/settings.json" "$HOME/.claude/settings.local.json"; do
   [ -f "$f" ] && SETTINGS_FILES+=("$f")
 done
-for root in "${SEARCH_ROOTS[@]}"; do
+# bash 3.2 (stock macOS /bin/bash) raises a fatal "unbound variable" on
+# "${arr[@]}" when arr is EMPTY under `set -u`; bash >= 4.4 treats it as no
+# args. On a host with no common code dirs SEARCH_ROOTS is empty, so guard the
+# expansion: `${arr[@]+"${arr[@]}"}` is the quoted elements when non-empty and
+# nothing (loop skipped) when empty — identical semantics, safe on 3.2..5.x.
+# An empty SEARCH_ROOTS here only means "no code roots to walk"; the $HOME
+# settings.json seeded above is still audited. (G-1549 stock-macOS regression.)
+for root in ${SEARCH_ROOTS[@]+"${SEARCH_ROOTS[@]}"}; do
   # D-12/D-13 (19-08-PLAN.md): NUL-delimited so a real newline in a
   # sibling path can never split this record and drop the file after it.
   while IFS= read -r -d '' f; do
