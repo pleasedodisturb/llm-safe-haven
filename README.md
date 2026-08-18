@@ -32,9 +32,11 @@ LLM Safe Haven -- Security Scorecard
 
 `llm-safe-haven` detects and hardens 16 agents. **The tier reflects what each agent's own
 platform lets us do — not how much we care about it.** Only agents that expose a hook /
-interception system can reach **Full**; most agents offer an ignore-file at best, and some expose
-nothing local to configure, so we detect them and give guidance. We'd rather tell you the honest
-ceiling than imply a protection the agent can't actually enforce.
+interception system can reach **Full**; agents that reliably honor a committed ignore-file land at
+**Solid**; the rest — code that runs off-machine, opaque IDE config, or only best-effort ignore
+handling — we detect and guide (**Advise**), writing an ignore-file or reading a setting where one
+exists but never depending on it. We'd rather tell you the honest ceiling than imply a protection
+the agent can't actually enforce.
 
 ### Full — interception + verification (the agent exposes a hook system)
 
@@ -42,7 +44,7 @@ ceiling than imply a protection the agent can't actually enforce.
 |-------|--------------------|
 | Claude Code | Hooks (bash-firewall, secret-guard, config-guard, audit-logger), `settings.json` wiring, SHA256 hook-integrity verification, audit-log freshness check |
 
-### Solid — ignore-file + guidance (some real settings checked; no hook system)
+### Solid — repo-local controls the agent honors (ignore-file + tailored guidance; no hook system)
 
 | Agent | What It Configures |
 |-------|--------------------|
@@ -55,7 +57,7 @@ ceiling than imply a protection the agent can't actually enforce.
 | Goose | `.gooseignore`; `config.yaml` extension / env-key review |
 | Antigravity | `.antigravityignore` |
 
-### Advise — detection + guidance (the platform exposes no local hardening primitives)
+### Advise — detection + guidance (no repo-local control we can depend on)
 
 | Agent | What It Configures |
 |-------|--------------------|
