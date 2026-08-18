@@ -30,15 +30,46 @@ LLM Safe Haven -- Security Scorecard
 
 ## Supported Agents
 
-| Agent | Tier | What It Configures |
-|-------|------|--------------------|
-| Claude Code | Full | Hooks (bash-firewall, secret-guard, config-guard, audit-logger), settings.json, sandbox, audit logging |
-| Cursor | Solid | .cursorignore, workspace trust guidance |
-| Windsurf | Solid | .codeiumignore, limitation warnings |
-| Cline | Solid | .clineignore |
-| Continue.dev | Solid | .continueignore |
-| Aider | Solid | .aiderignore, .env warnings |
-| Codex CLI | Solid | .codexignore, sandbox guidance |
+`llm-safe-haven` detects and hardens 16 agents. **The tier reflects what each agent's own
+platform lets us do — not how much we care about it.** Only agents that expose a hook /
+interception system can reach **Full**; most agents offer an ignore-file at best, and some expose
+nothing local to configure, so we detect them and give guidance. We'd rather tell you the honest
+ceiling than imply a protection the agent can't actually enforce.
+
+### Full — interception + verification (the agent exposes a hook system)
+
+| Agent | What It Configures |
+|-------|--------------------|
+| Claude Code | Hooks (bash-firewall, secret-guard, config-guard, audit-logger), `settings.json` wiring, SHA256 hook-integrity verification, audit-log freshness check |
+
+### Solid — ignore-file + guidance (some real settings checked; no hook system)
+
+| Agent | What It Configures |
+|-------|--------------------|
+| Cursor | `.cursorignore`; workspace-trust + auto-run guidance |
+| Codex CLI | `.codexignore`; sandbox / approval-mode guidance |
+| Windsurf | `.codeiumignore`; limitation warnings (no sandbox, no hooks) |
+| Cline | `.clineignore` |
+| Continue.dev | `.continueignore`; config API-key warning |
+| Aider | `.aiderignore`; scans the project `.env` for exposed keys |
+| Goose | `.gooseignore`; `config.yaml` extension / env-key review |
+| Antigravity | `.antigravityignore` |
+
+### Advise — detection + guidance (the platform exposes no local hardening primitives)
+
+| Agent | What It Configures |
+|-------|--------------------|
+| GitHub Copilot | `.copilotignore`; reads the VS Code `security.workspace.trust` setting |
+| Gemini CLI | `.geminiignore`; config-review guidance |
+| Augment | Guidance only (no ignore-file mechanism) |
+| Amazon Q | IAM / AWS access guidance |
+| JetBrains AI | Guidance only (settings are an opaque IDE blob) |
+| Replit Agent | Guidance only (code executes off-machine) |
+| Zed AI | Guidance only (tool permissions are user-scope; a repo tool must not set them) |
+
+> More agents are on the roadmap — the ones that expose Claude-Code-compatible hooks (OpenHands,
+> Droid, CodeBuddy, Crush, Trae) are the only path to additional **Full**-tier support, and `pi`
+> (the largest CLI population) is next for **Solid** coverage.
 
 ## Commands
 
