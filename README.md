@@ -36,8 +36,9 @@ below) not more than the platform allows. **Full** means we wire the agent's own
 system to block actions and verify our own integrity. **Solid** means an ignore-file plus
 agent-specific guidance. **Advise** means we can't depend on any repo-local control, so we detect the
 agent and give guidance. Two honesty notes: ignore files are *best-effort context exclusion, not a
-hard secret boundary* — each agent's hardening guide says so, and we write them anyway because
-shrinking what an agent ingests is still worth doing; and where a platform allows more than we
+hard secret boundary* — our Cursor, Windsurf and Aider hardening guides say so explicitly, and we
+write them anyway because shrinking what an agent ingests is still worth doing; and where a platform
+allows more than we
 currently wire — **Codex CLI ships a Claude-Code-style hook system
 (`PreToolUse`/`PostToolUse`/`PermissionRequest`) we do not use yet** — the agent is listed by what we
 configure today, with raising it to Full on the roadmap.
@@ -73,9 +74,10 @@ configure today, with raising it to Full on the roadmap.
 | Replit Agent | Guidance only (code executes off-machine) |
 | Zed AI | Guidance only (tool permissions are user-scope; a repo tool must not set them) |
 
-> More agents are on the roadmap — the ones that expose Claude-Code-compatible hooks (OpenHands,
-> Droid, CodeBuddy, Crush, Trae) are the only path to additional **Full**-tier support, and `pi`
-> (the largest CLI population) is next for **Solid** coverage.
+> More agents are on the roadmap. **Codex CLI is the nearest path to a second Full tier** — it
+> already exposes the hooks (above); we just haven't wired them yet. Beyond it, the other agents that
+> expose Claude-Code-compatible hooks (OpenHands, Droid, CodeBuddy, Crush, Trae) are the remaining
+> paths to **Full**, and `pi` (the largest CLI population) is next for **Solid** coverage.
 
 ## Commands
 
