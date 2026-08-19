@@ -46,10 +46,11 @@ describe('agent deprecation notices (G-1658)', () => {
     const ids = loadAgents()
       .filter((a) => typeof a.deprecated === 'string' && a.deprecated.trim().length > 0)
       .map((a) => a.id);
-    assert.ok(ids.length >= 1, 'non-vacuity: expected at least one deprecated agent in the registry');
-    assert.ok(ids.includes('amazon-q'), 'amazon-q should be in the deprecated set');
-    assert.ok(ids.includes('aider'), 'aider should be in the deprecated set');
-    assert.ok(!ids.includes('cursor'), 'cursor should NOT be in the deprecated set');
+    // Exact-set equality (not just includes/excludes) so the "exactly" contract
+    // in the test name actually holds — a THIRD agent gaining `deprecated`, or
+    // either of these two losing it, fails this. deepEqual on a non-empty string
+    // literal is itself the non-vacuity guard (an empty registry set != this).
+    assert.deepEqual([...ids].sort(), ['aider', 'amazon-q']);
   });
 
   it('printAgentSection surfaces the note for a DETECTED deprecated agent', async () => {
