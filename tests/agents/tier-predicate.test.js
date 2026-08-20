@@ -12,38 +12,32 @@ function make(installsEnforcedHooks, writesIgnoreFile, ignoreFileHonored) {
   return { installsEnforcedHooks, writesIgnoreFile, ignoreFileHonored };
 }
 
-// Reads the machine-readable `## Approved tier outcome` JSON block from plan
-// 21-06's SUMMARY.md. This is the operator's checkpoint-approved decision
-// (disposition apply-all, 2026-08-20) -- the single source of truth for
-// every expected tier this plan does NOT hardcode. A missing or unparseable
-// block throws (HALTS the test run) rather than falling back to any
-// anticipated outcome -- see plan 21-07's "Derived, not hardcoded" section
-// and Threat T-21-07-06.
+// Reads the operator's checkpoint-approved tier outcome (plan 21-06, disposition
+// apply-all, 2026-08-20) from the TRACKED fixture
+// tests/fixtures/agents/approved-tier-outcome.json. The fixture is a verbatim
+// copy of the `## Approved tier outcome` JSON block in 21-06-SUMMARY.md; it
+// lives under tests/ because .planning/ is gitignored and a CI clone never has
+// it (reading the SUMMARY directly made npm test fail on every fresh checkout).
+// This is the single source of truth for every expected tier this plan does
+// NOT hardcode. A missing or unparseable fixture throws (HALTS the test run)
+// rather than falling back to any anticipated outcome -- see plan 21-07's
+// "Derived, not hardcoded" section and Threat T-21-07-06.
 function readApprovedOutcome() {
-  const summaryPath = path.join(
-    __dirname, '..', '..', '.planning', 'phases', '21-doc-drift-guard', '21-06-SUMMARY.md'
-  );
+  const fixturePath = path.join(__dirname, '..', 'fixtures', 'agents', 'approved-tier-outcome.json');
   let text;
   try {
-    text = fs.readFileSync(summaryPath, 'utf8');
+    text = fs.readFileSync(fixturePath, 'utf8');
   } catch (err) {
     throw new Error(
-      `readApprovedOutcome: could not read 21-06-SUMMARY.md at ${summaryPath}: ` +
+      `readApprovedOutcome: could not read approved-tier-outcome.json at ${fixturePath}: ` +
       `${err && err.message} -- HALT, do not fall back to the anticipated gemini-only outcome`
-    );
-  }
-  const match = text.match(/## Approved tier outcome\s*\n+```json\n([\s\S]*?)\n```/);
-  if (!match) {
-    throw new Error(
-      'readApprovedOutcome: "## Approved tier outcome" JSON block not found in ' +
-      '21-06-SUMMARY.md -- HALT, do not fall back to the anticipated gemini-only outcome'
     );
   }
   let outcome;
   try {
-    outcome = JSON.parse(match[1]);
+    outcome = JSON.parse(text);
   } catch (err) {
-    throw new Error(`readApprovedOutcome: could not parse the approved-outcome JSON block: ${err && err.message}`);
+    throw new Error(`readApprovedOutcome: could not parse approved-tier-outcome.json: ${err && err.message}`);
   }
   if (!outcome || typeof outcome !== 'object') {
     throw new Error('readApprovedOutcome: approved-outcome block did not parse to an object');
