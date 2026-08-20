@@ -111,6 +111,50 @@ describe('identifiers.js -- identifierExistsInSource', () => {
   });
 });
 
+describe('identifiers.js -- run() tolerates a missing hooks/ or lib/ directory', () => {
+  // Regression: not every root this check is swept against (via the real
+  // CLI's loadChecks() registry, which runs every check against ANY
+  // --root target) has both a hooks/ and a lib/ top-level directory --
+  // e.g. this repo's own pre-existing tests/fixtures/docs-verify/
+  // mcp-rule-ids/{clean,defect,...}/ roots (built for Check 2, no hooks/
+  // dir). A missing directory is zero source there, not a broken sweep;
+  // only a genuine read error (not ENOENT) should force incomplete.
+  function contextWithListFiles(listFilesImpl, mdFiles) {
+    return {
+      root: '.',
+      errors: [],
+      mdFiles: mdFiles || [],
+      readText: () => ({ text: '' }),
+      listFiles: listFilesImpl,
+    };
+  }
+
+  it('does not throw when hooks/ does not exist (ENOENT), treating it as zero source files', () => {
+    const ctx = contextWithListFiles((dir) => (dir === 'hooks' ? { error: 'ENOENT' } : { files: [] }));
+    assert.doesNotThrow(() => identifiers.run(ctx));
+  });
+
+  it('does not throw when lib/ does not exist (ENOENT), treating it as zero source files', () => {
+    const ctx = contextWithListFiles((dir) => (dir === 'lib' ? { error: 'ENOENT' } : { files: [] }));
+    assert.doesNotThrow(() => identifiers.run(ctx));
+  });
+
+  it('still throws on a non-ENOENT listing error (e.g. permission denied)', () => {
+    const ctx = contextWithListFiles(() => ({ error: 'EACCES' }));
+    assert.throws(() => identifiers.run(ctx));
+  });
+
+  it('a scoped doc claim still resolves against source found via the surviving directory when the other is missing', () => {
+    const ctx = contextWithListFiles(
+      (dir) => (dir === 'hooks' ? { error: 'ENOENT' } : { files: ['lib/a.js'] }),
+      [{ path: 'docs/hardening/x.md', text: 'see `REAL_ID` here' }]
+    );
+    const withRead = { ...ctx, readText: () => ({ text: 'const REAL_ID = 1;' }) };
+    const findings = identifiers.run(withRead);
+    assert.deepEqual(findings, [], 'a claim backed by the surviving directory must still resolve as existing');
+  });
+});
+
 describe('identifiers.js -- SCOPED_DOCS constant', () => {
   it('contains no hand-maintained blocklist of known-not-code tokens', () => {
     const serialized = JSON.stringify(identifiers.SCOPED_DOCS);
