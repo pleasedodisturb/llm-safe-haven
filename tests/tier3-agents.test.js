@@ -96,14 +96,21 @@ installStub(require.resolve('fs'), {
 // Module list — every Tier 3 agent we just added
 // ---------------------------------------------------------------------------
 
+// Membership derived from plan 21-06's approved-outcome block (disposition
+// apply-all, 2026-08-20): Gemini CLI left tier 3 (re-tiered to 2, G-1661);
+// Codex CLI, Goose, Antigravity joined tier 3 (unanticipated demotions,
+// same disposition). See .planning/phases/21-doc-drift-guard/21-06-SUMMARY.md
+// "## Approved tier outcome" for the source-of-truth JSON.
 const TIER3_MODULES = [
-  { file: 'gemini-cli.js', id: 'gemini-cli', name: 'Gemini CLI' },
   { file: 'jetbrains-ai.js', id: 'jetbrains-ai', name: 'JetBrains AI' },
   { file: 'zed-ai.js', id: 'zed-ai', name: 'Zed AI' },
   { file: 'amazon-q.js', id: 'amazon-q', name: 'Amazon Q' },
   { file: 'augment.js', id: 'augment', name: 'Augment' },
   { file: 'replit-agent.js', id: 'replit-agent', name: 'Replit Agent' },
   { file: 'github-copilot.js', id: 'github-copilot', name: 'GitHub Copilot' },
+  { file: 'codex-cli.js', id: 'codex-cli', name: 'Codex CLI' },
+  { file: 'goose.js', id: 'goose', name: 'Goose' },
+  { file: 'antigravity.js', id: 'antigravity', name: 'Antigravity' },
 ];
 
 console.log('tier3-agents.test.js');
@@ -223,9 +230,14 @@ for (const { file, id } of TIER3_MODULES) {
 // Ignore-file dry-run tests (modules that create ignore files)
 // ---------------------------------------------------------------------------
 
+// Gemini CLI dropped (re-tiered to 2, no longer in TIER3_MODULES above);
+// Codex CLI/Goose/Antigravity added (unanticipated tier-3 demotions, same
+// approved-outcome block).
 const IGNORE_FILE_MODULES = [
-  { file: 'gemini-cli.js', id: 'gemini-cli', ignoreFile: '.geminiignore' },
   { file: 'github-copilot.js', id: 'github-copilot', ignoreFile: '.copilotignore' },
+  { file: 'codex-cli.js', id: 'codex-cli', ignoreFile: '.codexignore' },
+  { file: 'goose.js', id: 'goose', ignoreFile: '.gooseignore' },
+  { file: 'antigravity.js', id: 'antigravity', ignoreFile: '.antigravityignore' },
 ];
 
 for (const { file, id, ignoreFile } of IGNORE_FILE_MODULES) {
@@ -266,11 +278,15 @@ for (const { file, id, ignoreFile } of IGNORE_FILE_MODULES) {
 // Registry integration test
 // ---------------------------------------------------------------------------
 
-test('loadAgents includes all 7 Tier 3 modules', () => {
+test('loadAgents includes all 9 Tier 3 modules', () => {
+  // Count derived from TIER3_MODULES above (9 entries), which itself is
+  // derived from plan 21-06's approved-outcome block, not a bare literal
+  // invented here: Gemini CLI left (re-tiered 3->2), Codex CLI/Goose/
+  // Antigravity joined (re-tiered 2->3), both per the same disposition.
   const { loadAgents } = require(path.join(__dirname, '..', 'lib', 'agents', 'index.js'));
   const agents = loadAgents();
   const tier3 = agents.filter(a => a.tier === 3);
-  assert.strictEqual(tier3.length, 7, `Expected 7 Tier 3 agents, got ${tier3.length}`);
+  assert.strictEqual(tier3.length, TIER3_MODULES.length, `Expected ${TIER3_MODULES.length} Tier 3 agents, got ${tier3.length}`);
 });
 
 test('loadAgents returns 16 total agents', () => {
