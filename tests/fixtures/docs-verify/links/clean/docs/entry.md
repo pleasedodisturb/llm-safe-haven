@@ -21,3 +21,8 @@ Fenced example link (out of grammar -- a documented example is not a live link):
 ```
 [fenced](gone-in-a-fence.md)
 ```
+
+## Somewhere
+
+The heading the anchor-only link above resolves against, once Check 4 (anchors, added in Task 3)
+also sweeps this fixture root via the shared CLI registry.

@@ -91,6 +91,41 @@ describe('extractLinks -- grammar boundary (out of scope, zero claims)', () => {
   });
 });
 
+describe('extractLinks -- bare angle-bracket placeholder is NOT an autolink (Rule 1 fix, found against the real corpus)', () => {
+  it('does not treat `<cwd>`-style prose placeholders as autolink targets', () => {
+    const g = links.extractLinks('run `npm stage view <stage-id>` before approving');
+    assert.equal(g.length, 0, `a bare placeholder token must not be extracted as a link, got: ${JSON.stringify(g)}`);
+  });
+
+  it('still extracts a scheme-based autolink and a dot-relative autolink (paired controls)', () => {
+    const ext = links.extractLinks('see <https://example.com>');
+    assert.equal(ext.length, 1);
+    assert.equal(ext[0].target, 'https://example.com');
+
+    const rel = links.extractLinks('see <./relative.md>');
+    assert.equal(rel.length, 1);
+    assert.equal(rel[0].target, './relative.md');
+  });
+
+  it('does not extract a multi-alternative placeholder like <darwin|linux|win32|android>', () => {
+    const g = links.extractLinks('`<pkg>-<darwin|linux|win32|android>[-<arch>]` convention');
+    assert.equal(g.length, 0, `placeholder alternatives must not be extracted, got: ${JSON.stringify(g)}`);
+  });
+});
+
+describe('extractLinks -- inline single-backtick code spans are not live links (Rule 1 fix, found against the real corpus)', () => {
+  it('a link-syntax example shown inside inline backticks produces no claim', () => {
+    const g = links.extractLinks('the `- **[Name](path)** - description` bullet list');
+    assert.equal(g.length, 0, `an inline-code documented example must not be extracted, got: ${JSON.stringify(g)}`);
+  });
+
+  it('a real link outside any backtick span is still extracted (control)', () => {
+    const g = links.extractLinks('the `- **[Name](path)** - description` bullet list, see [real](target.md)');
+    assert.equal(g.length, 1, `expected exactly the real link, got: ${JSON.stringify(g)}`);
+    assert.equal(g[0].target, 'target.md');
+  });
+});
+
 describe('isExternal', () => {
   it('classifies scheme, protocol-relative and mailto targets as external', () => {
     const ext = ['mailto:someone', 'https://example.com', 'http://example.com', '//example.com'];
