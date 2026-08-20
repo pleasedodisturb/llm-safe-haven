@@ -129,6 +129,37 @@ describe('run() -- percent-decoding, NFC-then-lowercase, in that order', () => {
     assert.equal(f.length, 0, `a percent-encoded fragment and its plain twin must both resolve, got: ${JSON.stringify(f)}`);
   });
 
+  it('a genuinely DECOMPOSED-Unicode anchor spelling resolves against a PRECOMPOSED heading, and the reverse', () => {
+    // Precomposed-decode-only percent-decoding (the case above) does not
+    // exercise NFC normalization at all: UTF-8 bytes C3 A9 decode straight
+    // to precomposed U+00E9, never through a decomposed intermediate. This
+    // case uses explicit codepoints so decomposed vs precomposed spellings
+    // genuinely differ byte-wise, proving normalize('NFC') is load-bearing.
+    const precomposed = 'é'; // é as a single precomposed codepoint
+    const decomposed = 'é'; // e + combining acute accent (U+0301)
+    assert.notEqual(precomposed, decomposed, 'sanity: the two spellings must differ byte-wise');
+
+    const precomposedTarget = { path: 't1.md', text: `# Caf${precomposed} Notes\n` };
+    const decomposedSrc = { path: 's1.md', text: `[a](t1.md#caf${decomposed}-notes)` };
+    const decomposedTarget = { path: 't2.md', text: `# Caf${decomposed} Notes\n` };
+    const precomposedSrc = { path: 's2.md', text: `[a](t2.md#caf${precomposed}-notes)` };
+
+    const ctx = {
+      root: '.',
+      errors: [],
+      pkg: { name: 'x', version: '0.0.0' },
+      mdFiles: [decomposedSrc, precomposedTarget, precomposedSrc, decomposedTarget],
+      readText: () => ({ text: '' }),
+      listFiles: () => ({ files: [] }),
+    };
+    const f = anchors.run(ctx);
+    assert.equal(
+      f.length,
+      0,
+      `a decomposed anchor must resolve against a precomposed heading and vice versa, got: ${JSON.stringify(f)}`
+    );
+  });
+
   it('a malformed percent escape in a fragment is exactly one finding, and the walk continues', () => {
     const target = { path: 't.md', text: '# Ok\n' };
     const src = { path: 's.md', text: '[bad](t.md#a%zz) and [good](t.md#ok)' };
