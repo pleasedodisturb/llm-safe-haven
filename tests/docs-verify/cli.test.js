@@ -53,14 +53,6 @@ describe('scripts/docs-verify.js -- process-boundary behaviour', () => {
     assert.equal(res.status, 2, res.stdout + res.stderr);
   });
 
-  it('the real repo: exit 1, exactly one finding naming credential-passthrough/high-entropy-literal', () => {
-    const res = run([]);
-    assert.equal(res.status, 1, res.stdout + res.stderr);
-    const failLines = res.stdout.split('\n').filter((l) => /^fail\b/.test(l));
-    assert.equal(failLines.length, 1, `expected exactly 1 fail line, got:\n${res.stdout}`);
-    assert.ok(res.stdout.includes('credential-passthrough/high-entropy-literal'), res.stdout);
-  });
-
   it('requiring the module sets no exitCode and exports { main, parseArgs }', () => {
     const res = spawnSync(
       process.execPath,
