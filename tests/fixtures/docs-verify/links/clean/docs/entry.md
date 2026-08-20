@@ -10,7 +10,7 @@ pinned link grammar (see 21-03-PLAN.md "Pinned link grammar").
 - Titled link (the title is stripped before resolution): [titled](friend.md "My Friend")
 - Angle-bracketed target containing a space: [spaced](<friend with space.md>)
 - Image link (an image is a link for existence purposes): ![img](pic.png)
-- `<./relative.md>` autolink to a real file: <./friend.md>
+- Autolink form (bare angle brackets, no square-bracket text) to a real file: <./friend.md>
 - Reference-style link (out of grammar -- must produce zero claims): [refstyle][ref]
 - Nested-parenthesis target (out of grammar -- must produce zero claims, never a corrupt one): [nested](friend(2).md)
 
