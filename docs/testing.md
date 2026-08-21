@@ -871,8 +871,11 @@ ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "passphrase"
 mkdir -p ~/incident-$(date +%Y%m%d)
 cp -r ~/.claude/audit/ ~/incident-$(date +%Y%m%d)/audit/
 
-# Copy session logs
-cp -r ~/.claude/session-logs/ ~/incident-$(date +%Y%m%d)/sessions/
+# Copy session transcripts before the 30-day retention window rotates them out.
+# Transcripts are stored per-project, not in one flat directory — copy the whole
+# transcripts root rather than guessing a single project's directory name.
+# See: https://code.claude.com/docs/en/sessions#where-transcripts-are-stored
+cp -r ~/.claude/projects/ ~/incident-$(date +%Y%m%d)/session-transcripts/
 
 # Save recent shell history
 cp ~/.zsh_history ~/incident-$(date +%Y%m%d)/zsh_history
