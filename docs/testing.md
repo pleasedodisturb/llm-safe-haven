@@ -281,7 +281,7 @@ Name files with `.bak` suffixes — they look like careless backups an attacker 
 
 Claude Code's PostToolUse hooks can write a JSONL audit trail of every tool call. Each entry records the tool name, timestamp, session ID, working directory, and key parameters. See the [Claude Code hardening guide](hardening/claude-code.md) for setup.
 
-The default audit log location is `~/.claude/audit.jsonl`. Each line is a JSON object:
+Claude Code writes one log file per day under `~/.claude/audit/` (e.g. `~/.claude/audit/2026-08-21.jsonl`), overridable via `CLAUDE_AUDIT_DIR` if you've moved your logs elsewhere. Each line is a JSON object:
 
 ```json
 {"timestamp":"2026-04-24T10:15:32Z","session_id":"abc123","tool":"Bash","detail":"git status","cwd":"/Users/dev/my-project"}
@@ -313,20 +313,31 @@ Save this as `analyze-audit.sh` and run it against your audit logs:
 ```bash
 #!/bin/bash
 # analyze-audit.sh — scan Claude Code audit logs for suspicious patterns
-# Usage: ./analyze-audit.sh [logfile]
-# Default: ~/.claude/audit.jsonl
+# Usage: ./analyze-audit.sh [logfile-or-directory]
+# Default: every per-day file under ~/.claude/audit/ (or $CLAUDE_AUDIT_DIR if set)
 
 set -euo pipefail
 
-LOGFILE="${1:-$HOME/.claude/audit.jsonl}"
+AUDIT_DIR="${CLAUDE_AUDIT_DIR:-$HOME/.claude/audit}"
+TARGET="${1:-$AUDIT_DIR}"
 ALERT_FILE="/tmp/audit-alerts-$(date +%Y%m%d-%H%M%S).txt"
+LOGFILE="/tmp/audit-merged-$(date +%Y%m%d-%H%M%S).jsonl"
 
-if [ ! -f "$LOGFILE" ]; then
-  echo "No audit log found at $LOGFILE"
+if [ -f "$TARGET" ]; then
+  cp "$TARGET" "$LOGFILE"
+elif [ -d "$TARGET" ]; then
+  if ! ls "$TARGET"/*.jsonl >/dev/null 2>&1; then
+    echo "No audit log entries found in $TARGET"
+    exit 1
+  fi
+  cat "$TARGET"/*.jsonl > "$LOGFILE"
+else
+  echo "No audit log found at $TARGET"
   exit 1
 fi
+trap 'rm -f "$LOGFILE"' EXIT
 
-echo "Analyzing $LOGFILE..."
+echo "Analyzing $TARGET..."
 echo "Alerts written to $ALERT_FILE"
 echo ""
 
@@ -425,8 +436,8 @@ Make it executable and run:
 
 ```bash
 chmod +x analyze-audit.sh
-./analyze-audit.sh                          # analyze default log
-./analyze-audit.sh ~/.claude/audit.jsonl    # analyze specific file
+./analyze-audit.sh                                    # analyze every per-day file under ~/.claude/audit/
+./analyze-audit.sh ~/.claude/audit/2026-08-21.jsonl   # analyze one specific day
 ```
 
 ### Automated Monitoring with ntfy
@@ -436,7 +447,8 @@ Set up a cron job to run the analysis daily and alert on findings:
 ```bash
 # Add to crontab (crontab -e)
 # Run audit analysis daily at 8am, alert if findings exist
-0 8 * * * /path/to/analyze-audit.sh ~/.claude/audit.jsonl 2>&1 | \
+# No argument -> reads every per-day file under ~/.claude/audit/
+0 8 * * * /path/to/analyze-audit.sh 2>&1 | \
   grep -c "^{" | \
   xargs -I{} test {} -gt 0 && \
   curl -d "Claude Code audit: suspicious entries found" https://ntfy.sh/your-security-topic
@@ -519,7 +531,7 @@ governance:
 
   audit:
     enabled: true
-    log_path: "~/.claude/audit.jsonl"
+    log_path: "~/.claude/audit/"  # directory of per-day *.jsonl files, not a single file
 ```
 
 This is a defense-in-depth layer — it catches things that hooks might miss, and provides organizational-level policy that individual developers can't override.
@@ -735,7 +747,7 @@ echo 'MY_TEST_VALUE=test1234567890abcdefghijklmnop' > /tmp/test-secret.txt
 # "Blocked: content contains API key pattern"
 
 # Verify in audit log:
-grep "secret-guard" ~/.claude/audit.jsonl | tail -1
+grep "secret-guard" ~/.claude/audit/*.jsonl | tail -1
 ```
 
 ### Exercise 2: Bash Firewall
@@ -857,7 +869,7 @@ ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "passphrase"
 ```bash
 # Copy audit logs before they rotate
 mkdir -p ~/incident-$(date +%Y%m%d)
-cp ~/.claude/audit.jsonl ~/incident-$(date +%Y%m%d)/audit.jsonl
+cp -r ~/.claude/audit/ ~/incident-$(date +%Y%m%d)/audit/
 
 # Copy session logs
 cp -r ~/.claude/session-logs/ ~/incident-$(date +%Y%m%d)/sessions/
@@ -875,7 +887,7 @@ cp ~/.zsh_history ~/incident-$(date +%Y%m%d)/zsh_history
 # Look for the time window of the suspected compromise
 
 # Extract all actions from that session
-grep '"session_id":"SUSPECT_SESSION"' ~/.claude/audit.jsonl | \
+grep '"session_id":"SUSPECT_SESSION"' ~/.claude/audit/*.jsonl | \
   jq -r '[.timestamp, .tool, .detail] | @tsv' | \
   sort
 
