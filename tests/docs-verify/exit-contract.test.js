@@ -157,6 +157,37 @@ describe('runAll -- a malformed finding RECORD (not merely a malformed return ty
   });
 });
 
+describe('isValidFinding -- exported validator, one case per grammar rule plus its paired control (F2)', () => {
+  it('non-vacuity: rejects every malformed shape derived from the finding grammar, accepts the well-formed controls', () => {
+    const invalidCases = [
+      ['not-an-object (null)', null],
+      ['not-an-object (array)', []],
+      ['missing-severity', { check: 'c', file: 'f.md', line: 1, message: 'm' }],
+      ['severity-out-of-enum', { check: 'c', file: 'f.md', line: 1, message: 'm', severity: 'error' }],
+      ['empty-check', { check: '', file: 'f.md', line: 1, message: 'm', severity: 'fail' }],
+      ['non-string-check', { check: 7, file: 'f.md', line: 1, message: 'm', severity: 'fail' }],
+      ['missing-file', { check: 'c', line: 1, message: 'm', severity: 'fail' }],
+      ['empty-file', { check: 'c', file: '', line: 1, message: 'm', severity: 'fail' }],
+      ['missing-message', { check: 'c', file: 'f.md', line: 1, severity: 'fail' }],
+      ['empty-message', { check: 'c', file: 'f.md', line: 1, message: '', severity: 'fail' }],
+      ['negative-line', { check: 'c', file: 'f.md', line: -1, message: 'm', severity: 'fail' }],
+      ['non-integer-line', { check: 'c', file: 'f.md', line: 1.5, message: 'm', severity: 'fail' }],
+      ['non-numeric-line', { check: 'c', file: 'f.md', line: '1', message: 'm', severity: 'fail' }],
+    ];
+    assert.ok(invalidCases.length > 0, 'non-vacuity guard: the invalid-case list itself must not be empty');
+    for (const [name, value] of invalidCases) {
+      assert.equal(isValidFinding(value), false, `expected case "${name}" to be rejected: ${JSON.stringify(value)}`);
+    }
+
+    // Must-still-pass twins: every real check in this repo emits exactly
+    // this shape (verified: all seven checks always populate `line` as a
+    // number), plus the one case the grammar explicitly allows to omit it.
+    assert.equal(isValidFinding({ check: 'c', file: 'f.md', line: 1, message: 'm', severity: 'fail' }), true);
+    assert.equal(isValidFinding({ check: 'c', file: 'f.md', line: 0, message: 'm', severity: 'warn' }), true, 'line 0 is a valid non-negative integer');
+    assert.equal(isValidFinding({ check: 'c', file: 'f.md', message: 'm', severity: 'warn' }), true, 'line is optional per the grammar');
+  });
+});
+
 describe('tallySeverities -- fail and warn counted independently, only fail gates the exit', () => {
   it('empty array returns zero counts, not undefined', () => {
     const t = tallySeverities([]);
