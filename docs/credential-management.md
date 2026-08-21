@@ -561,7 +561,7 @@ Running 5+ Claude Code tabs and cloud agents simultaneously creates credential s
 1. **Pre-cache at shell init** — `~/.zshrc` resolves all secrets from your credential manager once. Every tab inherits them.
 2. **Per-project manifests** — each project declares which secrets it needs. You mentally track that only 3 of your 12 secrets are relevant to the current project.
 3. **Hook defenses** — bash-firewall and secret-guard hooks run in every session, blocking exfiltration regardless of which tab is compromised.
-4. **Periodic audit** — review `~/.claude/audit.jsonl` weekly. Look for sessions accessing secrets they shouldn't need.
+4. **Periodic audit** — review the per-day logs under `~/.claude/audit/` (e.g. `~/.claude/audit/YYYY-MM-DD.jsonl`) weekly with `cat ~/.claude/audit/*.jsonl | jq`. Look for sessions accessing secrets they shouldn't need.
 
 This is imperfect — env vars are still readable — but it's the pragmatic state of the art for solo devs in April 2026.
 
@@ -650,7 +650,7 @@ The industry is moving toward this model — agents that never see secrets, with
 
 ## Supply Chain Considerations
 
-Your credential manager is only as trustworthy as its distribution channel. The [Shai-Hulud attack (April 2026)](supply-chain-defense.md#case-study-shai-hulud--bitwarden-cli-supply-chain-attack-april-2026) demonstrated this: the official Bitwarden CLI (`@bitwarden/cli`) was trojanized via a compromised GitHub Action in the publish pipeline. The malicious payload specifically targeted AI tool API keys.
+Your credential manager is only as trustworthy as its distribution channel. The [Shai-Hulud supply chain campaign](supply-chain-defense.md#case-study-shai-hulud--sustained-npm-supply-chain-campaign-sept-2025may-2026) demonstrated this in its April 2026 wave: the official Bitwarden CLI (`@bitwarden/cli`) was trojanized via a compromised GitHub Action in the publish pipeline. The malicious payload specifically targeted AI tool API keys.
 
 ### Distribution Channel Matters
 
