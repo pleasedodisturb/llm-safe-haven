@@ -164,6 +164,17 @@ describe('identifiers.js -- SCOPED_DOCS constant', () => {
   });
 });
 
+// G-1672 WR-02 (22-REVIEW.md): this "real repo" describe block is a DELIBERATE
+// defense-in-depth duplicate of the blocking `docs:verify` CI step
+// (.github/workflows/ci.yml, G-1670) -- not an accidental copy. It will go red at
+// every release bump (or any other change that drifts a live doc, e.g. the
+// self-version pin in AGENTS.md / research/top100-mcp/DRAFT.md) until the drift is
+// fixed, independently of whether the dedicated CI step has already caught it. This
+// is intentional: `npm test` and `docs:verify` are two separate enforcement
+// surfaces guarding the same guarantee. Do not delete this block to "de-duplicate"
+// it. Moving it (and its two siblings in mcp-rule-ids.test.js and version.test.js)
+// into a single shared `describe('live-repo drift guard (redundant with docs:verify
+// CI step)')` block is tracked as a follow-up, not done here.
 describe('identifiers.js -- Check 1 sweep against the real repo (fixed by 22-06/G-1566)', () => {
   it('finds zero identifier findings in docs/hardening/claude-code.md -- BLOCKED_PATTERNS is gone', () => {
     const root = path.join(__dirname, '..', '..');
