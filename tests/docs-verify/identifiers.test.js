@@ -164,15 +164,18 @@ describe('identifiers.js -- SCOPED_DOCS constant', () => {
   });
 });
 
-describe('identifiers.js -- Check 1 sweep against the real repo (DOC-01 identifier half)', () => {
-  it('finds the BLOCKED_PATTERNS claim in docs/hardening/claude-code.md', () => {
+describe('identifiers.js -- Check 1 sweep against the real repo (fixed by 22-06/G-1566)', () => {
+  it('finds zero identifier findings in docs/hardening/claude-code.md -- BLOCKED_PATTERNS is gone', () => {
     const root = path.join(__dirname, '..', '..');
     const context = buildContext(root);
     const { findings, incomplete } = runAll(context, [identifiers]);
     assert.deepEqual(incomplete, [], `sweep must complete cleanly against the real repo: ${JSON.stringify(incomplete)}`);
-    const messages = findings.map((f) => f.message).join('\n');
-    assert.ok(messages.includes('BLOCKED_PATTERNS'), `expected a BLOCKED_PATTERNS finding, got: ${JSON.stringify(findings)}`);
-    assert.ok(findings.every((f) => f.file === 'docs/hardening/claude-code.md'), JSON.stringify(findings));
+    const claudeCodeFindings = findings.filter((f) => f.file === 'docs/hardening/claude-code.md');
+    assert.deepEqual(
+      claudeCodeFindings,
+      [],
+      `docs/hardening/claude-code.md:37 no longer documents BLOCKED_PATTERNS -- expected zero findings, got: ${JSON.stringify(claudeCodeFindings)}`
+    );
   });
 });
 

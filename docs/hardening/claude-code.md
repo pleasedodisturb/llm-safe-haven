@@ -34,7 +34,22 @@ macOS activates Apple Seatbelt (on by default); Linux activates bubblewrap — i
 npx llm-safe-haven install
 ```
 
-Registers `~/.claude/hooks/bash-firewall.js` as a `PreToolUse` hook for `Bash`. It blocks `curl … | bash`, `eval` of network-fetched content, writes to `~/.ssh/authorized_keys`, `rm -rf /` and similar, and base64 payloads piped to `bash -c`. Edit the `BLOCKED_PATTERNS` array to customize; test with `node ~/.claude/hooks/bash-firewall.js --dry-run --test`.
+Registers `~/.claude/hooks/bash-firewall.js` as a `PreToolUse` hook for `Bash`. It blocks `curl … | bash`, `eval` of network-fetched content, writes to `~/.ssh/authorized_keys`, `rm -rf /` and similar, and base64 payloads piped to `bash -c`.
+
+The hook takes no command-line flags — it reads a JSON tool-call event from stdin and writes a JSON decision to stdout. Test it by piping in a command it should block:
+
+```bash
+echo '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"}}' | node ~/.claude/hooks/bash-firewall.js
+# {"decision":"block","reason":"Blocked: rm -rf targeting root filesystem"}
+```
+
+Customize which branches it protects against force-push/hard-reset/`git clean` with the `PROTECTED_BRANCHES` environment variable (comma-separated, default `main,master`):
+
+```bash
+export PROTECTED_BRANCHES="main,master,production,staging"
+```
+
+Full interface — syntax check, exports probe, and every other customization point: [`hooks/README.md`](https://github.com/pleasedodisturb/llm-safe-haven/blob/main/hooks/README.md#testing).
 
 ### 3. Configure permission allowlists
 
