@@ -232,3 +232,5 @@ for a template.
 ## License
 
 [MIT](LICENSE)
+
+[broken link](docs/does-not-exist.md)
