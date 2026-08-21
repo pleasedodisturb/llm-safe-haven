@@ -148,7 +148,7 @@ roadmap. If you're tracking it, watch the
 
 ### Assessed and out of scope: Aider, Mistral
 
-Two agents from the original candidate list were researched and are deliberately **not**
+Aider and Mistral Code were researched and are deliberately **not**
 implemented — shipping a wrong or guessed config path would be worse than shipping
 nothing:
 
