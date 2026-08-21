@@ -51,9 +51,9 @@ here.
 ## Current state
 
 - Shipped: llm-safe-haven@0.7.0
-- Milestone: v0.8 "Doc Integrity" — currently executing Phase 22, Content Fixes
-- Next: finish Phase 22's remaining content-fix plans, then flip the documentation-drift guard to
-  a blocking CI check, then ship v0.8.0
+- Milestone: v0.8 "Doc Integrity" — Phase 22 (Content Fixes) complete: the documentation-drift
+  guard reports zero findings and runs as a blocking CI check
+- Next: ship v0.8.0 (bump `package.json` and this block together; the guard enforces it)
 - Long-form local state lives in the session-handoff log this repository keeps local-only and
   fully ignored — not reachable from a clone, and not duplicated here.
 
