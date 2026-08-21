@@ -91,6 +91,49 @@ describe('version.js -- extractVersionClaims grammar', () => {
   });
 });
 
+describe('version.js -- trailing sentence punctuation must never be captured as part of the version (F3, Codex review PR #105)', () => {
+  it('a version claim at the end of a sentence excludes the trailing period', () => {
+    const claims = version.extractVersionClaims('Install llm-safe-haven@0.7.0. Then run it.', 'llm-safe-haven');
+    assert.equal(claims.length, 1, `expected exactly 1 claim, got: ${JSON.stringify(claims)}`);
+    assert.equal(claims[0].value, '0.7.0', `trailing sentence period must not be swallowed into the captured version, got: ${JSON.stringify(claims)}`);
+  });
+
+  it('control: a version claim followed by a comma already excludes the comma', () => {
+    const claims = version.extractVersionClaims('llm-safe-haven v0.7.0, and more', 'llm-safe-haven');
+    assert.equal(claims.length, 1);
+    assert.equal(claims[0].value, '0.7.0');
+  });
+
+  it('control: a version claim followed by a semicolon already excludes the semicolon', () => {
+    const claims = version.extractVersionClaims('llm-safe-haven@0.7.0; next sentence', 'llm-safe-haven');
+    assert.equal(claims.length, 1);
+    assert.equal(claims[0].value, '0.7.0');
+  });
+
+  it('control: a version claim followed by a colon already excludes the colon', () => {
+    const claims = version.extractVersionClaims('llm-safe-haven@0.7.0: colon case', 'llm-safe-haven');
+    assert.equal(claims.length, 1);
+    assert.equal(claims[0].value, '0.7.0');
+  });
+
+  it('control: the real repo pin (npx llm-safe-haven@0.4.0, mid-sentence, no trailing punctuation) is unaffected', () => {
+    const claims = version.extractVersionClaims('npx llm-safe-haven@0.4.0 scan --mcp', 'llm-safe-haven');
+    assert.equal(claims.length, 1);
+    assert.equal(claims[0].value, '0.4.0');
+  });
+
+  it('control: prerelease + build metadata (1.2.3-beta.1) is still captured in full, mid-sentence', () => {
+    const claims = version.extractVersionClaims('npx llm-safe-haven@1.2.3-beta.1 today', 'llm-safe-haven');
+    assert.equal(claims.length, 1);
+    assert.equal(claims[0].value, '1.2.3-beta.1');
+  });
+
+  it('control: a non-numeric placeholder (x.y.z) is still never extracted', () => {
+    const claims = version.extractVersionClaims('recommend npx llm-safe-haven@x.y.z', 'llm-safe-haven');
+    assert.deepEqual(claims, []);
+  });
+});
+
 describe('version.js -- run() incompleteness guard', () => {
   it('throws when context.pkg is null (canonical version unreadable)', () => {
     assert.throws(() => {
