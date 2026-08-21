@@ -176,7 +176,7 @@ Pin the version — that's the same lesson the headline number teaches, applied 
 scanner itself:
 
 ```bash
-npx llm-safe-haven@0.4.0 scan --mcp
+npx llm-safe-haven@0.7.0 scan --mcp
 ```
 
 `scan --mcp` now discovers configs across 10 agents — Claude Code, Cursor, Windsurf,
