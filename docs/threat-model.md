@@ -263,7 +263,7 @@ Source: [Lasso Security — Scary Hallucination](https://www.lasso.security/blog
 
 A proof-of-concept attack demonstrated that `.cursor/rules` files in open-source repositories can contain hidden Unicode characters that are invisible in most editors but interpreted by Cursor's AI as instructions. A developer who clones a malicious repository and opens it in Cursor silently activates the injected instructions — which can include directives to exfiltrate credentials or install backdoors.
 
-The same technique applies to `.claude/CLAUDE.md`, `.github/copilot-instructions.md`, and similar agent instruction files.
+The same technique applies to `.claude/CLAUDE.md`, GitHub Copilot's `copilot-instructions.md` convention (placed under a project's `.github/` directory), and similar agent instruction files.
 
 Source: [Pillar Security — Invisible Ink](https://www.pillar.security/blog/the-invisible-prompt-injection-attack-targeting-cursor-ai-users) (HTTP 403 — bot-protection pattern; search-confirmed live)
 
