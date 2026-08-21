@@ -317,11 +317,15 @@ Save this as `analyze-audit.sh` and run it against your audit logs:
 # Default: every per-day file under ~/.claude/audit/ (or $CLAUDE_AUDIT_DIR if set)
 
 set -euo pipefail
+# The hook writes audit records 0600 (hooks/audit-logger.js). Keep every file this
+# script derives from them private too: umask 077 + mktemp (created 0600), never a
+# predictable world-readable path under /tmp.
+umask 077
 
 AUDIT_DIR="${CLAUDE_AUDIT_DIR:-$HOME/.claude/audit}"
 TARGET="${1:-$AUDIT_DIR}"
-ALERT_FILE="/tmp/audit-alerts-$(date +%Y%m%d-%H%M%S).txt"
-LOGFILE="/tmp/audit-merged-$(date +%Y%m%d-%H%M%S).jsonl"
+ALERT_FILE="$(mktemp "${TMPDIR:-/tmp}/audit-alerts-XXXXXX")"
+LOGFILE="$(mktemp "${TMPDIR:-/tmp}/audit-merged-XXXXXX")"
 
 if [ -f "$TARGET" ]; then
   cp "$TARGET" "$LOGFILE"
