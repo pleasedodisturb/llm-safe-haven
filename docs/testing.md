@@ -423,7 +423,10 @@ awk -F'"' '
 echo ""
 
 # --- Summary ---
-ALERT_COUNT=$(grep -c "^{" "$ALERT_FILE" 2>/dev/null || echo 0)
+# grep -c prints "0" AND exits 1 on zero matches, so `|| echo 0` would yield "0\n0"
+# and break the -gt test below; swallow the exit status and default the empty case.
+ALERT_COUNT=$(grep -c "^{" "$ALERT_FILE" 2>/dev/null || true)
+ALERT_COUNT="${ALERT_COUNT:-0}"
 echo "=== Summary ==="
 echo "Total entries analyzed: $TOTAL"
 echo "Alerts generated: $ALERT_COUNT"
