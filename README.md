@@ -184,7 +184,7 @@ you need to check separately.
 - [Claude Code Hardening](docs/hardening/claude-code.md) -- Full guide with hooks, sandbox, permissions
 - [Cursor Hardening](docs/hardening/cursor.md) -- 7 CVEs documented, hardening steps
 - [Windsurf Hardening](docs/hardening/windsurf.md) -- Honest assessment of limitations
-- [Devin Hardening](docs/hardening/devin.md) -- Cloud agent security model
+- [Devin Hardening](docs/hardening/devin.md) -- Cloud agent security model (advisory only: Devin runs off-machine, so there's no corresponding module under `lib/agents/` to harden)
 - [GitHub Copilot Hardening](docs/hardening/github-copilot.md) -- 4 modes, 5 CVEs
 - [Aider Hardening](docs/hardening/aider.md) -- No sandbox, but minimal attack surface
 - [Credential Management](docs/credential-management.md) -- Why env vars fail, proxy architecture
