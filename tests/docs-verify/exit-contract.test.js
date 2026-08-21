@@ -10,7 +10,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { runAll, tallySeverities, computeExit, formatReport, EXIT } = require('../../lib/docs-verify/index.js');
+const { runAll, tallySeverities, computeExit, formatReport, EXIT, isValidFinding } = require('../../lib/docs-verify/index.js');
 
 function makeContext(overrides = {}) {
   return {
@@ -113,6 +113,47 @@ describe('runAll -- a malformed check.run() return is never silently treated as 
         `non-array return must exit 2 for ${bad.id}`
       );
     }
+  });
+});
+
+describe('runAll -- a malformed finding RECORD (not merely a malformed return type) is never silently accepted (F2, Codex review PR #105)', () => {
+  it('a finding with no severity field is recorded as incomplete, not silently accepted -- RED before F2, GREEN after', () => {
+    const ctx = makeContext();
+    const good = { id: 'good', run: () => [{ check: 'good', file: 'a.md', line: 1, message: 'm', severity: 'fail' }] };
+    const noSeverity = { id: 'no-severity', run: () => [{ check: 'no-severity', file: 'a.md', line: 1, message: 'broken' }] };
+    const r = runAll(ctx, [noSeverity, good]);
+    assert.ok(
+      r.incomplete.some((i) => i.check === 'no-severity' && String(i.reason).includes('check-returned-malformed-finding')),
+      `severity-less finding was not recorded as incomplete: ${JSON.stringify(r.incomplete)}`
+    );
+    assert.equal(r.findings.length, 1, 'severity-less finding must not be counted; sibling check must still contribute its finding');
+    assert.equal(
+      computeExit({ severityCounts: tallySeverities(r.findings), incomplete: r.incomplete }),
+      EXIT.INCOMPLETE,
+      'a broken check emitting a malformed finding record must never let computeExit report clean or findings-only'
+    );
+  });
+
+  it("a finding with severity: 'error' (not fail/warn) is recorded as incomplete", () => {
+    const ctx = makeContext();
+    const bad = { id: 'bad-severity', run: () => [{ check: 'bad-severity', file: 'a.md', line: 1, message: 'm', severity: 'error' }] };
+    const r = runAll(ctx, [bad]);
+    assert.ok(r.incomplete.some((i) => i.check === 'bad-severity'), `not recorded incomplete: ${JSON.stringify(r.incomplete)}`);
+    assert.equal(r.findings.length, 0, "an out-of-enum severity must never be counted as a real finding");
+    assert.equal(computeExit({ severityCounts: tallySeverities(r.findings), incomplete: r.incomplete }), EXIT.INCOMPLETE);
+  });
+
+  it('must-still-pass twin: a well-formed warn finding is accepted normally, exit contract unchanged', () => {
+    const ctx = makeContext();
+    const wellFormed = { id: 'well-formed', run: () => [{ check: 'well-formed', file: 'a.md', line: 3, message: 'ok', severity: 'warn' }] };
+    const r = runAll(ctx, [wellFormed]);
+    assert.deepEqual(r.incomplete, [], `a well-formed finding was wrongly flagged as malformed: ${JSON.stringify(r.incomplete)}`);
+    assert.equal(r.findings.length, 1);
+    assert.equal(
+      computeExit({ severityCounts: tallySeverities(r.findings), incomplete: r.incomplete }),
+      EXIT.CLEAN,
+      'a warn-only run must still exit 0 -- Check 7 depends on this (see the tallySeverities describe block below)'
+    );
   });
 });
 
