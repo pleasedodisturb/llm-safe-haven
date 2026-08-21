@@ -193,7 +193,7 @@ jobs:
       - run: npm run test:coverage
       # 2026-08-22 (G-1670): the doc-drift guard became a blocking CI gate
       # once Phase 22 landed and docs:verify reached zero findings on main.
-      - name: Doc-drift guard (npm run docs:verify) -- blocking
+      - name: Doc-drift guard (docs:verify) -- blocking
         run: npm run docs:verify
       - run: npm run something-unrelated
         continue-on-error: true
@@ -227,7 +227,7 @@ jobs:
       - run: npm run test:coverage
       # 2026-08-22 (G-1670): the doc-drift guard became a blocking CI gate
       # once Phase 22 landed and docs:verify reached zero findings on main.
-      - name: Doc-drift guard (npm run docs:verify) -- blocking
+      - name: Doc-drift guard (docs:verify) -- blocking
         run: npm run docs:verify
         continue-on-error: true
 
@@ -261,7 +261,7 @@ jobs:
       # 2026-08-22 (G-1670): this comment describes a DIFFERENT step, not
       # the one immediately below it.
       - run: npm run test:coverage
-      - name: Doc-drift guard (npm run docs:verify) -- blocking
+      - name: Doc-drift guard (docs:verify) -- blocking
         run: npm run docs:verify
 
   test-node18:
