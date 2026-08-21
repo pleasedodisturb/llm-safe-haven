@@ -99,7 +99,7 @@ npx llm-safe-haven audit          # Check security posture (0 clean / 1 findings
 npx llm-safe-haven audit --json   # Machine-readable for CI
 npx llm-safe-haven scan           # Find exposed .env files (0 none / 1 found / 2 scan didn't finish)
 npx llm-safe-haven scan --supply-chain  # Scan for ChainDrop/Shai-Hulud IOCs (macOS/Linux)
-npx llm-safe-haven scan --mcp     # Scan MCP server configs (5 agents) -- the CI gate for MCP findings
+npx llm-safe-haven scan --mcp     # Scan MCP server configs (10 agents) -- the CI gate for MCP findings
 npx llm-safe-haven scan --mcp --json    # Scan MCP server configs (JSON output)
 npx llm-safe-haven scan --mcp --online  # Opt in to registry provenance checks
 npx llm-safe-haven update         # Update hooks to latest
@@ -189,7 +189,7 @@ you need to check separately.
 - [Aider Hardening](docs/hardening/aider.md) -- No sandbox, but minimal attack surface
 - [Credential Management](docs/credential-management.md) -- Why env vars fail, proxy architecture
 - [Testing & Detection](docs/testing.md) -- Canary tokens, honeypots, incident response
-- [References](docs/references.md) -- 64+ curated security resources
+- [References](docs/references.md) -- 120+ curated security resources
 
 ## Why This Exists
 
@@ -204,7 +204,7 @@ Key issues from our investigation:
 Early but active. `llm-safe-haven` is pre-1.0, published on npm, and under regular
 development — adoption is still small and growing. The strength today is depth over
 reach: a [threat model](docs/threat-model.md) tracking 30+ real-world incidents against
-the AI-agent toolchain, hardening guides for seven agents, and a supply-chain scanner
+the AI-agent toolchain, hardening guides for six agents, and a supply-chain scanner
 built against actual attack waves. If you use it, feedback and issues are genuinely
 valued and shape the roadmap.
 
@@ -225,7 +225,7 @@ maintainers will be formalized here.
 
 ## Contributing
 
-Add a new agent module: create `lib/agents/your-agent.js` implementing the standard
+Add a new agent module: create `lib/agents/<your-agent>.js` implementing the standard
 interface (detect, harden, audit). See [lib/agents/cursor.js](lib/agents/cursor.js)
 for a template.
 
