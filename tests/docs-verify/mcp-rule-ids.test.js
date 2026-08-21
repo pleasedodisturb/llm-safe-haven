@@ -79,11 +79,11 @@ describe('mcp-rule-ids.js -- documentedRuleSuffixes against the real corpus', ()
     assert.ok(suffixes.has('url-no-version-binding'));
   });
 
-  it('the real DOC-02 defect is present: credential-passthrough documents exactly 3 suffixes, missing high-entropy-literal', () => {
+  it('the real DOC-02 defect was fixed (22-05/G-1567): credential-passthrough documents all 4 suffixes, including high-entropy-literal', () => {
     const suffixes = map.get('credential-passthrough');
     assert.ok(suffixes);
-    assert.equal(suffixes.size, 3, `expected 3 documented suffixes, got ${suffixes ? suffixes.size : 'none'}`);
-    assert.ok(!suffixes.has('high-entropy-literal'), 'DOC-02 defect is gone from main — this fixture is stale');
+    assert.equal(suffixes.size, 4, `expected 4 documented suffixes, got ${suffixes ? suffixes.size : 'none'}`);
+    assert.ok(suffixes.has('high-entropy-literal'), 'DOC-02 defect is back in main — this fixture needs re-checking');
   });
 });
 
@@ -115,14 +115,13 @@ describe('mcp-rule-ids.js -- emittedRuleSuffixes against the real corpus', () =>
   });
 });
 
-describe('mcp-rule-ids.js -- Check 2 sweep against the real repo (RED against main by design)', () => {
-  it('finds exactly one drift finding: credential-passthrough/high-entropy-literal', () => {
+describe('mcp-rule-ids.js -- Check 2 sweep against the real repo (fixed by 22-05/G-1567)', () => {
+  it('finds zero drift findings: credential-passthrough/high-entropy-literal is now documented', () => {
     const root = path.join(__dirname, '..', '..');
     const context = buildContext(root);
     const { findings, incomplete } = runAll(context, [mcpRuleIds]);
     assert.deepEqual(incomplete, [], `sweep must complete cleanly against the real repo: ${JSON.stringify(incomplete)}`);
-    assert.equal(findings.length, 1, `expected exactly 1 finding, got: ${JSON.stringify(findings)}`);
-    assert.ok(findings[0].message.includes('credential-passthrough/high-entropy-literal'));
+    assert.equal(findings.length, 0, `expected zero findings, got: ${JSON.stringify(findings)}`);
   });
 });
 
