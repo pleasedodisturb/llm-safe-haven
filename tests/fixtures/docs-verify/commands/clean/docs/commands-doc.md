@@ -37,3 +37,13 @@ done
 Control G -- WR-03 (21-REVIEW.md): a documented path under the repo's own `test/` directory
 (asymmetric with `tests/`, both real top-level directories) that DOES exist:
 `test/fixture-real.test.js`.
+
+Control H -- G-1672 (D-02): an inline agent-home path whose first segment (`fixture-config`) is
+not composed anywhere under `hooks/` or `lib/` -- the whole token is out of scope and produces
+zero findings regardless of tier: `~/.claude/fixture-config.json`.
+
+Control I -- G-1672 (D-02, the anchoring test): the first segment (`fixture-profiles`) is not
+composed, but a DEEPER segment (`settings.json`) genuinely IS composed elsewhere in this fixture
+tree (see `hooks/fixture-settings-path.js`) -- a rule that scanned all segments instead of only
+the first would wrongly pull this token back into scope. It must still produce zero findings:
+`~/.claude/fixture-profiles/work/settings.json`.

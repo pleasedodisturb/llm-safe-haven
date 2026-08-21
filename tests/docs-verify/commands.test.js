@@ -228,6 +228,14 @@ describe('commands.js -- fixture pair (defect)', () => {
     sweep('defect');
     assert.ok(!fs.existsSync(sentinel), 'the never-execute guarantee was violated -- a sentinel file was created');
   });
+
+  it('G-1672 (D-02): hooks is a composed first segment -- a genuinely-absent deeper segment beneath it is still reported', () => {
+    const { findings } = sweep('defect');
+    assert.ok(findings.length > 0, 'non-vacuity: defect fixture must produce findings before filtering');
+    const hit = findings.find((f) => f.check === 'commands' && f.message.includes('g1672-phantom.js'));
+    assert.ok(hit, `G-1672 in-scope-deeper-segment finding missing, got: ${JSON.stringify(findings)}`);
+    assert.equal(hit.severity, 'fail');
+  });
 });
 
 describe('commands.js -- fixture pair (clean, must-still-pass controls)', () => {
@@ -245,6 +253,22 @@ describe('commands.js -- fixture pair (clean, must-still-pass controls)', () => 
     const { findings } = sweep('clean');
     // /etc/passwd is present in the clean fixture doc and must never be classified/reported.
     assert.ok(!findings.some((f) => f.message.includes('/etc/passwd')));
+  });
+
+  it('G-1672 (D-02) Control H: an agent-home token whose first segment this repo does not compose produces zero findings', () => {
+    const { findings } = sweep('clean');
+    assert.ok(
+      !findings.some((f) => f.message.includes('fixture-config')),
+      `an agent-home token with an uncomposed first segment must never be reported, got: ${JSON.stringify(findings)}`
+    );
+  });
+
+  it('G-1672 (D-02) Control I (anchoring): a deeper composed segment must not pull an uncomposed first segment back into scope', () => {
+    const { findings } = sweep('clean');
+    assert.ok(
+      !findings.some((f) => f.message.includes('fixture-profiles') || f.message.includes('settings.json')),
+      `the anchoring test failed -- a deeper composed segment wrongly widened scope, got: ${JSON.stringify(findings)}`
+    );
   });
 });
 

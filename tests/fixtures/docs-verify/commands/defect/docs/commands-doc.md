@@ -22,3 +22,7 @@ not a shell variable, so it must still be reported: `~/.claude/hooks/nope.js`.
 
 WR-03 (21-REVIEW.md): a documented path under the repo's own `test/` directory that does not
 exist -- `test/does-not-exist.test.js`.
+
+Defect C -- G-1672 (D-02): `hooks` is a composed first segment, so a deeper, genuinely-absent
+segment beneath it is still graded and still reported -- `g1672-phantom.js` appears as no string
+literal anywhere under this fixture's `hooks/` or `lib/`: `~/.claude/hooks/g1672-phantom.js`.
