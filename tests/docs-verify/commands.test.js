@@ -55,6 +55,14 @@ describe('commands.js -- module contract', () => {
     assert.equal(typeof commands.isPlaceholderSegment, 'function');
     assert.equal(typeof commands.isDateShapedSegment, 'function');
     assert.equal(typeof commands.tokenizeFencedLine, 'function');
+    // G-1672 CR-01/WR-01: segmentStem and deriveAgentHomeOwnedSegments are
+    // non-trivial pure functions with no direct unit coverage before this
+    // fix -- exported specifically so isRepoOwnedAgentHomeToken (unit)
+    // below can test them individually rather than only through fixture
+    // sweeps (the coverage gap WR-01 names as how CR-01 shipped).
+    assert.equal(typeof commands.segmentStem, 'function');
+    assert.equal(typeof commands.deriveAgentHomeOwnedSegments, 'function');
+    assert.equal(typeof commands.isRepoOwnedAgentHomeToken, 'function');
     assert.ok(Array.isArray(commands.INTERNAL_PATH_PREFIXES));
     assert.ok(commands.INTERNAL_PATH_PREFIXES.length > 0, 'non-vacuity: prefix list must not be empty');
   });
@@ -270,6 +278,14 @@ describe('commands.js -- fixture pair (clean, must-still-pass controls)', () => 
       `the anchoring test failed -- a deeper composed segment wrongly widened scope, got: ${JSON.stringify(findings)}`
     );
   });
+
+  it('G-1672 (D-02) Control J (CR-01 fix): a stem match must not widen scope when the anchor has a segment below it', () => {
+    const { findings } = sweep('clean');
+    assert.ok(
+      !findings.some((f) => f.message.includes('fixture-profile.json')),
+      `CR-01: a directory-shaped token sharing only a derived STEM with a composed file's name must never be reported, got: ${JSON.stringify(findings)}`
+    );
+  });
 });
 
 describe('commands.js -- fixture pair (CR-01: shell-variable segment, quick-start.md:659 shape)', () => {
@@ -327,6 +343,147 @@ describe('commands.js -- composition-evidence tier', () => {
       .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
       .join('\n');
     assert.ok(/path\.join|path\.resolve/.test(code), 'composition-sequence evidence tier missing -- fell back to bare-literal presence only');
+  });
+});
+
+describe('commands.js -- segmentStem (unit, WR-01)', () => {
+  // WR-01 (22-REVIEW.md): direct, parameterized coverage of the pure
+  // function, derived from its own grammar (dot-splitting rules), not from
+  // CR-01's specific bug shape.
+  const cases = [
+    { input: 'audit', expected: 'audit', label: 'no dot -- unchanged' },
+    { input: 'audit.jsonl', expected: 'audit', label: 'single dot -- strips the extension' },
+    { input: 'a.b.c', expected: 'a.b', label: 'multi-dot -- strips only the LAST dot' },
+    { input: '.credentials.json', expected: '.credentials', label: 'leading-dot dotfile WITH a further extension' },
+    { input: '.hidden', expected: '.hidden', label: 'bare dotfile, no further dot -- unchanged' },
+  ];
+
+  it('non-vacuity: the case table is non-empty', () => {
+    assert.ok(cases.length > 0, 'non-vacuity guard: case table must not be empty');
+  });
+
+  for (const c of cases) {
+    it(`'${c.input}' (${c.label}) -> '${c.expected}'`, () => {
+      assert.equal(commands.segmentStem(c.input), c.expected);
+    });
+  }
+});
+
+describe('commands.js -- deriveAgentHomeOwnedSegments (unit, WR-01 + CR-01)', () => {
+  // CR-01: deriveAgentHomeOwnedSegments must return TWO separate sets --
+  // exact composed segments and their stems -- never merge them into one
+  // set, which is what let a stem accidentally satisfy an exact-match
+  // check regardless of the anchor's position in the token.
+  it('derives an exact set and a SEPARATE stem set from synthetic composition tuples', () => {
+    const tuples = [
+      ['.claude', 'audit'],
+      ['.claude', 'hooks'],
+      ['.claude', 'settings.json'],
+    ];
+    const result = commands.deriveAgentHomeOwnedSegments(tuples);
+    assert.deepEqual([...result.agentHomeOwnedSegments].sort(), ['audit', 'hooks', 'settings.json']);
+    assert.deepEqual([...result.agentHomeOwnedStems].sort(), ['audit', 'hooks', 'settings']);
+  });
+
+  it('a tuple without the .claude segment anywhere contributes nothing to either set', () => {
+    const result = commands.deriveAgentHomeOwnedSegments([['unrelated', 'thing']]);
+    assert.equal(result.agentHomeOwnedSegments.size, 0);
+    assert.equal(result.agentHomeOwnedStems.size, 0);
+  });
+
+  it('.claude as the LAST element of a tuple (nothing follows it) contributes nothing', () => {
+    const result = commands.deriveAgentHomeOwnedSegments([['x', '.claude']]);
+    assert.equal(result.agentHomeOwnedSegments.size, 0);
+    assert.equal(result.agentHomeOwnedStems.size, 0);
+  });
+});
+
+describe('commands.js -- isRepoOwnedAgentHomeToken (unit, CR-01 + WR-01)', () => {
+  // Synthetic evidence mirroring the real repo's own derived set (see the
+  // module docstring: hooks/audit-logger.js + lib/agents/claude-code.js +
+  // lib/update.js compose {audit, hooks, settings.json} under '.claude',
+  // whose stems are {audit, hooks, settings}) -- called directly, not
+  // through a fixture sweep, per WR-01.
+  const evidence = {
+    agentHomeOwnedSegments: new Set(['audit', 'hooks', 'settings.json']),
+    agentHomeOwnedStems: new Set(['audit', 'hooks', 'settings']),
+  };
+
+  it('non-vacuity: both synthetic evidence sets are non-empty', () => {
+    assert.ok(
+      evidence.agentHomeOwnedSegments.size > 0 && evidence.agentHomeOwnedStems.size > 0,
+      'non-vacuity guard: synthetic evidence sets must not be empty'
+    );
+  });
+
+  // The segment-position x match-tier matrix WR-01 asks for: anchor is the
+  // token's final segment vs. anchor has a segment below it, each crossed
+  // with an exact match, a stem-only match, or no match at all.
+  const cases = [
+    {
+      segments: ['audit.jsonl'],
+      expected: true,
+      label: 'stem match, anchor IS the final segment (DOC-03a shape -- stays in scope so grading can still fail it)',
+    },
+    {
+      segments: ['audit', '2026-08-21.jsonl'],
+      expected: true,
+      label: 'exact match on the anchor, real segment below it',
+    },
+    {
+      segments: ['hooks', 'g1672-phantom.js'],
+      expected: true,
+      label: 'exact match (Defect C shape) -- a genuinely-absent deeper segment is still graded, not filtered here',
+    },
+    {
+      segments: ['settings.json'],
+      expected: true,
+      label: 'exact match, single segment',
+    },
+    {
+      segments: ['settings', 'work.json'],
+      expected: false,
+      label: 'CR-01: stem-only match, anchor has a segment BELOW it -- must be OUT of scope',
+    },
+    {
+      segments: ['settings'],
+      expected: true,
+      label: "CR-01's must-still-pass twin: same stem, but the anchor IS the token's final segment",
+    },
+    {
+      segments: ['config.json'],
+      expected: false,
+      label: 'neither an exact nor a stem match',
+    },
+    {
+      segments: ['profiles', 'work', 'settings.json'],
+      expected: false,
+      label: 'first segment not composed -- a deeper composed segment must not widen scope (Control I shape)',
+    },
+    {
+      segments: ['.credentials.json'],
+      expected: false,
+      label: 'no exact or stem match (dotfile)',
+    },
+    {
+      segments: ['<agent-id>', 'audit.jsonl'],
+      expected: true,
+      label: 'a leading placeholder segment is skipped when locating the anchor',
+    },
+  ];
+
+  it('non-vacuity: the case table is non-empty', () => {
+    assert.ok(cases.length > 0, 'non-vacuity guard: case table must not be empty');
+  });
+
+  for (const c of cases) {
+    it(`${JSON.stringify(c.segments)} -> ${c.expected} (${c.label})`, () => {
+      assert.equal(commands.isRepoOwnedAgentHomeToken(c.segments, evidence), c.expected);
+    });
+  }
+
+  it('a token with no non-placeholder segment at all is vacuously in scope', () => {
+    assert.equal(commands.isRepoOwnedAgentHomeToken(['<a>', '*.jsonl'], evidence), true);
   });
 });
 
