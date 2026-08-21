@@ -151,8 +151,22 @@ describe('commands.js -- extractPathTokens', () => {
 });
 
 describe('commands.js -- isPlaceholderSegment / isDateShapedSegment', () => {
-  const placeholders = ['<agent-id>', '2026-01-02.jsonl', 'YYYY-MM-DD.jsonl', 'yyyy-mm-dd', '*.jsonl', 'a?.jsonl'];
-  const nonPlaceholders = ['audit.jsonl', 'hooks', 'settings.json', '2026-1-2.jsonl', 'YYY-MM-DD'];
+  // CR-01 (21-REVIEW.md): a shell-variable-interpolation segment (`$var` /
+  // `${var}`) is a runtime substitution, never a literal filename claim --
+  // '$hook' and '${HOOK}' must be recognized. 'hook' (no sigil) and
+  // 'hook$' (sigil not in leading position) are the must-still-pass twins:
+  // a bare word or a trailing-only '$' must NOT be swept in by the new rule.
+  const placeholders = [
+    '<agent-id>',
+    '2026-01-02.jsonl',
+    'YYYY-MM-DD.jsonl',
+    'yyyy-mm-dd',
+    '*.jsonl',
+    'a?.jsonl',
+    '$hook',
+    '${HOOK}',
+  ];
+  const nonPlaceholders = ['audit.jsonl', 'hooks', 'settings.json', '2026-1-2.jsonl', 'YYY-MM-DD', 'hook', 'hook$'];
 
   it('non-vacuity: both control lists are non-empty', () => {
     assert.ok(placeholders.length > 0 && nonPlaceholders.length > 0);
@@ -231,6 +245,30 @@ describe('commands.js -- fixture pair (clean, must-still-pass controls)', () => 
     const { findings } = sweep('clean');
     // /etc/passwd is present in the clean fixture doc and must never be classified/reported.
     assert.ok(!findings.some((f) => f.message.includes('/etc/passwd')));
+  });
+});
+
+describe('commands.js -- fixture pair (CR-01: shell-variable segment, quick-start.md:659 shape)', () => {
+  // Pins docs/guides/quick-start.md:659's exact shape -- a fenced bash
+  // `for` loop binding `$hook` to a real filename per iteration, referenced
+  // as `~/.claude/hooks/$hook`. Before CR-01's fix this reports a false
+  // positive (segment '$hook' is not a literal filename -- it is a shell
+  // variable); after the fix it is exempt and produces zero findings. The
+  // 'clean' fixture root's `hooks/fixture-hook-paths.js` supplies the
+  // 'hooks' bare-literal segment so only the '$hook' shape is under test.
+  it('the pinned $hook-in-a-for-loop shape produces zero findings (control, must pass after the fix)', () => {
+    const { findings } = sweep('clean');
+    assert.ok(
+      !findings.some((f) => f.message.includes('$hook')),
+      `the documented $hook shell-variable shape must never be reported, got: ${JSON.stringify(findings)}`
+    );
+  });
+
+  it('the same agent-home path with a literal missing segment (nope.js, not a shell variable) still reports (control)', () => {
+    const { findings } = sweep('defect');
+    const hit = findings.find((f) => f.check === 'commands' && f.message.includes('nope.js'));
+    assert.ok(hit, `a genuinely-missing literal segment must still be reported, got: ${JSON.stringify(findings)}`);
+    assert.equal(hit.severity, 'fail');
   });
 });
 

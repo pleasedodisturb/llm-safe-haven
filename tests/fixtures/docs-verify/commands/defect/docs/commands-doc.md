@@ -16,3 +16,6 @@ cat lib/../../../../../../etc/passwd
 Then review the log at `~/.claude/fixture-audit.jsonl` weekly (Defect B, the DOC-03a shape:
 the real fixture-audit directory is `~/.claude/fixture-audit/`, never a flat
 `fixture-audit.jsonl` file -- see hooks/fixture-audit-logger.js).
+
+CR-01 control (21-REVIEW.md): the same agent-home path with a literal missing final segment --
+not a shell variable, so it must still be reported: `~/.claude/hooks/nope.js`.
