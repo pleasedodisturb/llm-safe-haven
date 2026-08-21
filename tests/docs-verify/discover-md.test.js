@@ -219,6 +219,36 @@ describe('discover-md.js -- single-segment .gitignore entries match at ANY depth
   });
 });
 
+describe('discover-md.js -- symlinked markdown is never discovered (F5, Codex review PR #105)', () => {
+  it('control: a .md symlink pointing outside root is not discovered; a regular .md file still is', (t) => {
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-discover-md-outside-'));
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-discover-md-symlink-'));
+    try {
+      const outsideMd = path.join(outsideDir, 'secret.md');
+      fs.writeFileSync(outsideMd, '# secret\n');
+      fs.writeFileSync(path.join(tmp, 'real.md'), '# real\n');
+
+      let linked = true;
+      try {
+        fs.symlinkSync(outsideMd, path.join(tmp, 'linked.md'));
+      } catch {
+        linked = false;
+      }
+      if (!linked) {
+        t.skip('symlink creation not permitted on this filesystem/platform');
+        return;
+      }
+
+      const { files } = discoverMarkdown(tmp);
+      assert.ok(!files.includes('linked.md'), `symlinked markdown was discovered: ${JSON.stringify(files)}`);
+      assert.ok(files.includes('real.md'), 'control: an ordinary regular markdown file must still be discovered');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('discover-md.js -- error surfacing', () => {
   const isRoot = typeof process.getuid === 'function' && process.getuid() === 0;
 
