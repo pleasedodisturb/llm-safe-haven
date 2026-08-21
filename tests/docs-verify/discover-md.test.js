@@ -166,6 +166,59 @@ describe('discover-md.js -- exclusion coverage', () => {
   });
 });
 
+describe('discover-md.js -- single-segment .gitignore entries match at ANY depth; multi-segment entries stay prefix-only (F4, Codex review PR #105)', () => {
+  it('a single-segment .gitignore entry (node_modules/) excludes a NESTED directory of that name, not just a root-level one', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-discover-md-nested-single-'));
+    try {
+      fs.writeFileSync(path.join(tmp, '.gitignore'), 'node_modules/\n');
+      fs.mkdirSync(path.join(tmp, 'a', 'b', 'node_modules'), { recursive: true });
+      fs.writeFileSync(path.join(tmp, 'a', 'b', 'node_modules', 'x.md'), '# x\n');
+      fs.writeFileSync(path.join(tmp, 'visible.md'), '# visible\n');
+
+      const { files } = discoverMarkdown(tmp);
+      assert.ok(
+        !files.includes('a/b/node_modules/x.md'),
+        `nested node_modules markdown was swept despite a single-segment .gitignore entry: ${JSON.stringify(files)}`
+      );
+      assert.ok(files.includes('visible.md'), 'non-vacuity: an ordinary root-level file must still be discovered');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('must-still-pass twin: a multi-segment skip entry (tests/fixtures) stays prefix-only -- a nested dir merely NAMED "fixtures" deeper in the tree is still discovered', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-discover-md-nested-multi-'));
+    try {
+      fs.mkdirSync(path.join(tmp, 'a', 'b', 'fixtures'), { recursive: true });
+      fs.writeFileSync(path.join(tmp, 'a', 'b', 'fixtures', 'y.md'), '# y\n');
+
+      const { files } = discoverMarkdown(tmp);
+      assert.ok(
+        files.includes('a/b/fixtures/y.md'),
+        `a/b/fixtures/y.md was wrongly excluded -- STATIC_SKIP_DIRS' "tests/fixtures" entry is multi-segment and must stay prefix-only, never a basename match: ${JSON.stringify(files)}`
+      );
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('must-still-pass twin: a single-segment entry still excludes at the ROOT level too (depth 0), not only nested', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lsh-discover-md-root-single-'));
+    try {
+      fs.writeFileSync(path.join(tmp, '.gitignore'), 'node_modules/\n');
+      fs.mkdirSync(path.join(tmp, 'node_modules'), { recursive: true });
+      fs.writeFileSync(path.join(tmp, 'node_modules', 'z.md'), '# z\n');
+      fs.writeFileSync(path.join(tmp, 'visible.md'), '# visible\n');
+
+      const { files } = discoverMarkdown(tmp);
+      assert.ok(!files.includes('node_modules/z.md'), `root-level node_modules markdown was swept: ${JSON.stringify(files)}`);
+      assert.ok(files.includes('visible.md'));
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('discover-md.js -- error surfacing', () => {
   const isRoot = typeof process.getuid === 'function' && process.getuid() === 0;
 
