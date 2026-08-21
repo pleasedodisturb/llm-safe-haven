@@ -8,15 +8,19 @@ const os = require('os');
 
 const { installStub } = require('../helpers/module-stub.js');
 
+// Membership derived from plan 21-06's approved-outcome block (disposition
+// apply-all, 2026-08-20): codex-cli/goose/antigravity re-tiered out to
+// tier 3 (unanticipated demotions); gemini-cli re-tiered in from tier 3
+// (anticipated, ROADMAP criterion 6, D-01-fixed). See
+// .planning/phases/21-doc-drift-guard/21-06-SUMMARY.md "## Approved tier
+// outcome" for the source-of-truth JSON.
 const TIER2_AGENTS = [
   { file: '../../lib/agents/cursor.js', id: 'cursor' },
   { file: '../../lib/agents/windsurf.js', id: 'windsurf' },
   { file: '../../lib/agents/cline.js', id: 'cline' },
   { file: '../../lib/agents/continue-dev.js', id: 'continue-dev' },
   { file: '../../lib/agents/aider.js', id: 'aider' },
-  { file: '../../lib/agents/codex-cli.js', id: 'codex-cli' },
-  { file: '../../lib/agents/goose.js', id: 'goose' },
-  { file: '../../lib/agents/antigravity.js', id: 'antigravity' },
+  { file: '../../lib/agents/gemini-cli.js', id: 'gemini-cli' },
 ];
 
 for (const { file, id } of TIER2_AGENTS) {

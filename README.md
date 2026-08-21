@@ -54,33 +54,37 @@ configure today, with raising it to Full on the roadmap.
 | Agent | What It Configures |
 |-------|--------------------|
 | Cursor | `.cursorignore`; workspace-trust + auto-run guidance |
-| Codex CLI | `.codexignore`; sandbox / approval-mode guidance _(has a hook system — Full-capable; not yet wired)_ |
 | Windsurf | `.codeiumignore`; limitation warnings (no sandbox, no hooks) |
 | Cline | `.clineignore` |
 | Continue.dev | `.continueignore`; config API-key warning |
 | Aider | `.aiderignore`; scans the project `.env` for exposed keys _(deprecated — unmaintained upstream; no security fixes expected)_ |
-| Goose | `.gooseignore`; `config.yaml` extension / env-key review |
-| Antigravity | `.antigravityignore` |
+| Gemini CLI | `.geminiignore`; config-review guidance |
 
 ### Advise — detection + guidance (no repo-local control we can depend on)
 
 | Agent | What It Configures |
 |-------|--------------------|
-| GitHub Copilot | `.copilotignore`; reads the VS Code `security.workspace.trust` setting |
-| Gemini CLI | `.geminiignore`; config-review guidance |
+| GitHub Copilot | `.copilotignore`; reads the VS Code `security.workspace.trust` setting. The local file is inert — Copilot's real content-exclusion control is configured server-side in GitHub, never read from a file on disk |
+| Codex CLI | `.codexignore`; sandbox / approval-mode guidance. Written but not documented as read — no OpenAI Codex documentation names this mechanism _(has a hook system — Full-capable; not yet wired)_ |
+| Goose | `.gooseignore`; `config.yaml` extension / env-key review. Written but not documented as read — Goose's own docs name `.gitignore`, not `.gooseignore`, as the file it actually respects |
+| Antigravity | `.antigravityignore`. Written but not documented as read — Antigravity's own docs name `.gitignore`, not `.antigravityignore`, as the file it actually respects |
 | Augment | Guidance only (no ignore-file mechanism) |
 | Amazon Q | IAM / AWS access guidance _(deprecated — AWS end-of-support 2027-04-30)_ |
 | JetBrains AI | Guidance only (settings are an opaque IDE blob) |
 | Replit Agent | Guidance only (code executes off-machine) |
 | Zed AI | Guidance only (tool permissions are user-scope; a repo tool must not set them) |
 
-> **The Solid/Advise boundary is a judgment call, and two of these are borderline.** By the
-> ignore-file criterion alone, **Gemini CLI** (`.geminiignore`) and **GitHub Copilot**
-> (`.copilotignore`) look like Solid — we do write those files. They sit in Advise pending
-> verification that the agent actually honors the file it's handed (Copilot's supported exclusion is
-> configured server-side in GitHub, not via a local file it reads). Re-tiering them, and codifying
-> the exact Solid-vs-Advise rule in the module contract, is tracked as a follow-up — not asserted
-> here as fact.
+> **The Solid/Advise boundary is a codified, testable rule, not a judgment call.** `lib/agents/base.js`
+> exports `computeExpectedTier()`, and every module's tier is graded against it: **Full** means the
+> agent's own hook or interception system is installed and wired into its settings file. **Solid**
+> means a persistent artifact that the agent's *own documentation* says it honors. **Advise** means
+> either no persistent artifact, or one the vendor's own docs show is inert. Under that rule, Gemini
+> CLI is Solid — its `.geminiignore` is documented as honored and filters automatic file discovery —
+> while GitHub Copilot stays Advise — its local `.copilotignore` is inert, since Copilot's real
+> control is configured server-side in GitHub. A meta-test asserts every shipped module's tier
+> matches the rule and fails CI on a mis-tier. Ignore files remain *best-effort context exclusion,
+> not a hard secret boundary* — that honesty note applies to every Solid-tier agent above; the new
+> rule does not soften it.
 
 > More agents are on the roadmap. **Codex CLI is the nearest path to a second Full tier** — it
 > already exposes the hooks (above); we just haven't wired them yet. Beyond it, the other agents that

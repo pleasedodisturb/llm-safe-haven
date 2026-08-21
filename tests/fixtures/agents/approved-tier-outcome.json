@@ -1,0 +1,48 @@
+{
+  "disposition": "apply-all",
+  "expectedTiers": {
+    "claude-code": 1,
+    "cursor": 2,
+    "windsurf": 2,
+    "cline": 2,
+    "continue-dev": 2,
+    "aider": 2,
+    "codex-cli": 3,
+    "goose": 3,
+    "antigravity": 3,
+    "gemini-cli": 2,
+    "github-copilot": 3,
+    "amazon-q": 3,
+    "augment": 3,
+    "jetbrains-ai": 3,
+    "replit-agent": 3,
+    "zed-ai": 3
+  },
+  "deltas": [
+    {
+      "id": "gemini-cli",
+      "from": 3,
+      "to": 2,
+      "anticipated": true
+    },
+    {
+      "id": "codex-cli",
+      "from": 2,
+      "to": 3,
+      "anticipated": false
+    },
+    {
+      "id": "goose",
+      "from": 2,
+      "to": 3,
+      "anticipated": false
+    },
+    {
+      "id": "antigravity",
+      "from": 2,
+      "to": 3,
+      "anticipated": false
+    }
+  ],
+  "exemptions": []
+}
