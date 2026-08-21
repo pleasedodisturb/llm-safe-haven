@@ -272,6 +272,29 @@ describe('commands.js -- fixture pair (CR-01: shell-variable segment, quick-star
   });
 });
 
+describe('commands.js -- fixture pair (WR-03: REPO_RELATIVE_PREFIXES omits test/)', () => {
+  // The repo genuinely has both `test/` and `tests/` top-level directories
+  // (package.json's own `test` script runs both); REPO_RELATIVE_PREFIXES
+  // listed only `tests/`, so a documented path under `test/` was silently
+  // never existence-checked -- the "silent absence" failure mode this
+  // module otherwise takes pains to avoid.
+  it('reports a documented test/ path that does not exist (defect, must-fail-before-fix)', () => {
+    const { findings } = sweep('defect');
+    const hit = findings.find((f) => f.check === 'commands' && f.message.includes('test/does-not-exist.test.js'));
+    assert.ok(
+      hit,
+      `a documented path under test/ must be existence-checked -- REPO_RELATIVE_PREFIXES must include 'test/', got: ${JSON.stringify(findings)}`
+    );
+    assert.equal(hit.severity, 'fail');
+  });
+
+  it('a documented test/ path that DOES exist produces zero findings (control)', () => {
+    const { findings } = sweep('clean');
+    const hit = findings.find((f) => f.message && f.message.includes('test/fixture-real.test.js'));
+    assert.equal(hit, undefined, `an existing test/ path must never be reported, got: ${JSON.stringify(findings)}`);
+  });
+});
+
 describe('commands.js -- composition-evidence tier', () => {
   it('the module source contains a path.join/path.resolve composition-sequence extractor', () => {
     const raw = fs.readFileSync(path.join(__dirname, '..', '..', 'lib', 'docs-verify', 'commands.js'), 'utf8');

@@ -33,3 +33,7 @@ for hook in bash-firewall.js secret-guard.js audit-logger.js; do
   fi
 done
 ```
+
+Control G -- WR-03 (21-REVIEW.md): a documented path under the repo's own `test/` directory
+(asymmetric with `tests/`, both real top-level directories) that DOES exist:
+`test/fixture-real.test.js`.
