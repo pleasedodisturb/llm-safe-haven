@@ -126,6 +126,22 @@ describe('mcp-rule-ids.js -- Check 2 sweep against the real repo (RED against ma
   });
 });
 
+describe('mcp-rule-ids.js -- emittedRuleSuffixes on a double-quoted const id declaration', () => {
+  // WR-01 precondition (unchanged by the fix): ID_CONST_RE is single-quote
+  // only, so a double-quoted `const id` declaration resolves to
+  // detectorId === null even though suffixes ARE extracted -- this is the
+  // exact state run() must guard against.
+  it('detectorId is null (ID_CONST_RE does not match double quotes), suffixes still extracted', () => {
+    const src =
+      "'use strict';\nconst id = \"weird-detector\";\nfunction run(){ return [{ id: `${id}/some-suffix` }]; }\nmodule.exports = { id, run };\n";
+    const result = mcpRuleIds.emittedRuleSuffixes(src);
+    assert.equal(result.detectorId, null);
+    assert.equal(result.unresolved.length, 0);
+    assert.equal(result.suffixes.length, 1);
+    assert.equal(result.suffixes[0].suffix, 'some-suffix');
+  });
+});
+
 describe('mcp-rule-ids.js -- fixture pair (planted defect + must-still-pass control)', () => {
   it('clean control: zero findings, zero incomplete', () => {
     const { findings, incomplete } = sweep('clean');
@@ -158,5 +174,18 @@ describe('mcp-rule-ids.js -- fixture pair (planted defect + must-still-pass cont
     assert.ok(incomplete.length > 0, 'zero-suffix detector module must force an incomplete sweep');
     const exitCode = computeExit({ severityCounts: tallySeverities(findings), incomplete });
     assert.equal(exitCode, 2);
+  });
+
+  it('null-detector-id case (WR-01): sweep is incomplete, never a fabricated "null/..." finding', () => {
+    const { findings, incomplete } = sweep('null-detector-id');
+    assert.deepEqual(findings, [], `must never fabricate a null/<suffix> finding, got: ${JSON.stringify(findings)}`);
+    assert.ok(
+      incomplete.length > 0,
+      'a detector module whose const id declaration cannot be parsed must force an incomplete sweep'
+    );
+    const exitCode = computeExit({ severityCounts: tallySeverities(findings), incomplete });
+    assert.equal(exitCode, 2);
+    const reasons = incomplete.map((i) => i.reason).join('\n');
+    assert.ok(/could not determine the detector id/i.test(reasons), reasons);
   });
 });

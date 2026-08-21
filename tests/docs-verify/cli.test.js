@@ -48,6 +48,13 @@ describe('scripts/docs-verify.js -- process-boundary behaviour', () => {
     assert.equal(res.status, 2, res.stdout + res.stderr);
   });
 
+  it('null-detector-id fixture root: exit 2, names an unparseable detector id (WR-01, 21-REVIEW.md)', () => {
+    const res = run(['--root', path.join(FIXTURES_ROOT, 'null-detector-id')]);
+    assert.equal(res.status, 2, res.stdout + res.stderr);
+    assert.ok(/could not determine the detector id/i.test(res.stdout), res.stdout);
+    assert.ok(!/\bnull\//.test(res.stdout), `must never fabricate a null/<suffix> finding, got: ${res.stdout}`);
+  });
+
   it('an unrecognized flag exits 2 and does not run a sweep', () => {
     const res = run(['--not-a-real-flag']);
     assert.equal(res.status, 2, res.stdout + res.stderr);
