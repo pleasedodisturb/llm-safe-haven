@@ -7,6 +7,9 @@ Security toolkit and reference for solo developers running autonomous AI coding 
 
 This file does not restate global rules — read `~/.claude/CLAUDE.md` first.
 
+For the cross-agent working contract and current project state (shipped version, active
+milestone, next work), see [AGENTS.md](AGENTS.md).
+
 ## Project Structure
 
 bin/                         — CLI entry point (npx llm-safe-haven)
@@ -80,7 +83,7 @@ by arithmetic. Explicit behavioural tests are its only guarantee.
 
 ## Adding a New Agent Module
 
-1. Create `lib/agents/your-agent.js` implementing the interface in `lib/agents/base.js`
+1. Create `lib/agents/<your-agent>.js` implementing the interface in `lib/agents/base.js`
 2. Export: name, id, tier (1/2/3), detect(), harden(projectDir, flags), audit()
 3. The registry auto-discovers — no registration needed
 4. Each module is try/catch wrapped — a broken module never crashes the CLI
