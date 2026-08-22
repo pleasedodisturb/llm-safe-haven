@@ -52,9 +52,10 @@ here.
 ## Current state
 
 - Shipped: llm-safe-haven@0.8.0
-- Milestone: v0.8 "Doc Integrity" — Phase 22 (Content Fixes) complete: the documentation-drift
-  guard reports zero findings and runs as a blocking CI check
-- Next: ship v0.8.0 (bump `package.json` and this block together; the guard enforces it)
+- Milestone: v0.8 "Doc Integrity" shipped 2026-08-22 as v0.8.0 — the documentation-drift guard
+  reports zero findings and runs as a blocking CI check
+- Next: v0.9 (agent-runtime expansion, G-1655) is not yet planned; first fix G-1677 — the scorecard's
+  Claude Code "Sandbox" check is hardcoded as passing and must read `sandbox.enabled` instead
 - Long-form local state lives in the session-handoff log this repository keeps local-only and
   fully ignored — not reachable from a clone, and not duplicated here.
 
