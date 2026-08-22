@@ -67,9 +67,9 @@ Every item in this table is a real, confirmed attack or vulnerability. No hypoth
 
 ## Real Incidents Timeline
 
-### July 2026 — Two Unpatched Zero-Days: Cursor `git.exe` Auto-Exec and Claude for Chrome "ClaudeBleed Reopened" (July 7-14)
+### July 2026 — Two Zero-Days Without Effective Vendor Fixes: Cursor `git.exe` Auto-Exec and Claude for Chrome "ClaudeBleed Reopened" (July 7-14)
 
-Two significant AI-coding-tool vulnerabilities reached full public disclosure in the same week **without vendor patches**. Cursor's Windows `git.exe` auto-execution flaw (reported Dec 15, 2025, disclosed July 14 after seven months with no indication remediation was underway) lets a malicious repo achieve code execution the instant its folder is opened, with no click or approval dialog. Claude for Chrome's "ClaudeBleed Reopened" (reported May 21, 2026, still reproducible against the July 7 release Anthropic had marked its internal tracking issue "resolved" against) lets any other browser extension synthesize a fake click to trigger Claude's privileged agentic actions against Gmail, Docs, Calendar, and Salesforce.
+Two significant AI-coding-tool vulnerabilities reached full public disclosure in the same week **without effective vendor fixes**. Cursor's Windows `git.exe` auto-execution flaw (reported Dec 15, 2025, disclosed July 14 after seven months with no indication remediation was underway) lets a malicious repo achieve code execution the instant its folder is opened, with no click or approval dialog. Claude for Chrome's "ClaudeBleed Reopened" (reported May 21, 2026, still reproducible against the July 7 release Anthropic had marked its internal tracking issue "resolved" against) lets any other browser extension synthesize a fake click to trigger Claude's privileged agentic actions against Gmail, Docs, Calendar, and Salesforce.
 
 **Why it matters:** both cases follow the same pattern — a researcher reports a real, reproducible flaw; the vendor's own tracking marks it resolved without the underlying code changing; the researcher eventually goes public with a working reproduction and no available patch. For solo developers, that means "check the changelog" is necessary but not sufficient — an advisory with no fix version yet is still exploitable today.
 

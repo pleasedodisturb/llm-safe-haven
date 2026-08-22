@@ -183,7 +183,7 @@ Work through this in order. Every step has a concrete, copy-pasteable action.
    manifest is not generated from the spec, the two are cross-validated).
 3. **Validate the new spec:**
    ```bash
-   node scripts/validate-wave-spec.js manifests/waves/<your-new-wave>.json
+   node scripts/validate-wave-spec.js "manifests/waves/<your-new-wave>.json"
    ```
    This must print a line starting with `OK` before you go any further. A `FAIL` line
    names the exact field to fix.

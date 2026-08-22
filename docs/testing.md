@@ -326,20 +326,25 @@ AUDIT_DIR="${CLAUDE_AUDIT_DIR:-$HOME/.claude/audit}"
 TARGET="${1:-$AUDIT_DIR}"
 ALERT_FILE="$(mktemp "${TMPDIR:-/tmp}/audit-alerts-XXXXXX")"
 LOGFILE="$(mktemp "${TMPDIR:-/tmp}/audit-merged-XXXXXX")"
+# Remove the merged copy on every exit path (including the error exits below).
+# The alert file is kept on a completed run because its path is printed for
+# follow-up; the error exits remove it explicitly since it is still empty.
+trap 'rm -f "$LOGFILE"' EXIT
 
 if [ -f "$TARGET" ]; then
   cp "$TARGET" "$LOGFILE"
 elif [ -d "$TARGET" ]; then
   if ! ls "$TARGET"/*.jsonl >/dev/null 2>&1; then
     echo "No audit log entries found in $TARGET"
+    rm -f "$ALERT_FILE"
     exit 1
   fi
   cat "$TARGET"/*.jsonl > "$LOGFILE"
 else
   echo "No audit log found at $TARGET"
+  rm -f "$ALERT_FILE"
   exit 1
 fi
-trap 'rm -f "$LOGFILE"' EXIT
 
 echo "Analyzing $TARGET..."
 echo "Alerts written to $ALERT_FILE"
@@ -874,15 +879,21 @@ ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "passphrase"
 **3. Preserve evidence**
 
 ```bash
+# Evidence can contain secrets: make the incident directory private BEFORE anything
+# is copied into it. mkdir -p alone inherits your umask (0644/0755 under the common
+# 022), so the copies would be readable by every local user.
+umask 077
+INCIDENT_DIR=~/incident-$(date +%Y%m%d)
+mkdir -p -m 700 "$INCIDENT_DIR"
+
 # Copy audit logs before they rotate
-mkdir -p ~/incident-$(date +%Y%m%d)
-cp -r ~/.claude/audit/ ~/incident-$(date +%Y%m%d)/audit/
+cp -r ~/.claude/audit/ "$INCIDENT_DIR/audit/"
 
 # Copy session transcripts before the 30-day retention window rotates them out.
 # Transcripts are stored per-project, not in one flat directory — copy the whole
 # transcripts root rather than guessing a single project's directory name.
 # See: https://code.claude.com/docs/en/sessions#where-transcripts-are-stored
-cp -r ~/.claude/projects/ ~/incident-$(date +%Y%m%d)/session-transcripts/
+cp -r ~/.claude/projects/ "$INCIDENT_DIR/session-transcripts/"
 
 # Save recent shell history
 cp ~/.zsh_history ~/incident-$(date +%Y%m%d)/zsh_history

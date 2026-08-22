@@ -7,10 +7,11 @@ refreshed at ship time. Several AI coding tools — not just Claude Code — rea
 `AGENTS.md` at the repository root by convention before touching a project, including cloud and
 containerized runs that see nothing but the output of `git clone`.
 
-It does **not** restate the coding rules, the TDD contract, the project shape, or the writing
-style for docs. All of that lives in `CLAUDE.md`, cross-referenced below — this file only carries
-what `CLAUDE.md` cannot: state that changes every release, and the minimum working agreements an
-agent needs before its first commit.
+It does **not** restate the full coding contract — the coding rules, the TDD contract, the project
+shape, or the writing style for docs. All of that lives in `CLAUDE.md`, cross-referenced below —
+this file only carries what `CLAUDE.md` cannot: state that changes every release, and the minimum
+working agreements an agent needs before its first commit (a few of which, like the hook syntax
+check, deliberately repeat a `CLAUDE.md` rule so a non-Claude agent sees them without reading it).
 
 ### Why this shape (D-08)
 

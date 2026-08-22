@@ -16,7 +16,7 @@
 npx llm-safe-haven --dry-run
 ```
 
-```
+```text
   🔒 LLM Safe Haven — Security Scorecard
 
   Detected agents:
@@ -53,7 +53,7 @@ npx llm-safe-haven --dry-run
 npx llm-safe-haven
 ```
 
-```
+```text
   Hardening:
 
   ✓ Claude Code 2.1.239 (Claude Code) (Full support)
@@ -83,7 +83,7 @@ Four hooks copied to `~/.claude/hooks/`, `settings.json` merged (not replaced). 
 npx llm-safe-haven audit
 ```
 
-```
+```text
   Auditing security posture...
 
   ✓ Claude Code 2.1.239 (Claude Code) (Full support)
@@ -100,33 +100,35 @@ npx llm-safe-haven audit
   └─────────────────────────────────────────┘
 ```
 
-`audit`'s exit code is the same three-valued contract every scanning command uses: **`0`** means Level 2 ("Guarded") or higher, **`1`** means below Level 2, **`2`** means the MCP or `.env` scan didn't finish — fail closed, never reported as clean. A fresh scratch home before install exits `1` (Level 1, as above); after install it's `0`. `npx llm-safe-haven audit --json` gives the same result machine-readable, for CI.
+`audit`'s exit code is the same three-valued contract every scanning command uses: **`0`** means Level 2 ("Guarded") or higher, **`1`** means below Level 2, **`2`** means the MCP or `.env` scan didn't finish and nothing was found — an unfinished scan is never reported as clean, but an observed `.env` still wins and exits `1` (findings beat incompleteness, the same ladder `scan` uses). A fresh scratch home before install exits `1` (Level 1, as above); after install it's `0`. `npx llm-safe-haven audit --json` gives the same result machine-readable, for CI.
 
 The steps below are what the CLI does **not** yet do for you — still part of getting hardened, not optional extras.
 
 ---
 
-## Step 2: Verify Your Sandbox (~2 min)
+## Step 2: Turn On the Sandbox (~2 min)
 
-Claude Code's Seatbelt (macOS) / Bubblewrap (Linux) sandbox is **on by default** since late 2025. Verify it's active:
+Claude Code's Bash sandbox (Seatbelt on macOS, Bubblewrap on Linux/WSL2) is **opt-in**, and by default a sandbox that can't start — missing dependency, unsupported platform — just prints a warning and runs your commands unsandboxed. Check it in-session:
 
 ```bash
-# Start a Claude Code session and check for the sandbox indicator
-claude --version
-# In-session, run:
+# In a Claude Code session, open the sandbox panel (Mode / Overrides / Dependencies):
 /sandbox
 ```
 
-You should see sandbox status confirming filesystem and network isolation are active. If sandbox is off, enable it:
+The panel shows whether the sandbox is active and what's missing. To enable it for every project and make a missing sandbox a hard failure instead of a silent fallback:
 
 ```json
 // ~/.claude/settings.json
 {
-  "permissions": {
-    "sandbox": true
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false
   }
 }
 ```
+
+`allowUnsandboxedCommands: false` also closes the escape hatch that lets a command which fails under the sandbox be retried outside it. Reference: [Configure the sandboxed Bash tool](https://code.claude.com/docs/en/sandboxing).
 
 **Verify it works:** In a Claude Code session, ask the agent to read `/etc/passwd`. It should be blocked by filesystem isolation.
 
