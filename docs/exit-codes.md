@@ -8,7 +8,7 @@ notices. This is the long form of the [README's Exit codes section](../README.md
 | Code | Meaning |
 |------|---------|
 | `0` | Clean — the scan completed and found nothing |
-| `1` | Findings — something was observed that you need to act on |
+| `1` | Findings — something was observed that you need to act on. For `audit`, also a completed posture below Level 2 (including the no-agents case) |
 | `2` | The scan did not finish — treat as unknown, never as clean |
 
 **An incomplete scan is never reported as clean.** A finding takes precedence over incompleteness:
@@ -18,6 +18,22 @@ place (`computeExit()` in `lib/traverse/index.js`); `audit` and `scan` both rout
 
 `install` has no exit code of its own — it exits `0` regardless of what the embedded scan found. Its
 rendered scorecard is its verdict. Script against `scan` or `audit` if you need a status code.
+
+A complete CI step that pins the scan root and handles all three outcomes (treat anything else as a
+failure too — an unknown code means the tool did not run as documented):
+
+```bash
+#!/usr/bin/env bash
+# Scan the checked-out repository only, and fail closed on anything but a clean, complete scan.
+LSH_ROOTS="$PWD" npx llm-safe-haven scan
+status=$?
+case "$status" in
+  0) echo "scan clean" ;;
+  1) echo "exposed secrets found -- see output above" >&2; exit 1 ;;
+  2) echo "scan did not finish -- not clean, investigate the '◆ could not verify' block" >&2; exit 2 ;;
+  *) echo "unexpected exit code $status" >&2; exit 1 ;;
+esac
+```
 
 ## Behaviour change (v0.7): `scan` exits `1` on findings
 
@@ -53,13 +69,16 @@ command from that directory.
 
 ## Machine-readable posture: `audit --json`
 
-`overallLevel` and `levelCaps` are the keys a CI consumer should gate on — this repo's own
-documented pattern is `process.exit(result.overallLevel >= 2 ? 0 : 1)`. An unfinished `.env` scan
-caps `overallLevel` at 2 and records an `env-incomplete` entry in `levelCaps`, the same way an
-unfinished MCP scan records `mcp-incomplete`. Gating on `overallLevel` alone therefore covers the
-incompleteness question for **both** scan halves; `envIncomplete` and `mcp.ran` remain in the
-envelope as the machine-readable detail for *why*, not as a second signal you need to check.
+**Gate CI on `audit`'s exit status, not on the JSON alone.** `audit`'s exit code follows the same
+contract: `0` for Level 2 ("Guarded") or higher with both scans complete, `1` below Level 2 —
+including when a `.env` was observed during an otherwise incomplete scan — and `2` when a scan did
+not finish and nothing was found.
 
-`audit`'s own exit code follows the same contract: `0` for Level 2 ("Guarded") or higher with both
-scans complete, `1` below Level 2 — including when a `.env` was observed during an otherwise
-incomplete scan — and `2` when a scan did not finish and nothing was found.
+The JSON envelope is for the *why*: `overallLevel` is the posture, and `levelCaps` names what held
+it down — an unfinished `.env` scan records `env-incomplete`, an unfinished MCP scan
+`mcp-incomplete`, and either caps `overallLevel` at 2. That ceiling is the **same value** as the
+Level-2 pass threshold, so a consumer that only checks `overallLevel >= 2` and ignores the process
+exit status would pass an unfinished scan. If you must gate on JSON, check `levelCaps` for an
+`*-incomplete` entry (or `envIncomplete` / `mcp.ran`) *before* applying the level threshold. The
+product-side fix for this trap — a cap that cannot equal the threshold, or an explicit `complete`
+field — is tracked as G-1679.

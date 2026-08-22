@@ -4,7 +4,7 @@
 [![npm version](https://img.shields.io/npm/v/llm-safe-haven.svg)](https://www.npmjs.com/package/llm-safe-haven)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Harden your AI coding agent in 60 seconds. Zero dependencies, no network, nothing written outside your agent's own config.
+Harden your AI coding agent in 60 seconds. Zero dependencies, offline by default, nothing written outside your agent's own config.
 
 ```bash
 npx llm-safe-haven
@@ -43,10 +43,10 @@ npx llm-safe-haven update         # Update hooks to latest
 | Code | Meaning |
 |------|---------|
 | `0` | Clean — the scan completed and found nothing |
-| `1` | Findings — act on them |
+| `1` | Findings — act on them (for `audit`: also a completed posture below Level 2) |
 | `2` | The scan did not finish — unknown, never clean |
 
-An incomplete scan is never reported as clean, and a real finding beats incompleteness. Gate CI on `audit --json`'s `overallLevel`. The full contract — including what changed for `scan` in v0.7 and what happens when none of the default scan roots exist — is in [Exit Codes and Scan Scope](docs/exit-codes.md).
+An incomplete scan is never reported as clean, and a real finding beats incompleteness. Gate CI on the **exit status** — not on `audit --json`'s `overallLevel` alone, because an incomplete scan is capped *at* 2, the same value as the Level-2 pass threshold. The full contract — including what changed for `scan` in v0.7 and what happens when none of the default scan roots exist — is in [Exit Codes and Scan Scope](docs/exit-codes.md).
 
 ## Security Levels
 
@@ -76,7 +76,7 @@ An incomplete scan is never reported as clean, and a real finding beats incomple
 | Goose | Advise | `.gooseignore`; `config.yaml` review — its docs name `.gitignore`, not this file |
 | Antigravity | Advise | `.antigravityignore` — its docs name `.gitignore`, not this file |
 | Augment | Advise | Guidance only (no ignore-file mechanism) |
-| Amazon Q | Advise | IAM / AWS access guidance — _deprecated: AWS end-of-support 2027-04-30_ |
+| Amazon Q | Advise | IAM / AWS access guidance — _deprecated: AWS ends support for the IDE plugins and paid subscriptions 2027-04-30 (superseded by Kiro)_ |
 | JetBrains AI | Advise | Guidance only (settings are an opaque IDE blob) |
 | Replit Agent | Advise | Guidance only (code executes off-machine) |
 | Zed AI | Advise | Guidance only (tool permissions are user-scope) |
@@ -97,7 +97,7 @@ The Solid/Advise line is a codified rule, not a judgment call: `computeExpectedT
 
 ## Project
 
-**Why.** In April 2026, three AI coding agents leaked secrets through a single prompt injection. We hit the same problems ([anthropics/claude-code#52471](https://github.com/anthropics/claude-code/issues/52471) — the sandbox blocks credential managers), built the fixes, and documented everything.
+**Why.** In April 2026, three AI coding agents leaked secrets through a single prompt injection ([the "Comment and Control" incident](https://venturebeat.com/security/ai-agent-runtime-security-system-card-audit-comment-and-control-2026)). Building defences against that ran straight into platform limits — e.g. [anthropics/claude-code#52471](https://github.com/anthropics/claude-code/issues/52471), where the macOS sandbox blocks the Unix sockets credential managers rely on — so we built the fixes and documented everything.
 
 **Status.** Pre-1.0, on npm with SLSA provenance, under regular development; adoption is small and growing. The strength is depth over reach: a threat model tracking 30+ real incidents, hardening guides for six agents, a supply-chain scanner built against actual attack waves, and a doc-drift guard that fails CI when these pages stop matching the code.
 
