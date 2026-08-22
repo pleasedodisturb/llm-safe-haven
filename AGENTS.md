@@ -51,7 +51,7 @@ here.
 
 ## Current state
 
-- Shipped: llm-safe-haven@0.7.0
+- Shipped: llm-safe-haven@0.8.0
 - Milestone: v0.8 "Doc Integrity" — Phase 22 (Content Fixes) complete: the documentation-drift
   guard reports zero findings and runs as a blocking CI check
 - Next: ship v0.8.0 (bump `package.json` and this block together; the guard enforces it)
