@@ -173,6 +173,20 @@ Copilot supports MCP servers with tiered approval:
 Use the narrowest scope possible. Remove MCP servers you don't actively use. For
 organizations, use GitHub's MCP registry to restrict to trusted servers only.
 
+**Where Copilot actually reads MCP server definitions.** Two files, both `jsonc`
+format -- comments are permitted, which matters if you want to leave a note on
+why a server is scoped the way it is:
+
+- **Project scope:** `.vscode/mcp.json` in the repository root.
+- **User scope:** `mcp.json` under VS Code's per-OS user profile directory --
+  `%APPDATA%\Code\User\` on Windows, `~/.config/Code/User/` on Linux, and
+  `~/Library/Application Support/Code/User/` on macOS (VS Code's own default;
+  don't assume one operating system's path applies to all three).
+
+`npx llm-safe-haven scan --mcp` reads both files. Review both -- a server
+registered at the user scope applies to every workspace you open, not just the
+one you happen to be auditing right now.
+
 ### 5. Disable JSON Schema Auto-Download
 
 The RoguePilot attack exploited VS Code's default schema fetching. Disable it:

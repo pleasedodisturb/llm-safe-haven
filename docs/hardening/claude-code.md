@@ -16,7 +16,7 @@ Claude Code has three independent defense layers — a failure in one doesn't co
 
 The sandbox prevents breakout, hooks enforce policy, permissions require approval. Use all three.
 
-**Keeping current is itself a control.** Claude Code's security surface is actively researched and patched — 2026 alone brought trust-dialog bypass (CVE-2026-40068, worktree spoof, fixed v2.1.84), WebFetch out-of-band exfiltration (CVE-2026-54316, fixed v2.1.163), sandbox escapes, a hook-matcher substring bug (fixed v2.1.195, June 26), an MCP auto-approval bypass where `claude mcp list`/`get` would spawn `.mcp.json` servers a repo self-approved via a committed `.claude/settings.json` (fixed v2.1.196, June 29 — untrusted workspaces now show `⏸ Pending approval`), and a safer default posture in v2.1.200 (July 3), which changed the CLI/VS Code/JetBrains default permission mode from `default` to `Manual`. See the [Threat Model attack-vector table](../threat-model.md#attack-vector-reference-table) and the [changelog](https://code.claude.com/docs/en/changelog) for the full list, and update before relying on any single control.
+**Keeping current is itself a control.** Claude Code's security surface is actively researched and patched — 2026 alone brought trust-dialog bypass (CVE-2026-40068, worktree spoof, fixed v2.1.84), WebFetch out-of-band exfiltration (CVE-2026-54316, fixed v2.1.163), a sandbox escape via git worktree path confusion (CVE-2026-55607, fixed v2.1.163), a hook-matcher substring bug (fixed v2.1.195, June 26), an MCP auto-approval bypass where `claude mcp list`/`get` would spawn `.mcp.json` servers a repo self-approved via a committed `.claude/settings.json` (fixed v2.1.196, June 29 — untrusted workspaces now show `⏸ Pending approval`), and a safer default posture in v2.1.200 (July 3), which changed the CLI/VS Code/JetBrains default permission mode from `default` to `Manual`. The pace didn't let up after that: v2.1.211 (July 15) closed a permission-preview spoofing bug (bidirectional-override/zero-width/look-alike characters could visually alter an approval message relayed to a chat channel) and an auto-mode bypass of an explicit PreToolUse `ask` decision for unsandboxed Bash; and v2.1.214 (July 18) is the largest permission-hardening release since v2.1.196 — fixing single-segment `dir/**` allow rules auto-approving writes to any nested `dir/` anywhere in the tree (not just `<cwd>/dir`), several Bash permission-check gaps (FD-redirect tricks, >10,000-character commands, zsh `[[ ]]` variable subscripts), a Windows PowerShell 5.1 bypass, and a remote-session race that let commands proceed before local confirmation. See the [Threat Model attack-vector table](../threat-model.md#attack-vector-reference-table) and the [changelog](https://code.claude.com/docs/en/changelog) for the full list, and update before relying on any single control.
 
 ## What to configure
 
@@ -34,7 +34,22 @@ macOS activates Apple Seatbelt (on by default); Linux activates bubblewrap — i
 npx llm-safe-haven install
 ```
 
-Registers `~/.claude/hooks/bash-firewall.js` as a `PreToolUse` hook for `Bash`. It blocks `curl … | bash`, `eval` of network-fetched content, writes to `~/.ssh/authorized_keys`, `rm -rf /` and similar, and base64 payloads piped to `bash -c`. Edit the `BLOCKED_PATTERNS` array to customize; test with `node ~/.claude/hooks/bash-firewall.js --dry-run --test`.
+Registers `~/.claude/hooks/bash-firewall.js` as a `PreToolUse` hook for `Bash`. It blocks `curl … | bash`, `eval` of network-fetched content, writes to `~/.ssh/authorized_keys`, `rm -rf /` and similar, and base64 payloads piped to `bash -c`.
+
+The hook takes no command-line flags — it reads a JSON tool-call event from stdin and writes a JSON decision to stdout. Test it by piping in a command it should block:
+
+```bash
+echo '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"}}' | node ~/.claude/hooks/bash-firewall.js
+# {"decision":"block","reason":"Blocked: rm -rf targeting root filesystem"}
+```
+
+Customize which branches it protects against force-push/hard-reset/`git clean` with the `PROTECTED_BRANCHES` environment variable (comma-separated, default `main,master`):
+
+```bash
+export PROTECTED_BRANCHES="main,master,production,staging"
+```
+
+Full interface — syntax check, exports probe, and every other customization point: [`hooks/README.md`](https://github.com/pleasedodisturb/llm-safe-haven/blob/main/hooks/README.md#testing).
 
 ### 3. Configure permission allowlists
 

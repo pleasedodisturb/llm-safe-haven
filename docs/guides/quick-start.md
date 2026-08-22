@@ -1,32 +1,133 @@
-# Harden Your AI Agent Setup in 30 Minutes
+# Harden Your AI Agent Setup
 
-**Time estimate:** ~30 minutes | **Prerequisites:** macOS or Linux, Claude Code installed
+**Time estimate:** ~15 minutes (1 min with the CLI, the rest is follow-up) — or ~30 minutes if you install everything by hand, see the appendix | **Prerequisites:** macOS or Linux, Claude Code installed
 
 > Cursor and Windsurf users: most concepts apply, but hook syntax differs. See [docs/hardening/cursor.md](../hardening/cursor.md) and [docs/hardening/windsurf.md](../hardening/windsurf.md) for agent-specific steps.
 
 ---
 
-## Step 1: Verify Your Sandbox (~2 min)
+## Step 1: Run It (~1 min)
 
-Claude Code's Seatbelt (macOS) / Bubblewrap (Linux) sandbox is **on by default** since late 2025. Verify it's active:
+`npx llm-safe-haven` is the product. The primary path is three invocations — preview, install, audit — shown below with their real captured output, run against a scratch `$HOME` (never a real `~/.claude`) so nothing here reflects the machine that captured it. Output below is trimmed for length (marked `[...]`), never edited.
+
+### 1. Preview — nothing is written yet
 
 ```bash
-# Start a Claude Code session and check for the sandbox indicator
-claude --version
-# In-session, run:
+npx llm-safe-haven --dry-run
+```
+
+```text
+  🔒 LLM Safe Haven — Security Scorecard
+
+  Detected agents:
+    ✓ Claude Code 2.1.239 (Claude Code)
+    ✓ Cursor
+    [... 4 more detected, 10 "not installed" — see the README's Supported Agents table for all 16 ...]
+
+  Hardening:
+
+  ✓ Claude Code 2.1.239 (Claude Code) (Full support)
+    ✓ [dry-run] Would copy hooks to /var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/lsh-qs-KiK7ix/.claude/hooks
+    ✓ [dry-run] Would merge hook config into /var/folders/v4/j7fwh_rj5r716k59_6cqs7xc0000gn/T/lsh-qs-KiK7ix/.claude/settings.json
+    ✓ Sandbox — Seatbelt sandbox is on by default since Claude Code v1.0
+    ✗ bash firewall — Not installed
+    ✗ secret guard — Not installed
+    ✗ config guard — Not installed
+    ✗ audit logger — Not installed
+    ✗ Settings hooks — No hooks in settings.json
+    [... 4 more ✗ lines: per-hook integrity + Audit logging, same "not installed yet" shape ...]
+
+  [... trimmed: each other detected agent prints its own advisory block ...]
+
+  Security Level: 1 of 4
+  ┌──────────────────────────────────────┐
+  │ █████░░░░░░░░░░░░░░░  Level 1: Basic │
+  └──────────────────────────────────────┘
+```
+
+*(`$HOME` above is a throwaway `mktemp -d` scratch directory used to capture this output — never a real `~/.claude`. On your machine the `[dry-run]` paths will be under your actual home directory, and `Detected agents:` will reflect what's on your own PATH.)*
+
+### 2. Install — hooks copied, `settings.json` merged non-destructively
+
+```bash
+npx llm-safe-haven
+```
+
+```text
+  Hardening:
+
+  ✓ Claude Code 2.1.239 (Claude Code) (Full support)
+    ✓ bash-firewall.js — installed
+    ✓ secret-guard.js — installed
+    ✓ config-guard.js — installed
+    ✓ audit-logger.js — installed
+    ✓ settings.json — hooks config merged
+    ✓ Sandbox — Seatbelt sandbox is on by default since Claude Code v1.0
+    ✓ bash firewall — Installed and valid
+    [... 8 more ✓ lines: secret/config/audit-logger valid, settings wired, four SHA256 integrity checks ...]
+    ✗ Audit logging — No recent audit logs
+
+  [... trimmed: Detected agents list (same as preview) and the other agents' own hardening output ...]
+
+  Security Level: 3 of 4
+  ┌─────────────────────────────────────────┐
+  │ ███████████████░░░░░  Level 3: Hardened │
+  └─────────────────────────────────────────┘
+```
+
+Four hooks copied to `~/.claude/hooks/`, `settings.json` merged (not replaced). `✗ Audit logging` stays red until a Claude Code session actually runs and writes a log — expected on a fresh install.
+
+### 3. Audit — check the posture any time, in CI or locally
+
+```bash
+npx llm-safe-haven audit
+```
+
+```text
+  Auditing security posture...
+
+  ✓ Claude Code 2.1.239 (Claude Code) (Full support)
+    ✓ Sandbox — Seatbelt sandbox is on by default since Claude Code v1.0
+    ✓ bash firewall — Installed and valid
+    [... 8 more ✓ lines, same shape as install above ...]
+    ✗ Audit logging — No recent audit logs
+
+  [... trimmed: other agents' audit output ...]
+
+  Security Level: 3 of 4
+  ┌─────────────────────────────────────────┐
+  │ ███████████████░░░░░  Level 3: Hardened │
+  └─────────────────────────────────────────┘
+```
+
+`audit`'s exit code is the same three-valued contract every scanning command uses: **`0`** means Level 2 ("Guarded") or higher, **`1`** means below Level 2, **`2`** means the MCP or `.env` scan didn't finish and nothing was found — an unfinished scan is never reported as clean, but an observed `.env` still wins and exits `1` (findings beat incompleteness, the same ladder `scan` uses). A fresh scratch home before install exits `1` (Level 1, as above); after install it's `0`. `npx llm-safe-haven audit --json` gives the same result machine-readable, for CI.
+
+The steps below are what the CLI does **not** yet do for you — still part of getting hardened, not optional extras.
+
+---
+
+## Step 2: Turn On the Sandbox (~2 min)
+
+Claude Code's Bash sandbox (Seatbelt on macOS, Bubblewrap on Linux/WSL2) is **opt-in**, and by default a sandbox that can't start — missing dependency, unsupported platform — just prints a warning and runs your commands unsandboxed. Check it in-session:
+
+```bash
+# In a Claude Code session, open the sandbox panel (Mode / Overrides / Dependencies):
 /sandbox
 ```
 
-You should see sandbox status confirming filesystem and network isolation are active. If sandbox is off, enable it:
+The panel shows whether the sandbox is active and what's missing. To enable it for every project and make a missing sandbox a hard failure instead of a silent fallback, add this to `~/.claude/settings.json` (strict JSON — no comments):
 
 ```json
-// ~/.claude/settings.json
 {
-  "permissions": {
-    "sandbox": true
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false
   }
 }
 ```
+
+`allowUnsandboxedCommands: false` also closes the escape hatch that lets a command which fails under the sandbox be retried outside it. Reference: [Configure the sandboxed Bash tool](https://code.claude.com/docs/en/sandboxing).
 
 **Verify it works:** In a Claude Code session, ask the agent to read `/etc/passwd`. It should be blocked by filesystem isolation.
 
@@ -34,121 +135,9 @@ You should see sandbox status confirming filesystem and network isolation are ac
 
 ---
 
-## Step 2: Install the Bash Firewall Hook (~5 min)
+## Step 3: Audit Your Secrets (~10 min)
 
-The bash firewall blocks destructive commands (`rm -rf /`, `curl | sh`, `chmod 777`, etc.) before they execute.
-
-1. Copy the hook into place:
-
-```bash
-mkdir -p ~/.claude/hooks
-cp hooks/bash-firewall.js ~/.claude/hooks/
-```
-
-2. Add to your settings:
-
-```json
-// ~/.claude/settings.json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ~/.claude/hooks/bash-firewall.js",
-            "timeout": 5
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-**Verify it works:** Ask Claude to run `rm -rf ~/`. The hook should block the command and return an error before execution.
-
----
-
-## Step 3: Install the Secret Guard Hook (~5 min)
-
-This hook scans file writes and edits for hardcoded secrets — API keys, private keys, tokens, passwords — and blocks them before they reach disk.
-
-1. Copy the hook:
-
-```bash
-cp hooks/secret-guard.js ~/.claude/hooks/
-```
-
-2. Add to settings (merge with existing `PreToolUse` array):
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ~/.claude/hooks/secret-guard.js",
-            "timeout": 5
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-**Verify it works:** Ask Claude to write a file containing a string that matches the AWS access key pattern (starts with `AKIA` followed by 16 alphanumeric characters). The hook should catch it and block the write.
-
----
-
-## Step 4: Set Up Audit Logging (~5 min)
-
-The audit logger records every tool call to JSONL files — what was called, when, with what arguments, and what it returned. Essential for incident investigation.
-
-1. Copy the hook:
-
-```bash
-cp hooks/audit-logger.js ~/.claude/hooks/
-```
-
-2. Add to settings as a `PostToolUse` hook (empty matcher = all tools):
-
-```json
-{
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ~/.claude/hooks/audit-logger.js",
-            "timeout": 5
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-**Verify it works:** Run a short Claude Code session (ask it to list files or similar). Then check for logs:
-
-```bash
-ls -la ~/.claude/audit/
-# You should see JSONL files with timestamped entries
-```
-
----
-
-## Step 5: Audit Your Secrets (~10 min)
-
-Every `.env` file in your projects is readable by your agent. Move secrets out.
+`npx llm-safe-haven scan` (and the project scan folded into `install`/`audit` above) already tells you whether `.env` files exist under your default scan roots. This step is the actual remediation — move secrets out, gitignore them, and check history for leaks. Every `.env` file in your projects is readable by your agent.
 
 1. **Find all .env files:**
 
@@ -185,7 +174,7 @@ gitleaks detect --source .
 
 ---
 
-## Step 6: Create a Secret Manifest (~3 min)
+## Step 4: Create a Secret Manifest (~3 min)
 
 A secret manifest declares which secrets a project needs, where they come from, and how to inject them — without containing the secrets themselves.
 
@@ -230,6 +219,7 @@ git commit -m "add secret manifest"
 |--------|-------|
 | Agents could run any command | Destructive commands blocked by bash firewall |
 | Secrets could be written into code | API keys detected and blocked before file write |
+| Config files could be turned into execution implants | `binding.gyp`, CI workflows, VS Code tasks, and `settings.json` writes blocked by config guard |
 | No audit trail | Every tool call logged to JSONL |
 | .env files readable by agents | Secrets moved to credential manager |
 | No record of what secrets exist | Secret manifest checked into git |
@@ -238,157 +228,64 @@ git commit -m "add secret manifest"
 
 ## Verify Your Full Setup
 
-After completing all steps, run this comprehensive verification to confirm everything is working together.
+The three invocations in Step 1 already prove the install worked — that's what `audit`'s exit code is for. Run `npx llm-safe-haven audit` again any time. For per-hook checks — the exact syntax, export, and live block-decision tests used to prove each hook actually works — see [hooks/README.md § Testing](../../hooks/README.md#testing) rather than a second, separately-maintained script here.
 
-### Automated Verification Script
+---
 
-Save this as `verify-hardening.sh` and run it:
+## Appendix: Install By Hand (~15 min)
 
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
+Everything `npx llm-safe-haven` did in Step 1, as four manual copy/merge steps — shown so you can read exactly what the tool writes to your machine before you ever run it.
 
-PASS=0
-FAIL=0
-WARN=0
-
-pass() { echo "  [PASS] $1"; ((PASS++)); }
-fail() { echo "  [FAIL] $1"; ((FAIL++)); }
-warn() { echo "  [WARN] $1"; ((WARN++)); }
-
-echo "=== Agent Hardening Verification ==="
-echo ""
-
-# 1. Check Claude Code is installed
-echo "-- Claude Code Installation --"
-if command -v claude &>/dev/null; then
-  pass "Claude Code CLI found: $(claude --version 2>/dev/null | head -1)"
-else
-  fail "Claude Code CLI not found in PATH"
-fi
-
-# 2. Check settings.json exists and has hooks
-echo ""
-echo "-- Settings & Hooks --"
-SETTINGS="$HOME/.claude/settings.json"
-if [[ -f "$SETTINGS" ]]; then
-  pass "settings.json exists at $SETTINGS"
-else
-  fail "settings.json not found at $SETTINGS"
-fi
-
-if [[ -f "$SETTINGS" ]] && grep -q "PreToolUse" "$SETTINGS" 2>/dev/null; then
-  pass "PreToolUse hooks configured"
-else
-  fail "No PreToolUse hooks found in settings.json"
-fi
-
-if [[ -f "$SETTINGS" ]] && grep -q "PostToolUse" "$SETTINGS" 2>/dev/null; then
-  pass "PostToolUse hooks configured"
-else
-  fail "No PostToolUse hooks found in settings.json"
-fi
-
-# 3. Check hook files exist
-echo ""
-echo "-- Hook Files --"
-for hook in bash-firewall.js secret-guard.js audit-logger.js; do
-  if [[ -f "$HOME/.claude/hooks/$hook" ]]; then
-    pass "$hook installed"
-  else
-    fail "$hook not found at ~/.claude/hooks/$hook"
-  fi
-done
-
-# 4. Check hook files are valid JS (basic syntax check)
-echo ""
-echo "-- Hook Syntax --"
-for hook in bash-firewall.js secret-guard.js audit-logger.js; do
-  HOOK_PATH="$HOME/.claude/hooks/$hook"
-  if [[ -f "$HOOK_PATH" ]]; then
-    if node --check "$HOOK_PATH" 2>/dev/null; then
-      pass "$hook passes syntax check"
-    else
-      fail "$hook has JavaScript syntax errors"
-    fi
-  fi
-done
-
-# 5. Check sandbox setting
-echo ""
-echo "-- Sandbox --"
-if [[ -f "$SETTINGS" ]] && grep -q '"sandbox"' "$SETTINGS" 2>/dev/null; then
-  pass "Sandbox configuration present in settings.json"
-else
-  warn "No explicit sandbox setting found (may be using default)"
-fi
-
-# 6. Check audit log directory
-echo ""
-echo "-- Audit Logging --"
-if [[ -d "$HOME/.claude/audit" ]]; then
-  LOGCOUNT=$(find "$HOME/.claude/audit" -name "*.jsonl" 2>/dev/null | wc -l | tr -d ' ')
-  if [[ "$LOGCOUNT" -gt 0 ]]; then
-    pass "Audit directory exists with $LOGCOUNT log file(s)"
-  else
-    warn "Audit directory exists but no log files yet (run a session first)"
-  fi
-else
-  warn "Audit directory (~/.claude/audit/) not yet created (will be created on first session)"
-fi
-
-# 7. Check for .env files in Projects
-echo ""
-echo "-- Secret Exposure --"
-if [[ -d "$HOME/Projects" ]]; then
-  ENV_COUNT=$(find "$HOME/Projects" -name ".env" \
-    -not -path "*/node_modules/*" \
-    -not -path "*/.git/*" \
-    -not -path "*/.venv/*" \
-    2>/dev/null | wc -l | tr -d ' ')
-  if [[ "$ENV_COUNT" -eq 0 ]]; then
-    pass "No .env files found in ~/Projects"
-  else
-    warn "$ENV_COUNT .env file(s) found in ~/Projects — review and move secrets to a credential manager"
-    find "$HOME/Projects" -name ".env" \
-      -not -path "*/node_modules/*" \
-      -not -path "*/.git/*" \
-      -not -path "*/.venv/*" \
-      2>/dev/null | while read -r f; do echo "        $f"; done
-  fi
-fi
-
-# 8. Check secret scanners are installed
-echo ""
-echo "-- Secret Scanners --"
-for tool in trufflehog gitleaks; do
-  if command -v "$tool" &>/dev/null; then
-    pass "$tool installed"
-  else
-    warn "$tool not installed (install: brew install $tool)"
-  fi
-done
-
-# 9. Summary
-echo ""
-echo "=== Results ==="
-echo "  Passed: $PASS"
-echo "  Failed: $FAIL"
-echo "  Warnings: $WARN"
-echo ""
-if [[ "$FAIL" -eq 0 ]]; then
-  echo "All critical checks passed."
-else
-  echo "Fix the FAIL items above before using your agent on real projects."
-fi
-```
-
-Run it:
+### Copy the hooks
 
 ```bash
-chmod +x verify-hardening.sh
-./verify-hardening.sh
+mkdir -p ~/.claude/hooks
+cp hooks/bash-firewall.js ~/.claude/hooks/
+cp hooks/secret-guard.js ~/.claude/hooks/
+cp hooks/config-guard.js ~/.claude/hooks/
+cp hooks/audit-logger.js ~/.claude/hooks/
+chmod 755 ~/.claude/hooks
+chmod 644 ~/.claude/hooks/*.js
 ```
+
+**bash-firewall.js** (PreToolUse — Bash) blocks destructive commands before they execute — `rm -rf /`, `curl | sh`, force-push to a protected branch, `git reset --hard`. **secret-guard.js** (PreToolUse — Write/Edit/MultiEdit) scans every file write and edit for hardcoded secrets before the content reaches disk. **config-guard.js** (PreToolUse — Write/Edit/MultiEdit) blocks the agent from writing supply-chain execution implants into config files that auto-run code (`binding.gyp`, `.github/workflows/*.yml`, `.vscode/tasks.json`, `.claude/settings.json` itself). **audit-logger.js** (PostToolUse — all tools) logs every tool call to a JSONL file for forensic review, redacting file/command content, never just the path.
+
+### Wire them into settings.json
+
+Add to `~/.claude/settings.json` — merge with any existing `hooks` key, don't replace it:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "node ~/.claude/hooks/bash-firewall.js", "timeout": 5 }]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [{ "type": "command", "command": "node ~/.claude/hooks/secret-guard.js", "timeout": 5 }]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [{ "type": "command", "command": "node ~/.claude/hooks/config-guard.js", "timeout": 5 }]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [{ "type": "command", "command": "node ~/.claude/hooks/audit-logger.js", "timeout": 10 }]
+      }
+    ]
+  }
+}
+```
+
+**Verify it works:** ask Claude to run `rm -rf ~/` — the hook should block it before execution. Ask it to write a file containing a string matching the AWS access-key pattern (`AKIA` followed by 16 alphanumeric characters) — secret-guard should catch it and block the write.
+
+### What you give up doing it this way
+
+`install` performs the same two writes above, plus four things a manual copy/paste does not: it **merges** `settings.json` non-destructively instead of requiring a hand-edit of the `hooks` array, takes a **timestamped backup** of your existing `settings.json` before writing anything (keeps the 3 most recent), ships **SHA256 checksums** so `npx llm-safe-haven audit` can later tell you if a hook file was tampered with after install, and gives you `npx llm-safe-haven update` to pull hook updates without repeating any of the above by hand.
 
 ---
 
@@ -715,4 +612,4 @@ You've covered the basics. For deeper hardening:
 - **[Full Threat Model](../threat-model.md)** — OWASP Agentic Top 10 mapped to solo dev setups, with real incidents
 - **[Claude Code Deep Dive](../hardening/claude-code.md)** — advanced hook patterns, sandbox configuration, permission tuning
 - **[Credential Management](../credential-management.md)** — why env vars fundamentally fail, credential proxy architecture
-- **[Curated References](../references.md)** — 50+ repos, tools, papers, and incident reports
+- **[Curated References](../references.md)** — 120+ repos, tools, papers, and incident reports

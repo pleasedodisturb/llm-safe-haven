@@ -327,7 +327,7 @@ This is a structural change to npm publishing, not a policy update. Combined wit
 
 ## Case Study: May 22, 2026 — npm Platform Hardens, Plus Two Independent Cross-Ecosystem Worms
 
-May 22, 2026 was the first day where npm's platform-level defenses against the Shai-Hulud class of attack went generally available. This case study covers three things that landed on the same date and are not covered in the [Shai-Hulud sustained-campaign case study](#case-study-shai-hulud--sustained-npm-supply-chain-campaign-sept-2025-may-2026) above:
+May 22, 2026 was the first day where npm's platform-level defenses against the Shai-Hulud class of attack went generally available. This case study covers three things that landed on the same date and are not covered in the [Shai-Hulud sustained-campaign case study](#case-study-shai-hulud--sustained-npm-supply-chain-campaign-sept-2025may-2026) above:
 
 1. **The npm CLI 11.15.0 GA** — `npm stage publish` and the `--allow-*` install-time controls — driven by the cumulative pressure of the Shai-Hulud waves (1,055 versions / 502 packages compromised across the campaign, ~61,274 granular write tokens invalidated by the May 19 platform-wide reset).
 2. **A cross-ecosystem postinstall worm** affecting 700+ GitHub repos and 8 Packagist packages. **Not publicly attributed to UNC6780 / TeamPCP / Mini Shai-Hulud** as of late May 2026 — Socket, The Hacker News, and Semgrep all treat it as a separate, unnamed actor operating in the same window.
@@ -1183,9 +1183,9 @@ Nothing in this engine reads `.gitignore`, and no `git` subprocess is ever spawn
 always true: an earlier design consulted `git ls-files` to decide which files a
 gitignore-prunable "bulk" tier could skip, with six named degradation shapes for when git
 was unavailable or refused. That design was reviewed and rejected before it shipped
-publicly — see "What changed in coverage" below — and the module that implemented it
-(`lib/traverse/git-ignore.js`) was deleted. There is no degradation to report and no
-`git`-related skip reason left in the vocabulary above.
+publicly — see "What changed in coverage" below — and the module that implemented it, the
+former `git-ignore.js` traverse module (deleted 2026-08-07, Phase 17 D-13), is gone. There
+is no degradation to report and no `git`-related skip reason left in the vocabulary above.
 
 ### What changed in coverage
 

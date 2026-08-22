@@ -15,14 +15,17 @@
 // (21-RESEARCH.md:544) claimed no tracked document states a
 // self-referential llm-safe-haven version. That claim was independently
 // re-verified during this task's implementation and found INCORRECT --
-// research/top100-mcp/DRAFT.md:179 pins `npx llm-safe-haven@0.4.0` inside
-// a fenced install-instruction code block, which is now stale against
-// package.json's 0.7.0. This is real, on-spec drift (an npx-pinned
+// research/top100-mcp/DRAFT.md:179 pinned `npx llm-safe-haven@0.4.0` inside
+// a fenced install-instruction code block, which was stale against
+// package.json's 0.7.0. This was real, on-spec drift (an npx-pinned
 // install instruction gone stale is exactly the class Check 5 exists to
-// catch), not a false positive from an over-broad pattern -- see the
-// "real corpus" describe block below, which documents and asserts this
-// honestly instead of asserting the zero-finding claim the plan's
-// research got wrong. Recorded as a deviation in 21-02-SUMMARY.md.
+// catch), not a false positive from an over-broad pattern. Recorded as a
+// deviation in 21-02-SUMMARY.md.
+//
+// UPDATE (22-04, G-1671, D-18): the pin was bumped to 0.7.0, so the real
+// repo now sweeps clean under this check -- see the "real repo" describe
+// block below, which asserts the fixed state directly against the live
+// tree rather than re-asserting the drift that motivated writing it.
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
@@ -183,20 +186,29 @@ describe('version.js -- run() comparison semantics', () => {
   });
 });
 
+// G-1672 WR-02 (22-REVIEW.md): this "real repo" describe block is a DELIBERATE
+// defense-in-depth duplicate of the blocking `docs:verify` CI step
+// (.github/workflows/ci.yml, G-1670) -- not an accidental copy. It will go red at
+// every release bump (or any other change that drifts a live doc, e.g. the
+// self-version pin in AGENTS.md / research/top100-mcp/DRAFT.md) until the drift is
+// fixed, independently of whether the dedicated CI step has already caught it. This
+// is intentional: `npm test` and `docs:verify` are two separate enforcement
+// surfaces guarding the same guarantee. Do not delete this block to "de-duplicate"
+// it. Moving it (and its two siblings in identifiers.test.js and mcp-rule-ids.test.js)
+// into a single shared `describe('live-repo drift guard (redundant with docs:verify
+// CI step)')` block is tracked as a follow-up, not done here.
 describe('version.js -- Check 5 sweep against the real repo (honest scope)', () => {
-  it('finds the one real, pre-existing stale pin: research/top100-mcp/DRAFT.md pinned to 0.4.0 vs package.json 0.7.0', () => {
+  it('finds zero self-referential version findings (the one real drift, research/top100-mcp/DRAFT.md pinned to 0.4.0, was fixed to package.json\'s live version by 22-04/G-1671/D-18)', () => {
     const root = path.join(__dirname, '..', '..');
     const context = buildContext(root);
     const { findings, incomplete } = runAll(context, [version]);
     assert.deepEqual(incomplete, [], `sweep must complete cleanly against the real repo: ${JSON.stringify(incomplete)}`);
     assert.equal(
       findings.length,
-      1,
-      `expected exactly 1 real finding (21-02-SUMMARY.md deviation: the plan's "cannot fire" research claim was ` +
-        `re-verified and found incorrect), got: ${JSON.stringify(findings)}`
+      0,
+      `expected zero real findings after 22-04's DRAFT.md pin bump (D-18); a non-zero count here means either a new ` +
+        `self-referential pin has drifted stale or the fix regressed, got: ${JSON.stringify(findings)}`
     );
-    assert.equal(findings[0].file, 'research/top100-mcp/DRAFT.md');
-    assert.ok(findings[0].message.includes('0.4.0'), findings[0].message);
   });
 
   it('does not extract a claim from CLAUDE.md\'s literal `npx llm-safe-haven@x.y.z` placeholder', () => {

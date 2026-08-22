@@ -92,12 +92,13 @@ gitignore-aware scanner. That is precisely why every check this engine runs — 
 hashes, poisoned versions, persistence hooks, `.env` discovery, and marker-string scanning
 — runs regardless of `.gitignore`.
 
-**2026-08-07 revision — the gitignore-delegated bulk tier is retired, and
-`lib/traverse/git-ignore.js` is deleted.** The original design put ordinary source-file
-marker-string scanning (`.js`/`.mjs`/`.ts`/`.json`/`.sh`/`.yml`/`.md`/`.lock`/etc — the
-`bulk-content` allowlist) behind a gitignore-prunable `bulk-content` class, consulting
-`lib/traverse/git-ignore.js`'s `isBulkEligible()` to decide what to skip, with only the
-credential-bearing subset (`.env`/`.env.*`/`.npmrc`, `marker-config`) kept targeted. Human
+**2026-08-07 revision — the gitignore-delegated bulk tier is retired, and the former
+`git-ignore.js` traverse module (deleted 2026-08-07, Phase 17 D-13) is removed.** The
+original design put ordinary source-file marker-string scanning
+(`.js`/`.mjs`/`.ts`/`.json`/`.sh`/`.yml`/`.md`/`.lock`/etc — the `bulk-content` allowlist)
+behind a gitignore-prunable `bulk-content` class, consulting the former `git-ignore.js`
+module's `isBulkEligible()` to decide what to skip, with only the credential-bearing
+subset (`.env`/`.env.*`/`.npmrc`, `marker-config`) kept targeted. Human
 review of the retrofit (plan 17-14, G-1482) rejected this as a real detection regression,
 not an acceptable trade-off — the pre-retrofit bash scanner never consulted `.gitignore`
 for *any* of its marker-string allowlist, not just credential files, and deciding what a
@@ -114,8 +115,8 @@ name `spec.classes['bulk-content'].fileGlobs` lists, not just the credential-fil
 restoring exact bash parity. `classify()` can no longer assign the `bulk-content` class to
 anything, so `git-ignore.js` — the module that supplied the gitignore resolver, and its
 only consumer — was deleted entirely, along with its two `lib/traverse/engine.js` call
-sites and `tests/traverse/git-ignore-source.test.js`. `classify()`'s `ctx` parameter no
-longer accepts an `ignore` field at all. `tests/traverse/zero-git-subprocess.test.js` is
+sites and its test file `git-ignore-source.test.js` (also deleted 2026-08-07). `classify()`'s
+`ctx` parameter no longer accepts an `ignore` field at all. `tests/traverse/zero-git-subprocess.test.js` is
 the committed proof, against a real engine run, that no `child_process.spawnSync` call
 happens anywhere in this engine any more.
 
@@ -182,7 +183,7 @@ Work through this in order. Every step has a concrete, copy-pasteable action.
    manifest is not generated from the spec, the two are cross-validated).
 3. **Validate the new spec:**
    ```bash
-   node scripts/validate-wave-spec.js manifests/waves/your-new-wave.json
+   node scripts/validate-wave-spec.js "manifests/waves/<your-new-wave>.json"
    ```
    This must print a line starting with `OK` before you go any further. A `FAIL` line
    names the exact field to fix.

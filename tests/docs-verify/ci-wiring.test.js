@@ -1,11 +1,11 @@
 'use strict';
 
-// CI-wiring assertions for the docs:verify step (G-1570, 21-05, D-06).
+// CI-wiring assertions for the docs:verify step (G-1570, 21-05, D-06, G-1670).
 //
 // Every assertion here is scoped to the docs:verify step's OWN block --
 // never a file-global pattern over the whole workflow. The first draft of
-// this plan asserted the non-blocking setting, the date, and the ticket
-// ID as three independent regexes over the entire file; that is
+// this suite (Phase 21) asserted the non-blocking setting, the date, and
+// the ticket ID as three independent regexes over the entire file; that is
 // decorative, because ANY step anywhere in ci.yml carrying the
 // non-blocking setting would satisfy it, even if the docs:verify step
 // itself were blocking. assertDocsVerifyStep() below is a pure function
@@ -14,6 +14,17 @@
 // entirely within those slices. It is exported so the plan's own
 // acceptance criteria call the exact same function this suite calls,
 // rather than re-deriving a weaker check.
+//
+// G-1670 INVERSION: Phase 21 shipped this step non-blocking
+// (`continue-on-error: true`) with a dated TODO naming this ticket as the
+// follow-up. Phase 22 made `npm run docs:verify` exit 0 against the
+// repository, so this ticket flips the assertion: the step must now be
+// REJECTED when it carries the non-blocking key, and ACCEPTED when it does
+// not. The step-scoping property this suite exists to prove survives the
+// inversion -- it is still a must-pass case, just with its expected
+// outcome flipped, because a file-global `continue-on-error` scan would
+// have been wrong in BOTH directions (Phase 21: could pass on an
+// unrelated step's key; Phase 22: could fail on an unrelated step's key).
 //
 // Well-formedness as a serialisation format is NOT asserted anywhere in
 // this file. Node has no YAML parser in its standard library and this
@@ -51,13 +62,16 @@ function isStepDashLine(line) {
  * 3. Slices the step block FORWARD from that leading dash to the next
  *    line at the SAME indent beginning with a dash, or the next line at
  *    a SHALLOWER indent, whichever comes first.
- * 4. Asserts the non-blocking setting appears INSIDE that slice.
- * 5. Asserts the step's own `name:` is inside the slice and states the
- *    expected-findings-until-Phase-22 intent.
+ * 4. G-1670: asserts the non-blocking setting does NOT appear inside that
+ *    slice -- the guard's own step must be blocking. A step-scoped
+ *    negative, never a file-global one: a DIFFERENT step carrying
+ *    `continue-on-error: true` does not fail this check.
+ * 5. Asserts the step's own `name:` is inside the slice, no longer states
+ *    the old "expected to report findings" intent, and reads as a gate.
  * 6. Slices the comment block BACKWARD from the step's leading dash to
- *    the nearest preceding non-comment line, and asserts the date and a
- *    ticket identifier are both inside THAT slice (not the file at
- *    large).
+ *    the nearest preceding non-comment line, and asserts the date the
+ *    step became blocking and a ticket identifier are both inside THAT
+ *    slice (not the file at large).
  */
 function assertDocsVerifyStep(yamlText) {
   if (typeof yamlText !== 'string' || yamlText.trim() === '') {
@@ -107,18 +121,33 @@ function assertDocsVerifyStep(yamlText) {
   }
   const stepBlock = lines.slice(stepStart, stepEnd).join('\n');
 
-  if (!/continue-on-error:\s*true/.test(stepBlock)) {
-    return { ok: false, reason: 'docs:verify step block does not carry continue-on-error: true' };
+  // G-1670: inverted. The guard's OWN step must be blocking -- a
+  // step-scoped positive assertion that the non-blocking key is ABSENT
+  // from this slice. A different step carrying the key never reaches
+  // this branch, because stepBlock is sliced to the docs:verify step
+  // alone (see step 3 above) -- that is the whole reason this function
+  // exists instead of a file-global regex.
+  if (/continue-on-error:\s*true/.test(stepBlock)) {
+    return {
+      ok: false,
+      reason: 'docs:verify step block still carries continue-on-error: true -- it must be a blocking gate',
+    };
   }
 
   const nameMatch = stepBlock.match(/-?\s*name:\s*(.+)$/m);
   if (!nameMatch) {
     return { ok: false, reason: 'docs:verify step block has no name: key' };
   }
-  if (!/Phase 22|expected to report findings/i.test(nameMatch[1])) {
+  if (/expected to report findings/i.test(nameMatch[1])) {
     return {
       ok: false,
-      reason: 'docs:verify step name does not state the expected-findings-until-Phase-22 intent',
+      reason: 'docs:verify step name still states the old non-blocking expected-findings intent',
+    };
+  }
+  if (!/blocking/i.test(nameMatch[1])) {
+    return {
+      ok: false,
+      reason: 'docs:verify step name does not read as a blocking gate',
     };
   }
 
@@ -132,8 +161,8 @@ function assertDocsVerifyStep(yamlText) {
   }
   const commentBlock = lines.slice(commentStart, stepStart).join('\n');
 
-  if (!/2026-08-20/.test(commentBlock)) {
-    return { ok: false, reason: 'no dated (2026-08-20) comment block precedes the docs:verify step' };
+  if (!/2026-08-22/.test(commentBlock)) {
+    return { ok: false, reason: 'no dated (2026-08-22) comment block precedes the docs:verify step' };
   }
   if (!/\bG-\d{3,}\b/.test(commentBlock)) {
     return { ok: false, reason: 'no Linear ticket id found in the comment block preceding the docs:verify step' };
@@ -142,12 +171,15 @@ function assertDocsVerifyStep(yamlText) {
   return { ok: true, reason: null };
 }
 
-// --- Control A: another step is non-blocking; docs:verify is not. -------
-// Under a file-global regex for `continue-on-error: true`, this fixture
-// would PASS -- that is the whole point of the case. The docs:verify
-// step here carries a correctly-dated, ticket-bearing comment and a
-// correct name:, but no continue-on-error of its own.
-const CONTROL_A_MISSING_NON_BLOCKING = `name: CI
+// --- Control A (must PASS): a DIFFERENT step is non-blocking; the -------
+// docs:verify step itself is blocking, correctly named, and correctly
+// commented. Under a file-global regex for `continue-on-error: true`,
+// this fixture would have FAILED Phase 21's non-blocking assertion and
+// would also be wrongly rejected under a naive file-global inversion here
+// (some OTHER step still legitimately carries the key) -- that is the
+// whole point of the case, in both directions. The step-scoped assertion
+// must PASS this fixture.
+const CONTROL_A_DIFFERENT_STEP_NON_BLOCKING = `name: CI
 on:
   push:
     branches: [main]
@@ -159,11 +191,9 @@ jobs:
     steps:
       - uses: actions/checkout@0000000000000000000000000000000000000000
       - run: npm run test:coverage
-      # 2026-08-20 (G-1570): intentionally non-blocking until Phase 22
-      # turns the guard green -- see G-1670 for the follow-up ticket that
-      # flips this to blocking. Blocking here today would fail every
-      # unrelated PR, since the guard is red by design against main.
-      - name: Run doc-drift guard (docs:verify) -- expected to report findings until Phase 22 lands
+      # 2026-08-22 (G-1670): the doc-drift guard became a blocking CI gate
+      # once Phase 22 landed and docs:verify reached zero findings on main.
+      - name: Doc-drift guard (docs:verify) -- blocking
         run: npm run docs:verify
       - run: npm run something-unrelated
         continue-on-error: true
@@ -179,10 +209,11 @@ jobs:
       - run: npm test
 `;
 
-// --- Control B: the dated ticket-bearing comment sits above a DIFFERENT
-// step. The docs:verify step itself is correctly non-blocking and
-// correctly named, but has no comment of its own immediately above it.
-const CONTROL_B_MISPLACED_COMMENT = `name: CI
+// --- Control (must FAIL): the guard's OWN step still carries the --------
+// non-blocking key. This is the new must-fail control the inversion
+// requires -- the case a file-global assertion could get right by
+// accident but a step-scoped one must get right by construction.
+const CONTROL_OWN_STEP_STILL_NON_BLOCKING = `name: CI
 on:
   push:
     branches: [main]
@@ -193,10 +224,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@0000000000000000000000000000000000000000
-      # 2026-08-20 (G-1570): this comment describes a DIFFERENT step, not
-      # the one immediately below it -- see G-1670.
       - run: npm run test:coverage
-      - name: Run doc-drift guard (docs:verify) -- expected to report findings until Phase 22 lands
+      # 2026-08-22 (G-1670): the doc-drift guard became a blocking CI gate
+      # once Phase 22 landed and docs:verify reached zero findings on main.
+      - name: Doc-drift guard (docs:verify) -- blocking
         run: npm run docs:verify
         continue-on-error: true
 
@@ -211,7 +242,40 @@ jobs:
       - run: npm test
 `;
 
-describe('assertDocsVerifyStep(yamlText) -- step-scoped CI-wiring assertions (G-1570, 21-05, D-06)', () => {
+// --- Control B (must FAIL): the dated ticket-bearing comment sits above
+// a DIFFERENT step. The docs:verify step itself is correctly blocking
+// (no continue-on-error) and correctly named, but has no comment of its
+// own immediately above it -- so it still fails, for a different reason
+// than the still-non-blocking control above.
+const CONTROL_B_MISPLACED_COMMENT = `name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@0000000000000000000000000000000000000000
+      # 2026-08-22 (G-1670): this comment describes a DIFFERENT step, not
+      # the one immediately below it.
+      - run: npm run test:coverage
+      - name: Doc-drift guard (docs:verify) -- blocking
+        run: npm run docs:verify
+
+  test-node18:
+    runs-on: ubuntu-latest
+    steps:
+      - run: npm test
+
+  test-macos:
+    runs-on: macos-latest
+    steps:
+      - run: npm test
+`;
+
+describe('assertDocsVerifyStep(yamlText) -- step-scoped CI-wiring assertions (G-1570, 21-05, D-06, G-1670)', () => {
   it('is a non-vacuity gate: rejects empty text', () => {
     const r = assertDocsVerifyStep('');
     assert.equal(r.ok, false);
@@ -223,15 +287,26 @@ describe('assertDocsVerifyStep(yamlText) -- step-scoped CI-wiring assertions (G-
     assert.match(r.reason, /missing expected job key/);
   });
 
-  describe('Control A (must fail): another step is non-blocking, docs:verify is not', () => {
+  describe('Control A (must PASS): a different step is non-blocking, docs:verify is blocking', () => {
+    it('assertDocsVerifyStep returns ok: true', () => {
+      const r = assertDocsVerifyStep(CONTROL_A_DIFFERENT_STEP_NON_BLOCKING);
+      assert.equal(
+        r.ok,
+        true,
+        `a file-global continue-on-error scan would have rejected this fixture -- the step-scoped assertion must not: ${r.reason}`,
+      );
+    });
+  });
+
+  describe('Control (must FAIL): the guard\'s own step still carries continue-on-error', () => {
     it('assertDocsVerifyStep returns ok: false', () => {
-      const r = assertDocsVerifyStep(CONTROL_A_MISSING_NON_BLOCKING);
-      assert.equal(r.ok, false, 'a file-global continue-on-error pattern would have passed this fixture -- the step-scoped assertion must not');
+      const r = assertDocsVerifyStep(CONTROL_OWN_STEP_STILL_NON_BLOCKING);
+      assert.equal(r.ok, false);
       assert.match(r.reason, /continue-on-error/);
     });
   });
 
-  describe('Control B (must fail): the dated ticket comment precedes a different step', () => {
+  describe('Control B (must FAIL): the dated ticket comment precedes a different step', () => {
     it('assertDocsVerifyStep returns ok: false', () => {
       const r = assertDocsVerifyStep(CONTROL_B_MISPLACED_COMMENT);
       assert.equal(r.ok, false, 'a file-global date/ticket regex would have passed this fixture -- the step-scoped assertion must not');
@@ -239,15 +314,19 @@ describe('assertDocsVerifyStep(yamlText) -- step-scoped CI-wiring assertions (G-
     });
   });
 
-  it('Controls A and B fail for DIFFERENT reasons (a function returning ok:false for everything cannot satisfy both)', () => {
-    const a = assertDocsVerifyStep(CONTROL_A_MISSING_NON_BLOCKING);
-    const b = assertDocsVerifyStep(CONTROL_B_MISPLACED_COMMENT);
-    assert.equal(a.ok, false);
-    assert.equal(b.ok, false);
-    assert.notEqual(a.reason, b.reason, `both controls failed with the identical reason '${a.reason}' -- the function is not distinguishing the two defects`);
+  it('the two must-fail controls fail for DIFFERENT reasons (a function returning ok:false for everything cannot satisfy both)', () => {
+    const stillNonBlocking = assertDocsVerifyStep(CONTROL_OWN_STEP_STILL_NON_BLOCKING);
+    const misplacedComment = assertDocsVerifyStep(CONTROL_B_MISPLACED_COMMENT);
+    assert.equal(stillNonBlocking.ok, false);
+    assert.equal(misplacedComment.ok, false);
+    assert.notEqual(
+      stillNonBlocking.reason,
+      misplacedComment.reason,
+      `both controls failed with the identical reason '${stillNonBlocking.reason}' -- the function is not distinguishing the two defects`,
+    );
   });
 
-  describe('Control C (must still pass): the real workflow after the edit', () => {
+  describe('Control C (must PASS): the real workflow after the G-1670 edit', () => {
     it('assertDocsVerifyStep returns ok: true against the real .github/workflows/ci.yml', () => {
       const real = fs.readFileSync(WORKFLOW_PATH, 'utf8');
       const r = assertDocsVerifyStep(real);

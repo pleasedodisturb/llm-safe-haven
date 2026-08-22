@@ -4,6 +4,14 @@ Devin is Cognition's autonomous AI software engineer. Unlike Claude Code (which 
 
 This guide covers what Devin protects, what it doesn't, and what you can do about the gaps.
 
+**No module backs this guide.** Every other hardening guide in this directory has a matching
+module under `lib/agents/` that this tool's `install`, `audit`, and `scan` commands actually run
+against your machine. Devin does not -- running `npx llm-safe-haven` detects, hardens, and audits
+nothing for Devin, because Devin has no local footprint to act on: it runs entirely in a
+Cognition-managed cloud VM with no config file, no local process, and no filesystem presence on
+your machine for a module to find. Everything below is therefore advisory, not automated -- read
+it and apply it by hand in Devin's own web UI and SCM integration settings.
+
 **Time needed:** ~30 minutes to review and configure. Less hands-on than Claude Code hardening because most controls are in Cognition's web UI, not local config files.
 
 ## Security Model Overview

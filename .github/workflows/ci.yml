@@ -32,15 +32,11 @@ jobs:
       # above, not by unit tests) so the ratchet measures shipped
       # lib/hooks code, not CLI glue.
       - run: npm run test:coverage
-      # 2026-08-20 (G-1570, Phase 21): the doc-drift guard step below is
-      # intentionally non-blocking until Phase 22 turns it green -- the
-      # guard is red by design against main today (real, catalogued
-      # doc/code drift), so blocking here would fail every unrelated PR
-      # between now and Phase 22 landing. Follow-up ticket to flip this
-      # to blocking once Phase 22 ships: G-1670.
-      - name: Doc-drift guard -- expected to report findings until Phase 22 lands
+      # 2026-08-22 (G-1670): the doc-drift guard became a blocking CI gate
+      # once Phase 22 landed and docs:verify reached zero findings on main
+      # -- documentation that drifts from the code can no longer merge.
+      - name: Doc-drift guard (docs:verify) -- blocking
         run: npm run docs:verify
-        continue-on-error: true
 
   # Supported-floor check (WR-01): `test:coverage` needs Node >= 22.5
   # (--test-coverage-lines / --test-coverage-exclude), but the package

@@ -104,6 +104,21 @@ describe('count-claims.js -- fixture pair (defect)', () => {
     const { findings } = sweep('defect');
     assert.ok(!findings.some((f) => f.file === 'docs/references.md'), 'third-party catalogue must never be graded');
   });
+
+  it('G-1672 (D-04): a wrong parenthesised per-agent hardening-guide count in CLAUDE.md produces exactly one fail', () => {
+    const { findings } = sweep('defect');
+    assert.ok(findings.length > 0, 'non-vacuity: defect fixture must produce findings before filtering');
+    const hits = findings.filter((f) => f.check === 'count-claims' && f.severity === 'fail' && f.file === 'CLAUDE.md');
+    assert.equal(hits.length, 1, `expected exactly one CLAUDE.md fail once bound, got: ${JSON.stringify(hits)}`);
+  });
+
+  it('G-1672 (D-04): a wrong MCP-detector count in README.md produces exactly one fail', () => {
+    const { findings } = sweep('defect');
+    const hits = findings.filter(
+      (f) => f.check === 'count-claims' && f.severity === 'fail' && f.file === 'README.md' && f.message.includes('detector')
+    );
+    assert.equal(hits.length, 1, `expected exactly one README.md detector fail once bound, got: ${JSON.stringify(hits)}`);
+  });
 });
 
 describe('count-claims.js -- fixture pair (clean, must-still-pass controls)', () => {
@@ -125,6 +140,18 @@ describe('count-claims.js -- fixture pair (clean, must-still-pass controls)', ()
     const { tallySeverities, computeExit } = require('../../lib/docs-verify/index.js');
     const severityCounts = tallySeverities(findings);
     assert.equal(computeExit({ severityCounts, incomplete }), 0, 'a root whose only finding is a warn must exit 0');
+  });
+
+  it('G-1672 (D-04): the correct parenthesised hardening-guide count binds and produces zero findings', () => {
+    const { findings } = sweep('clean');
+    const rows = findings.filter((f) => f.file === 'CLAUDE.md');
+    assert.deepEqual(rows, [], `CLAUDE.md must be zero findings once bound, got: ${JSON.stringify(rows)}`);
+  });
+
+  it('G-1672 (D-04): the correct singular MCP-detector count binds and produces zero findings', () => {
+    const { findings } = sweep('clean');
+    const rows = findings.filter((f) => f.file === 'README.md' && f.message && f.message.includes('detector'));
+    assert.deepEqual(rows, [], `README.md detector claim must be zero findings once bound, got: ${JSON.stringify(rows)}`);
   });
 });
 

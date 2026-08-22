@@ -281,7 +281,7 @@ Name files with `.bak` suffixes — they look like careless backups an attacker 
 
 Claude Code's PostToolUse hooks can write a JSONL audit trail of every tool call. Each entry records the tool name, timestamp, session ID, working directory, and key parameters. See the [Claude Code hardening guide](hardening/claude-code.md) for setup.
 
-The default audit log location is `~/.claude/audit.jsonl`. Each line is a JSON object:
+Claude Code writes one log file per day under `~/.claude/audit/` (e.g. `~/.claude/audit/2026-08-21.jsonl`), overridable via `CLAUDE_AUDIT_DIR` if you've moved your logs elsewhere. Each line is a JSON object:
 
 ```json
 {"timestamp":"2026-04-24T10:15:32Z","session_id":"abc123","tool":"Bash","detail":"git status","cwd":"/Users/dev/my-project"}
@@ -313,20 +313,46 @@ Save this as `analyze-audit.sh` and run it against your audit logs:
 ```bash
 #!/bin/bash
 # analyze-audit.sh — scan Claude Code audit logs for suspicious patterns
-# Usage: ./analyze-audit.sh [logfile]
-# Default: ~/.claude/audit.jsonl
+# Usage: ./analyze-audit.sh [logfile-or-directory]
+# Default: every per-day file under ~/.claude/audit/ (or $CLAUDE_AUDIT_DIR if set)
 
 set -euo pipefail
+# The hook writes audit records 0600 (hooks/audit-logger.js). Keep every file this
+# script derives from them private too: umask 077 + mktemp (created 0600), never a
+# predictable world-readable path under /tmp.
+umask 077
 
-LOGFILE="${1:-$HOME/.claude/audit.jsonl}"
-ALERT_FILE="/tmp/audit-alerts-$(date +%Y%m%d-%H%M%S).txt"
+AUDIT_DIR="${CLAUDE_AUDIT_DIR:-$HOME/.claude/audit}"
+TARGET="${1:-$AUDIT_DIR}"
+ALERT_FILE="$(mktemp "${TMPDIR:-/tmp}/audit-alerts-XXXXXX")"
+LOGFILE="$(mktemp "${TMPDIR:-/tmp}/audit-merged-XXXXXX")"
+# Always remove the merged copy. Keep the alert file only when the run completed
+# (its path is printed for follow-up); on any non-zero exit -- set -e failures
+# included -- remove it too, since it may already hold audit matches.
+cleanup() {
+  status=$?
+  rm -f "$LOGFILE"
+  if [ "$status" -ne 0 ]; then
+    rm -f "$ALERT_FILE"
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
 
-if [ ! -f "$LOGFILE" ]; then
-  echo "No audit log found at $LOGFILE"
+if [ -f "$TARGET" ]; then
+  cp "$TARGET" "$LOGFILE"
+elif [ -d "$TARGET" ]; then
+  if ! ls "$TARGET"/*.jsonl >/dev/null 2>&1; then
+    echo "No audit log entries found in $TARGET"
+    exit 1
+  fi
+  cat "$TARGET"/*.jsonl > "$LOGFILE"
+else
+  echo "No audit log found at $TARGET"
   exit 1
 fi
 
-echo "Analyzing $LOGFILE..."
+echo "Analyzing $TARGET..."
 echo "Alerts written to $ALERT_FILE"
 echo ""
 
@@ -408,7 +434,10 @@ awk -F'"' '
 echo ""
 
 # --- Summary ---
-ALERT_COUNT=$(grep -c "^{" "$ALERT_FILE" 2>/dev/null || echo 0)
+# grep -c prints "0" AND exits 1 on zero matches, so `|| echo 0` would yield "0\n0"
+# and break the -gt test below; swallow the exit status and default the empty case.
+ALERT_COUNT=$(grep -c "^{" "$ALERT_FILE" 2>/dev/null || true)
+ALERT_COUNT="${ALERT_COUNT:-0}"
 echo "=== Summary ==="
 echo "Total entries analyzed: $TOTAL"
 echo "Alerts generated: $ALERT_COUNT"
@@ -425,8 +454,8 @@ Make it executable and run:
 
 ```bash
 chmod +x analyze-audit.sh
-./analyze-audit.sh                          # analyze default log
-./analyze-audit.sh ~/.claude/audit.jsonl    # analyze specific file
+./analyze-audit.sh                                    # analyze every per-day file under ~/.claude/audit/
+./analyze-audit.sh ~/.claude/audit/2026-08-21.jsonl   # analyze one specific day
 ```
 
 ### Automated Monitoring with ntfy
@@ -436,7 +465,8 @@ Set up a cron job to run the analysis daily and alert on findings:
 ```bash
 # Add to crontab (crontab -e)
 # Run audit analysis daily at 8am, alert if findings exist
-0 8 * * * /path/to/analyze-audit.sh ~/.claude/audit.jsonl 2>&1 | \
+# No argument -> reads every per-day file under ~/.claude/audit/
+0 8 * * * /path/to/analyze-audit.sh 2>&1 | \
   grep -c "^{" | \
   xargs -I{} test {} -gt 0 && \
   curl -d "Claude Code audit: suspicious entries found" https://ntfy.sh/your-security-topic
@@ -519,7 +549,7 @@ governance:
 
   audit:
     enabled: true
-    log_path: "~/.claude/audit.jsonl"
+    log_path: "~/.claude/audit/"  # directory of per-day *.jsonl files, not a single file
 ```
 
 This is a defense-in-depth layer — it catches things that hooks might miss, and provides organizational-level policy that individual developers can't override.
@@ -734,8 +764,9 @@ echo 'MY_TEST_VALUE=test1234567890abcdefghijklmnop' > /tmp/test-secret.txt
 # Expected: secret-guard hook blocks the Write with:
 # "Blocked: content contains API key pattern"
 
-# Verify in audit log:
-grep "secret-guard" ~/.claude/audit.jsonl | tail -1
+# Verify in audit log (this and the one-liners below assume the default directory;
+# if you set CLAUDE_AUDIT_DIR, use that directory instead):
+grep "secret-guard" ~/.claude/audit/*.jsonl | tail -1
 ```
 
 ### Exercise 2: Bash Firewall
@@ -855,12 +886,23 @@ ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "passphrase"
 **3. Preserve evidence**
 
 ```bash
-# Copy audit logs before they rotate
-mkdir -p ~/incident-$(date +%Y%m%d)
-cp ~/.claude/audit.jsonl ~/incident-$(date +%Y%m%d)/audit.jsonl
+# Evidence can contain secrets: make the incident directory private BEFORE anything
+# is copied into it. mkdir -p alone inherits your umask (0644/0755 under the common
+# 022), and `mkdir -m 700` only sets the mode when it creates the directory -- a
+# pre-existing ~/incident-<date> keeps whatever mode it had. A fresh, unique
+# directory under umask 077 sidesteps both.
+umask 077
+INCIDENT_DIR="$(mktemp -d "$HOME/incident-$(date +%Y%m%d)-XXXXXX")"
+chmod 700 "$INCIDENT_DIR"
 
-# Copy session logs
-cp -r ~/.claude/session-logs/ ~/incident-$(date +%Y%m%d)/sessions/
+# Copy audit logs before they rotate
+cp -r ~/.claude/audit/ "$INCIDENT_DIR/audit/"
+
+# Copy session transcripts before the 30-day retention window rotates them out.
+# Transcripts are stored per-project, not in one flat directory — copy the whole
+# transcripts root rather than guessing a single project's directory name.
+# See: https://code.claude.com/docs/en/sessions#where-transcripts-are-stored
+cp -r ~/.claude/projects/ "$INCIDENT_DIR/session-transcripts/"
 
 # Save recent shell history
 cp ~/.zsh_history ~/incident-$(date +%Y%m%d)/zsh_history
@@ -874,8 +916,8 @@ cp ~/.zsh_history ~/incident-$(date +%Y%m%d)/zsh_history
 # Find the suspect session ID from the audit log
 # Look for the time window of the suspected compromise
 
-# Extract all actions from that session
-grep '"session_id":"SUSPECT_SESSION"' ~/.claude/audit.jsonl | \
+# Extract all actions from that session (default directory; substitute CLAUDE_AUDIT_DIR if set)
+grep '"session_id":"SUSPECT_SESSION"' ~/.claude/audit/*.jsonl | \
   jq -r '[.timestamp, .tool, .detail] | @tsv' | \
   sort
 
