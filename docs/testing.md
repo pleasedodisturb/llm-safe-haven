@@ -758,7 +758,8 @@ echo 'MY_TEST_VALUE=test1234567890abcdefghijklmnop' > /tmp/test-secret.txt
 # Expected: secret-guard hook blocks the Write with:
 # "Blocked: content contains API key pattern"
 
-# Verify in audit log:
+# Verify in audit log (this and the one-liners below assume the default directory;
+# if you set CLAUDE_AUDIT_DIR, use that directory instead):
 grep "secret-guard" ~/.claude/audit/*.jsonl | tail -1
 ```
 
@@ -907,7 +908,7 @@ cp ~/.zsh_history ~/incident-$(date +%Y%m%d)/zsh_history
 # Find the suspect session ID from the audit log
 # Look for the time window of the suspected compromise
 
-# Extract all actions from that session
+# Extract all actions from that session (default directory; substitute CLAUDE_AUDIT_DIR if set)
 grep '"session_id":"SUSPECT_SESSION"' ~/.claude/audit/*.jsonl | \
   jq -r '[.timestamp, .tool, .detail] | @tsv' | \
   sort

@@ -561,7 +561,7 @@ Running 5+ Claude Code tabs and cloud agents simultaneously creates credential s
 1. **Pre-cache at shell init** — `~/.zshrc` resolves all secrets from your credential manager once. Every tab inherits them.
 2. **Per-project manifests** — each project declares which secrets it needs. You mentally track that only 3 of your 12 secrets are relevant to the current project.
 3. **Hook defenses** — bash-firewall and secret-guard hooks run in every session, blocking exfiltration regardless of which tab is compromised.
-4. **Periodic audit** — review the per-day logs under `~/.claude/audit/` (e.g. `~/.claude/audit/YYYY-MM-DD.jsonl`) weekly with `cat ~/.claude/audit/*.jsonl | jq`. Look for sessions accessing secrets they shouldn't need.
+4. **Periodic audit** — review the per-day logs under `~/.claude/audit/` — or under `CLAUDE_AUDIT_DIR`, if you set it — (e.g. `~/.claude/audit/YYYY-MM-DD.jsonl`) weekly with `cat ~/.claude/audit/*.jsonl | jq`. Look for sessions accessing secrets they shouldn't need.
 
 This is imperfect — env vars are still readable — but it's the pragmatic state of the art for solo devs in April 2026.
 
