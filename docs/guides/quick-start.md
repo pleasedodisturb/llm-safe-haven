@@ -115,10 +115,9 @@ Claude Code's Bash sandbox (Seatbelt on macOS, Bubblewrap on Linux/WSL2) is **op
 /sandbox
 ```
 
-The panel shows whether the sandbox is active and what's missing. To enable it for every project and make a missing sandbox a hard failure instead of a silent fallback:
+The panel shows whether the sandbox is active and what's missing. To enable it for every project and make a missing sandbox a hard failure instead of a silent fallback, add this to `~/.claude/settings.json` (strict JSON — no comments):
 
 ```json
-// ~/.claude/settings.json
 {
   "sandbox": {
     "enabled": true,

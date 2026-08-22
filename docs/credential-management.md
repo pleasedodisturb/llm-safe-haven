@@ -650,7 +650,7 @@ The industry is moving toward this model — agents that never see secrets, with
 
 ## Supply Chain Considerations
 
-Your credential manager is only as trustworthy as its distribution channel. The [Shai-Hulud supply chain campaign](supply-chain-defense.md#case-study-shai-hulud--sustained-npm-supply-chain-campaign-sept-2025may-2026) demonstrated this in its April 2026 wave: the official Bitwarden CLI (`@bitwarden/cli`) was trojanized via a compromised GitHub Action in the publish pipeline. The malicious payload specifically targeted AI tool API keys.
+Your credential manager is only as trustworthy as its distribution channel. The [Shai-Hulud supply chain campaign](supply-chain-defense.md#case-study-shai-hulud--sustained-npm-supply-chain-campaign-sept-2025may-2026) demonstrated this in its April 2026 wave: the official Bitwarden CLI (`@bitwarden/cli`) was trojanized via a compromised GitHub Action in the publish pipeline — `@bitwarden/cli@2026.4.0`, on npm from 21:57 to 23:30 UTC on April 22, 2026 ([CVE-2026-42994](https://nvd.nist.gov/vuln/detail/CVE-2026-42994)). If you installed that version from npm in that window, treat the host as compromised and rotate every credential it could reach — the response checklist is in [supply-chain-defense.md](supply-chain-defense.md). The malicious payload specifically targeted AI tool API keys.
 
 ### Distribution Channel Matters
 

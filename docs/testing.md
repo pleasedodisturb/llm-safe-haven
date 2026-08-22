@@ -326,23 +326,29 @@ AUDIT_DIR="${CLAUDE_AUDIT_DIR:-$HOME/.claude/audit}"
 TARGET="${1:-$AUDIT_DIR}"
 ALERT_FILE="$(mktemp "${TMPDIR:-/tmp}/audit-alerts-XXXXXX")"
 LOGFILE="$(mktemp "${TMPDIR:-/tmp}/audit-merged-XXXXXX")"
-# Remove the merged copy on every exit path (including the error exits below).
-# The alert file is kept on a completed run because its path is printed for
-# follow-up; the error exits remove it explicitly since it is still empty.
-trap 'rm -f "$LOGFILE"' EXIT
+# Always remove the merged copy. Keep the alert file only when the run completed
+# (its path is printed for follow-up); on any non-zero exit -- set -e failures
+# included -- remove it too, since it may already hold audit matches.
+cleanup() {
+  status=$?
+  rm -f "$LOGFILE"
+  if [ "$status" -ne 0 ]; then
+    rm -f "$ALERT_FILE"
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
 
 if [ -f "$TARGET" ]; then
   cp "$TARGET" "$LOGFILE"
 elif [ -d "$TARGET" ]; then
   if ! ls "$TARGET"/*.jsonl >/dev/null 2>&1; then
     echo "No audit log entries found in $TARGET"
-    rm -f "$ALERT_FILE"
     exit 1
   fi
   cat "$TARGET"/*.jsonl > "$LOGFILE"
 else
   echo "No audit log found at $TARGET"
-  rm -f "$ALERT_FILE"
   exit 1
 fi
 
@@ -882,10 +888,12 @@ ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "passphrase"
 ```bash
 # Evidence can contain secrets: make the incident directory private BEFORE anything
 # is copied into it. mkdir -p alone inherits your umask (0644/0755 under the common
-# 022), so the copies would be readable by every local user.
+# 022), and `mkdir -m 700` only sets the mode when it creates the directory -- a
+# pre-existing ~/incident-<date> keeps whatever mode it had. A fresh, unique
+# directory under umask 077 sidesteps both.
 umask 077
-INCIDENT_DIR=~/incident-$(date +%Y%m%d)
-mkdir -p -m 700 "$INCIDENT_DIR"
+INCIDENT_DIR="$(mktemp -d "$HOME/incident-$(date +%Y%m%d)-XXXXXX")"
+chmod 700 "$INCIDENT_DIR"
 
 # Copy audit logs before they rotate
 cp -r ~/.claude/audit/ "$INCIDENT_DIR/audit/"
