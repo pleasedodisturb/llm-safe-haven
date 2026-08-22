@@ -16,6 +16,14 @@ if a `.env` was actually observed, that is exit `1` even when other paths could 
 what was seen is a fact regardless of what was missed. Exit precedence is derived in exactly one
 place (`computeExit()` in `lib/traverse/index.js`); `audit` and `scan` both route through it.
 
+This contract is not hypothetical hygiene. Before v0.7, `scan` on a machine with none of the default
+roots printed a green check having examined zero bytes (G-1621), and `scan` exited `0` while printing
+found `.env` files in red (G-1545). The supply-chain scanner's targets are real, too — the Shai-Hulud /
+ChainDrop worm waves, including the trojanised `@bitwarden/cli@2026.4.0`
+([CVE-2026-42994](https://nvd.nist.gov/vuln/detail/CVE-2026-42994)) — so a scan that skipped part of
+the tree and still said "clean" is precisely the false all-clear this contract forbids. Case studies:
+[Supply Chain Defense](supply-chain-defense.md).
+
 `install` has no exit code of its own — it exits `0` regardless of what the embedded scan found. Its
 rendered scorecard is its verdict. Script against `scan` or `audit` if you need a status code.
 
