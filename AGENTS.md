@@ -51,7 +51,7 @@ here.
 
 ## Current state
 
-- Shipped: llm-safe-haven@0.8.0
+- Shipped: llm-safe-haven@0.8.1
 - Milestone: v0.8 "Doc Integrity" shipped 2026-08-22 as v0.8.0 — the documentation-drift guard
   reports zero findings and runs as a blocking CI check
 - Next: v0.9 (agent-runtime expansion, G-1655) is not yet planned; first fix G-1677 — the scorecard's
