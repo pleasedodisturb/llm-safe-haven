@@ -64,8 +64,24 @@ Every item in this table is a real, confirmed attack or vulnerability. No hypoth
 | Sandbox escape via git worktree path confusion in Claude Code (CVE-2026-55607) | High | Worktree names like `.git`, symlink manipulation, and git fsmonitor execution during worktree operations allow escaping the sandbox context and overwriting files outside it — distinct from the trust-dialog bypass documented above. CVSS 7.7; affects >= 2.1.38, < 2.1.163; fixed in v2.1.163. | [GHSA-7835-87q9-rgvv — Claude Code (June 25, 2026)](https://github.com/anthropics/claude-code/security/advisories/GHSA-7835-87q9-rgvv) |
 | GitHub Copilot for JetBrains local code execution (CVE-2026-50510) | High | Improper restriction of names for files and other resources in the Copilot plugin for JetBrains IDEs (all versions before 1.13.0-251) allows an unauthorized attacker to execute code locally after user interaction. CVSS 7.8. | [NVD (published July 14, 2026)](https://nvd.nist.gov/vuln/detail/CVE-2026-50510) |
 | GitHub Copilot / VS Code work-account token disclosure (CVE-2026-47282) | Medium | Insufficiently protected credentials in GitHub Copilot and Visual Studio Code before 1.128.1 allow an unauthorized attacker to disclose information over a network. CVSS 6.5. | [NVD (published July 14, 2026)](https://nvd.nist.gov/vuln/detail/CVE-2026-47282) |
+| Prompt injection via Context7 MCP Custom AI Instructions (CVE-2026-75130) | Critical | Context7 — one of the most widely installed MCP documentation servers — lets its "Custom AI Instructions" feature inject unsanitized instructions into any connected coding agent's context during a routine library-documentation lookup, no malicious repo or file needed. CVSS 9.0 (v3.1) / 6.4 (v4.0). Affects Context7 ≤ 2.1.2; no public fix documented as of publication. | [Digital Applied — CVE-2026-75130 (Aug 18, 2026)](https://www.digitalapplied.com/blog/context7-mcp-prompt-injection-cve-2026-75130) (search-confirmed live; also tracked at [authzed.com/blog/timeline-mcp-breaches](https://authzed.com/blog/timeline-mcp-breaches)) |
+| Microsoft Copilot Personal deeplink data exfiltration (CVE-2026-24301) | High | A crafted Microsoft Copilot Personal link auto-runs an attacker-chosen prompt that pulls data from the victim's connected apps and exfiltrates it via an outbound URL fetch — one click, no further interaction. Patched August 18, 2026. | [The Hacker News — Microsoft Copilot Personal one-click exfiltration (Aug 2026)](https://thehackernews.com/2026/08/microsoft-copilot-personal-flaws-could.html) (HTTP 403 — bot-protection pattern; search-confirmed live) |
 
 ## Real Incidents Timeline
+
+### August 2026 — ChainDrop, a Critical Context7 MCP Prompt Injection, and Two Distinct Non-Lineage npm/PyPI Campaigns
+
+Four things landed in a three-week window: one confirmed Shai-Hulud-lineage wave and three unrelated incidents, none attributed to TeamPCP/UNC6780.
+
+**Mini Shai-Hulud Wave J — ChainDrop (Aug 4, 2026).** A compromised `keyv`/`cacheable` maintainer GitHub account let an attacker push directly to `main` and cut a release through the project's own legitimate GitHub Actions trusted-publishing pipeline — so every poisoned version carries **valid SLSA provenance** (`npm audit signatures` passes). Self-propagated to 400–1,300+ packages (~2B monthly downloads) in ~1.5 hours before npm began mass-unpublishing. Plants `.claude/settings.json` / `.vscode/tasks.json` persistence and arms a token-revocation-triggered watcher. Full IOC breakdown, remediation order, and detection tooling (`scripts/scan-chaindrop-aug2026.sh`) in the [Supply Chain Defense Guide](supply-chain-defense.md#wave-j--chaindrop-valid-provenance-worm-hits-keyvcacheable-august-4-2026).
+
+**CVE-2026-75130 — Context7 MCP prompt injection (Aug 18, 2026).** Context7's "Custom AI Instructions" feature injects unsanitized instructions into any connected agent's context during an ordinary documentation lookup. CVSS 9.0 (v3.1); no public fix as of disclosure. See the Attack Vector table above.
+
+**~800 malicious npm packages — "WEL1DROPPER" RAT/infostealer (Aug 7, 2026), not Shai-Hulud lineage.** A distinct campaign (some attribution to a North Korea-linked actor) published nearly 800 npm packages under slop-squatted/randomly-generated names. Unlike every Shai-Hulud-family wave, it uses **no lifecycle hooks at all** — the package README instructs the developer to load it with `require()`, which runs a downloader (`WEL1DROPPER`) that fingerprints OS/architecture and fetches a matching cross-platform RAT + crypto stealer from Cloudflare Workers infrastructure. A `require()`-triggered payload is invisible to any tool that only audits `preinstall`/`postinstall` scripts or `binding.gyp`.
+
+**17 fake Paysafe/Skrill/Neteller SDK packages (July 7, 2026), not Shai-Hulud lineage.** A separate, professionalized campaign published 13 npm and 4 PyPI packages typosquatting real payment-provider SDKs. Per-package obfuscation keys and an ngrok-tunneled C2 (fronted on AWS) harvested API keys, AWS/GitHub/npm tokens, and env-var secrets. Socket detected the npm versions within six minutes of publication. Not previously captured in this guide; added here as a gap-fill.
+
+Source: [Microsoft Security — ChainDrop](https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/) | [Digital Applied — CVE-2026-75130](https://www.digitalapplied.com/blog/context7-mcp-prompt-injection-cve-2026-75130) (search-confirmed live) | [The Hacker News — Nearly 800 Malicious npm Packages](https://thehackernews.com/2026/08/nearly-800-malicious-npm-packages.html) (search-confirmed live) | [OX Security — North Korean-linked npm infostealer RAT](https://www.ox.security/blog/north-korean-npm-infostealer-rat/) (search-confirmed live) | [Socket — npm/PyPI payment-SDK typosquat campaign](https://socket.dev/blog/npm-pypi-campaign-typosquats-popular-secure-payment-apps) (search-confirmed live) | [BleepingComputer — Fake Paysafe, Skrill SDKs](https://www.bleepingcomputer.com/news/security/fake-paysafe-skrill-sdks-on-npm-and-pypi-steal-credentials/) (search-confirmed live)
 
 ### July 2026 — Two Zero-Days Without Effective Vendor Fixes: Cursor `git.exe` Auto-Exec and Claude for Chrome "ClaudeBleed Reopened" (July 7-14)
 
@@ -319,7 +335,7 @@ Source: [Invariant Labs — MCP Security Research](https://invariantlabs.ai/blog
 
 **Why you're a target:** Solo developers using AI coding agents are disproportionately likely to install new npm packages quickly, run `npm install` without auditing, and have high-value credentials (GitHub tokens, AWS keys, API keys) on their machines.
 
-**Current wave:** Wave I (Miasma — ImmobiliareLabs Backstage plugins, June 26, 2026) — reuses the Wave H "Phantom Gyp" `binding.gyp` implant; targets internal developer portals (GitLab integration, LDAP auth) and plants AI coding-assistant persistence hooks into `.claude/settings.json` and `.vscode/tasks.json`.
+**Current wave:** Wave J — ChainDrop (`keyv`/`cacheable` family, Aug 4, 2026) — first wave in the lineage where the poisoned releases carry **valid GitHub Actions/SLSA provenance**, because the attacker pushed to the legitimate `main` branch and let the project's own trusted-publishing pipeline build and sign the result. See the [Supply Chain Defense Guide](supply-chain-defense.md#wave-j--chaindrop-valid-provenance-worm-hits-keyvcacheable-august-4-2026) for full IOCs and the remediation-order warning.
 
 ### OX Security / Cross-IDE Research Disclosures
 
@@ -430,4 +446,4 @@ As new tools and research emerge
 
 ---
 
-*Last updated: June 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
+*Last updated: August 2026. Sources verified at time of writing. If a link is dead, check the [Wayback Machine](https://web.archive.org/) or search for the title.*
