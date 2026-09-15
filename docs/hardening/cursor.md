@@ -124,6 +124,33 @@ designed, but with dangerous security implications.
 
 ## Hardening Steps
 
+### 0. Treat `git.exe` binary planting as unfixed (CVE-2026-63093)
+
+`CVE-2026-63093` (CVSS 8.8): a malicious `git.exe` in a repository's project root is
+auto-executed when the folder is opened — recurring, with no click, prompt, or approval.
+**Workspace Trust does not help here**; execution happens before any trust prompt, which is
+what separates it from the `tasks.json` issue in step 1.
+
+**There is no version floor to give you.** The CVE record names Cursor for Windows 3.2.16 as
+affected and lists **no fixed version** as of NVD publication (2026-07-17). Reporting says
+Cursor shipped a quiet fix on 2026-07-13 with no advisory and no CVE at the time, but no
+source identifies which build contains it, so the remediation boundary is unestablished.
+Re-check before relying on any version number; this note was last verified 2026-09-15.
+
+Until a first-fixed version is published, the only reliable mitigations are behavioural:
+
+- Do not open untrusted repositories in Cursor on Windows.
+- **Check for a root-level `git.exe` before opening, however the repo arrived.** `git.exe`
+  can be a tracked file in the repository, so a normal `git clone` writes it into the
+  working tree — cloning from a remote is not protective, and neither is avoiding archives.
+  A remote you trust can still be compromised.
+- Configure Cursor's git path to an absolute trusted location (e.g.
+  `C:\Program Files\Git\cmd\git.exe`) so a workspace-resident binary is never resolved.
+- On Windows, keep the current directory out of the executable search path where possible.
+
+Sources: [Mindgard](https://mindgard.ai/blog/cursor-0day-when-full-disclosure-becomes-the-only-protection-left)
+· [TechRepublic — CVE-2026-63093](https://www.techrepublic.com/article/news-cursor-git-code-execution-vulnerability-cve-2026-63093/)
+
 ### 1. Enable Workspace Trust
 
 Cursor disables this by default. Without it, `.vscode/tasks.json` in any cloned repo
