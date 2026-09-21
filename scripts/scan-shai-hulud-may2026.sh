@@ -558,6 +558,13 @@ COMPROMISED_PKGS=(
   "@immobiliarelabs/backstage-plugin-gitlab-backend"
   "@immobiliarelabs/backstage-plugin-ldap-auth"
   "@immobiliarelabs/backstage-plugin-ldap-auth-backend"
+  # Wave C payload resurfaces after 111 days of dormancy (Sept 7, 2026) — same npm account,
+  # exact SHA-256 hash as the original May 19 @antv payload, unmodified re-publish that slipped
+  # past npm's publish-time malware scan. See docs/supply-chain-defense.md Wave C addendum.
+  "feishu-docx-mcp"
+  "bmc-i18n-extract-cli"
+  "blueai-cli"
+  "bmc-translate-utils"
 )
 
 if command -v npm >/dev/null 2>&1; then
