@@ -21,6 +21,37 @@ const SENSITIVE_FILE_PATTERNS = [
   /secret_key\.[\w]+/,
 ];
 
+// G-1799: commands longer than this are blocked before any other work. Claude
+// Code kills a hook at its per-hook timeout (the installer sets 5 s) and a
+// killed hook renders no decision — the tool call proceeds. A size cap plus
+// linear-time checks keeps the firewall's worst case far below that timeout.
+const MAX_COMMAND_CHARS = 100000;
+
+// ---------------------------------------------------------------------------
+// Linear-time helpers (G-1799)
+//
+// Rule for every pattern in this file: a quantified character class may only
+// start where the previous char is outside that class (lookbehind or index
+// anchoring), and there is no `.*` / unbounded class between an unanchored
+// start and a literal that can fail. Prefer "find the first index, then test
+// the remainder".
+// ---------------------------------------------------------------------------
+
+// A short-flag cluster: `-` preceded by whitespace, then a maximal run of
+// letters that is followed by a non-word char or the end. Equivalent to the
+// old /\s-[a-zA-Z]*X[a-zA-Z]*\b/ family but linear (one start per cluster).
+const FLAG_CLUSTER_RE = /(?<=\s)-([a-zA-Z]+)(?!\w)/g;
+
+/** True when some short-flag cluster in `cmd` contains `letter`. */
+function hasFlagLetter(cmd, letter) {
+  FLAG_CLUSTER_RE.lastIndex = 0;
+  let m;
+  while ((m = FLAG_CLUSTER_RE.exec(cmd)) !== null) {
+    if (m[1].includes(letter)) return true;
+  }
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // Command normalization
 // ---------------------------------------------------------------------------
@@ -110,8 +141,8 @@ function checkDestructiveRm(cmd) {
   // Match rm commands with -rf or -r -f (in any order) targeting root
   if (!/\brm\b/.test(cmd)) return null;
 
-  const hasRecursive = /\s-[a-zA-Z]*r[a-zA-Z]*\b/.test(cmd) || /\s--recursive\b/.test(cmd);
-  const hasForce = /\s-[a-zA-Z]*f[a-zA-Z]*\b/.test(cmd) || /\s--force\b/.test(cmd);
+  const hasRecursive = hasFlagLetter(cmd, 'r') || /\s--recursive\b/.test(cmd);
+  const hasForce = hasFlagLetter(cmd, 'f') || /\s--force\b/.test(cmd);
 
   if (hasRecursive && hasForce) {
     // Check for root path targets
@@ -172,11 +203,14 @@ function checkGitClean(cmd) {
 /**
  * Blocks writes (redirects >, >>) to system directories.
  */
+// A single `>` immediately followed by optional whitespace and the path. An
+// append redirect (`>>`) is still caught, because its last `>` precedes the
+// path. (The old `>+\s*` form was quadratic on a run of `>` chars — G-1799.)
+const SYSTEM_WRITE_PATTERNS = ['/etc/', '/usr/', '/System/', '/Library/']
+  .map(sysPath => [sysPath, new RegExp(`>\\s*${sysPath.replace(/\//g, '\\/')}`)]);
+
 function checkSystemFileWrite(cmd) {
-  const systemPaths = ['/etc/', '/usr/', '/System/', '/Library/'];
-  // Look for redirect operators followed by system paths
-  for (const sysPath of systemPaths) {
-    const pattern = new RegExp(`>+\\s*${sysPath.replace('/', '\\/')}`);
+  for (const [sysPath, pattern] of SYSTEM_WRITE_PATTERNS) {
     if (pattern.test(cmd)) {
       return `Blocked: redirect to system path ${sysPath}`;
     }
@@ -191,7 +225,7 @@ function checkDangerousChmod(cmd) {
   if (!/\bchmod\b/.test(cmd)) return null;
 
   const has777 = /\b777\b/.test(cmd);
-  const hasRecursive = /\s-[a-zA-Z]*R[a-zA-Z]*\b/.test(cmd) || /\s--recursive\b/.test(cmd);
+  const hasRecursive = hasFlagLetter(cmd, 'R') || /\s--recursive\b/.test(cmd);
   const targetsRoot = /\s\/(\s|$)/.test(cmd);
 
   if (has777 && (hasRecursive || targetsRoot)) {
@@ -204,13 +238,27 @@ function checkDangerousChmod(cmd) {
  * Blocks fork bombs: :(){ :|:& };: and common variants.
  */
 function checkForkBomb(cmd) {
-  // Classic bash fork bomb patterns
-  if (/:\(\)\s*\{.*:\|:.*\}/.test(cmd)) {
-    return 'Blocked: fork bomb detected';
+  // Classic bash fork bomb: a colon-name definition, then `:|:`, then `}`.
+  // Linear form of /:\(\)\s*\{.*:\|:.*\}/ — the first definition leaves the
+  // most room for what follows, so testing from its end is equivalent.
+  const colonDef = /:\(\)\s*\{/.exec(cmd);
+  if (colonDef) {
+    const afterDef = colonDef.index + colonDef[0].length;
+    const pipeAt = cmd.indexOf(':|:', afterDef);
+    if (pipeAt !== -1 && cmd.indexOf('}', pipeAt + 3) !== -1) {
+      return 'Blocked: fork bomb detected';
+    }
   }
-  // Function-based variants
-  if (/\w+\(\)\s*\{.*\|\s*\w+\s*&/.test(cmd) && /\}\s*;?\s*\w+/.test(cmd)) {
-    return 'Blocked: possible fork bomb detected';
+  // Function-based variants: a word-name definition followed by `| word &`,
+  // and elsewhere `}`, optional `;`, and a word. Linear form of
+  // /\w+\(\)\s*\{.*\|\s*\w+\s*&/ && /\}\s*;?\s*\w+/ — the lookbehind gives one
+  // start per word instead of one per char.
+  const wordDef = /(?<!\w)\w+\(\)\s*\{/.exec(cmd);
+  if (wordDef) {
+    const rest = cmd.slice(wordDef.index + wordDef[0].length);
+    if (/\|\s*\w+\s*&/.test(rest) && /\}\s*(?:;\s*)?\w/.test(cmd)) {
+      return 'Blocked: possible fork bomb detected';
+    }
   }
   return null;
 }
@@ -265,7 +313,11 @@ function checkExfiltration(cmd) {
   }
 
   // H-3: Detect encoded command execution — base64 decode piped to shell
-  if (/\bbase64\b.*-d\b/.test(cmd) && /\|\s*(sh|bash|zsh)\b/.test(cmd)) {
+  // Linear form of /\bbase64\b.*-d\b/: find the first base64 word, then test
+  // the decode flag on the remainder. The pipe-to-shell test is anchored at |.
+  const b64 = /\bbase64\b/.exec(cmd);
+  if (b64 && /-d\b/.test(cmd.slice(b64.index + b64[0].length)) &&
+      /\|\s*(sh|bash|zsh)\b/.test(cmd)) {
     return 'Blocked: base64-decoded command execution (base64 -d | sh)';
   }
 
@@ -293,11 +345,27 @@ function checkExfiltration(cmd) {
  * is the worm fingerprint. Either signal alone is plausible; together they are
  * effectively never legitimate in agent-driven bash.
  */
+function hasInsecureFetch(cmd) {
+  // Linear form of /\bcurl\b[^|;&]*\s(-[a-zA-Z]*k[a-zA-Z]*|--insecure)\b/ and
+  // the wget twin: split into |;& segments in one pass; within each segment
+  // find the FIRST curl/wget, then test the insecure flag on the remainder.
+  for (const seg of cmd.split(/[|;&]/)) {
+    const curl = /\bcurl\b/.exec(seg);
+    if (curl) {
+      const rest = seg.slice(curl.index + curl[0].length);
+      if (hasFlagLetter(rest, 'k') || /\s--insecure\b/.test(rest)) return true;
+    }
+    const wget = /\bwget\b/.exec(seg);
+    if (wget) {
+      const rest = seg.slice(wget.index + wget[0].length);
+      if (/\s(--no-check-certificate|--no-check-cert)\b/.test(rest)) return true;
+    }
+  }
+  return false;
+}
+
 function checkInsecureBinaryDrop(cmd) {
-  const insecureFetch =
-    /\bcurl\b[^|;&]*\s(-[a-zA-Z]*k[a-zA-Z]*|--insecure)\b/.test(cmd) ||
-    /\bwget\b[^|;&]*\s(--no-check-certificate|--no-check-cert)\b/.test(cmd);
-  if (!insecureFetch) return null;
+  if (!hasInsecureFetch(cmd)) return null;
 
   // -o /tmp/..., > /tmp/..., or curl's default-redirect form curl ... /tmp/...
   const writesToTmp =
@@ -328,6 +396,13 @@ const ALL_CHECKS = [
 ];
 
 function runChecks(command) {
+  // G-1799: fail closed on oversized input before any regex runs.
+  if (command.length > MAX_COMMAND_CHARS) {
+    return `Blocked: command is ${command.length} chars, which exceeds the bash firewall's ` +
+      `${MAX_COMMAND_CHARS}-char limit — the firewall fails closed on input too large to ` +
+      'analyse in time. Split the command, or use the Write tool for large content.';
+  }
+
   const normalized = normalizeCommand(command);
   const subcommands = splitCommands(normalized);
 
@@ -407,6 +482,8 @@ module.exports = {
   checkExfiltration,
   checkInsecureBinaryDrop,
   runChecks,
+  hasFlagLetter,
+  MAX_COMMAND_CHARS,
   PROTECTED_BRANCHES,
   SENSITIVE_FILE_PATTERNS,
 };
