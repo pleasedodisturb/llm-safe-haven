@@ -84,6 +84,30 @@ describe('SECRET_PATTERNS', () => {
   }
 });
 
+// G-1799 linear rewrite of the connection-string pattern must not lose real
+// credential URLs. Would fail if the password class excluded '/' (a common
+// base64-password char) or '@', or if the user part were dropped.
+describe('Connection string pattern after the G-1799 linear rewrite', () => {
+  const entry = SECRET_PATTERNS.find((p) => p.name === 'Connection string with embedded credentials');
+  const HITS = [
+    { label: 'slash-in-password', value: ['postgres://u:', 'abc/def+g==', '@h/db'].join('') },
+    { label: 'at-in-password', value: ['mysql://root:', 'p@ss', '@db/app'].join('') },
+    { label: 'srv-scheme', value: ['mongodb+srv://admin:', 'p4ss', '@cluster0.example.net'].join('') },
+    { label: 'port-after-host', value: ['redis://default:', 'secretpw', '@redis:6379'].join('') },
+  ];
+  const MISSES = [
+    { label: 'no-userinfo', value: 'postgres://host.example.com/db' },
+    { label: 'user-without-password', value: 'https://alice@example.com/x' },
+    { label: 'colon-in-path-then-at', value: 'https://example.com/a:b@c' },
+  ];
+  for (const { label, value } of HITS) {
+    it(`matches: ${label}`, () => assert.ok(entry.pattern.test(value), label));
+  }
+  for (const { label, value } of MISSES) {
+    it(`does not match: ${label}`, () => assert.ok(!entry.pattern.test(value), label));
+  }
+});
+
 // ---------------------------------------------------------------------------
 // isAllowlisted — anchored to path segments below the project root (G-668).
 // These rows replace the pre-G-668 "deliberately broad per M-3" assertions:

@@ -25,8 +25,22 @@ const SECRET_PATTERNS = [
   { pattern: /-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/, name: 'Private Key' },
   { pattern: /(?:api_key|apikey|api_secret|access_token|auth_token|secret_key)\s*[=:]\s*["'][A-Za-z0-9\-_\.]{20,}["']/i, name: 'Generic API Key/Token assignment' },
   { pattern: /(?:password|passwd)\s*[=:]\s*["'][^"'\s]{8,}["']/i, name: 'Hardcoded password' },
-  { pattern: /:\/\/[^:]+:[^@\s]+@[^/\s]+/, name: 'Connection string with embedded credentials' },
+  // G-1799: linear form. The user part excludes whitespace, ':' and '/', so
+  // it ends at the ':' that must follow it and each '://' start scans at most
+  // to the next '/' or ':'. The password part is bounded ({1,256}) and
+  // excludes '@', so it never competes with the '@' after it. (The old
+  // `[^:]+:[^@\s]+` form was quadratic on a repeated '://a:' run: a
+  // 200,000-char line outlived Claude Code's hook timeout.) Passwords that
+  // contain a raw '/' are still caught; the only shapes the old form matched
+  // and this one does not have whitespace or '/' in the user part, or a
+  // password over 256 chars.
+  { pattern: /:\/\/[^\s:/]+:[^\s@]{1,256}@[^/\s]+/, name: 'Connection string with embedded credentials' },
 ];
+
+// G-1799: content above this size is blocked (fail closed) instead of being
+// scanned. A hook killed by Claude Code's per-hook timeout renders no decision
+// and the Write proceeds, so the scan must always finish well inside it.
+const MAX_CONTENT_CHARS = 1000000;
 
 // M-3: Security note — test directories and fixtures are excluded from scanning to
 // avoid false positives on test data. This means real secrets accidentally placed in
@@ -128,6 +142,13 @@ function checkForSecrets(toolName, toolInput) {
   // Skip allowlisted paths
   if (isAllowlisted(filePath)) return null;
 
+  // G-1799: fail closed on content too large to scan in time.
+  if (content.length > MAX_CONTENT_CHARS) {
+    return `Blocked: content for ${filePath || 'unknown file'} is ${content.length} chars, which exceeds ` +
+      `secret guard's ${MAX_CONTENT_CHARS}-char limit — the guard fails closed on content too large ` +
+      'to scan in time. Write the file in smaller parts.';
+  }
+
   const findings = scanContent(content);
   if (findings.length === 0) return null;
 
@@ -182,6 +203,7 @@ if (require.main === module) {
 
 module.exports = {
   SECRET_PATTERNS,
+  MAX_CONTENT_CHARS,
   ALLOWLISTED_PATHS,
   isAllowlisted,
   scanContent,
