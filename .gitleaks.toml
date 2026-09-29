@@ -1,0 +1,23 @@
+# gitleaks config for this repo: the default ruleset, plus ONE narrow allowlist.
+#
+# hooks/checksums.json holds the SHA256 digests of the shipped hook files
+# (scripts/generate-checksums.js; verified by tests/integrity.test.js). A hex
+# digest has enough entropy that the default generic-api-key rule fires on it
+# for some hook bytes (first seen in quick task 260928-ojp, G-1799).
+#
+# The allowlist matches the WHOLE LINE, and only a line of exactly this shape:
+#     "<lowercase-name>.js": "<64 lowercase hex chars>",
+# That is one checksums.json entry. A path allowlist was tried first and
+# rejected: gitleaks 8.30 skipped the whole file even with condition = "AND",
+# so an AWS or Slack token planted in checksums.json went undetected. With
+# this line form, those tokens are still reported, and so is the same digest
+# under any other key shape. Every other line of every file keeps the full
+# default ruleset.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "hooks/checksums.json SHA256 entry lines are hook-integrity hashes, not secrets"
+regexTarget = "line"
+regexes = ['''^\s*"[a-z][a-z0-9-]*\.js": "[0-9a-f]{64}",?\s*$''']
