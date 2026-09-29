@@ -879,21 +879,31 @@ const F1B_BLOCK_ROWS = [
   ['perl-M', words('perl', '-Mstrict')],
   ['ruby-I', words('ruby', '-I', 'lib')],
   ['python3-bare-word', words('python3', 'unknownscript')],
+  // Option letters mean different things per interpreter: python -E is not inline
+  // code, -Wonce is a warning filter, and a --require value is not the program.
+  ['python3-E', words('python3', '-E')],
+  ['python3-W-attached', words('python3', '-Wonce')],
+  ['node-require-script-value', words('node', '--require', './preload.js')],
+  ['perl-n-no-code', words('perl', '-n')],
+  ['ruby-E-encoding', words('ruby', '-E', 'utf-8')],
 ].map(([label, consumer]) => row(`f1b:${label}`, words(FETCH, '|', consumer), BLOCK));
 const F1B_ALLOW_ROWS = [
   row('f1b:twin-python-script', words('cat', 'data.txt', '|', 'python3', '-W', 'ignore', 'tool.py'), ALLOW),
   row('f1b:twin-node-script', words('cat', 'data.txt', '|', 'node', 'app.js', '--verbose'), ALLOW),
   row('f1b:twin-python-module', words('cat', 'data.json', '|', 'python3', '-m', 'json.tool'), ALLOW),
   row('f1b:twin-perl-inline', words('cat', 'data.txt', '|', 'perl', '-ne', "'print'"), ALLOW),
+  row('f1b:twin-python-cluster-c', words('cat', 'data.txt', '|', 'python3', '-Bc', "'print(1)'"), ALLOW),
+  row('f1b:twin-node-eval', words('cat', 'data.txt', '|', 'node', '-e', "'1'"), ALLOW),
+  row('f1b:twin-php-r', words('cat', 'data.txt', '|', 'php', '-r', "'echo 1;'"), ALLOW),
 ];
 
 describe('G-1787 review-push F1b — interpreter option values are not script operands', () => {
   it('blocks a download piped into an interpreter whose only operands are option values', () => {
-    assert.ok(F1B_BLOCK_ROWS.length >= 6, `only ${F1B_BLOCK_ROWS.length} F1b block rows`);
+    assert.ok(F1B_BLOCK_ROWS.length >= 11, `only ${F1B_BLOCK_ROWS.length} F1b block rows`);
     assertVerdicts(F1B_BLOCK_ROWS, 'F1b block mismatches');
   });
   it('allows interpreters given a script file, a module or inline code', () => {
-    assert.ok(F1B_ALLOW_ROWS.length >= 4, `only ${F1B_ALLOW_ROWS.length} F1b allow rows`);
+    assert.ok(F1B_ALLOW_ROWS.length >= 7, `only ${F1B_ALLOW_ROWS.length} F1b allow rows`);
     assertVerdicts(F1B_ALLOW_ROWS, 'F1b allow mismatches');
   });
 });
