@@ -34,7 +34,7 @@ macOS activates Apple Seatbelt (on by default); Linux activates bubblewrap — i
 npx llm-safe-haven install
 ```
 
-Registers `~/.claude/hooks/bash-firewall.js` as a `PreToolUse` hook for `Bash`. It blocks `curl … | bash`, `eval` of network-fetched content, writes to `~/.ssh/authorized_keys`, `rm -rf /` and similar, and base64 payloads piped to `bash -c`.
+Registers `~/.claude/hooks/bash-firewall.js` as a `PreToolUse` hook for `Bash`. It blocks `rm -rf /` and recursive force-deletes of your home and user directories, a base64 decode piped to `sh`/`bash`/`zsh`, `curl`/`wget`/`nc` in a command that names a sensitive file (`.env`, `id_rsa`, `*.pem`, …), force-push to protected branches, `git reset --hard`, `git clean -f`, redirects into system directories, fork bombs and disk wipers. It does **not** yet block a download piped to a shell, `eval` of fetched content, or writes to `~/.ssh/authorized_keys`, and it does not unwrap commands nested in `bash -c`, `eval` or command substitution. The deny rules in step 3 cover the download case. The full list is in the hooks README's [Known limitations](https://github.com/pleasedodisturb/llm-safe-haven/blob/main/hooks/README.md#known-limitations).
 
 The hook takes no command-line flags — it reads a JSON tool-call event from stdin and writes a JSON decision to stdout. Test it by piping in a command it should block:
 
@@ -50,6 +50,8 @@ export PROTECTED_BRANCHES="main,master,production,staging"
 ```
 
 Full interface — syntax check, exports probe, and every other customization point: [`hooks/README.md`](https://github.com/pleasedodisturb/llm-safe-haven/blob/main/hooks/README.md#testing).
+
+The same install registers `secret-guard.js` for `Write|Edit|MultiEdit`. It blocks file content that contains a secret-shaped string, and it scans every path except the ones it allowlists as test data. That allowlist is anchored to the project root Claude Code passes in `CLAUDE_PROJECT_DIR`. A file is skipped only if it is inside that root and a directory below the root is named exactly `test`, `tests`, `__tests__`, `fixtures`, `__fixtures__`, `mocks` or `__mocks__` (or the file is a template such as `.env.example`, or a `*.test.*`/`*.spec.*` file). A `tests/` directory anywhere else on disk does not count. With no project root set, nothing is allowlisted. `CLAUDE.md` and `README.md` are scanned by default, because a secret saved there becomes context for every later session. To opt out for those two names only, set `LSH_SECRET_GUARD_ALLOW_DOCS=1` (exactly `1`). Content over 1,000,000 chars is blocked without being scanned. Details: [hooks README](https://github.com/pleasedodisturb/llm-safe-haven/blob/main/hooks/README.md#secret-guardjs-pretooluse--writeeditmultiedit).
 
 ### 3. Configure permission allowlists
 
@@ -131,7 +133,7 @@ Otherwise review `.claude/settings.json` before opening. Update to v2.1.84+ — 
 npx llm-safe-haven audit   # sandbox on? hook SHA256s match? settings wired? hook integrity?
 ```
 
-Add a `PostToolUse` hook (catch-all matcher) that logs tool metadata to a file for post-session review — Write, Edit, MultiEdit, and Bash inputs are excluded from logging to avoid capturing secrets; the bash firewall already logs blocked commands to stderr.
+Add a `PostToolUse` hook (catch-all matcher) that logs tool metadata to a file for post-session review — Write, Edit, MultiEdit, and Bash inputs are excluded from logging to avoid capturing secrets. A call blocked by a PreToolUse hook never reaches a PostToolUse logger; the block reason is shown in the session, and the bash firewall does not log it anywhere else.
 
 ## Quick reference: minimum viable hardening
 
@@ -141,7 +143,7 @@ If you do nothing else:
 2. `npx llm-safe-haven install` (bash firewall)
 3. `"deny": ["Bash(curl:*)", "WebFetch"]` in permissions
 
-Process isolation stops lateral movement, the firewall blocks piped execution, the denylist stops direct exfiltration.
+Process isolation stops lateral movement. The firewall blocks destructive commands, sensitive-file uploads and base64-decoded content piped to a shell. The denylist stops direct `curl` use, which covers a download piped to a shell too (the firewall does not block that yet).
 
 ## More
 

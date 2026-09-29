@@ -560,7 +560,7 @@ Running 5+ Claude Code tabs and cloud agents simultaneously creates credential s
 
 1. **Pre-cache at shell init** — `~/.zshrc` resolves all secrets from your credential manager once. Every tab inherits them.
 2. **Per-project manifests** — each project declares which secrets it needs. You mentally track that only 3 of your 12 secrets are relevant to the current project.
-3. **Hook defenses** — bash-firewall and secret-guard hooks run in every session, blocking exfiltration regardless of which tab is compromised.
+3. **Hook defenses**: the bash-firewall and secret-guard hooks run in every session and block the exfiltration patterns listed in [hooks/README.md](../hooks/README.md), whichever tab is compromised. They do not block everything (see that file's Known limitations).
 4. **Periodic audit** — review the per-day logs under `~/.claude/audit/` — or under `CLAUDE_AUDIT_DIR`, if you set it — (e.g. `~/.claude/audit/YYYY-MM-DD.jsonl`) weekly with `cat ~/.claude/audit/*.jsonl | jq`. Look for sessions accessing secrets they shouldn't need.
 
 This is imperfect — env vars are still readable — but it's the pragmatic state of the art for solo devs in April 2026.
@@ -615,8 +615,8 @@ This is still env vars (still readable by agents), but it eliminates `.env` file
 
 Install hooks that intercept dangerous commands before the agent runs them:
 
-- **bash-firewall:** Blocks `printenv`, `env`, `echo $SECRET` patterns
-- **secret-guard:** Blocks writes to files or network that contain secret-shaped strings
+- **bash-firewall:** Does **not** block environment dumps: `printenv`, `env` and `echo $SECRET` all pass, and an agent can read every exported variable. For credentials, it blocks `curl`/`wget`/`nc`/`ncat`/`netcat` commands that name a sensitive file (`.env`, `id_rsa`, `id_ed25519`, `*.pem`, `*.key`, `credentials.json`, `.secret`/`.secrets`, `secret_key.*`), `python -c`/`node -e` inline scripts that name one, and a base64 decode piped to a shell.
+- **secret-guard:** Blocks Write/Edit/MultiEdit content that contains a secret-shaped string. It does not inspect network traffic or Bash commands.
 
 Add secret scanning to your workflow:
 
