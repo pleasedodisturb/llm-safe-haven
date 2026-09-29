@@ -11,7 +11,7 @@ const path = require('node:path');
 
 const { runChecks } = require('../hooks/bash-firewall.js');
 const { BLOCKED_SEEDS, ALLOWED_SEEDS } = require('./fixtures/firewall-corpus.js');
-const { TRANSFORMS, nestShellC, singleQuote } = require('./helpers/shell-transforms.js');
+const { TRANSFORMS, nestShellC, singleQuote, spliceCommandWord } = require('./helpers/shell-transforms.js');
 const { runFirewall, HOOKS_DIR } = require('./helpers/hook-runner.js');
 
 const join = (...parts) => parts.join('');
@@ -65,6 +65,17 @@ const P1_ROWS = BLOCKED_SEEDS.flatMap((seed, seedIndex) =>
 const P2_ROWS = ALLOWED_SEEDS.flatMap((seed, seedIndex) =>
   TRANSFORMS.map(({ id, transform }) =>
     row(`${id} × seed:allowed-${seedIndex}`, transform(seed), ALLOW)
+  )
+);
+
+const HASH_GLUED_TRANSFORMS = TRANSFORMS.filter(({ id }) => id.startsWith('wrap:hash-glued:'));
+const QUOTE_SPLICE_KINDS = ['single', 'double'];
+const HASH_GLUED_SPLICE_ROWS = BLOCKED_SEEDS.flatMap((seed, seedIndex) =>
+  HASH_GLUED_TRANSFORMS.flatMap(({ id, transform }) =>
+    QUOTE_SPLICE_KINDS.map((kind) =>
+      row(`${id} × splice:${kind} × seed:blocked-${seedIndex}`,
+        transform(spliceCommandWord(seed, kind)), BLOCK)
+    )
   )
 );
 
@@ -369,6 +380,49 @@ const DYNAMIC_EVAL_ROWS = [
 ];
 const LITERAL_EVAL_ROW = row('dynamic:twin-literal', words(join('ev', 'al'), singleQuote('npm test')), ALLOW);
 
+const REVIEW_QUOTE_SPLICED_DELETE = words(join('r', "''", 'm'), join('-', 'r', 'f'), '/');
+const REVIEW_SHELL_DELETE = words('sh', '-c', singleQuote(REVIEW_QUOTE_SPLICED_DELETE));
+const REVIEW_BYPASS_ROWS = [
+  row('bypass:ifs-splits-protected-delete-target',
+    join(join('r', 'm'), ' -rf${', 'IFS', '}/'), BLOCK),
+  row('bypass:xargs-appends-protected-delete-target',
+    words('printf', "'%s\\n'", "'/'", '|', 'xargs', join('r', 'm'), '-rf'), BLOCK),
+  row('bypass:xargs-placeholder-replaces-shell-script',
+    words('printf', "'%s\\n'", `"${REVIEW_QUOTE_SPLICED_DELETE}"`, '|',
+      'xargs', '-I{}', 'sh', '-c', "'{}'"), BLOCK),
+  row('bypass:inline-bash-alias-expands-blocked-seed',
+    words('bash', '-c', singleQuote(
+      `shopt -s expand_aliases\nalias wipe="${REVIEW_QUOTE_SPLICED_DELETE}"\nwipe`
+    )), BLOCK),
+  row('bypass:inline-zsh-alias-expands-blocked-seed',
+    words('zsh', '-c', singleQuote(
+      `alias wipe="${REVIEW_QUOTE_SPLICED_DELETE}"\nwipe`
+    )), BLOCK),
+  row('bypass:find-exec-shell-script',
+    words('find', '/tmp', '-maxdepth', '0', '-exec', 'sh', '-c',
+      singleQuote(REVIEW_QUOTE_SPLICED_DELETE), "';'"), BLOCK),
+  row('bypass:env-long-split-string-equals',
+    words('env', `--split-string=${singleQuote(`sh -c "${REVIEW_QUOTE_SPLICED_DELETE}"`)}`), BLOCK),
+  row('bypass:busybox-shell-applet', words('busybox', REVIEW_SHELL_DELETE), BLOCK),
+  row('bypass:sudo-long-option-value-before-shell',
+    words('sudo', '--user', 'root', REVIEW_SHELL_DELETE), BLOCK),
+  row('bypass:shell-reads-literal-here-string',
+    words('bash', '<<<', singleQuote(REVIEW_QUOTE_SPLICED_DELETE)), BLOCK),
+  row('bypass:shell-reads-literal-printf-pipeline',
+    words('printf', "'%s\\n'", `"${REVIEW_QUOTE_SPLICED_DELETE}"`, '|', 'bash'), BLOCK),
+  row('bypass:timeout-exponential-duration-before-shell',
+    words('timeout', '1e3s', REVIEW_SHELL_DELETE), BLOCK),
+  row('bypass:time-posix-flag-before-shell',
+    words('time', '-p', REVIEW_SHELL_DELETE), BLOCK),
+];
+
+const REVIEW_FALSE_POSITIVE_ROWS = [
+  row('false-positive:curl-authorization-header-substitution',
+    join('curl -H "Authorization: Bearer $(', 'cat token', ')" https://example.net'), ALLOW),
+  row('false-positive:curl-output-path-substitution',
+    join('curl -o "$(', 'mktemp', ')" https://example.net'), ALLOW),
+];
+
 describe('G-1787 §2 wrapper transforms', () => {
   // Fails if the seed refactor loses required coverage.
   it('keeps both seed corpora non-vacuous', () => {
@@ -387,6 +441,17 @@ describe('G-1787 §2 wrapper transforms', () => {
   it('P1: wrapped blocked seeds stay blocked', () => {
     assert.ok(P1_ROWS.length >= BLOCKED_SEEDS.length * 40, `only ${P1_ROWS.length} P1 cases`);
     assertVerdicts(P1_ROWS, 'wrapped blocked-seed mismatches');
+  });
+
+  // Fails if word-glued # is treated as starting a comment: quote-splicing
+  // removes the legacy regex match, so only the lexer can expose the seed.
+  it('P1: hash-glued quote-spliced blocked seeds stay blocked', () => {
+    const minimum = BLOCKED_SEEDS.length * 6 * QUOTE_SPLICE_KINDS.length;
+    assert.ok(HASH_GLUED_TRANSFORMS.length >= 6,
+      `only ${HASH_GLUED_TRANSFORMS.length} hash-glued transforms`);
+    assert.ok(HASH_GLUED_SPLICE_ROWS.length >= minimum,
+      `only ${HASH_GLUED_SPLICE_ROWS.length} hash-glued quote-splice cases`);
+    assertVerdicts(HASH_GLUED_SPLICE_ROWS, 'hash-glued quote-spliced blocked-seed mismatches');
   });
 
   // Fails if a wrapper implementation becomes an overbroad block-everything rule.
@@ -703,5 +768,61 @@ describe('G-1787 §5 non-functional guarantees', () => {
     const rows = [...SECTION3_BLOCK_ROWS, ...SECTION3_ALLOW_ROWS];
     assert.ok(rows.length >= 1000, `only ${rows.length} §3 determinism cases`);
     assertStable(rows, 'unstable §3 verdicts');
+  });
+});
+
+describe('G-1787 review round 1 — bypasses', () => {
+  // Each row executes a quote-spliced blocked seed or constructs its protected
+  // target at runtime. All rows fail until the corresponding grammar path is
+  // analysed or rejected fail-closed.
+  it('blocks newly found shell-grammar bypass rows', () => {
+    assert.ok(REVIEW_BYPASS_ROWS.length >= 13,
+      `only ${REVIEW_BYPASS_ROWS.length} review bypass cases`);
+    assertVerdicts(REVIEW_BYPASS_ROWS, 'review-round bypass mismatches');
+  });
+});
+
+describe('G-1787 review round 1 — false positives', () => {
+  // These substitutions occupy curl option values, not a hostname or URL
+  // argument. They fail while checkHostnameSubstitution treats every dynamic
+  // non-flag curl argument as a network destination.
+  it('allows substitutions in non-host curl option values', () => {
+    assert.ok(REVIEW_FALSE_POSITIVE_ROWS.length >= 2,
+      `only ${REVIEW_FALSE_POSITIVE_ROWS.length} review false-positive cases`);
+    assertVerdicts(REVIEW_FALSE_POSITIVE_ROWS, 'review-round false-positive mismatches');
+  });
+});
+
+describe('G-1787 review round 1 — performance', () => {
+  // Repeated interpreter stages make checkPipeline rescan every preceding
+  // stage. This row is far below the 100k input cap but currently exceeds the
+  // 200 ms review threshold by a wide margin.
+  it('keeps a many-interpreter pipeline below 200 ms', () => {
+    const command = join('sh|'.repeat(10000), 'sh');
+    assert.equal(command.length, 30002);
+    const started = process.hrtime.bigint();
+    runChecks(command);
+    const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+    assert.ok(elapsedMs < 200,
+      `latency:many-interpreter-stages took ${elapsedMs.toFixed(1)} ms for ${command.length} chars`);
+  });
+});
+
+describe('G-1787 review round 1 — code defects', () => {
+  // runChecks is exported as the unit-test/API boundary. Invalid JSON command
+  // values must fail closed without throwing through that boundary.
+  it('fails closed without throwing on non-string command values', () => {
+    const inputs = [null, undefined, 7, {}, []];
+    assert.ok(inputs.length >= 5, `only ${inputs.length} invalid-input cases`);
+    const failures = [];
+    for (const input of inputs) {
+      try {
+        const reason = runChecks(input);
+        if (!reason) failures.push(`${String(input)}: allowed`);
+      } catch (error) {
+        failures.push(`${String(input)}: threw ${error.name}: ${error.message}`);
+      }
+    }
+    assert.deepEqual(failures, [], `runChecks invalid-input failures\n${failures.join('\n')}`);
   });
 });
