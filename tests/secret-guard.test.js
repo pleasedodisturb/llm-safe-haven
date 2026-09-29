@@ -20,6 +20,7 @@ const {
   ALLOWLISTED_PATHS,
   TEST_DIR_SEGMENTS,
   DOC_BASENAMES,
+  MAX_CONTENT_CHARS,
   resolveProjectRoot,
   isAllowlisted,
   scanContent,
@@ -414,4 +415,90 @@ describe('G-668 PoC shapes through the real hook', () => {
     const res = runHook('secret-guard.js', write('/repo/src/app.js', secretLine()), { env: env({ CLAUDE_PROJECT_DIR: '/repo' }) });
     assert.equal(res.decision, 'block', `control: decision ${res.decision}`);
   });
+});
+
+// ---------------------------------------------------------------------------
+// G-1799 secret-guard cap and linear time (quick task 260928-ojp)
+//
+// A hook killed by Claude Code's per-hook timeout (the installer sets 5 s)
+// renders no decision and the Write proceeds, so a slow regex is a bypass.
+// Would fail if: content over MAX_CONTENT_CHARS were scanned or allowed
+// instead of blocked; the cap were applied as a prefix-only scan (a secret at
+// the far end of a large under-cap file must still be found); or any SECRET_PATTERNS
+// entry were super-linear on a one-line adversarial run (the spawned hook
+// must render a decision in under 1000 ms, and a SIGKILL at 4500 ms reads as
+// 'error', never 'allow').
+// ---------------------------------------------------------------------------
+describe('G-1799 secret-guard cap and linear time', () => {
+  const CAP = 1000000;
+  const ENV = { CLAUDE_PROJECT_DIR: '/repo' };
+  const FILE = '/repo/src/data.txt';
+  const hookEnv = () => ({ ...defaultEnv(), ...ENV });
+  const fill = (unit, len) => unit.repeat(Math.ceil(len / unit.length)).slice(0, len);
+  const cleanContent = (len) => fill('const value = 42;\n', len);
+
+  it('exports MAX_CONTENT_CHARS equal to 1000000', () => {
+    assert.equal(MAX_CONTENT_CHARS, CAP);
+  });
+
+  it('blocks clean content of CAP+1 chars (checkForSecrets and the real hook)', () => {
+    const content = cleanContent(CAP + 1);
+    const reason = checkForSecrets('Write', { file_path: FILE, content }, ENV);
+    assert.ok(reason, 'over-cap content must be blocked by checkForSecrets');
+    assert.match(reason, /too large|exceeds/);
+    const res = runHook('secret-guard.js', { tool_name: 'Write', tool_input: { file_path: FILE, content } }, { env: hookEnv() });
+    assert.equal(res.decision, 'block', `over-cap: real hook decision ${res.decision}`);
+    assert.match(res.reason, /too large|exceeds/);
+  });
+
+  it('blocks over-cap Edit and MultiEdit content', () => {
+    const big = cleanContent(CAP + 1);
+    assert.ok(checkForSecrets('Edit', { file_path: FILE, new_string: big }, ENV), 'Edit over cap');
+    const half = cleanContent(CAP / 2 + 1);
+    assert.ok(checkForSecrets('MultiEdit', { file_path: FILE, edits: [{ new_string: half }, { new_string: half }] }, ENV), 'MultiEdit combined over cap');
+  });
+
+  it('twin: clean content of exactly CAP chars is scanned and allowed', () => {
+    assert.equal(checkForSecrets('Write', { file_path: FILE, content: cleanContent(CAP) }, ENV), null);
+  });
+
+  it('twin: clean 500,000-char content is allowed', () => {
+    assert.equal(checkForSecrets('Write', { file_path: FILE, content: cleanContent(500000) }, ENV), null);
+  });
+
+  it('finds a secret on the last line of a 900,000-char file (no prefix-only scan)', () => {
+    const body = cleanContent(900000);
+    const lastLine = body.split('\n').length;
+    const reason = checkForSecrets('Write', { file_path: FILE, content: body + secretLine() }, ENV);
+    assert.ok(reason, 'far-end secret must be reported');
+    assert.match(reason, new RegExp(`AWS Access Key ID \\(line ${lastLine}\\)`));
+  });
+
+  const LEN = 200000;
+  const TIMING_GENERATORS = [
+    { label: 'conn-string-fragment-repeat', build: () => fill(['://', 'a:'].join(''), LEN) },
+    { label: 'colon-run', build: () => fill(':', LEN) },
+    { label: 'scheme-then-word-run', build: () => 'postgres://' + fill('a', LEN) },
+    { label: 'scheme-then-userinfo-run', build: () => 'postgres://' + fill('a', LEN / 2) + ':' + fill('b', LEN / 2) },
+    { label: 'api-key-assignment-prefix-repeat', build: () => fill(['api', '_key = "'].join(''), LEN) },
+    { label: 'password-assignment-prefix-repeat', build: () => fill(['pass', 'word = "'].join(''), LEN) },
+    { label: 'private-key-header-fragment-repeat', build: () => fill(['-----BEGIN', ' '].join(''), LEN) },
+    { label: 'sk-prefix-repeat', build: () => fill(['s', 'k-'].join(''), LEN) },
+    { label: 'ghp-prefix-repeat', build: () => fill(['gh', 'p_'].join(''), LEN) },
+    { label: 'conn-string-fragment-repeat-at-cap-16', build: () => fill(['://', 'a:'].join(''), CAP - 16) },
+  ];
+
+  it('has at least 9 timing generators (non-vacuity)', () => {
+    assert.ok(TIMING_GENERATORS.length >= 9, `only ${TIMING_GENERATORS.length} generators`);
+  });
+
+  for (const { label, build } of TIMING_GENERATORS) {
+    it(`timing: ${label} finishes in the real hook under 1000 ms`, () => {
+      const content = build();
+      const res = runHook('secret-guard.js', { tool_name: 'Write', tool_input: { file_path: FILE, content } }, { timeoutMs: 4500, env: hookEnv() });
+      const ms = Math.round(res.elapsedMs);
+      assert.notEqual(res.decision, 'error', `${label}: hook ${res.signal ? `killed by ${res.signal}` : 'errored'} after ${ms} ms`);
+      assert.ok(res.elapsedMs < 1000, `${label}: ${ms} ms`);
+    });
+  }
 });
