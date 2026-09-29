@@ -843,6 +843,11 @@ const F1_BLOCK_ROWS = [
     row(`f1:curl-stdout:${form} × ${consumer}`, words(producer, '|', consumer), BLOCK))),
   ...STDIN_INTERPRETERS.map((consumer) =>
     row(`f1:unknown-pipe × ${consumer}`, words('cat', 'payload.txt', '|', consumer), BLOCK)),
+  // No pipe here, so only producer detection of `curl -o -` can catch these.
+  ...STDOUT_CURL_FORMS.flatMap(([form, producer]) => [
+    row(`f1:curl-stdout-substitution:${form} × python3 -c`, words('python3', '-c', join('"$(', producer, ')"')), BLOCK),
+    row(`f1:curl-stdout-substitution:${form} × node -e`, words('node', '-e', join('"$(', producer, ')"')), BLOCK),
+  ]),
 ];
 const F1_ALLOW_ROWS = [
   row('f1:twin-curl-output-file', words(join('cu', 'rl'), '-o', 'out.bin', URL), ALLOW),
@@ -853,7 +858,7 @@ const F1_ALLOW_ROWS = [
 
 describe('G-1787 review-push F1 — curl stdout and unknown pipes into interpreters', () => {
   it('blocks stdout-directed curl and unknown pipes feeding an interpreter stdin', () => {
-    assert.ok(F1_BLOCK_ROWS.length >= 36, `only ${F1_BLOCK_ROWS.length} F1 block rows`);
+    assert.ok(F1_BLOCK_ROWS.length >= 46, `only ${F1_BLOCK_ROWS.length} F1 block rows`);
     assertVerdicts(F1_BLOCK_ROWS, 'F1 block mismatches');
   });
   it('allows curl output files and interpreters given a script or module', () => {

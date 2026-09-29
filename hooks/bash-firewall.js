@@ -894,10 +894,23 @@ function isContentProducer(name, args, redirects) {
     case 'openssl':
       return texts.some((t) => t === 'base64' || t === 'enc' || t === '-base64' || t === '-a') &&
         (texts.includes('-d') || cluster('d'));
-    case 'curl':
-      return !toFile && !texts.some((t) =>
-        (!t.startsWith('--') && /^-[A-Za-z]*[oO]/.test(t)) ||
-        t === '--output' || t.startsWith('--output=') || t === '--remote-name' || t === '--remote-name-all');
+    case 'curl': {
+      if (toFile) return false;
+      // -o/--output only diverts the body when its value is not '-' (stdout).
+      for (let k = 0; k < texts.length; k++) {
+        const t = texts[k];
+        if (t === '--remote-name' || t === '--remote-name-all' || (!t.startsWith('--') && /^-[A-Za-z]*O/.test(t))) return false;
+        if (t === '--output') { if (texts[k + 1] !== '-') return false; k++; continue; }
+        if (t.startsWith('--output=')) { if (t !== '--output=-') return false; continue; }
+        if (!t.startsWith('--') && /^-[A-Za-z]*o/.test(t)) {
+          const attached = t.slice(t.indexOf('o') + 1);
+          const value = attached || texts[k + 1];
+          if (value !== '-') return false;
+          if (!attached) k++;
+        }
+      }
+      return true;
+    }
     case 'wget':
       return texts.some((t, k) => /^-[A-Za-z]*O-$/.test(t) || t === '--output-document=-' ||
         (/^-[A-Za-z]*O$/.test(t) && texts[k + 1] === '-'));
@@ -1050,9 +1063,9 @@ function checkPipeline(stages, depth, state) {
       'the code that would run cannot be inspected before it runs';
     const readsStdin = j > 0 && interpreterReadsStdin(res.name, res.args);
     if (readsStdin && earlierProducer) return reason;
-    if (readsStdin && SHELLS.has(res.name)) {
+    if (readsStdin) {
       const prev = stages[j - 1];
-      if (prev.res.name === 'echo' || prev.res.name === 'printf') {
+      if (SHELLS.has(res.name) && (prev.res.name === 'echo' || prev.res.name === 'printf')) {
         if (prev.res.args.some((w) => w.dynamic)) return dynamicReason(`${prev.res.name} piped into ${res.name}`);
         const piped = analyzeShell(literalOutput(prev.res.name, prev.res.args), depth + 1, state);
         if (piped) return piped;
