@@ -8,6 +8,8 @@
 
 'use strict';
 
+const path = require('path');
+
 const SECRET_PATTERNS = [
   { pattern: /\bAKIA[0-9A-Z]{16}\b/, name: 'AWS Access Key ID' },
   { pattern: /\bghp_[A-Za-z0-9_]{20,}\b/, name: 'GitHub Personal Access Token' },
@@ -42,24 +44,35 @@ const SECRET_PATTERNS = [
 // and the Write proceeds, so the scan must always finish well inside it.
 const MAX_CONTENT_CHARS = 1000000;
 
-// M-3: Security note — test directories and fixtures are excluded from scanning to
-// avoid false positives on test data. This means real secrets accidentally placed in
-// test files will NOT be caught. Users should enforce secret hygiene in test code via
-// separate linting or pre-commit hooks (e.g., gitleaks, trufflehog).
+// G-668: the allowlist is anchored to the project root. A path is exempt from
+// scanning only when it lies inside CLAUDE_PROJECT_DIR (set by Claude Code in
+// the hook's environment, never by the agent's own tool calls) AND either
+//   - a DIRECTORY segment of its root-relative path equals one of
+//     TEST_DIR_SEGMENTS exactly (so latest/, contests/ or /tmp/tests/ do not
+//     count, and neither does a tests segment in the root's own path), or
+//   - its basename matches ALLOWLISTED_PATHS (template env files, *.test.*,
+//     *.spec.*, and this repo's own hook sources).
+// With no absolute project root, nothing is allowlisted (fail closed).
+// CLAUDE.md and README.md are scanned unless LSH_SECRET_GUARD_ALLOW_DOCS is
+// exactly '1'. Symlinks are not resolved: a symlinked tests/ dir inside the
+// root is trusted by its name.
+//
+// M-3: Security note — allowlisted test files are NOT scanned, so a real
+// secret placed in in-root test code is not caught here. Enforce secret
+// hygiene in test code with a pre-commit scanner (e.g., gitleaks, trufflehog).
+const TEST_DIR_SEGMENTS = ['test', 'tests', '__tests__', 'fixtures', '__fixtures__', 'mocks', '__mocks__'];
+
+const DOC_BASENAMES = ['CLAUDE.md', 'README.md'];
+
+// Tested against the BASENAME only, and only for paths inside the project root.
 const ALLOWLISTED_PATHS = [
   /\.env\.example$/,
   /\.env\.template$/,
   /\.env\.sample$/,
-  /CLAUDE\.md$/,
-  /README\.md$/,
   /\.test\.[jt]sx?$/,
   /\.spec\.[jt]sx?$/,
-  /tests?\//,
-  /__tests__\//,
-  /fixtures?\//,
-  /mocks?\//,
-  /secret-guard\.js$/,
-  /bash-firewall\.js$/,
+  /^secret-guard\.js$/,
+  /^bash-firewall\.js$/,
 ];
 
 // ---------------------------------------------------------------------------
@@ -67,11 +80,31 @@ const ALLOWLISTED_PATHS = [
 // ---------------------------------------------------------------------------
 
 /**
- * Returns true if the given file path is in the allowlist.
+ * The project root from the hook environment: an absolute, non-empty
+ * CLAUDE_PROJECT_DIR (normalised), otherwise null.
  */
-function isAllowlisted(filePath) {
-  if (!filePath) return false;
-  return ALLOWLISTED_PATHS.some((re) => re.test(filePath));
+function resolveProjectRoot(env) {
+  const raw = env && typeof env.CLAUDE_PROJECT_DIR === 'string' ? env.CLAUDE_PROJECT_DIR : '';
+  if (!raw || !path.isAbsolute(raw)) return null;
+  return path.resolve(raw);
+}
+
+/**
+ * Returns true if filePath is allowlisted relative to projectRoot (G-668).
+ * Missing or relative root, a path outside the root, or the root itself: false.
+ */
+function isAllowlisted(filePath, projectRoot) {
+  if (!filePath || typeof filePath !== 'string') return false;
+  if (!projectRoot || typeof projectRoot !== 'string' || !path.isAbsolute(projectRoot)) return false;
+
+  const root = path.resolve(projectRoot);
+  const rel = path.relative(root, path.resolve(root, filePath));
+  if (!rel || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) return false;
+
+  const segments = rel.split(path.sep);
+  const basename = segments.pop();
+  if (segments.some((seg) => TEST_DIR_SEGMENTS.includes(seg))) return true;
+  return ALLOWLISTED_PATHS.some((re) => re.test(basename));
 }
 
 /**
@@ -133,14 +166,20 @@ function extractFromToolInput(toolName, toolInput) {
 // Main
 // ---------------------------------------------------------------------------
 
-function checkForSecrets(toolName, toolInput) {
+function checkForSecrets(toolName, toolInput, env = process.env) {
   const extracted = extractFromToolInput(toolName, toolInput);
   if (!extracted) return null;
 
   const { content, filePath } = extracted;
+  const hookEnv = env || {};
 
-  // Skip allowlisted paths
-  if (isAllowlisted(filePath)) return null;
+  // G-668: CLAUDE.md / README.md only with the explicit opt-in (exactly '1').
+  if (hookEnv.LSH_SECRET_GUARD_ALLOW_DOCS === '1' && DOC_BASENAMES.includes(path.basename(filePath))) {
+    return null;
+  }
+
+  // G-668: allowlist anchored to path segments inside the project root.
+  if (isAllowlisted(filePath, resolveProjectRoot(hookEnv))) return null;
 
   // G-1799: fail closed on content too large to scan in time.
   if (content.length > MAX_CONTENT_CHARS) {
@@ -181,7 +220,7 @@ function main() {
       const toolName = event?.tool_name || '';
       const toolInput = event?.tool_input || {};
 
-      const reason = checkForSecrets(toolName, toolInput);
+      const reason = checkForSecrets(toolName, toolInput, process.env);
       if (reason) {
         process.stdout.write(JSON.stringify({ decision: 'block', reason }));
       }
@@ -205,6 +244,9 @@ module.exports = {
   SECRET_PATTERNS,
   MAX_CONTENT_CHARS,
   ALLOWLISTED_PATHS,
+  TEST_DIR_SEGMENTS,
+  DOC_BASENAMES,
+  resolveProjectRoot,
   isAllowlisted,
   scanContent,
   extractFromToolInput,
