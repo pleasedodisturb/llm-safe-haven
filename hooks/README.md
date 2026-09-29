@@ -214,12 +214,29 @@ These hooks match patterns in the text of one tool call. They are a tripwire for
 
 **bash-firewall**
 
-- **Wrapped commands are not unwrapped before checking (tracked in G-1787).** Commands wrapped in a shell's `-c` argument, in `eval`, or in command substitution, and command names split up by quotes, are not analysed as commands. A command the firewall blocks in plain form can pass when it is wrapped or quoted this way.
-- **Download-and-execute is not blocked.** Content fetched by `curl`/`wget` and piped to a shell or passed to `eval` passes. Only a base64 decode piped to `sh`/`bash`/`zsh` is blocked.
-- **Writes to `~/.ssh` are not blocked**, including `authorized_keys`. The system-write check covers only `>`/`>>` redirects into `/etc/`, `/usr/`, `/System/` and `/Library/`, and not `tee`, `cp` or `mv`.
+The firewall parses each command with a small shell lexer (G-1787). It re-checks the literal text of commands nested in `sh -c`, `eval`, `$(…)`, backticks, process substitution, aliases, `find -exec` and literal `echo`/`printf` output piped into a shell, and it resolves quote-split command names. On top of the regex checks it blocks:
+
+- credential files sent to the network: agent, cloud, package and shell-history paths
+- macOS keychain secret reads
+- decoded or downloaded content fed to any interpreter
+- recursive delete of `/`, home, `$PWD`, `.`, `..` or the repository root
+- command substitution in a hostname or URL
+- a command word that is itself an expansion or glob
+- writes into `~/.ssh`
+
+- **Fail-closed by design.** The firewall blocks what it cannot analyse, so some ordinary commands are blocked:
+  - unterminated quotes or substitutions
+  - nesting deeper than 8 levels, or more than 400,000 chars of nested text
+  - dynamic `eval`/`sh -c` text, such as `eval "$(ssh-agent -s)"` or `eval "$(direnv hook zsh)"`
+  - an expansion as the command word, such as `"$EDITOR" file` or `$SHELL -c …`
+  - a pipe into a shell's stdin from anything other than literal `echo`/`printf`
+  - `xargs -I` feeding a shell
+
+  Run such commands yourself, or rewrite them with literal text.
+- **Working-directory deletes are blocked.** Recursive deletes of `.`, `./*` and a bare `find -delete` (which starts at `.`) are blocked, for example `find . -name '*.pyc' -delete`. Name a subdirectory instead.
 - **Environment dumps are not blocked.** `printenv`, `env` and echoing a variable pass, and an agent can read every exported variable.
-- **Only the files named by `SENSITIVE_FILE_PATTERNS` count as sensitive.** Uploading any other file passes, for example shell startup or history files, or cloud credential files with other names.
-- From the in-code notes on the exfiltration check: exfiltration through DNS lookups, through variables decoded at run time, or split across separate commands is not detected. Inline `python -c` / `node -e` scripts are checked only for sensitive file names, not for network calls.
+- **Commands split across separate tool calls are not correlated.** For example, one call copies a credential file to a temp path and a later call uploads it. Each call is checked on its own.
+- **Only listed credential paths count as sensitive.** A secret in a file outside the dotenv, agent, cloud, package, SSH and shell-history classes passes.
 - **Over-blocking by design:** the checks read the whole command text, including quoted strings, comments and heredoc bodies. A commit message that quotes a blocked pattern can be blocked. Write such text to a file with the Write tool and pass the file instead.
 
 **secret-guard**
