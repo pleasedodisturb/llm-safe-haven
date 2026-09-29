@@ -874,9 +874,48 @@ function interpreterReadsStdin(name, args) {
   if (name === 'source' || name === '.') {
     return args.length > 0 && (args[0].text === '-' || args[0].text === '/dev/stdin');
   }
-  const positional = args.filter((w) => !w.text.startsWith('-') || w.text === '-');
-  return positional.length === 0 || positional.some((w) => w.text === '-' || w.text === '/dev/stdin');
+  // Whether the interpreter takes its program from stdin. Option letters mean
+  // different things per interpreter and many take a value (python3 -W ignore,
+  // node --require x.js), so the table below is per interpreter: a word only
+  // counts as the program when it is inline code / a module flag, or a
+  // script-file operand that is not an option value. Otherwise: stdin.
+  const spec = interpreterOptionSpec(name);
+  for (let k = 0; k < args.length; k++) {
+    const w = args[k];
+    const t = w.text;
+    if (t === '-' || t === '/dev/stdin') return true;
+    if (w.dynamic) return true;
+    if (t.startsWith('-')) {
+      if (spec.code.test(t)) return false;
+      if (spec.values.has(t)) k++;
+      continue;
+    }
+    return !SCRIPT_FILE_RE.test(t);
+  }
+  return true;
 }
+
+// code: an option word that supplies the program inline (or runs a module);
+// values: options whose value is the NEXT word.
+const INTERPRETER_OPTIONS = {
+  python: { code: /^-[bBdEhiIOPqsSuvVx]*[cm]/, values: new Set(['-W', '-X', '--check-hash-based-pycs']) },
+  node: { code: /^(-e|-p|--eval|--print)(=|$)/, values: new Set(['-r', '--require', '--import', '--loader',
+    '--experimental-loader', '-C', '--conditions', '--input-type', '--env-file', '--title', '--redirect-warnings']) },
+  perl: { code: /^-[aclnpstTuUwWX0-9]*[eE]$/, values: new Set(['-I', '-M', '-m', '-x']) },
+  ruby: { code: /^-[acdlnpsvwyU]*e$/, values: new Set(['-I', '-r', '-C', '-E', '-K', '-x', '-F']) },
+  php: { code: /^-r$/, values: new Set(['-c', '-d', '-z']) },
+  osascript: { code: /^-e$/, values: new Set(['-l', '-s']) },
+  lua: { code: /^-[e]$/, values: new Set(['-l']) },
+  none: { code: /^$/, values: new Set() },
+};
+
+function interpreterOptionSpec(name) {
+  if (/^python[0-9.]*$/.test(name)) return INTERPRETER_OPTIONS.python;
+  if (name === 'node' || name === 'nodejs' || name === 'bun' || name === 'deno') return INTERPRETER_OPTIONS.node;
+  return INTERPRETER_OPTIONS[name] || INTERPRETER_OPTIONS.none;
+}
+
+const SCRIPT_FILE_RE = /\.(py|pyw|pyz|js|mjs|cjs|ts|mts|cts|jsx|tsx|pl|pm|t|rb|php|scpt|applescript|lua|sh|bash|zsh)$/i;
 
 const FILE_OUTPUT_OPS = new Set(['>', '>>', '>|', '&>', '&>>']);
 
