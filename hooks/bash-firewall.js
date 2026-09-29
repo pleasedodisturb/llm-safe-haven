@@ -740,11 +740,13 @@ function lexShell(src) {
 // --- Command resolution ----------------------------------------------------
 
 const RESERVED_WORDS = new Set(['{', '}', '!', 'if', 'then', 'else', 'elif', 'fi', 'do', 'done',
-  'while', 'until', 'time', 'function', 'coproc']);
+  'while', 'until', 'function', 'coproc']);
 
 // Commands that run another command; value = flags that consume the next word.
 const WRAPPER_ARG_FLAGS = {
-  sudo: new Set(['-u', '-g', '-h', '-p', '-C', '-U', '-r', '-t', '-T', '-D', '-R']),
+  sudo: new Set(['-u', '-g', '-h', '-p', '-C', '-U', '-r', '-t', '-T', '-D', '-R', '--user', '--group',
+    '--host', '--prompt', '--close-from', '--chdir', '--role', '--type', '--other-user', '--command-timeout']),
+  busybox: new Set(),
   doas: new Set(['-u', '-C']),
   env: new Set(['-u', '-C', '-P', '--unset', '--chdir']),
   command: new Set(),
@@ -781,10 +783,12 @@ function resolveCommand(cmd) {
   const words = cmd.words;
   let k = 0;
   let splitString = null;
+  const wrappers = [];
+  let xargsReplace = false;
   for (;;) {
     while (k < words.length && isAssignmentWord(words[k])) k++;
     while (k < words.length && !words[k].dynamic && RESERVED_WORDS.has(words[k].text)) k++;
-    if (k >= words.length) return { name: null, args: [], splitString };
+    if (k >= words.length) return { name: null, args: [], splitString, wrappers, xargsReplace };
     const w = words[k];
     if (w.dynamic) {
       return { blocked: `Blocked: the command word is an expansion (${excerpt(w.raw)}) — the command ` +
@@ -796,7 +800,8 @@ function resolveCommand(cmd) {
     }
     const name = commandName(w.text);
     const argFlags = WRAPPER_ARG_FLAGS[name];
-    if (!argFlags) return { name, word: w, args: words.slice(k + 1), splitString };
+    if (!argFlags) return { name, word: w, args: words.slice(k + 1), splitString, wrappers, xargsReplace };
+    wrappers.push(name);
     k++;
     while (k < words.length && !words[k].dynamic) {
       const t = words[k].text;
@@ -806,11 +811,25 @@ function resolveCommand(cmd) {
         k += 2;
         continue;
       }
+      if (name === 'env' && t.startsWith('--split-string=')) {
+        splitString = { text: t.slice('--split-string='.length), dynamic: words[k].dynamic };
+        k++;
+        continue;
+      }
+      if (name === 'env' && /^-S./.test(t)) {
+        splitString = { text: t.slice(2), dynamic: words[k].dynamic };
+        k++;
+        continue;
+      }
       if (!t.startsWith('-') || t === '-') break;
+      if (name === 'xargs' && (t.startsWith('-I') || t.startsWith('-J') || t === '-i' || t.startsWith('--replace'))) {
+        xargsReplace = true;
+      }
       k += argFlags.has(t) ? 2 : 1;
     }
-    if (name === 'timeout' && k < words.length && !words[k].dynamic && /^[0-9.]+[smhd]?$/.test(words[k].text)) k++;
-    if (splitString) return { name: null, args: [], splitString };
+    // timeout always takes a DURATION operand (any spelling, e.g. 1e3s) before the command.
+    if (name === 'timeout' && k < words.length) k++;
+    if (splitString) return { name: null, args: [], splitString, wrappers, xargsReplace };
   }
 }
 
@@ -1011,7 +1030,7 @@ function sensitiveReference(stage) {
 }
 
 /** Pipeline-wide rules: credential files near a network sink; content fed to an interpreter. */
-function checkPipeline(stages) {
+function checkPipeline(stages, depth, state) {
   if (stages.some((s) => s.res.name && NETWORK_SINKS.has(s.res.name))) {
     for (const stage of stages) {
       const hit = sensitiveReference(stage);
@@ -1021,20 +1040,54 @@ function checkPipeline(stages) {
       }
     }
   }
+  let producerSeen = false;
   for (let j = 0; j < stages.length; j++) {
     const { cmd, res } = stages[j];
+    const earlierProducer = producerSeen;
+    if (res.name && isContentProducer(res.name, res.args, cmd.redirects)) producerSeen = true;
     if (!res.name || !isInterpreter(res.name)) continue;
     const reason = `Blocked: decoded or downloaded content fed to an interpreter (${excerpt(res.name)}) — ` +
       'the code that would run cannot be inspected before it runs';
-    if (j > 0 && interpreterReadsStdin(res.name, res.args) &&
-        stages.slice(0, j).some((p) => p.res.name && isContentProducer(p.res.name, p.res.args, p.cmd.redirects))) {
-      return reason;
+    const readsStdin = j > 0 && interpreterReadsStdin(res.name, res.args);
+    if (readsStdin && earlierProducer) return reason;
+    if (readsStdin && SHELLS.has(res.name)) {
+      const prev = stages[j - 1];
+      if (prev.res.name === 'echo' || prev.res.name === 'printf') {
+        if (prev.res.args.some((w) => w.dynamic)) return dynamicReason(`${prev.res.name} piped into ${res.name}`);
+        const piped = analyzeShell(literalOutput(prev.res.name, prev.res.args), depth + 1, state);
+        if (piped) return piped;
+      } else {
+        return `Blocked: unanalysable command (${excerpt(res.name)} reads its script from a pipe whose ` +
+          'content cannot be inspected) — the firewall fails closed when it cannot parse a command';
+      }
     }
     for (const w of [...res.args, ...cmd.redirects.map((r) => r.word)]) {
       for (const body of [...w.substs, ...w.procsubs]) if (textHasProducer(body, 0)) return reason;
     }
   }
   return null;
+}
+
+const ESCAPE_CHARS = { n: '\n', t: '\t', r: '\r', a: '\x07', b: '\b', f: '\f', v: '\v', e: '\x1b', '\\': '\\' };
+
+function decodeEscapes(text) {
+  return text.replace(/\\(x[0-9a-fA-F]{1,2}|0?[0-7]{1,3}|[ntrabfve\\])/g, (m, e) => {
+    if (e[0] === 'x') return String.fromCharCode(parseInt(e.slice(1), 16));
+    if (/^[0-7]/.test(e)) return String.fromCharCode(parseInt(e, 8) & 0xff);
+    return ESCAPE_CHARS[e];
+  });
+}
+
+/** Text echo/printf would write, with escapes and %-conversions resolved (superset for printf). */
+function literalOutput(name, args) {
+  const texts = args.map((w) => w.text);
+  if (name === 'echo') return decodeEscapes(texts.filter((t) => !/^-[neE]+$/.test(t)).join(' '));
+  if (texts.length === 0) return '';
+  const rest = texts.slice(1);
+  let out = decodeEscapes(texts[0]).replace(/%[-+ #0-9.]*[sbdiqcuxXoeEfgG%]/g, (conv) =>
+    conv.endsWith('%') ? '%' : (rest.length ? decodeEscapes(rest.shift()) : ''));
+  if (rest.length) out += '\n' + rest.map(decodeEscapes).join('\n');
+  return out;
 }
 
 function checkKeychain(name, args) {
@@ -1084,7 +1137,7 @@ function deleteReason(target) {
     'repository root or filesystem root';
 }
 
-function checkRecursiveDelete(name, args) {
+function checkRecursiveDelete(name, args, viaXargs) {
   if (name === 'rm') {
     let recursive = false;
     let endOfOptions = false;
@@ -1100,6 +1153,7 @@ function checkRecursiveDelete(name, args) {
       targets.push(w);
     }
     if (!recursive) return null;
+    if (viaXargs) return deleteReason('targets supplied at runtime by xargs');
     const hit = targets.find(isProtectedDeleteTarget);
     return hit ? deleteReason(hit.raw) : null;
   }
@@ -1116,6 +1170,7 @@ function checkRecursiveDelete(name, args) {
     const deletes = rest.includes('-delete') || rest.some((t, j) =>
       (t === '-exec' || t === '-execdir' || t === '-ok') && /^(rm|unlink|shred)$/.test(commandName(rest[j + 1] || '')));
     if (!deletes) return null;
+    if (viaXargs) return deleteReason('paths supplied at runtime by xargs');
     if (paths.length === 0) return deleteReason('. (find default)');
     const hit = paths.find(isProtectedDeleteTarget);
     return hit ? deleteReason(hit.raw) : null;
@@ -1126,9 +1181,46 @@ function checkRecursiveDelete(name, args) {
 const HOST_TOOLS = new Set(['dig', 'nslookup', 'host', 'drill', 'ping', 'ping6', 'traceroute', 'traceroute6',
   'tracepath', 'mtr', 'curl', 'wget', 'nc', 'ncat', 'netcat', 'socat', 'telnet', 'whois']);
 
+const CURL_VALUE_SHORT = new Set('AbcCdDeEFHKmoPQrTuUwxXyYz'.split(''));
+const CURL_VALUE_LONG = new Set(['--header', '--output', '--data', '--data-raw', '--data-binary', '--data-ascii',
+  '--data-urlencode', '--form', '--form-string', '--user', '--user-agent', '--referer', '--cookie', '--cookie-jar',
+  '--proxy', '--proxy-user', '--request', '--write-out', '--config', '--cert', '--key', '--cacert', '--capath',
+  '--connect-to', '--resolve', '--max-time', '--connect-timeout', '--retry', '--retry-delay', '--upload-file',
+  '--output-dir', '--range', '--limit-rate', '--oauth2-bearer', '--interface', '--dns-servers', '--json']);
+const WGET_VALUE_SHORT = new Set('oaOeUPTtwQiBlDA'.split(''));
+const WGET_VALUE_LONG = new Set(['--output-file', '--append-output', '--output-document', '--execute', '--user-agent',
+  '--directory-prefix', '--timeout', '--tries', '--wait', '--quota', '--input-file', '--base', '--level', '--domains',
+  '--accept', '--header', '--user', '--password', '--post-data', '--post-file', '--body-data', '--body-file',
+  '--method', '--referer', '--load-cookies', '--save-cookies', '--ca-certificate', '--certificate', '--private-key']);
+
+/** Words of a curl/wget command that sit in URL position (option values skipped). */
+function urlPositionArgs(name, args) {
+  const shortValues = name === 'curl' ? CURL_VALUE_SHORT : WGET_VALUE_SHORT;
+  const longValues = name === 'curl' ? CURL_VALUE_LONG : WGET_VALUE_LONG;
+  const out = [];
+  for (let k = 0; k < args.length; k++) {
+    const w = args[k];
+    const t = w.text;
+    if (t === '--url') { if (args[k + 1]) out.push(args[k + 1]); k++; continue; }
+    if (t.startsWith('--url=')) { out.push(w); continue; }
+    if (t.startsWith('--')) { if (!t.includes('=') && longValues.has(t)) k++; continue; }
+    if (t[0] === '-' && t.length > 1 && !w.dynamic) {
+      const letters = t.slice(1);
+      const at = [...letters].findIndex((ch) => shortValues.has(ch));
+      if (at === letters.length - 1) k++;
+      continue;
+    }
+    out.push(w);
+  }
+  return out;
+}
+
 function checkHostnameSubstitution(name, args) {
   if (!HOST_TOOLS.has(name)) return null;
-  const hit = args.find((w) => w.hasSubst && !w.text.startsWith('-'));
+  const candidates = name === 'curl' || name === 'wget'
+    ? urlPositionArgs(name, args)
+    : args.filter((w) => !w.text.startsWith('-'));
+  const hit = candidates.find((w) => w.hasSubst);
   return hit
     ? `Blocked: command substitution in a hostname or network argument of ${name} (${excerpt(hit.raw)}) — ` +
       'a DNS/URL exfiltration channel'
@@ -1203,8 +1295,46 @@ function checkCommand(stage, depth, state) {
     if (reason) return reason;
   }
   const name = res.name;
+  const viaXargs = (res.wrappers || []).includes('xargs');
+  for (const w of cmd.words) {
+    if (w.dynamic && /\$\{?IFS\b/.test(w.text)) return dynamicReason(`IFS word splitting (${excerpt(w.raw)})`);
+  }
+  if (viaXargs && res.xargsReplace && name && (isInterpreter(name) || name === 'eval')) {
+    return dynamicReason(`xargs -I substituting runtime text into ${name}`);
+  }
+  if (name === 'alias') {
+    for (const w of res.args) {
+      const eq = w.text.indexOf('=');
+      if (eq <= 0) continue;
+      if (w.dynamic) return dynamicReason('alias');
+      const reason = analyzeShell(w.text.slice(eq + 1), depth + 1, state);
+      if (reason) return reason;
+    }
+  }
+  if (name === 'find') {
+    const texts = res.args.map((w) => w.text);
+    for (let k = 0; k < texts.length; k++) {
+      if (!['-exec', '-execdir', '-ok', '-okdir'].includes(texts[k])) continue;
+      let end = k + 1;
+      while (end < texts.length && texts[end] !== ';' && texts[end] !== '+') end++;
+      const execCmd = { words: res.args.slice(k + 1, end), redirects: [], heredocs: [] };
+      const legacy = runLegacyChecks(execCmd.words.map((w) => w.text).join(' '));
+      if (legacy) return legacy;
+      const reason = checkCommand({ cmd: execCmd, res: resolveCommand(execCmd) }, depth, state);
+      if (reason) return reason;
+      k = end;
+    }
+  }
   if (name && SHELLS.has(name)) {
-    const { script } = parseShellArgs(res.args);
+    const { script, readsStdin } = parseShellArgs(res.args);
+    if (readsStdin) {
+      for (const r of cmd.redirects) {
+        if (r.op !== '<<<') continue;
+        if (r.word.dynamic && !r.word.substs.length && !r.word.procsubs.length) return dynamicReason(`${name} <<<`);
+        const reason = analyzeShell(r.word.text, depth + 1, state);
+        if (reason) return reason;
+      }
+    }
     if (script) {
       if (script.dynamic) return dynamicReason(`${name} -c`);
       const reason = analyzeShell(script.text, depth + 1, state);
@@ -1220,7 +1350,7 @@ function checkCommand(stage, depth, state) {
     if (reason) return reason;
   }
   if (name) {
-    const reason = checkKeychain(name, res.args) || checkRecursiveDelete(name, res.args) ||
+    const reason = checkKeychain(name, res.args) || checkRecursiveDelete(name, res.args, viaXargs) ||
       checkHostnameSubstitution(name, res.args);
     if (reason) return reason;
   }
@@ -1286,7 +1416,7 @@ function analyzeShell(src, depth, state) {
     const legacy = runLegacyChecks(reconstructPipeline(pipeline));
     if (legacy) return legacy;
     const stages = pipeline.map((cmd) => ({ cmd, res: resolveCommand(cmd) }));
-    const piped = checkPipeline(stages);
+    const piped = checkPipeline(stages, depth, state);
     if (piped) return piped;
     for (const stage of stages) {
       const reason = checkCommand(stage, depth, state);
@@ -1314,6 +1444,9 @@ const ALL_CHECKS = [
 ];
 
 function runChecks(command) {
+  if (typeof command !== 'string') {
+    return 'Blocked: command is not a string — the bash firewall fails closed on malformed input';
+  }
   // G-1799: fail closed on oversized input before any regex runs.
   if (command.length > MAX_COMMAND_CHARS) {
     return `Blocked: command is ${command.length} chars, which exceeds the bash firewall's ` +

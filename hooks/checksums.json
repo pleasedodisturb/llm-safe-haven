@@ -1,6 +1,6 @@
 {
   "audit-logger.js": "eddf073a1753a990eeca9f87f71291f426fb277309963ece5128f2f101050e6c",
-  "bash-firewall.js": "48ef7ab076a4e79eb90601ff6244cfc8321f0f28a7e5e23cd8db3fd03039a02b",
+  "bash-firewall.js": "39829d21fe6339070cc0b2cdbf6232e803b02385f390af5eb9a5424d96e32384",
   "config-guard.js": "6e9ac5e5b7cce8bf03cb513164dc29fac5c66b0a84edb243e99004a8401b2448",
   "secret-guard.js": "8d89d664c2b165243d78f32ea59b9b1adc99a9b2c89e9cf7a7685bcda3d5e75c"
 }
